@@ -140,11 +140,26 @@ npm run example   # genera factura-ejemplo.html y ticket-ejemplo.txt
 
 ## Hoja de ruta
 
-- [ ] Ticket (09), Recibo por Honorarios (04), Comprobante de Retención (05)
-- [ ] Exportaciones a tasa cero
+- [ ] Exportaciones a tasa cero (Art. 12)
+- [ ] Anulación (Art. 41) y aviso de documentos no utilizados (Art. 42)
 - [ ] Generación de PDF sin navegador
+- [ ] API REST (alojada o instalada en el local del negocio) y servidor MCP
+- [ ] Comprobante de Retención (05), Guía de Remisión (08) y Boleta de Compra (11)
 - [ ] Paquetes hermanos: Python y .NET
-- [ ] Módulo de factura electrónica estructurada cuando el SAR publique un esquema obligatorio
+- [ ] Módulo de factura electrónica (CAEE) cuando el SAR publique la documentación técnica (Arts. 54 y 58)
+
+**Lo que esta librería no va a emitir, y por qué.** Es software para la modalidad de *autoimpresor por
+sistema computarizado*, y el Reglamento reserva algunos documentos para otras modalidades:
+
+- **Ticket (09)**: se emite «exclusivamente para consumidores finales a través de **máquinas registradoras**
+  autorizadas» (Art. 4 num. 43) con memoria fiscal inamovible (Art. 52). Un sistema computarizado emite
+  **Factura** también a consumidor final.
+- **Recibo por Honorarios Profesionales (04)** y **Factura Prevalorada (10)**: «deben ser exclusivamente emitidos
+  bajo la modalidad de **imprenta**» (Art. 46). La **Constancia de Donación (12)** también está excluida del
+  autoimpresor (Art. 47).
+
+Los códigos se reconocen al parsear números y referencias, pero `validarEntrada` rechaza emitirlos.
+Detalle y citas en [docs/investigacion.md](docs/investigacion.md).
 
 Las contribuciones son bienvenidas, sobre todo de contadores y de desarrolladores con sistemas ya autorizados.
 

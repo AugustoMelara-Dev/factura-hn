@@ -4,3 +4,4 @@ dist
 *.txt
 !llms.txt
 .DS_Store
+referencias/
