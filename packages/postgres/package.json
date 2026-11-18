@@ -1,0 +1,52 @@
+{
+  "name": "@factura-hn/postgres",
+  "version": "0.2.0",
+  "description": "Adaptador PostgreSQL de AlmacenFiscal para factura-hn (API, varias cajas, multi-tenant).",
+  "keywords": [
+    "honduras",
+    "sar",
+    "factura",
+    "postgres",
+    "postgresql",
+    "pg"
+  ],
+  "license": "MIT",
+  "author": "Augusto Melara (VitoCode Technologies)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "factura-hn": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "factura-hn": "workspace:*",
+    "pg": "^8.23.1"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}

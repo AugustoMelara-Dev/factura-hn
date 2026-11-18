@@ -1,99 +1,91 @@
-# Persistencia de correlativos y documentos
+# Persistencia: `AlmacenFiscal`
 
-`factura-hn` no trae base de datos. Tú implementas `AlmacenCorrelativos` sobre la tuya.
-Lo único que **tiene** que cumplir: reservar el siguiente correlativo de forma **atómica**
-(dos cajas facturando al mismo tiempo nunca pueden recibir el mismo número).
+`factura-hn` emite siempre sobre un `AlmacenFiscal`. `emitir` bloquea la serie, elige la autorización, valida,
+construye y guarda el documento en una transacción. Si algo falla, el número no se consume.
 
-## Reglas que el sistema debe respetar
+## Qué almacén usar
 
-1. **Un correlativo por documento, sin huecos ni repetidos.** `crearDocumento` valida antes de reservar
-   el número; si algo falla después de reservarlo (se cae la impresora, se cancela la venta), el documento
-   se guarda como **anulado**, no se borra ni se reutiliza el número.
-2. **Guarda el documento completo** (el JSON que devuelve `crearDocumento`) y no lo modifiques después.
-   Para corregir una factura emitida se usa una Nota de Crédito (06) o de Débito (07).
-3. **Una fila de autorización por CAI.** Cuando el SAR te dé un nuevo CAI, se crea otra fila; la vieja queda
-   como historial.
-4. Conserva los documentos por el plazo que exige la ley (5 años es lo usual; confírmalo con tu contador).
+| Proyecto | Almacén |
+|---|---|
+| PostgreSQL, Supabase, Neon, RDS… | `@factura-hn/postgres` → `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
+| POS fuera de línea, Electron, instalación local | `@factura-hn/sqlite` → `new AlmacenSQLite(new Database('fiscal.db'))` |
+| Pruebas y demos | `AlmacenFiscalMemoria` (se pierde al reiniciar) |
+| Otra base (MySQL, SQL Server, IndexedDB…) | Implementa `AlmacenFiscal` y hazlo pasar la batería de contrato (abajo) |
 
-## PostgreSQL / Supabase
+Los dos adaptadores crean sus tablas `fhn_*` y además las protegen con disparadores: no se pueden borrar
+documentos ni autorizaciones, un documento emitido solo puede pasar a ANULADO y la serie nunca retrocede.
+Esto se cumple aunque alguien edite la base a mano.
 
-```sql
-create table autorizaciones_cai (
-  cai                 text primary key,
-  tipo_documento      char(2)  not null,
-  establecimiento     char(3)  not null,
-  punto_emision       char(3)  not null,
-  rango_inicial       integer  not null,
-  rango_final         integer  not null,
-  fecha_limite        date     not null,
-  ultimo_correlativo  integer,              -- null = aún no se emite ninguno
-  activa              boolean  not null default true,
-  check (rango_inicial between 1 and 99999999),
-  check (rango_final between rango_inicial and 99999999)
-);
+## Reglas que cumple cualquier almacén
 
-create table documentos_fiscales (
-  numero        char(19) primary key,       -- 000-001-01-00000001
-  cai           text not null references autorizaciones_cai(cai),
-  tipo          char(2) not null,
-  fecha_emision date not null,
-  total         numeric(14,2) not null,
-  anulado       boolean not null default false,
-  motivo_anulacion text,
-  documento     jsonb not null,             -- DocumentoFiscal completo
-  creado_en     timestamptz not null default now()
-);
+1. **Una serie por identificador** `NNN-NNN-TT` (establecimiento, punto de emisión y tipo; Reglamento Art. 10
+   num. 7), no por CAI. Un identificador acumula autorizaciones con el tiempo y la numeración continúa de una
+   a otra.
+2. **Sin huecos ni repetidos.** Dos cajas que emiten a la vez se serializan en la serie.
+3. **Todo o nada.** El documento se guarda en la misma transacción que consume el número. Lo que falle
+   *después* de confirmar (impresión, pago) se resuelve anulando con `anular` (Art. 41), nunca borrando.
+4. **Inmutable.** El documento guardado no se modifica; solo pasa de EMITIDO a ANULADO. Una factura se corrige
+   con Nota de Crédito (06) o de Débito (07).
+5. **Conservación.** El Código Tributario (Arts. 58.4 y 63.3) pide conservar la información 5 años en el
+   domicilio fiscal. Haz respaldos.
 
--- Reserva atómica: una sola sentencia UPDATE ... RETURNING.
-create or replace function siguiente_correlativo(p_cai text)
-returns integer language plpgsql as $$
-declare v integer;
-begin
-  update autorizaciones_cai
-     set ultimo_correlativo = coalesce(ultimo_correlativo, rango_inicial - 1) + 1
-   where cai = p_cai
-     and coalesce(ultimo_correlativo, rango_inicial - 1) + 1 <= rango_final
-  returning ultimo_correlativo into v;
-  if v is null then
-    raise exception 'RANGO_AGOTADO' using hint = p_cai;
-  end if;
-  return v;
-end $$;
-```
+## Sistemas en red (Art. 48)
 
-Con Supabase, ejecuta la función desde el servidor (route handler / edge function con la service key),
-nunca desde el navegador, y protege ambas tablas con RLS por tenant.
+El Reglamento admite tres estructuras (Art. 48, C L.2083-2115). En factura-hn cada serie es un
+identificador `establecimiento-puntoEmision-tipo`, así que la estructura se elige con los puntos de emisión
+que se registran ante el SAR y con dónde vive el almacén:
+
+| Estructura | Numeración | Cómo se configura |
+|---|---|---|
+| Centralizado | Una sola para todo el país | Un único establecimiento y punto de emisión (p. ej. `000-001`) en un almacén central (Postgres). Todas las cajas llaman a la misma API o base; el bloqueo de la serie ordena los números |
+| Regional | Una por región | Un punto de emisión por región (p. ej. `000-001` norte, `000-002` sur), cada uno con sus autorizaciones; puede ser un almacén por región o uno central |
+| Por sucursal | Varias, por sucursal | Un establecimiento por sucursal y uno o más puntos de emisión por caja (`001-001`, `001-002`, …). Con SQLite, cada caja fuera de línea tiene su propio punto de emisión: dos cajas nunca comparten serie sin un almacén común |
+
+La regla de oro: **una serie, un almacén**. Dos procesos pueden emitir en la misma serie solo si comparten
+el mismo almacén transaccional (Postgres, o el mismo archivo SQLite en la misma máquina).
+
+## Escribir tu propio almacén
+
+Implementa dos interfaces:
 
 ```ts
-import { RangoAgotadoError, type AlmacenCorrelativos } from 'factura-hn';
+interface AlmacenFiscal {
+  transaccion<T>(fn: (tx: TransaccionFiscal) => Promise<T>): Promise<T>; // todo o nada
+}
 
-export const almacenSupabase = (supabase: SupabaseClient): AlmacenCorrelativos => ({
-  async siguiente(aut) {
-    const { data, error } = await supabase.rpc('siguiente_correlativo', { p_cai: aut.cai });
-    if (error?.message.includes('RANGO_AGOTADO')) throw new RangoAgotadoError(aut.cai);
-    if (error) throw error;
-    return data as number;
-  },
+interface TransaccionFiscal {
+  bloquearSerie(identificador: string): Promise<EstadoSerie>;   // bloqueo exclusivo hasta el fin
+  autorizaciones(identificador: string): Promise<AutorizacionCAI[]>;
+  guardarAutorizacion(autorizacion: AutorizacionCAI): Promise<void>;
+  guardarDocumento(doc: DocumentoFiscal): Promise<void>;        // y avanza la serie
+  guardarAnulacion(doc: DocumentoFiscal): Promise<void>;
+  buscarDocumento(numero: string): Promise<DocumentoFiscal | null>;
+  documentos(filtro?: FiltroDocumentos): Promise<DocumentoFiscal[]>;
+  registrarEvento(evento: EventoAuditoria): Promise<void>;     // bitácora: solo inserción
+  eventos(filtro?: FiltroEventos): Promise<EventoAuditoria[]>;  // en orden de registro
+}
+```
+
+`EstadoSerie.ultimaFecha` es la fecha más reciente entre los documentos **EMITIDOS** de la serie; al anular,
+recalcúlala (así un documento anulado por fecha errónea deja de trabar la serie).
+
+Las validaciones (solapamiento de rangos, vigencia, cálculo) las hace el core; el almacén solo guarda y
+bloquea. Para el bloqueo, en MySQL o SQL Server usa `SELECT … FOR UPDATE` / `WITH (UPDLOCK, ROWLOCK)` sobre la
+fila de la serie; en IndexedDB, una transacción `readwrite` sobre el almacén de series.
+
+Después corre la batería de contrato con tu framework de pruebas:
+
+```ts
+import { describe, it } from 'vitest';
+import { ejecutarContratoAlmacen } from 'factura-hn/pruebas';
+
+ejecutarContratoAlmacen({ describe, it }, {
+  nombre: 'MySQL',
+  crear: async () => crearAlmacenVacio(),             // un almacén aislado por prueba
+  otraConexion: async (a) => otraConexionAlMismo(a),  // otra «caja» sobre los mismos datos
 });
 ```
 
-Para que el número no se pierda si falla el `insert` del documento, haz las dos cosas en la misma
-transacción (una función SQL que reserve e inserte), o inserta el documento como anulado en el `catch`.
-
-## MySQL / MariaDB
-
-```sql
-START TRANSACTION;
-SELECT COALESCE(ultimo_correlativo, rango_inicial - 1) + 1 AS siguiente, rango_final
-  FROM autorizaciones_cai WHERE cai = ? FOR UPDATE;
--- si siguiente > rango_final -> ROLLBACK y error RANGO_AGOTADO
-UPDATE autorizaciones_cai SET ultimo_correlativo = ? WHERE cai = ?;
-INSERT INTO documentos_fiscales (...) VALUES (...);
-COMMIT;
-```
-
-## SQLite (POS offline)
-
-SQLite serializa las escrituras; usa `BEGIN IMMEDIATE` y el mismo `UPDATE ... RETURNING` (SQLite ≥ 3.35).
-Cada caja offline debe tener **su propio punto de emisión y su propio CAI**: nunca compartas un rango
-entre dispositivos que no están conectados, porque se duplicarían números.
+La batería verifica la numeración consecutiva, la continuidad entre autorizaciones, el salto de CAI vencidos,
+que un fallo no consuma número, la anulación, el orden cronológico, el procedimiento ante reloj adelantado, la
+bitácora y 50 emisiones concurrentes desde 5 conexiones. Si quitas el bloqueo de la serie, la prueba de concurrencia falla.

@@ -1,50 +1,20 @@
 {
-  "name": "factura-hn",
-  "version": "0.1.0",
-  "description": "Facturación SAR Honduras (Acuerdo 481-2017): numeración, control de CAI y rangos, cálculo de ISV 15%/18%, montos en letras, validación y render imprimible. Sin dependencias. Lista para usar con agentes de IA.",
-  "keywords": [
-    "honduras",
-    "sar",
-    "factura",
-    "facturacion",
-    "cai",
-    "isv",
-    "autoimpresor",
-    "pos",
-    "invoice",
-    "lempiras"
-  ],
+  "name": "factura-hn-monorepo",
+  "private": true,
+  "description": "Monorepo de factura-hn: SDK, API REST y servidor MCP para facturación SAR Honduras.",
   "license": "MIT",
   "author": "Augusto Melara (VitoCode Technologies)",
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "AGENTS.md",
-    "llms.txt",
-    "skills",
-    "docs",
-    "LICENSE"
-  ],
-  "sideEffects": false,
+  "packageManager": "pnpm@12.14.0",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "example": "npx tsx examples/basico.ts"
+    "build": "pnpm -r --filter ./packages/* build",
+    "test": "pnpm -r --filter ./packages/* test",
+    "typecheck": "pnpm -r typecheck",
+    "test:pg": "node scripts/test-pg.mjs",
+    "verificar:dist": "pnpm build && node scripts/verificar-dist.mjs",
+    "example": "pnpm --filter factura-hn build && pnpm --filter ./examples/basico start"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
