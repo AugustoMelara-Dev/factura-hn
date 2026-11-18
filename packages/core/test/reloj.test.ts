@@ -74,7 +74,8 @@ describe('no se permite retrofechar ni adelantar (Arts. 14 y 43)', () => {
 describe('la zona del servidor nunca decide la fecha', () => {
   it('el código fuente no usa getters de fecha en la zona local', () => {
     const dir = join(__dirname, '..', 'src');
-    for (const archivo of readdirSync(dir)) {
+    const archivos = readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter((a) => a.endsWith('.ts'));
+    for (const archivo of archivos) {
       const fuente = readFileSync(join(dir, archivo), 'utf8');
       expect(fuente, archivo).not.toMatch(
         /\.(getDate|getDay|getMonth|getFullYear|getHours|toDateString|toLocaleDateString)\(/,

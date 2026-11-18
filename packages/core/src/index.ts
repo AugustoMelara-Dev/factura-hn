@@ -76,6 +76,18 @@ export {
   CONSUMIDOR_FINAL,
   DESTINO_EJEMPLARES,
 } from './documento';
+export { AlmacenFiscalMemoria, identificadorDe, identificadorDeNumero } from './almacen';
+export type { AlmacenFiscal, TransaccionFiscal, EstadoSerie, FiltroDocumentos } from './almacen';
+export {
+  emitir,
+  anular,
+  buscarDocumento,
+  registrarAutorizacion,
+  validarNuevaAutorizacion,
+  elegirAutorizacion,
+  nombreDeIdentificador,
+} from './emision';
+export type { OpcionesEmision } from './emision';
 export { anularDocumento, estaAnulado, LEYENDA_ANULADA } from './anulacion';
 export type { OpcionesAnulacion } from './anulacion';
 export { congelar } from './inmutable';

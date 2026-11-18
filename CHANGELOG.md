@@ -2,6 +2,10 @@
 
 ## 0.2.0 — sin publicar
 
+> `AlmacenCorrelativos`, `AlmacenMemoria` y `crearDocumento` siguen funcionando pero quedan **obsoletos**:
+> llevan el correlativo por CAI y no guardan el documento en la misma transacción. Usa `AlmacenFiscal` y
+> `emitir`. Se quitarán en 1.0.0.
+
 Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles
 van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0.0.
 
@@ -26,6 +30,15 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
+- **`AlmacenFiscal` y emisión atómica (B-04, B-18).** `emitir(entrada, { almacen, establecimiento,
+  puntoEmision })` bloquea la serie del identificador `NNN-NNN-TT`, elige la autorización vigente que cubre el
+  siguiente número (la numeración continúa de un CAI al siguiente; los números de un CAI vencido se saltan y
+  nunca se emiten), valida, construye y guarda en una sola transacción. Si algo falla, el número no se consume.
+  `registrarAutorizacion` rechaza rangos solapados y CAI repetidos; `anular(numero, …)` guarda la forma ANULADA;
+  `FECHA_ANTERIOR_AL_ULTIMO` si el reloj quedó antes del último documento (Art. 43). Gancho `alEmitir` dentro
+  de la transacción para el asiento contable (Art. 53). `AlmacenFiscalMemoria` incluido.
+- **`factura-hn/pruebas`:** `ejecutarContratoAlmacen({ describe, it }, config)`, la batería de contrato que
+  debe pasar cualquier adaptador, con 50 emisiones concurrentes desde 5 cajas.
 - **Anulación (B-06, Art. 41):** `anularDocumento(doc, { motivo })` devuelve un documento nuevo con
   `estado: 'ANULADO'` y `anulacion { motivo, fecha, hora }`; el número se conserva. El HTML y el texto imprimen
   la leyenda «ANULADA». `filaLibroVentas` toma el estado del documento. `estaAnulado`, `LEYENDA_ANULADA`,
