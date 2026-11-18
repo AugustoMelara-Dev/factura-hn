@@ -160,6 +160,9 @@ h2,h3,h4{line-height:1.3;text-wrap:balance}h1,h2,h3,h4{position:relative;scroll-
 .ancla{position:absolute;left:-1em;width:1em;color:var(--suave);text-decoration:none;opacity:0}h2:hover .ancla,h3:hover .ancla,h4:hover .ancla{opacity:1}
 code{font:.88em/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--codigo);padding:.1em .3em;border-radius:4px;overflow-wrap:anywhere}
 pre{background:var(--codigo);border:1px solid var(--borde);border-radius:8px;padding:12px 14px;overflow-x:auto}pre code{background:none;padding:0;overflow-wrap:normal}
+/* Los prompts son prosa: se ajustan al ancho en lugar de desplazarse. */
+pre:has(code.language-text){white-space:pre-wrap;overflow-wrap:anywhere}
+td code,th code{overflow-wrap:break-word}
 .tabla{overflow-x:auto;margin:1em 0;border:1px solid var(--borde);border-radius:8px}
 table{border-collapse:collapse;width:100%;font-size:14.5px}th,td{padding:7px 10px;border-bottom:1px solid var(--borde);text-align:left;vertical-align:top}
 th{background:var(--caja);font-weight:600}tr:last-child td{border-bottom:0}
