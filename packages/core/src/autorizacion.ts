@@ -101,7 +101,9 @@ export function estadoAutorizacion(
   opciones: { hoy?: string; diasAviso?: number; porcentajeAviso?: number } = {},
 ): EstadoAutorizacion {
   const hoy = opciones.hoy ?? fechaHonduras();
-  const diasAviso = opciones.diasAviso ?? 30;
+  // Art. 59 (C L.2245-2266): la nueva autorización se solicita «dentro de los dos (2) meses previos» a la
+  // fecha límite de emisión. Avisar a 60 días deja la ventana completa para tramitarla.
+  const diasAviso = opciones.diasAviso ?? 60;
   const porcentajeAviso = opciones.porcentajeAviso ?? 90;
 
   const total = aut.rangoFinal - aut.rangoInicial + 1;

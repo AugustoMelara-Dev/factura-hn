@@ -103,6 +103,13 @@ export {
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
+export {
+  CAUSALES_NO_UTILIZACION,
+  decimoDiaHabilDelMesSiguiente,
+  documentosNoUtilizados,
+  noUtilizadosDelAlmacen,
+} from './no-utilizados';
+export type { CausalNoUtilizacion, OpcionesNoUtilizados, RangoNoUtilizado } from './no-utilizados';
 export { estaAnulado, LEYENDA_ANULADA } from './anulacion';
 export { congelar } from './inmutable';
 export { renderizarHTML, renderizarTexto } from './render';

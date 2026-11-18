@@ -147,6 +147,8 @@ insegura · **B** = mejora o documentación.
 | B-12 exonerado OCE + constancia o SAG/RUPNSA | cerrada | `paso7-requisitos.test.ts` («B-12 …») |
 | B-13 coherencia de notas | cerrada | `packages/core/test/b13-notas.test.ts` |
 | B-15 tipos no emitibles por sistema | cerrada | `paso7-requisitos.test.ts` («B-15 …») |
+| B-07 documentos no utilizados | cerrada | `packages/core/test/paso8-no-utilizados.test.ts` («B-07 …») |
+| B-11 aviso de renovación a 60 días | cerrada | `paso8-no-utilizados.test.ts` («B-11 …») |
 | Reloj adelantado (revisión del 2026-11-18) | cerrada | contrato: «rechaza un salto de fecha sospechoso…», «procedimiento ante reloj adelantado…» |
 | Bitácora de auditoría | cerrada | contrato: «la bitácora registra autorizaciones y anulaciones…»; disparadores en SQLite y Postgres |
 

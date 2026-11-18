@@ -166,7 +166,8 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 
 ### Autorizaciones
 
-- `estadoAutorizacion(autorizacion, ultimoCorrelativo, { hoy?, diasAviso?, porcentajeAviso? })`
+- `estadoAutorizacion(autorizacion, ultimoCorrelativo, { hoy?, diasAviso?, porcentajeAviso? })`: aviso de renovación a 60 días por defecto (Art. 59)
+- `documentosNoUtilizados(autorizaciones, ultimoCorrelativo, { hoy?, feriados?, evento? })` · `noUtilizadosDelAlmacen(almacen, identificador, …)`: rangos sin usar, causal y fecha límite para avisar al SAR (Art. 42)
   → `{ vigente, diasRestantes, correlativosRestantes, siguienteCorrelativo, porcentajeUsado, alertas }`
 - `validarAutorizacion(autorizacion)`
 

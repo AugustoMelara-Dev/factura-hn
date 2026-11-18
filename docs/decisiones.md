@@ -57,3 +57,16 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** campo opcional `AutorizacionCAI.ultimoEmitidoAntes`. La serie continúa en el siguiente; los
   números ≤ ese valor que no están en el almacén son externos (aviso); los mayores no consumidos, error.
 - **Alternativa:** un método `avanzarSerie` en el contrato del almacén (cambia los tres adaptadores).
+
+### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión
+- **Contexto:** Art. 42 num. 1 cuenta el plazo desde el «vencimiento del plazo de vigencia». Puede leerse como
+  la fecha límite o el día siguiente; si la fecha límite es el último día del mes, el aviso cambia de mes.
+- **Elegida:** la fecha límite (lectura conservadora: el aviso nunca queda tarde).
+- **Alternativa:** el día siguiente a la fecha límite.
+
+### DEC-010 · Sin calendario de feriados en el SDK
+- **Contexto:** el plazo del Art. 42 es en días hábiles; los feriados de Honduras cambian por decreto
+  (feriados morazánicos que se trasladan).
+- **Elegida:** solo se descuentan sábados y domingos; el integrador pasa `feriados`. Sin ellos la fecha puede
+  quedar después de la real, lo que está documentado en la opción.
+- **Alternativa:** una lista fija en el código (se desactualiza sin aviso).
