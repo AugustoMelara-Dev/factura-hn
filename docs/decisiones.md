@@ -90,3 +90,11 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** por defecto, error `CAI_FORMATO` solo si tiene espacios internos, signos o guiones repetidos
   (letras y dígitos con guiones entre grupos). El patrón 6-6-6-6-6-2 queda en `caiEstricto`.
 - **Alternativa:** aceptar cualquier texto no vacío (deja pasar errores de digitación evidentes).
+
+### DEC-014 · El PDF reutiliza `renderizarTexto`
+- **Contexto:** el PDF debe tener exactamente los datos fiscales del documento, y el impreso HTML y el
+  texto ya están probados.
+- **Elegida:** el PDF dibuja las líneas de `renderizarTexto` en Courier (carta a 90 columnas, ticket a 42),
+  con negrita para tipo, número y ANULADA. Un solo lugar decide qué se imprime.
+- **Alternativa:** un diseño propio de carta con tablas (más vistoso, pero una tercera copia de las reglas
+  de impresión).

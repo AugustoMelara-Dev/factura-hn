@@ -162,6 +162,7 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 
 - `AlmacenFiscal` (interfaz) · `AlmacenFiscalMemoria` (pruebas y demos)
 - `@factura-hn/postgres` (`AlmacenPostgres`) · `@factura-hn/sqlite` (`AlmacenSQLite`)
+- `@factura-hn/pdf` (`renderizarPDF(doc, { formato: 'carta' | 'ticket' })`): PDF sin navegador
 - `factura-hn/pruebas`: `ejecutarContratoAlmacen` para validar tu propio adaptador
 
 ### Autorizaciones

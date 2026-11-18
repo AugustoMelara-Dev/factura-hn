@@ -1,0 +1,46 @@
+{
+  "name": "@factura-hn/pdf",
+  "version": "0.2.0",
+  "description": "PDF de documentos fiscales de factura-hn (carta y ticket 80 mm), sin navegador.",
+  "keywords": [
+    "honduras",
+    "sar",
+    "factura",
+    "pdf"
+  ],
+  "license": "MIT",
+  "author": "Augusto Melara (VitoCode Technologies)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "factura-hn": "workspace:^"
+  },
+  "devDependencies": {
+    "factura-hn": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1"
+  }
+}

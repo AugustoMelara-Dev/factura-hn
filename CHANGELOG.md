@@ -43,6 +43,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- **`@factura-hn/pdf`:** `renderizarPDF(doc, { formato: 'carta' | 'ticket' })` con pdf-lib, sin navegador;
+  leyenda y marca de agua ANULADA; salida determinista.
 - **Exportación a texto (B-10, Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con
   `leerExportacionJSONL`), `csv` y `txt`; importes escritos desde centavos.
 - **Integración contable (Art. 53 num. 1):** interfaz `LibroContable`, que corre dentro de la transacción de
