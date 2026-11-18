@@ -7,7 +7,11 @@ import { formatearDNI, formatearRTN } from './identificacion';
 import type { DocumentoFiscal, TratamientoISV } from './tipos';
 
 export interface OpcionesRender {
-  /** 'carta' (por defecto) o 'ticket' (80 mm). */
+  /**
+   * 'carta' (por defecto) o 'ticket' (80 mm). Imprimir en papel térmico exige presentar antes al SAR la
+   * certificación del proveedor de que el papel conserva la impresión al menos 5 años (Reglamento Art. 38,
+   * C L.1872-1895); sin ella el documento no sustenta gastos ni crédito fiscal.
+   */
   formato?: 'carta' | 'ticket';
   /** Leyenda opcional al pie, p. ej. "La factura es beneficio de todos, exíjala." (no la exige el reglamento). */
   leyenda?: string | null;

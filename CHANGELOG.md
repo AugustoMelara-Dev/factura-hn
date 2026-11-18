@@ -37,6 +37,10 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - `TIPO_NO_EMITIBLE` (en lugar de `TIPO_NO_SOPORTADO`) para 04, 09, 10 y 12, también al registrar la
   autorización (B-15, Arts. 4 num. 43, 46 y 47).
 
+- **CAI (B-09):** desaparece `CAI_FORMATO_ADVERTENCIA`. Por defecto el CAI solo debe tener letras, dígitos
+  y guiones entre grupos (Art. 4 num. 7: «serie alfanumérica»); el patrón 6-6-6-6-6-2 se exige solo con
+  `caiEstricto: true`, como error `CAI_FORMATO`.
+
 ### Agregado
 
 - **Exportación a texto (B-10, Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con

@@ -83,3 +83,10 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** `LibroContable` síncrono con la transacción: si falla, no hay documento. Para sistemas externos
   se recomienda una cola (outbox) en la misma base.
 - **Alternativa:** notificar después del commit (más rápido, pero los libros pueden descuadrarse).
+
+### DEC-013 · CAI: error si no es alfanumérico con guiones · [REVISAR]
+- **Contexto:** B-09 quita el patrón hexadecimal por defecto (sin fuente). El Art. 4 num. 7 dice «serie
+  alfanumérica».
+- **Elegida:** por defecto, error `CAI_FORMATO` solo si tiene espacios internos, signos o guiones repetidos
+  (letras y dígitos con guiones entre grupos). El patrón 6-6-6-6-6-2 queda en `caiEstricto`.
+- **Alternativa:** aceptar cualquier texto no vacío (deja pasar errores de digitación evidentes).

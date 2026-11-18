@@ -164,7 +164,10 @@ export interface DocumentoEntrada {
 export interface OpcionesDocumento {
   /** Umbral para exigir identificación del consumidor final. Por defecto 10,000 (Art. 11.2). */
   umbralIdentificacionConsumidorFinal?: Monto;
-  /** Validar el formato del CAI de forma estricta (error en lugar de advertencia). Por defecto false. */
+  /**
+   * Exigir que el CAI tenga la forma observada 6-6-6-6-6-2 hexadecimal (`PATRON_CAI`). Por defecto false:
+   * esa forma no tiene fuente normativa (B-09) y solo se exigen letras, dígitos y guiones.
+   */
   caiEstricto?: boolean;
   /**
    * Reloj del sistema. La fecha de emisión es siempre la de hoy en Honduras (America/Tegucigalpa) según

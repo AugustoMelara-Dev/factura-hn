@@ -150,6 +150,9 @@ insegura · **B** = mejora o documentación.
 | B-07 documentos no utilizados | cerrada | `packages/core/test/paso8-no-utilizados.test.ts` («B-07 …») |
 | B-11 aviso de renovación a 60 días | cerrada | `paso8-no-utilizados.test.ts` («B-11 …») |
 | B-10 exportación a texto y gancho contable | cerrada | `packages/core/test/paso9-exportacion.test.ts` |
+| B-09 CAI sin patrón por defecto | cerrada | `packages/core/test/factura.test.ts` («B-09 …») |
+| B-14 tasa del 18 % | cerrada (documental) | comentario en `TASAS_ISV`; P-11 sigue abierta |
+| B-16 papel térmico (Art. 38) | cerrada (documental) | `OpcionesRender.formato`, README |
 | Reloj adelantado (revisión del 2026-11-18) | cerrada | contrato: «rechaza un salto de fecha sospechoso…», «procedimiento ante reloj adelantado…» |
 | Bitácora de auditoría | cerrada | contrato: «la bitácora registra autorizaciones y anulaciones…»; disparadores en SQLite y Postgres |
 

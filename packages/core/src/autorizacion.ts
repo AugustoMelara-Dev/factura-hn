@@ -3,7 +3,7 @@
  */
 import type { AutorizacionCAI, Problema } from './tipos';
 import { CORRELATIVO_MAXIMO, TIPOS_DOCUMENTO } from './numeracion';
-import { esCAIValido } from './identificacion';
+import { esCAIValido, normalizarCAI, PATRON_CAI_BASICO } from './identificacion';
 
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -46,10 +46,18 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
   const problemas: Problema[] = [];
   if (!aut.cai || !aut.cai.trim()) {
     problemas.push({ codigo: 'CAI_REQUERIDO', mensaje: 'La autorización no tiene CAI.', campo: 'cai' });
-  } else if (!esCAIValido(aut.cai)) {
+  } else if (!PATRON_CAI_BASICO.test(normalizarCAI(aut.cai))) {
+    // B-09: sin fuente para el formato, por defecto solo se rechaza lo que no puede ser un código
+    // (espacios internos, signos), que suele ser un error de digitación.
     problemas.push({
-      codigo: opciones.caiEstricto ? 'CAI_FORMATO' : 'CAI_FORMATO_ADVERTENCIA',
-      mensaje: `El CAI "${aut.cai}" no tiene la forma esperada (6-6-6-6-6-2 hexadecimal). Verifícalo contra la resolución del SAR.`,
+      codigo: 'CAI_FORMATO',
+      mensaje: `El CAI "${aut.cai}" solo puede tener letras, dígitos y guiones entre grupos. Cópialo tal como viene en la resolución del SAR.`,
+      campo: 'cai',
+    });
+  } else if (opciones.caiEstricto && !esCAIValido(aut.cai)) {
+    problemas.push({
+      codigo: 'CAI_FORMATO',
+      mensaje: `El CAI "${aut.cai}" no tiene la forma 6-6-6-6-6-2 hexadecimal exigida con caiEstricto.`,
       campo: 'cai',
     });
   }

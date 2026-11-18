@@ -45,6 +45,7 @@ export {
   limpiarIdentificador,
   normalizarCAI,
   PATRON_CAI,
+  PATRON_CAI_BASICO,
 } from './identificacion';
 export {
   validarAutorizacion,

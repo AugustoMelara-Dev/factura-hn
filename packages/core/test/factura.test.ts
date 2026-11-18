@@ -199,11 +199,18 @@ describe('validación', () => {
     );
     expect(v.errores.map((e) => e.codigo)).toEqual(['NOTA_MONEDA']);
   });
-  it('CAI con formato extraño es advertencia, no error', () => {
+  it('B-09: CAI con otra forma no da error ni advertencia; con caiEstricto, error', () => {
     const v = validarEntrada(base(), { ...AUT, cai: 'RARO-123' });
     expect(v.ok).toBe(true);
-    expect(v.advertencias.map((a) => a.codigo)).toContain('CAI_FORMATO_ADVERTENCIA');
-    expect(validarEntrada(base(), { ...AUT, cai: 'RARO-123' }, { caiEstricto: true }).ok).toBe(false);
+    expect(v.advertencias.map((a) => a.codigo)).not.toContain('CAI_FORMATO');
+    expect(v.advertencias.map((a) => a.codigo)).not.toContain('CAI_FORMATO_ADVERTENCIA');
+    expect(validarEntrada(base(), { ...AUT, cai: 'RARO-123' }, { caiEstricto: true }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
+    expect(validarEntrada(base(), AUT, { caiEstricto: true }).ok).toBe(true);
+  });
+  it('B-09: un CAI con espacios internos o signos es error aun sin caiEstricto', () => {
+    for (const cai of ['A1B2 C3-D4', 'A1B2C3--D4', '-A1B2', 'A1B2C3_D4', 'A1B2C3-D4.']) {
+      expect(validarEntrada(base(), { ...AUT, cai }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
+    }
   });
   it('moneda extranjera exige tipo de cambio', () => {
     expect(validarEntrada(base({ moneda: 'USD' }), AUT).errores.map((e) => e.codigo)).toContain('TIPO_CAMBIO');

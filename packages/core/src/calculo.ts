@@ -17,6 +17,11 @@ import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATe
 import { centavosEnLetras } from './letras';
 import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, TratamientoISV } from './tipos';
 
+/**
+ * Tasas del ISV en porcentaje: 15 % general y 18 % para los bienes y servicios que fija el Decreto 278-2013
+ * Art. 16 (La Gaceta 33,316). Ese texto no está en las fuentes primarias locales (P-11, B-14), así que el SDK
+ * **no** decide qué producto va al 18 %: lo indica el integrador en cada línea (`isv: 'ISV18'`).
+ */
 export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, number> = {
   ISV15: 15,
   ISV18: 18,
