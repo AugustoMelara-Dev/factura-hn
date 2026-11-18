@@ -149,6 +149,7 @@ insegura · **B** = mejora o documentación.
 | B-15 tipos no emitibles por sistema | cerrada | `paso7-requisitos.test.ts` («B-15 …») |
 | B-07 documentos no utilizados | cerrada | `packages/core/test/paso8-no-utilizados.test.ts` («B-07 …») |
 | B-11 aviso de renovación a 60 días | cerrada | `paso8-no-utilizados.test.ts` («B-11 …») |
+| B-10 exportación a texto y gancho contable | cerrada | `packages/core/test/paso9-exportacion.test.ts` |
 | Reloj adelantado (revisión del 2026-11-18) | cerrada | contrato: «rechaza un salto de fecha sospechoso…», «procedimiento ante reloj adelantado…» |
 | Bitácora de auditoría | cerrada | contrato: «la bitácora registra autorizaciones y anulaciones…»; disparadores en SQLite y Postgres |
 
@@ -311,6 +312,7 @@ La API se diseña para dos modos con el mismo código:
 | P-10 | ISV por línea o por grupo de tasa con el Art. 9 de la Ley del ISV. Totales con precio con ISV que no tienen base exacta (D-01) | B-03 |
 | P-11 | Texto oficial del Decreto 278-2013 Art. 16 y la lista vigente de bienes al 18 % (¿primera clase en boletos aéreos?) | B-14 |
 | P-12 | ¿Hay calendario o especificación técnica de la emisión electrónica (Arts. 57-58)? | Sección 4 |
+| P-14 | ¿Publicó el SAR un formato de archivo de texto (layout) para el traslado del Art. 53 num. 5 por autoimpresores? Si existe, se agrega como un formato más de `exportarTexto` | B-10 |
 | P-13 | ¿Hay un piso de fecha válido para la primera emisión de una serie (p. ej. la fecha de la resolución que otorga el CAI)? Si la resolución trae fecha de emisión, el SDK podría rechazar fechas anteriores | Sección 2, «Reloj del dispositivo y orden cronológico» |
 
 ---

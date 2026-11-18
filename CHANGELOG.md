@@ -39,6 +39,10 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- **Exportación a texto (B-10, Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con
+  `leerExportacionJSONL`), `csv` y `txt`; importes escritos desde centavos.
+- **Integración contable (Art. 53 num. 1):** interfaz `LibroContable`, que corre dentro de la transacción de
+  `emitir`, `anular` y `corregirFechaAdelantada`; si falla, se revierte y el número no se consume.
 - **Documentos no utilizados (B-07, Art. 42):** `documentosNoUtilizados` y `noUtilizadosDelAlmacen` devuelven
   los rangos sin usar, la causal (numerales 1 a 12) y la fecha límite del aviso (décimo día hábil del mes
   siguiente; feriados opcionales).

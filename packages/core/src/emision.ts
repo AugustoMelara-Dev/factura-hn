@@ -1,6 +1,7 @@
 /**
  * Emisión y anulación atómicas sobre un `AlmacenFiscal` (docs/investigacion.md, B-04 y B-18).
  */
+import type { LibroContable } from './exportacion';
 import { anularDocumento } from './anulacion';
 import { diasEntre, esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import {
@@ -165,6 +166,8 @@ export interface OpcionesEmision {
    * consume.
    */
   alEmitir?: (doc: DocumentoFiscal, tx: TransaccionFiscal) => Promise<void>;
+  /** Integración contable o de inventarios (Art. 53 num. 1); corre dentro de la transacción. */
+  libroContable?: LibroContable;
 }
 
 /**
@@ -224,6 +227,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
     const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     await tx.guardarDocumento(doc);
+    if (config.libroContable) await config.libroContable.registrarEmision(doc, tx);
     if (config.alEmitir) await config.alEmitir(doc, tx);
     return doc;
   });
@@ -241,12 +245,14 @@ export async function anular(
     reloj?: () => Date;
     actor?: string;
     alAnular?: (doc: DocumentoFiscal, tx: TransaccionFiscal) => Promise<void>;
+    libroContable?: LibroContable;
   },
 ): Promise<DocumentoFiscal> {
   const ahora = relojDe(config.reloj)();
   return config.almacen.transaccion(async (tx) => {
     await tx.bloquearSerie(identificadorDeNumero(numero));
     const anulado = await anularEnTransaccion(tx, numero, config.motivo, ahora, config.actor);
+    if (config.libroContable) await config.libroContable.registrarAnulacion(anulado, tx);
     if (config.alAnular) await config.alAnular(anulado, tx);
     return anulado;
   });
@@ -294,7 +300,7 @@ async function anularEnTransaccion(
  */
 export async function corregirFechaAdelantada(
   almacen: AlmacenFiscal,
-  config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string },
+  config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string; libroContable?: LibroContable },
 ): Promise<DocumentoFiscal[]> {
   const motivo = config.motivo?.trim();
   if (!motivo) {
@@ -317,16 +323,16 @@ export async function corregirFechaAdelantada(
     }
     const anulados: DocumentoFiscal[] = [];
     for (const d of adelantados) {
-      anulados.push(
-        await anularEnTransaccion(
-          tx,
-          d.numero,
-          `Fecha de emisión errónea (${d.fechaEmision}) por reloj adelantado; fecha real ${hoy}. ${motivo}`,
-          ahora,
-          config.actor,
-          { causa: 'FECHA_ADELANTADA' },
-        ),
+      const anulado = await anularEnTransaccion(
+        tx,
+        d.numero,
+        `Fecha de emisión errónea (${d.fechaEmision}) por reloj adelantado; fecha real ${hoy}. ${motivo}`,
+        ahora,
+        config.actor,
+        { causa: 'FECHA_ADELANTADA' },
       );
+      if (config.libroContable) await config.libroContable.registrarAnulacion(anulado, tx);
+      anulados.push(anulado);
     }
     await tx.registrarEvento(
       evento('FECHA_ADELANTADA_CORREGIDA', ahora, {

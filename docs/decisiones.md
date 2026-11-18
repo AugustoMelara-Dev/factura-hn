@@ -58,7 +58,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   números ≤ ese valor que no están en el almacén son externos (aviso); los mayores no consumidos, error.
 - **Alternativa:** un método `avanzarSerie` en el contrato del almacén (cambia los tres adaptadores).
 
-### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión
+### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión · [REVISAR]
 - **Contexto:** Art. 42 num. 1 cuenta el plazo desde el «vencimiento del plazo de vigencia». Puede leerse como
   la fecha límite o el día siguiente; si la fecha límite es el último día del mes, el aviso cambia de mes.
 - **Elegida:** la fecha límite (lectura conservadora: el aviso nunca queda tarde).
@@ -70,3 +70,16 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** solo se descuentan sábados y domingos; el integrador pasa `feriados`. Sin ellos la fecha puede
   quedar después de la real, lo que está documentado en la opción.
 - **Alternativa:** una lista fija en el código (se desactualiza sin aviso).
+
+### DEC-011 · Formatos de exportación propios (jsonl, csv, txt)
+- **Contexto:** el Art. 53 num. 5 exige generar archivos de texto, pero en las fuentes revisadas no hay un
+  formato oficial (P-14).
+- **Elegida:** tres formatos abiertos y versionados (`VERSION_EXPORTACION`); los anulados conservan sus
+  importes y su estado, porque el archivo refleja lo emitido.
+- **Alternativa:** exportar los anulados en cero como el libro de ventas (perdería lo emitido).
+
+### DEC-012 · El libro contable corre dentro de la transacción fiscal
+- **Contexto:** Art. 53 num. 1 pide integrar la facturación con la contabilidad o el inventario.
+- **Elegida:** `LibroContable` síncrono con la transacción: si falla, no hay documento. Para sistemas externos
+  se recomienda una cola (outbox) en la misma base.
+- **Alternativa:** notificar después del commit (más rápido, pero los libros pueden descuadrarse).

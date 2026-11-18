@@ -184,6 +184,8 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 - `renderizarHTML(doc, { formato: 'carta' | 'ticket', logo?, leyenda? })`
 - `renderizarTexto(doc, { ancho: 42 })`
 - `filaLibroVentas(doc)` · `resumenVentas(filas)` · `libroVentasCSV(filas)`
+- `exportarTexto(docs, { formato: 'jsonl' | 'csv' | 'txt' })` · `leerExportacionJSONL(texto)`: archivos de texto para respaldo y traslado (Art. 53 num. 5)
+- `libroContable` en `emitir`, `anular` y `corregirFechaAdelantada`: asiento contable o de inventario dentro de la misma transacción (Art. 53 num. 1)
 
 ## Reglas que tu sistema debe respetar
 

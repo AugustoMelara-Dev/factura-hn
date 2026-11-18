@@ -103,6 +103,8 @@ export {
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
+export { exportarTexto, leerExportacionJSONL, VERSION_EXPORTACION } from './exportacion';
+export type { FormatoExportacion, LibroContable } from './exportacion';
 export {
   CAUSALES_NO_UTILIZACION,
   decimoDiaHabilDelMesSiguiente,
