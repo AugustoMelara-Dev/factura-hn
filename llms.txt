@@ -3,7 +3,7 @@
 > Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/exento/exonerado, montos en letras, validación con códigos de error, impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
 
 Uso principal: `const doc = await crearDocumento(entrada, { autorizacion, almacen })` y luego `renderizarHTML(doc)`.
-Documentos soportados: 01 Factura, 07 Nota de Crédito, 08 Nota de Débito.
+Documentos soportados: 01 Factura, 06 Nota de Crédito, 07 Nota de Débito (tabla vigente tras el Acuerdo 609-2017; la tabla original de 2017 con 07/08 ya no aplica).
 Montos en lempiras como number; internamente se calcula en centavos. El ISV se calcula por grupo de tasa.
 Errores: `ErrorValidacion` (propiedad `errores: {codigo, mensaje, campo}[]`) y `RangoAgotadoError`.
 El correlativo se reserva solo si la validación pasa. En producción implementa `AlmacenCorrelativos` atómico sobre tu BD.

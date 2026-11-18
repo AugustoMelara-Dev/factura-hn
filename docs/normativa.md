@@ -20,7 +20,7 @@
 | Requisito (Acuerdo 481-2017) | Dónde |
 |---|---|
 | Número de 16 dígitos `NNN-NNN-NN-NNNNNNNN` (establecimiento, punto de emisión, tipo, correlativo) | `formatearNumero`, `parsearNumero` |
-| Códigos de tipo de documento 01–10 | `TIPOS_DOCUMENTO` |
+| Códigos de tipo de documento vigentes (01, 04–12; reforma del Acuerdo 609-2017: 06 Nota de Crédito, 07 Nota de Débito) | `TIPOS_DOCUMENTO` |
 | CAI, rango autorizado y fecha límite de emisión impresos | `DocumentoFiscal.cai/rangoAutorizado/fechaLimiteEmision`, render |
 | No emitir después de la fecha límite ni fuera del rango | `validarEntrada` (`AUTORIZACION_VENCIDA`), `construirDocumento` (`CORRELATIVO_FUERA_DE_RANGO`), `RangoAgotadoError` |
 | Autorización por punto de emisión y tipo de documento, vigencia máx. 1 año | `AutorizacionCAI`, `estadoAutorizacion` |
@@ -36,11 +36,13 @@
 | Importe total en número y letras, moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |
 | Notas de crédito/débito: CAI, número y fecha del documento que modifican, y motivo | `ReferenciaDocumento`, `motivo` |
+| Notas: nombre y RTN del adquirente; moneda nacional (Arts. 26 y 28) | `NOTA_CLIENTE_RTN`, `NOTA_MONEDA` |
+| Nota de Crédito: nombre, identidad y firma de quien la recibe (Art. 26 num. 7) | render (campos en blanco) |
 
 ## Fuera de alcance en v0.1
 
-- Factura prevalorada (02), ticket de máquina registradora (03), recibo por honorarios (04),
-  boleta de compra (05), constancia de donación (06), guía de remisión (09) y comprobante de retención (10).
+- Recibo por honorarios (04), comprobante de retención (05), guía de remisión (08), ticket (09),
+  factura prevalorada (10), boleta de compra (11) y constancia de donación (12).
   La numeración sí los soporta; falta su cálculo y render.
 - Exportaciones a tasa cero (Art. 12).
 - Envío de archivos al SAR y declaración SAR-222 (hay `libroVentasCSV` y `resumenVentas` como apoyo).
@@ -51,4 +53,14 @@
 - Si tu giro tiene productos al 18% o exentos, que la clasificación de cada producto esté bien.
 - Si aplicas ISV línea por línea o por grupo de tasa: la librería lo calcula **por grupo de tasa**,
   así el total siempre cuadra con la suma de importes más ISV.
-- Los textos de leyenda (por ejemplo "La factura es beneficio de todos, exíjala") son configurables.
+- La leyenda "La factura es beneficio de todos, exíjala" **no** la exige el reglamento; es opcional (`leyenda`).
+
+## Referencias y créditos
+
+- [invoicehn](https://github.com/JorgePadilla/invoicehn) (Ruby, MIT, Jorge Padilla): la referencia más completa
+  que existe. De su investigación salen la tabla de códigos vigente (Acuerdo 609-2017) y los textos
+  consolidados en `doc/fuentes/` (Gacetas 34,413 · 34,457 · 34,792 · 34,811).
+- [skillsarhn](https://github.com/Javitonito-Javier/skillsarhn) (MIT, Ing. Javier Omar Oliva Meza): skills de
+  facturación y contabilidad tributaria. Su tabla de códigos usa la numeración original de 2017.
+- Texto consolidado del Reglamento: el Art. 53 permite sistemas "desarrollados o adquiridos" por el obligado
+  tributario, con integración contable o de inventario, controles de auditoría, persistencia y exportación a texto.

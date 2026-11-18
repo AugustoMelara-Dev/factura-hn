@@ -20,7 +20,7 @@ export const UMBRAL_CONSUMIDOR_FINAL = 10_000;
 export const CONSUMIDOR_FINAL = 'CONSUMIDOR FINAL';
 export const DESTINO_EJEMPLARES = 'Original: Cliente / Copia: Emisor';
 
-const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '07', '08'];
+const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
 export class ErrorValidacion extends Error {
   constructor(public readonly errores: Problema[], public readonly advertencias: Problema[] = []) {
@@ -43,7 +43,7 @@ export function validarEntrada(
   const fecha = entrada.fechaEmision ?? fechaHonduras();
 
   if (!SOPORTADOS.includes(tipo)) {
-    problemas.push({ codigo: 'TIPO_NO_SOPORTADO', mensaje: `Tipo de documento ${tipo} no soportado en esta versión (01, 07, 08).`, campo: 'tipoDocumento' });
+    problemas.push({ codigo: 'TIPO_NO_SOPORTADO', mensaje: `Tipo de documento ${tipo} no soportado en esta versión (01, 06, 07).`, campo: 'tipoDocumento' });
   }
 
   // Autorización
@@ -112,7 +112,7 @@ export function validarEntrada(
   }
 
   // Notas de crédito / débito
-  if (tipo === '07' || tipo === '08') {
+  if (tipo === '06' || tipo === '07') {
     const r = entrada.referencia;
     if (!r) problemas.push({ codigo: 'REFERENCIA', mensaje: 'Las notas de crédito y débito deben referenciar el documento original (CAI, número y fecha).', campo: 'referencia' });
     else {
@@ -122,6 +122,10 @@ export function validarEntrada(
     }
     if (!entrada.motivo?.trim()) problemas.push({ codigo: 'MOTIVO', mensaje: 'Las notas de crédito y débito requieren el motivo.', campo: 'motivo' });
     if (!c.nombre?.trim()) problemas.push({ codigo: 'CLIENTE_NOMBRE', mensaje: 'Las notas de crédito y débito requieren el nombre del adquirente.', campo: 'cliente.nombre' });
+    // Arts. 26 y 28 num. 1-2: piden el RTN del adquirente, sin alternativa de CONSUMIDOR FINAL.
+    if (!c.rtn) problemas.push({ codigo: 'NOTA_CLIENTE_RTN', mensaje: 'Las notas de crédito y débito requieren el RTN del adquirente (Arts. 26 y 28).', campo: 'cliente.rtn' });
+    // Arts. 26 num. 9 y 28 num. 8: moneda nacional Lempira.
+    if (moneda !== 'HNL') problemas.push({ codigo: 'NOTA_MONEDA', mensaje: 'Las notas de crédito y débito se emiten en Lempiras (Arts. 26 y 28).', campo: 'moneda' });
   }
 
   // Líneas y umbral de consumidor final

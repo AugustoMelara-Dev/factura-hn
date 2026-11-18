@@ -11,7 +11,7 @@ Léelo completo antes de escribir código.
    base de datos del proyecto (ver `docs/persistencia.md`). Nunca calcules el siguiente número con
    `SELECT max(...) + 1` sin bloqueo. `AlmacenMemoria` es solo para pruebas.
 3. **Números inmutables.** Un número asignado no se borra ni se reutiliza. Fallo después de asignar = registro
-   con `anulado = true`. Corrección de una factura emitida = Nota de Crédito (`tipoDocumento: '07'`) o Débito (`'08'`).
+   con `anulado = true`. Corrección de una factura emitida = Nota de Crédito (`tipoDocumento: '06'`) o Débito (`'07'`).
 4. **Guarda el `DocumentoFiscal` completo** (JSON) al emitir. Reimprime desde ese JSON; no recalcules.
 5. **Server-side.** La emisión corre en el servidor (API route, server action, edge function). El cliente
    solo envía el carrito. Las credenciales de BD y la reserva de correlativos nunca van al navegador.
@@ -79,14 +79,14 @@ export async function emitirFactura(entrada: DocumentoEntrada, tenantId: string)
 
 ```ts
 await crearDocumento({
-  tipoDocumento: '07',
+  tipoDocumento: '06',
   emisor,
   cliente: { nombre: original.cliente.nombreImpreso, rtn: original.cliente.rtn },
   referencia: { cai: original.cai, numero: original.numero, fecha: original.fechaEmision },
   motivo: 'Devolución de mercadería',
   preciosIncluyenISV: original.preciosIncluyenISV,
   lineas: lineasDevueltas,
-}, { autorizacion: autorizacionNotasCredito, almacen });   // CAI propio del tipo 07
+}, { autorizacion: autorizacionNotasCredito, almacen });   // CAI propio del tipo 06
 ```
 
 Cada tipo de documento tiene **su propia autorización CAI y su propio rango**.
@@ -113,6 +113,7 @@ Cada tipo de documento tiene **su propia autorización CAI y su propio rango**.
 | `CONSUMIDOR_FINAL_IDENTIFICACION` | Pedir nombre + DNI/RTN (venta > L 10,000) |
 | `CLIENTE_RTN`, `EMISOR_RTN` | RTN debe tener 14 dígitos |
 | `AUTORIZACION_TIPO` | Usar la autorización del mismo tipo de documento |
-| `REFERENCIA*`, `MOTIVO` | Completar los datos del documento original en notas 07/08 |
+| `REFERENCIA*`, `MOTIVO` | Completar los datos del documento original en notas 06/07 |
+| `NOTA_CLIENTE_RTN`, `NOTA_MONEDA` | Las notas exigen RTN del adquirente y se emiten en lempiras |
 | `TIPO_CAMBIO` | Indicar tipo de cambio si la moneda no es HNL |
 | `AVISO_*`, `*_ADVERTENCIA` | No bloquean; mostrarlos como aviso |

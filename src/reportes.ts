@@ -25,7 +25,7 @@ export interface FilaLibroVentas {
 /** Una fila por documento. Pasa `anulado: true` para documentos anulados (se registran en cero). */
 export function filaLibroVentas(doc: DocumentoFiscal, opciones: { anulado?: boolean } = {}): FilaLibroVentas {
   const anulado = opciones.anulado ?? false;
-  const signo = doc.tipoDocumento === '07' ? -1 : 1;
+  const signo = doc.tipoDocumento === '06' ? -1 : 1;
   const m = (v: number) => (anulado ? 0 : signo * v);
   const t = doc.totales;
   return {

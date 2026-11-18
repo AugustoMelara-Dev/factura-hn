@@ -9,7 +9,7 @@ import type { DocumentoFiscal, TratamientoISV } from './tipos';
 export interface OpcionesRender {
   /** 'carta' (por defecto) o 'ticket' (80 mm). */
   formato?: 'carta' | 'ticket';
-  /** Leyenda al pie. Por defecto "La factura es beneficio de todos, exíjala." */
+  /** Leyenda opcional al pie, p. ej. "La factura es beneficio de todos, exíjala." (no la exige el reglamento). */
   leyenda?: string | null;
   /** URL o data URI de un logo. */
   logo?: string;
@@ -17,7 +17,6 @@ export interface OpcionesRender {
   titulo?: string;
 }
 
-const LEYENDA = 'La factura es beneficio de todos, exíjala.';
 
 const ETIQUETA_ISV: Record<TratamientoISV, string> = { ISV15: 'G', ISV18: 'G18', EXENTO: 'E' };
 
@@ -63,7 +62,7 @@ function identificacionCliente(doc: DocumentoFiscal): string {
 
 export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = {}): string {
   const ticket = opciones.formato === 'ticket';
-  const leyenda = opciones.leyenda === undefined ? LEYENDA : opciones.leyenda;
+  const leyenda = opciones.leyenda ?? null;
   const e = doc.emisor;
   const simbolo = doc.moneda === 'HNL' ? 'L' : '$';
   const idCliente = identificacionCliente(doc);
@@ -177,6 +176,10 @@ ${doc.preciosIncluyenISV ? '<div class="desc">Precios incluyen ISV. G = gravado 
 <div class="letras">${esc(doc.totales.totalEnLetras)}</div>
 ${doc.moneda !== 'HNL' && doc.tipoCambio ? `<div>Tipo de cambio: L ${esc(doc.tipoCambio)} por ${doc.moneda}</div>` : ''}
 ${doc.observaciones ? `<div class="bloque">${esc(doc.observaciones)}</div>` : ''}
+${doc.tipoDocumento === '06' ? `<section class="bloque"><h3>Recibido por (Art. 26 num. 7)</h3>
+  <div>Nombre: ______________________________</div>
+  <div>Identidad: ___________________________</div>
+  <div>Firma: _______________________________</div></section>` : ''}
 
 <footer>
   <div>${esc(doc.destinoEjemplares)}</div>
@@ -188,7 +191,7 @@ ${doc.observaciones ? `<div class="bloque">${esc(doc.observaciones)}</div>` : ''
 /** Texto plano para impresoras térmicas (ESC/POS en modo texto). Ancho típico: 32, 42 o 48 columnas. */
 export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number; leyenda?: string | null } = {}): string {
   const W = opciones.ancho ?? 42;
-  const leyenda = opciones.leyenda === undefined ? LEYENDA : opciones.leyenda;
+  const leyenda = opciones.leyenda ?? null;
   const out: string[] = [];
   const sep = '-'.repeat(W);
   const centro = (s: string) => {
@@ -246,6 +249,13 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   izq(doc.totales.totalEnLetras);
   if (doc.moneda !== 'HNL' && doc.tipoCambio) izq(`Tipo de cambio: L ${doc.tipoCambio}`);
   if (doc.preciosIncluyenISV) izq('Precios incluyen ISV.');
+  if (doc.tipoDocumento === '06') {
+    out.push(sep);
+    izq('Recibido por:');
+    izq('Nombre: ' + '_'.repeat(Math.max(4, W - 8)));
+    izq('Identidad: ' + '_'.repeat(Math.max(4, W - 11)));
+    izq('Firma: ' + '_'.repeat(Math.max(4, W - 7)));
+  }
   izq('G=gravado 15% G18=gravado 18% E=exento');
   out.push(sep);
   centro(doc.destinoEjemplares);

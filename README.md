@@ -70,7 +70,7 @@ Integra la facturación SAR Honduras en este proyecto:
 2. Un AlmacenCorrelativos atómico sobre esa base de datos.
 3. Un endpoint/servicio "emitir factura" que reciba el carrito actual y use crearDocumento.
 4. Impresión con renderizarHTML (carta y ticket) y una pantalla de estado del CAI con estadoAutorizacion.
-5. Anulación (marcar como anulado, nunca borrar) y Nota de Crédito (07) que referencie la factura.
+5. Anulación (marcar como anulado, nunca borrar) y Nota de Crédito (06) que referencie la factura.
 No inventes reglas fiscales: usa las validaciones de la librería y muestra al usuario sus mensajes de error.
 ```
 
@@ -85,7 +85,7 @@ y un [`llms.txt`](llms.txt) con el resumen de la API.
 | **CAI y rangos** | Bloquea emitir después de la fecha límite o fuera del rango; avisa cuando quedan pocos días o pocos números |
 | **ISV** | 15%, 18%, exento y exonerado; precios con o sin ISV; descuentos por línea; aritmética en centavos |
 | **Validación** | RTN, DNI, datos del emisor, consumidor final > L 10,000, adquirente exonerado, moneda extranjera, notas de crédito/débito. Errores con código, mensaje y campo |
-| **Documentos** | Factura (01), Nota de Crédito (07), Nota de Débito (08) |
+| **Documentos** | Factura (01), Nota de Crédito (06), Nota de Débito (07) — códigos vigentes tras el Acuerdo 609-2017 |
 | **Impresión** | HTML carta, HTML ticket 80 mm y texto plano de 32/42/48 columnas para térmicas |
 | **Reportes** | Libro de ventas en CSV y resumen por tasa para la declaración mensual |
 
@@ -125,7 +125,7 @@ y un [`llms.txt`](llms.txt) con el resumen de la API.
 
 1. **Nunca reutilices ni saltes un correlativo.** Si una venta falla después de recibir número, guárdala como anulada.
 2. **Reserva el número de forma atómica** en tu base de datos ([docs/persistencia.md](docs/persistencia.md)).
-3. **No edites una factura emitida.** Corrige con Nota de Crédito (07) o Nota de Débito (08).
+3. **No edites una factura emitida.** Corrige con Nota de Crédito (06) o Nota de Débito (07).
 4. **Cada caja o dispositivo offline usa su propio punto de emisión y CAI.**
 
 ## Desarrollo
@@ -140,7 +140,7 @@ npm run example   # genera factura-ejemplo.html y ticket-ejemplo.txt
 
 ## Hoja de ruta
 
-- [ ] Ticket (03), Recibo por Honorarios (04), Comprobante de Retención (10)
+- [ ] Ticket (09), Recibo por Honorarios (04), Comprobante de Retención (05)
 - [ ] Exportaciones a tasa cero
 - [ ] Generación de PDF sin navegador
 - [ ] Paquetes hermanos: Python y .NET

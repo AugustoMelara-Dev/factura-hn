@@ -21,6 +21,7 @@ import {
   renderizarTexto,
   resumenVentas,
   validarEntrada,
+  TIPOS_DOCUMENTO,
   type AutorizacionCAI,
   type DocumentoEntrada,
 } from '../src';
@@ -52,6 +53,12 @@ const base = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
 });
 
 describe('numeración', () => {
+  it('usa la tabla de códigos vigente (Acuerdo 609-2017)', () => {
+    expect(TIPOS_DOCUMENTO['06']).toBe('Nota de Crédito');
+    expect(TIPOS_DOCUMENTO['07']).toBe('Nota de Débito');
+    expect(TIPOS_DOCUMENTO['05']).toBe('Comprobante de Retención');
+    expect(() => parsearNumero('000-001-02-00000001')).toThrow();
+  });
   it('formatea y parsea 16 dígitos', () => {
     expect(formatearNumero({ establecimiento: 0, puntoEmision: 1, tipoDocumento: '01', correlativo: 25 })).toBe('000-001-01-00000025');
     expect(parsearNumero('0000010100000025')).toEqual({ establecimiento: '000', puntoEmision: '001', tipoDocumento: '01', correlativo: 25 });
@@ -59,6 +66,7 @@ describe('numeración', () => {
   it('rechaza formatos inválidos', () => {
     expect(() => parsearNumero('000-001-01-0000002')).toThrow();
     expect(() => parsearNumero('000-001-99-00000002')).toThrow();
+    expect(() => parsearNumero('000-001-03-00000002')).toThrow();
     expect(() => formatearNumero({ establecimiento: 1000, puntoEmision: 1, tipoDocumento: '01', correlativo: 1 })).toThrow();
     expect(() => formatearNumero({ establecimiento: 0, puntoEmision: 1, tipoDocumento: '01', correlativo: 0 })).toThrow();
   });
@@ -178,9 +186,18 @@ describe('validación', () => {
     expect(v.errores.map((e) => e.codigo)).toContain('AUTORIZACION_TIPO');
   });
   it('nota de crédito exige referencia y motivo', () => {
-    const autNC = { ...AUT, tipoDocumento: '07' as const };
-    const v = validarEntrada(base({ tipoDocumento: '07', cliente: { nombre: 'Cliente' } }), autNC);
-    expect(v.errores.map((e) => e.codigo)).toEqual(expect.arrayContaining(['REFERENCIA', 'MOTIVO']));
+    const autNC = { ...AUT, tipoDocumento: '06' as const };
+    const v = validarEntrada(base({ tipoDocumento: '06', cliente: { nombre: 'Cliente' } }), autNC);
+    expect(v.errores.map((e) => e.codigo)).toEqual(expect.arrayContaining(['REFERENCIA', 'MOTIVO', 'NOTA_CLIENTE_RTN']));
+  });
+  it('notas solo en lempiras', () => {
+    const autND = { ...AUT, tipoDocumento: '07' as const };
+    const v = validarEntrada(
+      base({ tipoDocumento: '07', moneda: 'USD', tipoCambio: 24.7, cliente: { nombre: 'X', rtn: '08019005123456' },
+        referencia: { cai: AUT.cai, numero: '000-001-01-00000001', fecha: '2026-11-01' }, motivo: 'Flete' }),
+      autND,
+    );
+    expect(v.errores.map((e) => e.codigo)).toEqual(['NOTA_MONEDA']);
   });
   it('CAI con formato extraño es advertencia, no error', () => {
     const v = validarEntrada(base(), { ...AUT, cai: 'RARO-123' });
@@ -259,6 +276,8 @@ describe('render y reportes', () => {
     expect(html).toContain('Ferretería &lt;Script&gt; &amp; Hijos');
     expect(html).not.toContain('<Script>');
     expect(renderizarHTML(doc, { formato: 'ticket' })).toContain('80mm');
+    expect(html).not.toContain('exíjala');
+    expect(renderizarHTML(doc, { leyenda: 'La factura es beneficio de todos, exíjala.' })).toContain('exíjala');
   });
   it('texto térmico respeta el ancho', () => {
     const txt = renderizarTexto(doc, { ancho: 32 });
@@ -266,10 +285,10 @@ describe('render y reportes', () => {
     expect(txt).toContain('TOTAL A PAGAR');
   });
   it('libro de ventas: NC resta y anulados en cero', () => {
-    const autNC = { ...AUT, tipoDocumento: '07' as const };
+    const autNC = { ...AUT, tipoDocumento: '06' as const };
     const nc = construirDocumento(
       base({
-        tipoDocumento: '07',
+        tipoDocumento: '06',
         cliente: { nombre: 'Ferretería', rtn: '08019005123456' },
         referencia: { cai: AUT.cai, numero: doc.numero, fecha: '2026-11-18' },
         motivo: 'Devolución de clavos',
@@ -284,5 +303,7 @@ describe('render y reportes', () => {
     expect(r.importeGravado15).toBe(90 - 50);
     expect(r.isv15).toBe(13.5 - 7.5);
     expect(libroVentasCSV(filas)).toContain('Nota de Crédito');
+    expect(nc.numero).toBe('000-001-06-00000001');
+    expect(renderizarHTML(nc)).toContain('Recibido por');
   });
 });

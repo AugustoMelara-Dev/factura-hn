@@ -10,7 +10,7 @@ Lo único que **tiene** que cumplir: reservar el siguiente correlativo de forma 
    el número; si algo falla después de reservarlo (se cae la impresora, se cancela la venta), el documento
    se guarda como **anulado**, no se borra ni se reutiliza el número.
 2. **Guarda el documento completo** (el JSON que devuelve `crearDocumento`) y no lo modifiques después.
-   Para corregir una factura emitida se usa una Nota de Crédito (07) o de Débito (08).
+   Para corregir una factura emitida se usa una Nota de Crédito (06) o de Débito (07).
 3. **Una fila de autorización por CAI.** Cuando el SAR te dé un nuevo CAI, se crea otra fila; la vieja queda
    como historial.
 4. Conserva los documentos por el plazo que exige la ley (5 años es lo usual; confírmalo con tu contador).

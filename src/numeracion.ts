@@ -7,17 +7,18 @@
  */
 import type { AutorizacionCAI, CodigoTipoDocumento } from './tipos';
 
+/** Tabla vigente (texto consolidado, reforma del Acuerdo 609-2017). */
 export const TIPOS_DOCUMENTO: Record<CodigoTipoDocumento, string> = {
   '01': 'Factura',
-  '02': 'Factura Prevalorada',
-  '03': 'Ticket',
   '04': 'Recibo por Honorarios Profesionales',
-  '05': 'Boleta de Compra',
-  '06': 'Constancia de Donación',
-  '07': 'Nota de Crédito',
-  '08': 'Nota de Débito',
-  '09': 'Guía de Remisión',
-  '10': 'Comprobante de Retención',
+  '05': 'Comprobante de Retención',
+  '06': 'Nota de Crédito',
+  '07': 'Nota de Débito',
+  '08': 'Guía de Remisión',
+  '09': 'Ticket',
+  '10': 'Factura Prevalorada',
+  '11': 'Boleta de Compra',
+  '12': 'Constancia de Donación',
 };
 
 export const CORRELATIVO_MAXIMO = 99_999_999;

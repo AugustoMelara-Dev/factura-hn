@@ -4,21 +4,25 @@
  * Otros Documentos Fiscales y Registro Fiscal de Imprentas) y sus reformas.
  */
 
-/** Códigos de tipo de documento fiscal (segmento NN del número de 16 dígitos). */
+/**
+ * Códigos de tipo de documento fiscal (segmento TT del número de 16 dígitos), según el texto
+ * consolidado del Acuerdo 481-2017 tras la reforma del Acuerdo 609-2017. El texto original de 2017
+ * usaba otra tabla (07 = Nota de Crédito, 08 = Nota de Débito…): esa tabla ya NO está vigente.
+ */
 export type CodigoTipoDocumento =
-  | '01' // Factura
-  | '02' // Factura Prevalorada
-  | '03' // Ticket
-  | '04' // Recibo por Honorarios Profesionales
-  | '05' // Boleta de Compra
-  | '06' // Constancia de Donación
-  | '07' // Nota de Crédito
-  | '08' // Nota de Débito
-  | '09' // Guía de Remisión
-  | '10'; // Comprobante de Retención
+  | '01' // Factura (Art. 10)
+  | '04' // Recibo por Honorarios Profesionales (Art. 18)
+  | '05' // Comprobante de Retención (Art. 33)
+  | '06' // Nota de Crédito (Art. 25)
+  | '07' // Nota de Débito (Art. 27)
+  | '08' // Guía de Remisión (Art. 29)
+  | '09' // Ticket (Art. 17)
+  | '10' // Factura Prevalorada (Art. 15)
+  | '11' // Boleta de Compra (Art. 20)
+  | '12'; // Constancia de Donación (Art. 23)
 
 /** Documentos que esta versión sabe construir, calcular y renderizar. */
-export type TipoDocumentoSoportado = '01' | '07' | '08';
+export type TipoDocumentoSoportado = '01' | '06' | '07';
 
 /** Tratamiento fiscal de una línea. */
 export type TratamientoISV = 'ISV15' | 'ISV18' | 'EXENTO';
