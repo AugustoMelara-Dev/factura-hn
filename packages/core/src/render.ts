@@ -52,6 +52,9 @@ function filasTotales(doc: DocumentoFiscal): Array<[string, number, boolean?]> {
     ['Importe gravado 18%', t.importeGravado18],
     ['I.S.V. 15%', t.isv15],
     ['I.S.V. 18%', t.isv18],
+    ...(t.ajustePorRedondeo > 0
+      ? [['Ajuste por redondeo del ISV (Ley ISV Art. 9)', -t.ajustePorRedondeo] as [string, number]]
+      : []),
     ['TOTAL A PAGAR', t.total, true],
   ];
   return filas;

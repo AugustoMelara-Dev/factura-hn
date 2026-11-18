@@ -11,11 +11,18 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   `number | string` (se recomienda texto: `"19.99"`). Un `number` se lee por su texto decimal exacto. Si trae
   más decimales de los permitidos (cantidad y precio: 4; descuento: 2; tipo de cambio: 6), se rechaza en lugar
   de redondearse: `0.1 + 0.2` como precio da `LINEA_PRECIO`. Antes el precio se redondeaba a centavos en silencio.
+- **ISV estatutario con precios con ISV incluido (B-03, D-01).** El ISV impreso es siempre la tasa × la base
+  impresa con el redondeo del Art. 9 de la Ley del ISV. Antes se calculaba por diferencia y quedaba 1 centavo
+  por encima de la regla en el 4.35 % (15 %) y el 6.78 % (18 %) de los montos. Cuando un precio no tiene base
+  exacta, el total queda 1 centavo **por debajo** del precio (nunca por encima), con
+  `totales.ajustePorRedondeo` y el aviso `AVISO_AJUSTE_CENTAVO`. El POS debe cobrar `totales.total`.
 
 ### Agregado
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
+- `totales.ajustePorRedondeo`, `calcularDocumento(...).advertencias`, `sugerirPrecioSinAjuste` (precios de
+  góndola que no requieren ajuste), `baseDesdePrecioConISV`.
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
 

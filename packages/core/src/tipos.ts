@@ -164,6 +164,12 @@ export interface Totales {
   isv15: number;
   isv18: number;
   total: number;
+  /**
+   * Con precios con ISV incluido: lo que el total quedó por debajo de la suma de precios para que el ISV
+   * sea exactamente la tasa × la base (Ley del ISV Art. 9, decisión D-01). 0 si no hubo ajuste.
+   * El POS debe cobrar `total`, que ya lo descuenta.
+   */
+  ajustePorRedondeo: number;
   /** Total en letras, p. ej. "MIL CIENTO CINCUENTA LEMPIRAS CON 00/100". */
   totalEnLetras: string;
 }

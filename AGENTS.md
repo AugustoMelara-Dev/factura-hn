@@ -15,7 +15,11 @@ Léelo completo antes de escribir código.
 4. **Guarda el `DocumentoFiscal` completo** (JSON) al emitir. Reimprime desde ese JSON; no recalcules.
 5. **Server-side.** La emisión corre en el servidor (API route, server action, edge function). El cliente
    solo envía el carrito. Las credenciales de BD y la reserva de correlativos nunca van al navegador.
-6. **Datos de CAI desde la BD**, cargados por el usuario desde su resolución del SAR. No los hardcodees y no
+6. **Cobra `totales.total`, no la suma de precios.** Con `preciosIncluyenISV: true` el total puede quedar
+   1 centavo por debajo (`totales.ajustePorRedondeo`) para cumplir el redondeo del Art. 9 de la Ley del ISV.
+   Llama a `calcularDocumento` antes de cobrar y muestra en caja ese total. Para evitar el ajuste, usa
+   `sugerirPrecioSinAjuste` al configurar los precios.
+7. **Datos de CAI desde la BD**, cargados por el usuario desde su resolución del SAR. No los hardcodees y no
    inventes CAI de ejemplo en código de producción.
 
 ## Modelo mínimo de datos

@@ -13,7 +13,7 @@
  * documentada (docs/investigacion.md, P-10): el Art. 11 h-i pide subtotales e impuestos por tarifa, y
  * redondear por línea puede dar un ISV impreso que no es la tasa × la base impresa.
  */
-import { deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal } from './dinero';
+import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
 import { centavosEnLetras } from './letras';
 import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, TratamientoISV } from './tipos';
 
@@ -106,13 +106,28 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
   return problemas;
 }
 
-function baseDesdeTotal(totalCentavos: bigint, tasa: number): bigint {
-  return dividirRedondeando(totalCentavos * 100n, BigInt(100 + tasa));
-}
-
 /** Ley del ISV Art. 9: ISV = base × tasa, redondeado a centavos (≥ 0.005 sube). */
 export function impuestoArt9(baseCentavos: bigint, tasa: number): bigint {
   return dividirRedondeando(baseCentavos * BigInt(tasa), 100n);
+}
+
+/**
+ * Precio con ISV incluido → base e ISV que cumplen la Ley del ISV Art. 9.
+ *
+ * El ISV impreso siempre es `impuestoArt9(base, tasa)`: la tasa × la base impresa, redondeada con la
+ * regla del Art. 9. Para un total T se busca la **mayor base b con b + ISV(b) ≤ T**. Si b + ISV(b) = T, el
+ * precio se respeta exacto. Si no existe una base exacta (≈13 % de los montos al 15 % y ≈15 % al 18 %),
+ * el total queda **1 centavo por debajo** del precio: se cobra de menos, nunca de más (decisión D-01,
+ * docs/investigacion.md). `f(b) = b + ISV(b)` crece de 1 en 1 o de 2 en 2, así que el ajuste nunca pasa
+ * de 1 centavo por tasa.
+ */
+export function baseDesdePrecioConISV(totalCentavos: bigint, tasa: number): { base: bigint; isv: bigint; ajuste: bigint } {
+  if (totalCentavos <= 0n) return { base: 0n, isv: 0n, ajuste: 0n };
+  // Cota superior: f(b) ≥ b·(100+tasa)/100 − ½, así que b ≤ (T + ½)·100/(100+tasa).
+  let base = ((totalCentavos * 2n + 1n) * 100n) / (BigInt(100 + tasa) * 2n) + 1n;
+  while (base > 0n && base + impuestoArt9(base, tasa) > totalCentavos) base -= 1n;
+  const isv = impuestoArt9(base, tasa);
+  return { base, isv, ajuste: totalCentavos - base - isv };
 }
 
 /** Resultado del cálculo en centavos exactos; `calcularDocumento` lo expone en lempiras. */
@@ -126,6 +141,8 @@ export interface TotalesCentavos {
   isv15: bigint;
   isv18: bigint;
   total: bigint;
+  /** Centavos que el total queda por debajo de la suma de precios con ISV (D-01). 0 si no hubo ajuste. */
+  ajustePorRedondeo: bigint;
 }
 
 export function calcularCentavos(
@@ -147,17 +164,21 @@ export function calcularCentavos(
     return { entrada, leida, importe };
   });
 
-  let gravado15 = 0n, gravado18 = 0n, isv15 = 0n, isv18 = 0n, exonerado = 0n;
-  const base15 = incluye ? baseDesdeTotal(grupos.ISV15, TASAS_ISV.ISV15) : grupos.ISV15;
-  const base18 = incluye ? baseDesdeTotal(grupos.ISV18, TASAS_ISV.ISV18) : grupos.ISV18;
+  let gravado15 = 0n, gravado18 = 0n, isv15 = 0n, isv18 = 0n, exonerado = 0n, ajuste = 0n;
+  const g15 = incluye ? baseDesdePrecioConISV(grupos.ISV15, TASAS_ISV.ISV15) : null;
+  const g18 = incluye ? baseDesdePrecioConISV(grupos.ISV18, TASAS_ISV.ISV18) : null;
+  const base15 = g15 ? g15.base : grupos.ISV15;
+  const base18 = g18 ? g18.base : grupos.ISV18;
 
   if (opciones.exonerado) {
+    // El adquirente exonerado paga solo la base; no hay ISV que redondear.
     exonerado = base15 + base18;
   } else {
     gravado15 = base15;
     gravado18 = base18;
-    isv15 = incluye ? grupos.ISV15 - base15 : impuestoArt9(base15, TASAS_ISV.ISV15);
-    isv18 = incluye ? grupos.ISV18 - base18 : impuestoArt9(base18, TASAS_ISV.ISV18);
+    isv15 = impuestoArt9(base15, TASAS_ISV.ISV15);
+    isv18 = impuestoArt9(base18, TASAS_ISV.ISV18);
+    ajuste = (g15?.ajuste ?? 0n) + (g18?.ajuste ?? 0n);
   }
   const exento = grupos.EXENTO;
   const subtotal = exonerado + exento + gravado15 + gravado18;
@@ -167,6 +188,7 @@ export function calcularCentavos(
     totales: {
       descuentos, subtotal, importeExonerado: exonerado, importeExento: exento,
       importeGravado15: gravado15, importeGravado18: gravado18, isv15, isv18, total,
+      ajustePorRedondeo: ajuste,
     },
   };
 }
@@ -174,7 +196,7 @@ export function calcularCentavos(
 export function calcularDocumento(
   lineas: LineaEntrada[],
   opciones: OpcionesCalculo = {},
-): { lineas: LineaCalculada[]; totales: Totales } {
+): { lineas: LineaCalculada[]; totales: Totales; advertencias: Problema[] } {
   const r = calcularCentavos(lineas, opciones);
   const calculadas: LineaCalculada[] = r.lineas.map(({ entrada: l, leida, importe }) => {
     const linea: LineaCalculada = {
@@ -200,7 +222,39 @@ export function calcularDocumento(
     isv15: deCentavos(t.isv15),
     isv18: deCentavos(t.isv18),
     total: deCentavos(t.total),
+    ajustePorRedondeo: deCentavos(t.ajustePorRedondeo),
     totalEnLetras: centavosEnLetras(t.total, opciones.moneda ?? 'HNL'),
   };
-  return { lineas: calculadas, totales };
+  return { lineas: calculadas, totales, advertencias: advertenciasDeCalculo(t) };
+}
+
+/** Avisos que dependen solo del cálculo. */
+export function advertenciasDeCalculo(t: TotalesCentavos): Problema[] {
+  if (t.ajustePorRedondeo === 0n) return [];
+  return [{
+    codigo: 'AVISO_AJUSTE_CENTAVO',
+    mensaje: `El total se redujo L ${centavosATexto(t.ajustePorRedondeo)} para que el ISV impreso sea exactamente la tasa × la base (Ley del ISV Art. 9). Cobra el total del documento, no la suma de precios.`,
+    campo: 'lineas',
+  }];
+}
+
+/**
+ * Sugiere precios con ISV incluido que no requieren ajuste por redondeo (D-01), para configurar el
+ * precio de góndola. Con `cantidad` > 1 verifica el importe de la línea (precio × cantidad).
+ * La sugerencia es por línea: en un documento con varias líneas de la misma tasa cuenta la suma del grupo.
+ * @example sugerirPrecioSinAjuste('0.27') // { requiereAjuste: true, anterior: 0.26, siguiente: 0.28 }
+ */
+export function sugerirPrecioSinAjuste(
+  precio: Monto,
+  opciones: { isv?: Exclude<TratamientoISV, 'EXENTO'>; cantidad?: Monto } = {},
+): { requiereAjuste: boolean; anterior: number; siguiente: number } {
+  const tasa = TASAS_ISV[opciones.isv ?? 'ISV15'];
+  const p = parsearDecimal(precio, 2, 'El precio');
+  const cant = parsearDecimal(opciones.cantidad ?? 1, ESCALA_CANTIDAD, 'La cantidad');
+  const exacto = (c: bigint) => c >= 0n && baseDesdePrecioConISV(dividirRedondeando(c * cant, 10_000n), tasa).ajuste === 0n;
+  let abajo = p;
+  while (abajo > 0n && !exacto(abajo)) abajo -= 1n;
+  let arriba = p;
+  while (!exacto(arriba)) arriba += 1n;
+  return { requiereAjuste: !exacto(p), anterior: deCentavos(abajo), siguiente: deCentavos(arriba) };
 }

@@ -1,7 +1,7 @@
 /**
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
-import { calcularCentavos, calcularDocumento, validarLineas } from './calculo';
+import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, validarLineas } from './calculo';
 import { escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import type { AlmacenCorrelativos } from './correlativos';
@@ -157,6 +157,7 @@ export function validarEntrada(
     const totalLempiras6 = totales.total * (tipoCambio ?? ESCALA_TC);
     const umbral = opciones.umbralIdentificacionConsumidorFinal ?? UMBRAL_CONSUMIDOR_FINAL;
     const umbral6 = parsearDecimal(umbral, 2, 'umbralIdentificacionConsumidorFinal') * ESCALA_TC;
+    problemas.push(...advertenciasDeCalculo(totales));
     const identificado = Boolean(c.rtn) || (Boolean(c.nombre?.trim()) && Boolean(c.identificacion?.numero?.trim()));
     if (totalLempiras6 > umbral6 && !identificado) {
       problemas.push({
