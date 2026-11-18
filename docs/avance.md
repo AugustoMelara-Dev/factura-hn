@@ -4,8 +4,8 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Estado
 
-- **Rama:** `fase-1-sdk-0.2` (se fusiona a `main` al cerrar la Fase 1; sin push).
-- **Fase actual:** 1, lote 1 (cerrar la Fase 1).
+- **Rama:** `fase-2-api` (la Fase 1 está fusionada en `main`, sin push).
+- **Fase actual:** 2, API (lote 2).
 - **Reglas de trabajo:** lotes por fase; decisiones en `docs/decisiones.md` ([REVISAR] si cambian la
   interpretación fiscal); Docker solo para `docker-compose.yml` de factura-hn; pedir permiso para npm, push,
   despliegues, cuentas, instalaciones globales, contenedores ajenos y licencia.
@@ -28,12 +28,17 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | 9 B-10 exportación a texto, LibroContable | 4331d56 |
 | 10 B-09 CAI, B-14, B-16 | 696d1a4 |
 | 11 @factura-hn/pdf | d0608e4 |
-| 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | (este commit) |
+| 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | 70bfd5b |
+| Postgres: RLS real y migraciones por versión | 9646887 |
+| Correcciones de la revisión independiente de la matriz | 511aafd |
 
 ## Sigue
 
-1. Revisión independiente de la matriz con un subagente; correcciones; merge a `main` (sin push).
-2. Fase 2 (API) y Fase 3 (cliente, MCP, ejemplos, playground).
+1. Fase 2 (API): Hono + OpenAPI + Postgres con RLS, modos alojado y local, llaves con roles, idempotencia,
+   límites, webhooks firmados, exportación y libro, pruebas de punta a punta. Especificación original de
+   endpoints: `docs/api.md`.
+2. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
+3. Al cerrar cada fase: resumen con conteo de pruebas y decisiones [REVISAR] de `docs/decisiones.md`.
 
 ## Cómo correr
 
