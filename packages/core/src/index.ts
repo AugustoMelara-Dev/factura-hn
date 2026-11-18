@@ -76,6 +76,9 @@ export {
   CONSUMIDOR_FINAL,
   DESTINO_EJEMPLARES,
 } from './documento';
+export { anularDocumento, estaAnulado, LEYENDA_ANULADA } from './anulacion';
+export type { OpcionesAnulacion } from './anulacion';
+export { congelar } from './inmutable';
 export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';
 export { filaLibroVentas, resumenVentas, libroVentasCSV } from './reportes';

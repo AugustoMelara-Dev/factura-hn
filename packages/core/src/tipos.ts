@@ -209,7 +209,13 @@ export interface DocumentoFiscal {
   observaciones?: string;
   destinoEjemplares: string;
   advertencias: Problema[];
+  /** EMITIDO al construirse; ANULADO solo mediante `anularDocumento` (Art. 41). */
+  estado: EstadoDocumento;
+  /** Datos de la anulación, presentes solo si `estado` es ANULADO. */
+  anulacion?: { motivo: string; fecha: string; hora: string };
 }
+
+export type EstadoDocumento = 'EMITIDO' | 'ANULADO';
 
 export interface Problema {
   codigo: string;

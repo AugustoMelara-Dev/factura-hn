@@ -1,6 +1,7 @@
 /**
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
+import { congelar } from './inmutable';
 import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, validarLineas } from './calculo';
 import { escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
@@ -243,6 +244,7 @@ export function construirDocumento(
     totales,
     destinoEjemplares: DESTINO_EJEMPLARES,
     advertencias: v.advertencias,
+    estado: 'EMITIDO',
   };
   if (entrada.horaEmision) doc.horaEmision = entrada.horaEmision;
   if (entrada.exoneracion) doc.exoneracion = entrada.exoneracion;
@@ -251,7 +253,8 @@ export function construirDocumento(
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
-  return doc;
+  // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
+  return congelar(doc);
 }
 
 /**

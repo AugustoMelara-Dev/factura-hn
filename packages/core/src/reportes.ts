@@ -22,9 +22,13 @@ export interface FilaLibroVentas {
   anulado: boolean;
 }
 
-/** Una fila por documento. Pasa `anulado: true` para documentos anulados (se registran en cero). */
+/**
+ * Una fila por documento. Los anulados (Art. 41) se registran con su número y montos en cero, para que la
+ * numeración del libro no tenga huecos. El estado se toma del propio documento; `opciones.anulado` queda
+ * por compatibilidad con 0.1 (true fuerza la fila como anulada).
+ */
 export function filaLibroVentas(doc: DocumentoFiscal, opciones: { anulado?: boolean } = {}): FilaLibroVentas {
-  const anulado = opciones.anulado ?? false;
+  const anulado = doc.estado === 'ANULADO' || (opciones.anulado ?? false);
   const signo = doc.tipoDocumento === '06' ? -1 : 1;
   const m = (v: number) => (anulado ? 0 : signo * v);
   const t = doc.totales;

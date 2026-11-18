@@ -19,11 +19,17 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **No se puede retrofechar (B-08).** La fecha de emisión la pone el reloj (`opciones.reloj`, por defecto
   `() => new Date()`) en America/Tegucigalpa. Una `fechaEmision` distinta de hoy en Honduras es el error
   `FECHA_EMISION_NO_ES_HOY` (Reglamento Arts. 14 y 43).
+- **Documentos inmutables.** `construirDocumento`/`crearDocumento` devuelven el documento congelado en
+  profundidad (`Object.freeze`) y con `estado: 'EMITIDO'`. Si tu código modificaba el documento, copia antes.
 
 ### Agregado
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
+- **Anulación (B-06, Art. 41):** `anularDocumento(doc, { motivo })` devuelve un documento nuevo con
+  `estado: 'ANULADO'` y `anulacion { motivo, fecha, hora }`; el número se conserva. El HTML y el texto imprimen
+  la leyenda «ANULADA». `filaLibroVentas` toma el estado del documento. `estaAnulado`, `LEYENDA_ANULADA`,
+  `congelar`.
 - `opciones.reloj` y `hoyHonduras(opciones)`.
 - `totales.ajustePorRedondeo`, `calcularDocumento(...).advertencias`, `sugerirPrecioSinAjuste` (precios de
   góndola que no requieren ajuste), `baseDesdePrecioConISV`.

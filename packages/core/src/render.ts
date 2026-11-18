@@ -140,10 +140,13 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   .totales td { border:none; padding:1px 2px; }
   .totales .total td { font-weight:700; font-size:${ticket ? '13px' : '14px'}; border-top:1px solid var(--tinta); padding-top:4px; }
   .letras { margin-top:6px; font-weight:600; }
+  .anulada { border:3px solid #b00; color:#b00; font-size:28px; font-weight:800; letter-spacing:6px; text-align:center; padding:4px; margin-bottom:4px; }
+  .anulada-motivo { color:#b00; text-align:center; margin-bottom:8px; }
   footer { margin-top:12px; text-align:center; color:var(--suave); font-size:10px; }
   @media print { .hoja { padding:${ticket ? '0' : '10mm'}; } @page { ${ticket ? 'size:80mm auto; margin:2mm;' : 'size:letter; margin:8mm;'} } }
 </style></head>
 <body><div class="hoja">
+${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anulada-motivo">Anulada el ${fechaLegible(doc.anulacion!.fecha)}: ${esc(doc.anulacion!.motivo)}</div>` : ''}
 <header>
   <div>
     ${opciones.logo ? `<img src="${esc(opciones.logo)}" alt="">` : ''}
@@ -219,6 +222,13 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   const e = doc.emisor;
   const sim = doc.moneda === 'HNL' ? 'L' : '$';
 
+  // Art. 41: leyenda ANULADA al inicio y al final del texto impreso.
+  const anulada = doc.estado === 'ANULADO';
+  if (anulada) {
+    centro('*** ANULADA ***');
+    izq(`Anulada el ${fechaLegible(doc.anulacion!.fecha)}: ${doc.anulacion!.motivo}`);
+    out.push(sep);
+  }
   centro(e.nombreComercial ?? e.razonSocial);
   if (e.nombreComercial) centro(e.razonSocial);
   centro(`RTN: ${formatearRTN(e.rtn)}`);
@@ -269,6 +279,7 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   izq('G=gravado 15% G18=gravado 18% E=exento');
   out.push(sep);
   centro(doc.destinoEjemplares);
+  if (anulada) centro('*** ANULADA ***');
   if (leyenda) centro(leyenda);
   return out.join('\n') + '\n';
 }
