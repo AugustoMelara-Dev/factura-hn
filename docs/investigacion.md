@@ -309,6 +309,8 @@ La API se diseña para dos modos con el mismo código:
 
 ### Preguntas abiertas para el SAR o un contador
 
+Redactadas como consulta formal en `docs/consulta-sar.md`.
+
 | ID | Pregunta | Por qué importa |
 |---|---|---|
 | P-01 | ¿Existe un registro, homologación o certificación de **proveedores o desarrolladores de sistemas de facturación**? ¿Tiene que registrarse el software, su versión o su proveedor? | Define si VitoCode debe hacer algún trámite propio |

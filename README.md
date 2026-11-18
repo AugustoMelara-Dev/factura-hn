@@ -103,6 +103,13 @@ mixta.totales.baseCreditoFiscal; // 100
 | `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
 | `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
 
+**Cliente exonerado con una OCE que no cubre todo:** la exoneración aplica al documento completo. Emite dos
+facturas, una con `exoneracion` y los artículos cubiertos por la Orden de Compra Exenta y otra normal con el
+resto.
+
+**Nota sobre una factura en dólares:** la nota se emite en lempiras. Escribe sus líneas en dólares y se
+convierten con el tipo de cambio de la factura original, que la nota imprime como referencia.
+
 ## Impleméntalo con IA en un prompt
 
 Copia esto en Claude Code, Cursor u OpenCode dentro de tu proyecto:

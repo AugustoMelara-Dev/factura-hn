@@ -135,6 +135,14 @@ export interface ReferenciaDocumento {
   numero: string;
   /** YYYY-MM-DD */
   fecha: string;
+  /**
+   * Moneda del documento original (DEC-018). Si no es HNL, las líneas de la nota se escriben en esa moneda
+   * y se convierten a lempiras con `tipoCambio`; la nota se emite en lempiras e imprime el tipo de cambio
+   * como referencia. Con `emitir`, si el original está en el almacén, se toman de él.
+   */
+  moneda?: Moneda;
+  /** Tipo de cambio del documento original (lempiras por unidad). */
+  tipoCambio?: Monto;
 }
 
 export interface DocumentoEntrada {

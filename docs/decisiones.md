@@ -58,7 +58,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   números ≤ ese valor que no están en el almacén son externos (aviso); los mayores no consumidos, error.
 - **Alternativa:** un método `avanzarSerie` en el contrato del almacén (cambia los tres adaptadores).
 
-### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión · [REVISAR]
+### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión · [APROBADA 2026-11-18]
 - **Contexto:** Art. 42 num. 1 cuenta el plazo desde el «vencimiento del plazo de vigencia». Puede leerse como
   la fecha límite o el día siguiente; si la fecha límite es el último día del mes, el aviso cambia de mes.
 - **Elegida:** la fecha límite (lectura conservadora: el aviso nunca queda tarde).
@@ -84,12 +84,13 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   se recomienda una cola (outbox) en la misma base.
 - **Alternativa:** notificar después del commit (más rápido, pero los libros pueden descuadrarse).
 
-### DEC-013 · CAI: error si no es alfanumérico con guiones · [REVISAR]
+### DEC-013 · CAI: letras, dígitos y guiones; espacios del borde se recortan · [APROBADA 2026-11-18]
 - **Contexto:** B-09 quita el patrón hexadecimal por defecto (sin fuente). El Art. 4 num. 7 dice «serie
-  alfanumérica».
-- **Elegida:** por defecto, error `CAI_FORMATO` solo si tiene espacios internos, signos o guiones repetidos
-  (letras y dígitos con guiones entre grupos). El patrón 6-6-6-6-6-2 queda en `caiEstricto`.
-- **Alternativa:** aceptar cualquier texto no vacío (deja pasar errores de digitación evidentes).
+  alfanumérica»; los CAI reales llevan guiones.
+- **Elegida:** se aceptan letras, dígitos y guiones. Los espacios del inicio y del final se recortan
+  (normalización, sin error); solo es error `CAI_FORMATO` un carácter distinto en medio. El patrón
+  6-6-6-6-6-2 queda en `caiEstricto`.
+- **Alternativa:** aceptar cualquier texto no vacío.
 
 ### DEC-014 · El PDF reutiliza `renderizarTexto`
 - **Contexto:** el PDF debe tener exactamente los datos fiscales del documento, y el impreso HTML y el
@@ -111,31 +112,39 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 
 ### Reglas derivadas que señaló la revisión independiente (2026-11-18)
 
-### DEC-016 · La Nota de Débito puede referir cualquier documento · [REVISAR]
+### DEC-016 · La Nota de Débito puede referir cualquier documento · [APROBADA 2026-11-18]
 - **Contexto:** el Art. 4 num. 31 (C L.377-379) dice que la ND está «vinculada a un Comprobante Fiscal»; el
   Art. 28 num. 3 b (C L.1479) dice «Comprobante Fiscal **o el documento**».
 - **Elegida:** la NC solo sobre Comprobantes Fiscales (Art. 6); la ND sobre cualquier tipo (p. ej. otra ND o
   una NC).
 - **Alternativa:** restringir también la ND a Comprobantes Fiscales.
 
-### DEC-017 · La nota no puede tener fecha anterior al original, también la ND · [REVISAR]
+### DEC-017 · La nota no puede tener fecha anterior al original, también la ND · [APROBADA 2026-11-18]
 - **Contexto:** el Art. 4 num. 32 (C L.384) habla de ajustes «con posterioridad» solo para la NC.
 - **Elegida:** `REFERENCIA_FECHA_POSTERIOR` para 06 y 07: un documento no se modifica antes de existir.
 - **Alternativa:** aplicarla solo a la NC.
 
-### DEC-018 · Las notas se emiten solo en lempiras · [REVISAR]
+### DEC-018 · Las notas se emiten solo en lempiras · [APROBADA 2026-11-18]
 - **Contexto:** los Arts. 26 num. 9 y 28 num. 8 (C L.1389-1390, L.1491-1492) piden «Denominación literal de la
-  Moneda Nacional Lempira o símbolo (L)»; no prohíben expresamente otra moneda.
-- **Elegida:** error `NOTA_MONEDA` si la moneda no es HNL.
-- **Alternativa:** permitir moneda extranjera con tipo de cambio, como la factura (Art. 11).
+  Moneda Nacional Lempira o símbolo (L)».
+- **Elegida:** error `NOTA_MONEDA` si la nota no está en HNL. Si la factura original está en moneda
+  extranjera, las líneas de la nota se escriben en esa moneda y se convierten a lempiras con el **tipo de
+  cambio de la factura original** (precio a 4 decimales, descuento a 2, redondeo del Art. 9 de la Ley del ISV).
+  La nota imprime la moneda y el tipo de cambio del original como referencia. Con el original en el almacén,
+  ambos se toman de él y un valor distinto es error (`REFERENCIA_MONEDA_NO_COINCIDE`,
+  `REFERENCIA_TIPO_CAMBIO_NO_COINCIDE`); con un original externo hay que indicarlos
+  (`REFERENCIA_TIPO_CAMBIO`). Lectura: la nota modifica una operación ya valorada; usar el tipo de cambio del
+  día cambiaría el valor de lo que se devuelve o ajusta.
+- **Alternativa:** tipo de cambio del día de la nota.
 
-### DEC-019 · Exoneración de todo el documento · [REVISAR]
+### DEC-019 · Exoneración de todo el documento · [APROBADA 2026-11-18]
 - **Contexto:** con `exoneracion`, todo lo gravado pasa a importe exonerado. El Reglamento no regula una
   exoneración parcial por línea.
-- **Elegida:** exoneración del documento completo; para mezclar, emitir dos documentos.
+- **Elegida:** exoneración del documento completo. Si la OCE no cubre todos los artículos, se emiten dos
+  facturas: una exonerada con los artículos cubiertos y otra normal con el resto (README y AGENTS.md).
 - **Alternativa:** marcar la exoneración por línea.
 
-### DEC-020 · La base de crédito fiscal no incluye lo gravado al 0 % · [REVISAR]
+### DEC-020 · La base de crédito fiscal no incluye lo gravado al 0 % · [APROBADA 2026-11-18]
 - **Contexto:** Art. 11 num. 3 (C L.736-737): «solo se reconocerá el crédito fiscal sobre las ventas gravadas».
   Una venta con alícuota cero no genera ISV que acreditar.
 - **Elegida:** `baseCreditoFiscal` = gravado 15 % + gravado 18 %.
@@ -151,12 +160,12 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** `FECHA_EMISION_NO_ES_HOY` si se envía una fecha distinta de la del reloj.
 - **Alternativa:** permitir retrofechar con advertencia.
 
-### DEC-023 · Correo del emisor con formato válido · [REVISAR]
+### DEC-023 · Correo del emisor con formato válido · [APROBADA 2026-11-18]
 - **Contexto:** Art. 10 num. 1 f (C L.594-595) exige el correo, sin fijar formato.
 - **Elegida:** error `EMISOR_CORREO` si no tiene forma de correo (`algo@dominio.tld`).
 - **Alternativa:** solo exigir que no esté vacío.
 
-### DEC-024 · RTN de 14 dígitos y DNI de 13 · [REVISAR]
+### DEC-024 · RTN de 14 dígitos y DNI de 13 · [APROBADA 2026-11-18]
 - **Contexto:** el Reglamento no fija longitudes; son las del RTN y la tarjeta de identidad en uso.
 - **Elegida:** validar esas longitudes (`CLIENTE_RTN`, `EMISOR_RTN`, DNI).
 - **Alternativa:** aceptar cualquier secuencia de dígitos.

@@ -88,6 +88,9 @@ Si el cliente es exonerado, agrega `exoneracion` con la Orden de Compra Exenta *
 Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4):
 `{ ordenCompraExenta, constanciaRegistroExonerado }` o `{ registroSAG }`.
 
+Si la Orden de Compra Exenta **no cubre todos los artículos**, emite dos facturas: una con `exoneracion` y
+los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo (DEC-019).
+
 En exportaciones usa `isv: 'GRAVADO0'` (tasa cero, Art. 12); no es lo mismo que `EXENTO`.
 
 Los siete datos del emisor son obligatorios (Art. 10 num. 1): RTN, razón social, nombre comercial (repite la
@@ -148,6 +151,10 @@ const nota = await emitir({
   lineas: lineasDevueltas,
 }, { almacen, establecimiento: '000', puntoEmision: '001' });   // usa la autorización del tipo 06
 ```
+
+Si la factura original se emitió en dólares, escribe las líneas de la nota en dólares: la nota se emite en
+lempiras con el tipo de cambio de la factura original, que se imprime como referencia (DEC-018). Si el
+original no está en el almacén, indica `referencia.moneda` y `referencia.tipoCambio`.
 
 ## Momento de emisión (Art. 14)
 

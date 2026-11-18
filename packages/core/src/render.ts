@@ -115,6 +115,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
     ? `<section class="bloque"><h3>Documento que modifica</h3>
         <div>N°: <b>${esc(doc.referencia.numero)}</b> · Fecha: ${fechaLegible(doc.referencia.fecha)}</div>
         <div>CAI: ${esc(doc.referencia.cai)}</div>
+        ${doc.referencia.moneda && doc.referencia.moneda !== 'HNL' ? `<div>Original en ${esc(doc.referencia.moneda)}; tipo de cambio L ${esc(doc.referencia.tipoCambio)}. Importes convertidos a lempiras.</div>` : ''}
         ${doc.motivo ? `<div>Motivo: ${esc(doc.motivo)}</div>` : ''}
       </section>`
     : '';
@@ -261,6 +262,9 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   if (doc.referencia) {
     izq(`Modifica: ${doc.referencia.numero} (${fechaLegible(doc.referencia.fecha)})`);
     izq(`CAI ref.: ${doc.referencia.cai}`);
+    if (doc.referencia.moneda && doc.referencia.moneda !== 'HNL') {
+      izq(`Original en ${doc.referencia.moneda}; tipo de cambio L ${doc.referencia.tipoCambio}. Importes convertidos a lempiras.`);
+    }
     if (doc.motivo) izq(`Motivo: ${doc.motivo}`);
   }
   out.push(sep);

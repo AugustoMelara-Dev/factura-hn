@@ -43,8 +43,11 @@ export function normalizarCAI(cai: string): string {
   return cai.trim().toUpperCase();
 }
 
-/** Forma mínima por defecto: letras y dígitos, con guiones solo entre grupos. */
-export const PATRON_CAI_BASICO = /^[0-9A-Z]+(-[0-9A-Z]+)*$/;
+/**
+ * Forma mínima por defecto (DEC-013): solo letras, dígitos y guiones, después de recortar los espacios del
+ * inicio y del final (`normalizarCAI`). Un espacio u otro carácter en medio es error.
+ */
+export const PATRON_CAI_BASICO = /^[0-9A-Z-]+$/;
 
 export function esCAIValido(cai: string): boolean {
   return PATRON_CAI.test(normalizarCAI(cai));

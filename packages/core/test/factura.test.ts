@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AlmacenFiscalMemoria,
+  emitir,
+  registrarAutorizacion,
   calcularDocumento,
   enteroALetras,
   ErrorValidacion,
@@ -207,10 +210,20 @@ describe('validación', () => {
     expect(validarEntrada(base(), { ...AUT, cai: 'RARO-123' }, { caiEstricto: true }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     expect(validarEntrada(base(), AUT, { caiEstricto: true }).ok).toBe(true);
   });
-  it('B-09: un CAI con espacios internos o signos es error aun sin caiEstricto', () => {
-    for (const cai of ['A1B2 C3-D4', 'A1B2C3--D4', '-A1B2', 'A1B2C3_D4', 'A1B2C3-D4.']) {
+  it('B-09 / DEC-013: un carácter distinto de letra, dígito o guion en medio es error aun sin caiEstricto', () => {
+    for (const cai of ['A1B2 C3-D4', 'A1B2C3_D4', 'A1B2C3-D4.', 'A1B2C3/D4']) {
       expect(validarEntrada(base(), { ...AUT, cai }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     }
+    for (const cai of ['A1B2C3--D4', '-A1B2', 'a1b2c3-d4']) expect(validarEntrada(base(), { ...AUT, cai }).ok).toBe(true);
+  });
+  it('DEC-013: un CAI pegado con espacios alrededor se normaliza sin error', async () => {
+    const pegado = `  ${AUT.cai.toLowerCase()} \t\n`;
+    expect(validarEntrada(base(), { ...AUT, cai: pegado }).ok).toBe(true);
+    const almacen = new AlmacenFiscalMemoria();
+    const guardada = await registrarAutorizacion(almacen, { ...AUT, puntoEmision: '001', rangoFinal: 10, cai: pegado });
+    expect(guardada.cai).toBe(AUT.cai);
+    const doc = await emitir({ emisor: EMISOR, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen, establecimiento: '000', puntoEmision: '001' });
+    expect(doc.cai).toBe(AUT.cai);
   });
   it('moneda extranjera exige tipo de cambio', () => {
     expect(validarEntrada(base({ moneda: 'USD' }), AUT).errores.map((e) => e.codigo)).toContain('TIPO_CAMBIO');

@@ -225,6 +225,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     }
     const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
+    if (tipo === '06' || tipo === '07') entrada = await monedaDelOriginal(tx, entrada);
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
     const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     await tx.guardarDocumento(doc);
@@ -406,10 +407,26 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
   if (original.cliente.rtn && rtnNota && rtnNota !== original.cliente.rtn) {
     problemas.push({ codigo: 'REFERENCIA_RTN_NO_COINCIDE', mensaje: `El RTN del adquirente no es el del documento ${numero} (${original.cliente.rtn}).`, campo: 'cliente.rtn' });
   }
+  // DEC-018: la conversión a lempiras usa la moneda y el tipo de cambio del original.
+  const monedaRef = r.moneda ?? 'HNL';
+  if (monedaRef !== original.moneda) {
+    problemas.push({ codigo: 'REFERENCIA_MONEDA_NO_COINCIDE', mensaje: `El documento ${numero} está en ${original.moneda}, no en ${monedaRef}.`, campo: 'referencia.moneda' });
+  } else if (original.moneda !== 'HNL' && original.tipoCambio !== undefined && Number(r.tipoCambio) !== original.tipoCambio) {
+    problemas.push({ codigo: 'REFERENCIA_TIPO_CAMBIO_NO_COINCIDE', mensaje: `El tipo de cambio de la referencia no es el del documento ${numero} (L ${original.tipoCambio}).`, campo: 'referencia.tipoCambio' });
+  }
   if (!original.cliente.rtn) {
     problemas.push({ codigo: 'AVISO_ORIGINAL_SIN_RTN', mensaje: `El documento ${numero} se emitió sin RTN del adquirente; verifica que la nota corresponde al mismo cliente.`, campo: 'cliente.rtn' });
   }
   return problemas;
+}
+
+/** DEC-018: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */
+async function monedaDelOriginal(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<DocumentoEntrada> {
+  const r = entrada.referencia;
+  if (!r?.numero || !esNumeroValido(r.numero) || r.moneda !== undefined) return entrada;
+  const original = await tx.buscarDocumento(formatearNumero(parsearNumero(r.numero)));
+  if (!original || original.moneda === 'HNL') return entrada;
+  return { ...entrada, referencia: { ...r, moneda: original.moneda, tipoCambio: original.tipoCambio } };
 }
 
 /** Busca un documento guardado y lo devuelve inmutable. */

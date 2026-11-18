@@ -43,6 +43,10 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- Notas sobre facturas en moneda extranjera (DEC-018): se emiten en lempiras con el tipo de cambio del
+  original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
+- CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
+- `docs/consulta-sar.md`: consulta formal con las preguntas abiertas.
 - Revisión independiente de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
