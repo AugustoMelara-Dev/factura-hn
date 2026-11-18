@@ -8,8 +8,9 @@ un software de facturación para autoimpresores por sistema computarizado.
 Estimados señores:
 
 Desarrollamos factura-hn, un software de facturación de código abierto para obligados tributarios que se
-inscriban como autoimpresores por sistema computarizado (Art. 47). Lo ofrecemos de dos formas: como biblioteca
-que el negocio instala en sus propios equipos, y como servicio en la nube. Para cumplir el Reglamento sin
+inscriban como autoimpresores por sistema computarizado (Art. 47). Hoy se ofrece como biblioteca y servidor que
+el negocio instala en sus propios equipos. También podríamos ofrecerlo como servicio en la nube, pero no lo
+haremos sin su respuesta a la consulta 1. Para cumplir el Reglamento sin
 interpretarlo por nuestra cuenta, les agradeceremos que respondan las consultas siguientes. En cada una
 indicamos la lectura que aplicamos mientras tanto.
 
@@ -33,8 +34,7 @@ atiende a varios negocios.
 num. 3.
 
 **Lectura provisional.** Recomendamos instalar el sistema en el establecimiento del negocio, con su propio
-servidor y su propia base de datos. El servicio en la nube se ofrece aclarando que su encaje con el Art. 47
-está pendiente de esta respuesta.
+servidor y su propia base de datos. No ofrecemos el servicio en la nube hasta recibir esta respuesta.
 
 ## 2. Plazo de conservación de los documentos (P-06)
 
