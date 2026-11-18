@@ -149,6 +149,14 @@ const nota = await emitir({
 }, { almacen, establecimiento: '000', puntoEmision: '001' });   // usa la autorización del tipo 06
 ```
 
+## Momento de emisión (Art. 14)
+
+Emite el documento cuando ocurre lo primero entre la entrega del bien y el pago o el otorgamiento del
+crédito; en servicios, al pago o al crédito; en ventas por internet o teléfono pagadas antes de entregar, en
+la fecha del pago, y se entrega con el bien. No esperes al cierre del día ni agrupes ventas: un documento por
+venta (Art. 9). Si el cliente no está presente, el emisor debe hacerle llegar el original (por ejemplo, el PDF
+de `@factura-hn/pdf` por correo).
+
 ## Reloj del dispositivo
 
 La fecha de emisión la pone el reloj en hora de Honduras. Dos errores protegen el orden cronológico del

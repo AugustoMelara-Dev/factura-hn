@@ -29,6 +29,21 @@ Esto se cumple aunque alguien edite la base a mano.
 5. **Conservación.** El Código Tributario (Arts. 58.4 y 63.3) pide conservar la información 5 años en el
    domicilio fiscal. Haz respaldos.
 
+## Sistemas en red (Art. 48)
+
+El Reglamento admite tres estructuras (Art. 48, C L.2083-2115). En factura-hn cada serie es un
+identificador `establecimiento-puntoEmision-tipo`, así que la estructura se elige con los puntos de emisión
+que se registran ante el SAR y con dónde vive el almacén:
+
+| Estructura | Numeración | Cómo se configura |
+|---|---|---|
+| Centralizado | Una sola para todo el país | Un único establecimiento y punto de emisión (p. ej. `000-001`) en un almacén central (Postgres). Todas las cajas llaman a la misma API o base; el bloqueo de la serie ordena los números |
+| Regional | Una por región | Un punto de emisión por región (p. ej. `000-001` norte, `000-002` sur), cada uno con sus autorizaciones; puede ser un almacén por región o uno central |
+| Por sucursal | Varias, por sucursal | Un establecimiento por sucursal y uno o más puntos de emisión por caja (`001-001`, `001-002`, …). Con SQLite, cada caja fuera de línea tiene su propio punto de emisión: dos cajas nunca comparten serie sin un almacén común |
+
+La regla de oro: **una serie, un almacén**. Dos procesos pueden emitir en la misma serie solo si comparten
+el mismo almacén transaccional (Postgres, o el mismo archivo SQLite en la misma máquina).
+
 ## Escribir tu propio almacén
 
 Implementa dos interfaces:

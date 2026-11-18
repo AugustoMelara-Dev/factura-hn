@@ -13,6 +13,7 @@
     "test": "pnpm -r --filter ./packages/* test",
     "typecheck": "pnpm -r typecheck",
     "test:pg": "node scripts/test-pg.mjs",
+    "verificar:dist": "pnpm build && node scripts/verificar-dist.mjs",
     "example": "pnpm --filter factura-hn build && pnpm --filter ./examples/basico start"
   },
   "devDependencies": {

@@ -43,6 +43,11 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- `AutorizacionCAI.fechaAutorizacion` (opcional) y el aviso `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62); los avisos
+  de la autorización quedan en el evento `AUTORIZACION_REGISTRADA` de la bitácora.
+- Paquetes compilados con tipos separados para ESM (`.d.ts`) y CJS (`.d.cts`); `pnpm verificar:dist` carga
+  cada paquete por `import` y por `require`.
+- Matriz de cumplimiento con una prueba por fila (`docs/investigacion.md`, `test/matriz.test.ts`).
 - **`@factura-hn/pdf`:** `renderizarPDF(doc, { formato: 'carta' | 'ticket' })` con pdf-lib, sin navegador;
   leyenda y marca de agua ANULADA; salida determinista.
 - **Exportación a texto (B-10, Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con

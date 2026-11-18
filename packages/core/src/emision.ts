@@ -104,6 +104,7 @@ export async function registrarAutorizacion(
           rangoInicial: normalizada.rangoInicial,
           rangoFinal: normalizada.rangoFinal,
           fechaLimiteEmision: normalizada.fechaLimiteEmision,
+          advertencias: validarAutorizacion(normalizada).filter(esAdvertencia).map((p) => p.codigo),
         },
       }),
     );

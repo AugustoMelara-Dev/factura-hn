@@ -23,17 +23,17 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Un solo camino (emitir/anular) | 62aa196 |
 | Reloj adelantado + bitácora | 0f2b354 |
 | 7 B-01, B-02, B-05, B-12, B-13, B-15 | 2ffb156 |
+| Ajustes B-13 (AVISO_ORIGINAL_EXTERNO, ultimoEmitidoAntes) y README | bcd5d2d |
+| 8 B-07 no utilizados, B-11 aviso a 60 días | d96c97c |
+| 9 B-10 exportación a texto, LibroContable | 4331d56 |
+| 10 B-09 CAI, B-14, B-16 | 696d1a4 |
+| 11 @factura-hn/pdf | d0608e4 |
+| 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | (este commit) |
 
 ## Sigue
 
-1. Ajuste B-13 (AVISO_ORIGINAL_EXTERNO) y README sin avisos en el ejemplo principal.
-2. Paso 8: B-07 documentos no utilizados (Art. 42), B-11 aviso de renovación a 60 días.
-3. Paso 9: B-10 exportación en texto (Art. 53) y gancho contable.
-4. Paso 10: B-09 CAI sin aviso por defecto, B-14, B-16.
-5. Paso 11: `@factura-hn/pdf` (pdf-lib).
-6. Paso 12: build ESM+CJS, README, matriz con prueba por fila, versión 0.2.0.
-7. Revisión independiente con subagente; correcciones; merge a `main`.
-8. Fase 2 (API) y Fase 3 (cliente, MCP, ejemplos, playground).
+1. Revisión independiente de la matriz con un subagente; correcciones; merge a `main` (sin push).
+2. Fase 2 (API) y Fase 3 (cliente, MCP, ejemplos, playground).
 
 ## Cómo correr
 

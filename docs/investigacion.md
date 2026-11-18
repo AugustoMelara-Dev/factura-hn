@@ -32,76 +32,80 @@ Advertencias sobre las fuentes:
 
 ## 1. Matriz de cumplimiento
 
-Leyenda de estado en factura-hn 0.1: ✅ cubierto y probado · 🟡 parcial · ❌ ausente · ➖ no aplica al SDK
+Estado en factura-hn 0.2 (la columna «Brecha (0.1)» conserva el diagnóstico inicial): ✅ cubierto y probado · 🟡 parcial · ❌ ausente · ➖ no aplica al SDK
 (obligación del contribuyente, de la API o de la operación).
+
+La columna «Prueba» nombra el archivo de `packages/core/test/` (o `packages/pdf/test/`) y el título de la
+prueba entre comillas; «contrato» es la batería `ejecutarContratoAlmacen`, que corre en memoria, SQLite y
+Postgres.
 
 ### Reglamento (Acuerdo 481-2017, texto consolidado)
 
-| # | Requisito | Fuente | factura-hn 0.1 | invoicehn | Brecha → acción |
-|---|---|---|---|---|---|
-| 4.7 | El CAI es «una serie alfanumérica generada electrónicamente». No se publica longitud ni formato | C L.235-237 | 🟡 Valida el patrón hex `6-6-6-6-6-2` y emite `CAI_FORMATO_ADVERTENCIA` | Lo guarda e imprime tal cual; no valida formato | **B-09.** El patrón no tiene fuente. Se quita la advertencia por defecto; queda solo como opción `caiEstricto` |
-| 4.9 | CAEE: código único por documento electrónico, generado por algoritmo | C L.244-246 | ❌ | ❌ | Sin especificación pública (sección 4). No se implementa |
-| 4.31-32 | NC: ajustes, devoluciones, descuentos posteriores, anulación de operaciones; ND: ajustes. Ambas vinculadas a un Comprobante Fiscal | C L.377-385 | 🟡 Exige referencia, pero no comprueba que el original exista, que no esté anulado ni que sea un Comprobante Fiscal (Art. 6) | ✅ Comprueba contra el store: original existente, no ANULADO, mismo RTN; tipo de referencia de NC ∈ Art. 6 | **B-13** |
-| 4.43 | El Ticket se emite **exclusivamente** por máquina registradora | C L.448-450 | ➖ La hoja de ruta del README incluye «Ticket (09)» | No lo emite | **B-15.** Un sistema computarizado no puede emitir Tickets. Se quita de la hoja de ruta |
-| 5 | Original y copia; las copias se resguardan por el plazo de prescripción | C L.476-481 | 🟡 El render imprime el destino, no hay noción de copia | 🟡 | Se cubre con la custodia de la API (Fase 2). El plazo es la pregunta P-06 |
-| 9 | La exención de L 50 al día **no aplica** a sistemas computarizados: un documento por venta | C L.559-566 | ✅ (no hay consolidación diaria) | ✅ (decisión documentada) | Se documenta y se prueba que no hay una API de consolidación |
-| 10.1 | Emisor: RTN, nombre o razón social, **nombre comercial**, dirección de casa matriz **y del establecimiento**, **teléfono**, **correo** | C L.584-595 | 🟡 Exige RTN, razón social y casa matriz. Nombre comercial, establecimiento, teléfono y correo son opcionales (solo `AVISO_EMISOR_CONTACTO` si faltan los dos últimos) | ✅ Los siete datos son obligatorios | **B-05.** Pasan a ser errores. El establecimiento puede ser igual a la casa matriz (se acepta un valor explícito) |
-| 10.2 | Denominación «Factura» | C L.598 | ✅ | ✅ | — |
-| 10.3-5 | CAI, fecha límite y rango vigentes impresos | C L.600-605 | ✅ | ✅ | — |
-| 10.6 | Destino de los ejemplares | C L.607-610 | ✅ `DESTINO_EJEMPLARES` | ✅ | — |
-| 10.7 | Número `NNN-NNN-NN-NNNNNNNN`; la serie inicia en 00000001 y **se reinicia** tras 99999999; «identificador del documento» = primeros tres grupos | C L.613-633 | 🟡 Formato correcto. El correlativo se lleva **por CAI**, no por identificador. El reinicio no está modelado | ✅ Contador por identificador. El reinicio tampoco | **B-04** (contador por identificador). Reinicio: decisión D-07 |
-| 10.8 / 11.4 | Adquirente exonerado: Orden de Compra Exenta, Constancia de Registro de Exonerados, registro SAG / RUPNSA | C L.635-640, L.739-749 | 🟡 Exige **las dos primeras siempre**. El Art. 11.4 dice «… **o**, el Número identificativo del Registro Único … según corresponda» | 🟡 Similar | **B-12.** Ambiguo: la lectura literal admite el registro agroindustrial como alternativa. Pregunta P-08; mientras tanto se acepta OCE + constancia **o** registro SAG/RUPNSA, con la lectura documentada |
-| 10.9 | Datos de la imprenta (solo preimpresos) | C L.642-648 | ➖ | ➖ | No aplica al autoimpresor |
-| 10.10 | «Descuentos y rebajas otorgados» en el **formato** (Acuerdo 725-2018) | C L.650 | ✅ La línea se imprime siempre, incluso en cero | ✅ | Agregar una prueba explícita de «se imprime con 0.00» |
-| 11.1 a-c | Crédito fiscal: nombre, RTN del cliente, fecha | C L.660-667 | ✅ | ✅ | — |
-| 11.1 d-f | Descripción, cantidad, valor unitario | C L.669-673 | ✅ | ✅ | — |
-| 11.1 g | Discriminar exentos, exonerados y **gravados con alícuota cero** | C L.675-676 | 🟡 No existe la categoría «gravado 0 %» | ✅ `GRAVADO_0` | **B-01** |
-| 11.1 h-i | Subtotales e impuestos por tarifa | C L.678-680 | ✅ Por grupo de tasa | ✅ | Ver B-03: el ISV impreso debe ser la tasa × la base impresa |
-| 11.1 j / 2 g | Moneda «Lempira» o símbolo L | C L.682-683, L.717-718 | ✅ | ✅ | — |
-| 11.1 k | Total en números y letras | C L.685 | ✅ | ✅ | — |
-| 11.1 l / 2 j | Discriminar descuentos | C L.687, L.724 | ✅ | ✅ | — |
-| 11.2 a | «CONSUMIDOR FINAL» o nombre e identificación | C L.702-704 | ✅ | ✅ | — |
-| 11 (párr.) | Moneda extranjera: tasa de cambio vigente a la fecha | C L.726-727 | ✅ Exige y muestra `tipoCambio` | ✅ con fecha de la tasa | Opcional: guardar la fecha de la tasa |
-| 11 (párr.) | Consumidor final > L 10,000: nombre, tipo y número de identificación | C L.729-734 | ✅ Umbral configurable | ✅ | — |
-| 11.3 | Con ventas exentas y gravadas, el crédito fiscal reconoce solo las gravadas | C L.736-737 | ❌ | ✅ `credito_fiscal_base` y aviso de venta mixta | **B-02** |
-| 12 | Exportaciones de mercancías gravadas: factura con **tasa cero** | C L.752-754 | ❌ | ✅ `GRAVADO_0` | **B-01.** Conflicto con la Ley del ISV (ISV L.165, L.189: «quedan exentos … los bienes y servicios que se exporten»). Lectura elegida: el documento sigue al Reglamento (columna «gravado 0 %»). Pregunta P-09 |
-| 13 | Zonas libres: factura con tasa cero para transportistas, etc. | C L.764-817 | ❌ | 🟡 | Lo cubre `GRAVADO0`; no se modelan reglas de zona libre |
-| 14 | Momento de emisión (entrega, pago o devengo, lo primero) | C L.820-848 | ➖ | ➖ | Responsabilidad del integrador. Se documenta en AGENTS.md |
-| 17 | Ticket: máquina registradora, numeración de 10 dígitos | C L.937-993 | ➖ | ➖ | Ver 4.43. Nota: L.988 conserva «El Ticket tendrá como código 03», un resto del texto original que contradice el 09 de L.967. Sin efecto para nosotros |
-| 25.2,7 / 27.2,7 | «Nota de Crédito» / «Nota de Débito»; destino | C L.1324, L.1357-1359, L.1408, L.1450-1452 | ✅ | ✅ | — |
-| 25.5 / 27.5 | Códigos 06 y 07, serie propia | C L.1344-1345, L.1437-1438 | ✅ | ✅ | — |
-| 26.1-2 / 28.1-2 | Nombre y RTN del adquirente (sin opción de CONSUMIDOR FINAL) | C L.1374-1375, L.1473-1475 | ✅ `NOTA_CLIENTE_RTN` | ✅ | — |
-| 26.3 / 28.3 | CAI, número y fecha del documento que se modifica. NC → Comprobante Fiscal; ND → «Comprobante Fiscal **o el documento**» | C L.1376-1381, L.1477-1482 | 🟡 Pide los tres datos; no valida el tipo de documento referido ni que la fecha sea ≤ la de la nota | ✅ | **B-13** |
-| 26.4 / 28.4 | Motivo | C L.1382, L.1483 | ✅ | ✅ | — |
-| 26.7 | Nombre, identidad y firma de quien recibe la NC | C L.1385-1386 | ✅ Campos en blanco en el render | ✅ | — |
-| 26.9 / 28.8 | Moneda nacional | C L.1389-1390, L.1491-1492 | ✅ `NOTA_MONEDA` | ✅ | — |
-| 38 | Papel térmico: certificación del proveedor del papel, conservación ≥ 5 años y resúmenes de ventas. Copia idéntica al original | C L.1879-1911 | ❌ El ticket de 80 mm no advierte nada | ❌ | **B-16.** Aviso en la documentación y en el render de ticket. Pregunta P-07 sobre los «resúmenes de ventas» |
-| 40 | Comunicar el uso temporal (cambio de dirección o de nombre comercial, ferias) | C L.1925-1940 | ➖ | ➖ | Se documenta como paso ante el SAR |
-| **41** | Documentos con errores: leyenda **«ANULADA»**; resguardar original y copia en orden cronológico | C L.1943-1955 | ❌ No hay estado de anulación en `DocumentoFiscal`; el render no imprime ANULADA; el libro recibe `anulado` desde fuera | ✅ `annul` devuelve una nueva forma inmutable con la leyenda, y el correlativo se conserva | **B-06:** `anularDocumento` |
-| **42** | Comunicar los documentos **no utilizados** dentro de los 10 días hábiles del mes siguiente (12 causales, entre ellas el vencimiento) | C L.1958-1990 | ❌ | 🟡 `health` lista las autorizaciones vencidas que dejaron números sin usar | **B-07** |
-| **43** | Custodia ordenada y **cronológica** por el plazo del Código Tributario | C L.1992-1996 | 🟡 Sin control cronológico; se puede emitir con cualquier `fechaEmision` | ✅ La CLI no permite retrofechar | **B-08** |
-| 45 | Inscripción al Régimen de Facturación | C L.2013-2036 | ➖ | ➖ | Sección 3a |
-| 46 | Prevalorada y Recibo por Honorarios, **solo por imprenta** | C L.2039-2044 | ➖ La hoja de ruta incluye «Recibo por Honorarios (04)» | ➖ | **B-15.** El 04 no se puede emitir desde un sistema. Se quita de la hoja de ruta |
-| **47** | Autoimpresor por sistema computarizado: registrar **cada sistema**, el **software**, el **establecimiento donde está el servidor** y los puntos de emisión. Excluye prevaloradas, honorarios y donación | C L.2047-2080 | ➖ | ➖ | Sección 3. Implicaciones importantes para la API alojada (P-01, P-02) |
-| 48 | Sistema en red: centralizado, regional o por sucursal (una o varias numeraciones) | C L.2083-2115 | 🟡 Es posible, pero no está documentado | ➖ | Documentar en persistencia.md cómo se mapea a puntos de emisión |
-| **53** | Sistemas «desarrollados **o adquiridos**»: (1) integrados al menos a un sistema contable o de inventarios; (2) seguridad y **controles de auditoría**; (3) persistencia y disponibilidad inmediata; (4) código 2D/3D opcional; (5) generación de **archivos de texto** para enviarlos al SAR. Declaración Jurada previa | C L.2161-2188 | 🟡 Num. 5: CSV del libro de ventas. Num. 1-3 dependen de la aplicación | 🟡 `Ledger` (num. 1), export CSV y JSON (num. 5) | **B-10** (exportación de texto y gancho contable en el SDK). Num. 2-3 se resuelven en la API (Fase 2) |
-| 54 | Emisión electrónica: interactuar con el SAR para obtener el CAEE | C L.2192-2196 | ❌ | ❌ | Sección 4 |
-| 55 | Contingencia: talonarios preimpresos de imprenta; no se permite vender sin documento | C L.2200-2209 | ➖ | ➖ | Documentar. **No** justifica retrofechar |
-| 57-58 | Incorporación gradual a la emisión electrónica según el calendario que publique Finanzas; el SAR publicará la documentación técnica | C L.2219-2234 | ➖ | ➖ | Sección 4 |
-| **59** | Autorización electrónica **por punto de emisión y por tipo de documento**, con rango. Una sola solicitud por punto hasta agotar, **dentro de los 2 meses previos a la fecha límite** | C L.2245-2266 | 🟡 `AutorizacionCAI` por tipo y punto ✅. El aviso de vencimiento por defecto es de 30 días | ✅ | **B-11.** Aviso por defecto a 60 días, citando el Art. 59 |
-| 61 | Autoimpresor por sistema: autorización **por cada Sistema** y tipo de documento | C L.2279-2295 | ➖ | ➖ | P-02: ¿qué es «un Sistema» cuando es una API multi-tenant? |
-| **62** | Vigencia máxima de **1 año**; vencida, el documento pierde validez | C L.2297-2303 | ✅ `AUTORIZACION_VENCIDA` (se puede emitir el mismo día de la fecha límite) | ✅ | Agregar la advertencia `AVISO_VIGENCIA_MAYOR_1_ANIO` si la autorización trae `fechaAutorizacion` |
-| 63 | El SAR puede limitar o cancelar autorizaciones por el comportamiento tributario | C L.2312-2345 | ➖ | ➖ | La API debe permitir dar de baja un CAI antes de su fecha límite (estado `cancelada`) |
-| 76-A | Desde el 1 de marzo de 2019, todos los documentos con todos los requisitos | C L.2585-2604; 817 | ✅ (implícito) | ✅ | — |
+| # | Requisito | Fuente | factura-hn 0.2 | Prueba | invoicehn | Brecha (0.1) → acción |
+|---|---|---|---|---|---|---|
+| 4.7 | El CAI es «una serie alfanumérica generada electrónicamente». No se publica longitud ni formato | C L.235-237 | ✅ Letras, dígitos y guiones; el patrón 6-6-6-6-6-2 solo con `caiEstricto` | `factura.test.ts` «B-09 …» (2) | Lo guarda e imprime tal cual; no valida formato | **B-09.** El patrón no tiene fuente. Se quita la advertencia por defecto; queda solo como opción `caiEstricto` |
+| 4.9 | CAEE: código único por documento electrónico, generado por algoritmo | C L.244-246 | ❌ Sin especificación pública | — | ❌ | Sin especificación pública (sección 4). No se implementa |
+| 4.31-32 | NC: ajustes, devoluciones, descuentos posteriores, anulación de operaciones; ND: ajustes. Ambas vinculadas a un Comprobante Fiscal | C L.377-385 | ✅ NC solo sobre Comprobante Fiscal; original existente, no anulado, mismo CAI, fecha y RTN | `b13-notas.test.ts` | ✅ Comprueba contra el store: original existente, no ANULADO, mismo RTN; tipo de referencia de NC ∈ Art. 6 | **B-13** |
+| 4.43 | El Ticket se emite **exclusivamente** por máquina registradora | C L.448-450 | ✅ `TIPO_NO_EMITIBLE` para 09 | `paso7-requisitos.test.ts` «B-15 …» | No lo emite | **B-15.** Un sistema computarizado no puede emitir Tickets. Se quita de la hoja de ruta |
+| 5 | Original y copia; las copias se resguardan por el plazo de prescripción | C L.476-481 | 🟡 Destino impreso; la custodia de copias es de la API (Fase 2) | `matriz.test.ts` «Art. 10 num. 2-6» | 🟡 | Se cubre con la custodia de la API (Fase 2). El plazo es la pregunta P-06 |
+| 9 | La exención de L 50 al día **no aplica** a sistemas computarizados: un documento por venta | C L.559-566 | ✅ Sin consolidación diaria | `matriz.test.ts` «Art. 9 …» | ✅ (decisión documentada) | Se documenta y se prueba que no hay una API de consolidación |
+| 10.1 | Emisor: RTN, nombre o razón social, **nombre comercial**, dirección de casa matriz **y del establecimiento**, **teléfono**, **correo** | C L.584-595 | ✅ Los siete datos obligatorios e impresos | `paso7-requisitos.test.ts` «B-05 …»; `matriz.test.ts` «Art. 10 num. 1» | ✅ Los siete datos son obligatorios | **B-05.** Pasan a ser errores. El establecimiento puede ser igual a la casa matriz (se acepta un valor explícito) |
+| 10.2 | Denominación «Factura» | C L.598 | ✅ | `matriz.test.ts` «Art. 10 num. 2-6» | ✅ | — |
+| 10.3-5 | CAI, fecha límite y rango vigentes impresos | C L.600-605 | ✅ | `matriz.test.ts` «Art. 10 num. 2-6» | ✅ | — |
+| 10.6 | Destino de los ejemplares | C L.607-610 | ✅ | `matriz.test.ts` «Art. 10 num. 2-6» | ✅ | — |
+| 10.7 | Número `NNN-NNN-NN-NNNNNNNN`; la serie inicia en 00000001 y **se reinicia** tras 99999999; «identificador del documento» = primeros tres grupos | C L.613-633 | ✅ Serie por identificador; rango que cruce 99999999 rechazado (D-07) | `matriz.test.ts` «Art. 10 num. 7 …»; contrato `factura-hn/pruebas` «continúa la numeración … (B-04)», «cada identificador … su propia serie» | ✅ Contador por identificador. El reinicio tampoco | **B-04** (contador por identificador). Reinicio: decisión D-07 |
+| 10.8 / 11.4 | Adquirente exonerado: Orden de Compra Exenta, Constancia de Registro de Exonerados, registro SAG / RUPNSA | C L.635-640, L.739-749 | ✅ OCE + constancia, o registro SAG/RUPNSA | `paso7-requisitos.test.ts` «B-12 …» | 🟡 Similar | **B-12.** Ambiguo: la lectura literal admite el registro agroindustrial como alternativa. Pregunta P-08; mientras tanto se acepta OCE + constancia **o** registro SAG/RUPNSA, con la lectura documentada |
+| 10.9 | Datos de la imprenta (solo preimpresos) | C L.642-648 | ➖ | — | ➖ | No aplica al autoimpresor |
+| 10.10 | «Descuentos y rebajas otorgados» en el **formato** (Acuerdo 725-2018) | C L.650 | ✅ | `matriz.test.ts` «Art. 10 num. 10 …» | ✅ | Agregar una prueba explícita de «se imprime con 0.00» |
+| 11.1 a-c | Crédito fiscal: nombre, RTN del cliente, fecha | C L.660-667 | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» a-c | ✅ | — |
+| 11.1 d-f | Descripción, cantidad, valor unitario | C L.669-673 | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» d-f | ✅ | — |
+| 11.1 g | Discriminar exentos, exonerados y **gravados con alícuota cero** | C L.675-676 | ✅ `GRAVADO0` | `paso7-requisitos.test.ts` «B-01 …» | ✅ `GRAVADO_0` | **B-01** |
+| 11.1 h-i | Subtotales e impuestos por tarifa | C L.678-680 | ✅ ISV = tasa × base impresa | `art9-redondeo.test.ts`; `factura.test.ts` «cálculo» | ✅ | Ver B-03: el ISV impreso debe ser la tasa × la base impresa |
+| 11.1 j / 2 g | Moneda «Lempira» o símbolo L | C L.682-683, L.717-718 | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» j-l | ✅ | — |
+| 11.1 k | Total en números y letras | C L.685 | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» j-l; `factura.test.ts` «montos en letras» | ✅ | — |
+| 11.1 l / 2 j | Discriminar descuentos | C L.687, L.724 | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» j-l | ✅ | — |
+| 11.2 a | «CONSUMIDOR FINAL» o nombre e identificación | C L.702-704 | ✅ | `matriz.test.ts` «Art. 11 num. 2 a …» | ✅ | — |
+| 11 (párr.) | Moneda extranjera: tasa de cambio vigente a la fecha | C L.726-727 | ✅ Exige e imprime `tipoCambio` | `matriz.test.ts` «Art. 11 (párrafo) …» | ✅ con fecha de la tasa | Opcional: guardar la fecha de la tasa |
+| 11 (párr.) | Consumidor final > L 10,000: nombre, tipo y número de identificación | C L.729-734 | ✅ Umbral configurable | `matriz.test.ts` «Art. 11 num. 2 a …» párrafo final; `factura.test.ts` «consumidor final sobre el umbral …» | ✅ | — |
+| 11.3 | Con ventas exentas y gravadas, el crédito fiscal reconoce solo las gravadas | C L.736-737 | ✅ `baseCreditoFiscal`, `AVISO_VENTA_MIXTA` | `paso7-requisitos.test.ts` «B-02 …»; `readme.test.ts` | ✅ `credito_fiscal_base` y aviso de venta mixta | **B-02** |
+| 12 | Exportaciones de mercancías gravadas: factura con **tasa cero** | C L.752-754 | ✅ `GRAVADO0` | `paso7-requisitos.test.ts` «B-01 …» | ✅ `GRAVADO_0` | **B-01.** Conflicto con la Ley del ISV (ISV L.165, L.189: «quedan exentos … los bienes y servicios que se exporten»). Lectura elegida: el documento sigue al Reglamento (columna «gravado 0 %»). Pregunta P-09 |
+| 13 | Zonas libres: factura con tasa cero para transportistas, etc. | C L.764-817 | 🟡 La tasa cero sí (`GRAVADO0`); no se modelan reglas de zona libre | `paso7-requisitos.test.ts` «B-01 …» (solo la tasa) | 🟡 | Lo cubre `GRAVADO0`; no se modelan reglas de zona libre |
+| 14 | Momento de emisión (entrega, pago o devengo, lo primero) | C L.820-848 | ➖ Responsabilidad del integrador; documentado en AGENTS.md | — | ➖ | Responsabilidad del integrador. Se documenta en AGENTS.md |
+| 17 | Ticket: máquina registradora, numeración de 10 dígitos | C L.937-993 | ➖ El 09 se rechaza | `paso7-requisitos.test.ts` «B-15 …» | ➖ | Ver 4.43. Nota: L.988 conserva «El Ticket tendrá como código 03», un resto del texto original que contradice el 09 de L.967. Sin efecto para nosotros |
+| 25.2,7 / 27.2,7 | «Nota de Crédito» / «Nota de Débito»; destino | C L.1324, L.1357-1359, L.1408, L.1450-1452 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 25.2 / 27.2 | ✅ | — |
+| 25.5 / 27.5 | Códigos 06 y 07, serie propia | C L.1344-1345, L.1437-1438 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 25.5 / 27.5 | ✅ | — |
+| 26.1-2 / 28.1-2 | Nombre y RTN del adquirente (sin opción de CONSUMIDOR FINAL) | C L.1374-1375, L.1473-1475 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 26.1-2 | ✅ | — |
+| 26.3 / 28.3 | CAI, número y fecha del documento que se modifica. NC → Comprobante Fiscal; ND → «Comprobante Fiscal **o el documento**» | C L.1376-1381, L.1477-1482 | ✅ Datos, tipo y fecha validados; coherencia contra el almacén | `matriz.test.ts` «Arts. 25-28 …» 26.3; `b13-notas.test.ts` | ✅ | **B-13** |
+| 26.4 / 28.4 | Motivo | C L.1382, L.1483 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 26.4 | ✅ | — |
+| 26.7 | Nombre, identidad y firma de quien recibe la NC | C L.1385-1386 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 26.7 | ✅ | — |
+| 26.9 / 28.8 | Moneda nacional | C L.1389-1390, L.1491-1492 | ✅ | `matriz.test.ts` «Arts. 25-28 …» 26.9; `factura.test.ts` «notas solo en lempiras» | ✅ | — |
+| 38 | Papel térmico: certificación del proveedor del papel, conservación ≥ 5 años y resúmenes de ventas. Copia idéntica al original | C L.1879-1911 | ✅ (documental) README, `OpcionesRender.formato`, README de `@factura-hn/pdf` | Sin prueba: es una obligación del contribuyente, no un cálculo | ❌ | **B-16.** Aviso en la documentación y en el render de ticket. Pregunta P-07 sobre los «resúmenes de ventas» |
+| 40 | Comunicar el uso temporal (cambio de dirección o de nombre comercial, ferias) | C L.1925-1940 | ➖ | — | ➖ | Se documenta como paso ante el SAR |
+| **41** | Documentos con errores: leyenda **«ANULADA»**; resguardar original y copia en orden cronológico | C L.1943-1955 | ✅ `anular`, estado ANULADO, leyenda en HTML, texto y PDF; libro en cero | `art41-anulacion.test.ts`; contrato `factura-hn/pruebas` «anula conservando el número …»; `pdf.test.ts` «Art. 41» | ✅ `annul` devuelve una nueva forma inmutable con la leyenda, y el correlativo se conserva | **B-06:** `anularDocumento` |
+| **42** | Comunicar los documentos **no utilizados** dentro de los 10 días hábiles del mes siguiente (12 causales, entre ellas el vencimiento) | C L.1958-1990 | ✅ `documentosNoUtilizados` con causal y fecha límite | `paso8-no-utilizados.test.ts` «B-07 …» | 🟡 `health` lista las autorizaciones vencidas que dejaron números sin usar | **B-07** |
+| **43** | Custodia ordenada y **cronológica** por el plazo del Código Tributario | C L.1992-1996 | ✅ Sin retrofechar ni adelantar; procedimiento ante reloj adelantado | `reloj.test.ts`; contrato `factura-hn/pruebas` «rechaza emitir si el reloj …», «rechaza un salto …», «procedimiento ante reloj adelantado …» | ✅ La CLI no permite retrofechar | **B-08** |
+| 45 | Inscripción al Régimen de Facturación | C L.2013-2036 | ➖ | — | ➖ | Sección 3a |
+| 46 | Prevalorada y Recibo por Honorarios, **solo por imprenta** | C L.2039-2044 | ✅ `TIPO_NO_EMITIBLE` para 04 y 10 | `paso7-requisitos.test.ts` «B-15 …» | ➖ | **B-15.** El 04 no se puede emitir desde un sistema. Se quita de la hoja de ruta |
+| **47** | Autoimpresor por sistema computarizado: registrar **cada sistema**, el **software**, el **establecimiento donde está el servidor** y los puntos de emisión. Excluye prevaloradas, honorarios y donación | C L.2047-2080 | ✅ `TIPO_NO_EMITIBLE` para 12; el registro del sistema es trámite (sección 3) | `paso7-requisitos.test.ts` «B-15 …» | ➖ | Sección 3. Implicaciones importantes para la API alojada (P-01, P-02) |
+| 48 | Sistema en red: centralizado, regional o por sucursal (una o varias numeraciones) | C L.2083-2115 | ✅ (documental) `docs/persistencia.md` «Sistemas en red (Art. 48)» | Sin prueba: es configuración de puntos de emisión | ➖ | Documentar en persistencia.md cómo se mapea a puntos de emisión |
+| **53** | Sistemas «desarrollados **o adquiridos**»: (1) integrados al menos a un sistema contable o de inventarios; (2) seguridad y **controles de auditoría**; (3) persistencia y disponibilidad inmediata; (4) código 2D/3D opcional; (5) generación de **archivos de texto** para enviarlos al SAR. Declaración Jurada previa | C L.2161-2188 | ✅ Num. 1 `LibroContable`; num. 2 bitácora; num. 3 almacenes persistentes; num. 5 `exportarTexto` | `paso9-exportacion.test.ts`; contrato `factura-hn/pruebas` «la bitácora registra …» | 🟡 `Ledger` (num. 1), export CSV y JSON (num. 5) | **B-10** (exportación de texto y gancho contable en el SDK). Num. 2-3 se resuelven en la API (Fase 2) |
+| 54 | Emisión electrónica: interactuar con el SAR para obtener el CAEE | C L.2192-2196 | ❌ | — | ❌ | Sección 4 |
+| 55 | Contingencia: talonarios preimpresos de imprenta; no se permite vender sin documento | C L.2200-2209 | ➖ | — | ➖ | Documentar. **No** justifica retrofechar |
+| 57-58 | Incorporación gradual a la emisión electrónica según el calendario que publique Finanzas; el SAR publicará la documentación técnica | C L.2219-2234 | ➖ | — | ➖ | Sección 4 |
+| **59** | Autorización electrónica **por punto de emisión y por tipo de documento**, con rango. Una sola solicitud por punto hasta agotar, **dentro de los 2 meses previos a la fecha límite** | C L.2245-2266 | ✅ Aviso de renovación a 60 días | `paso8-no-utilizados.test.ts` «B-11 …» | ✅ | **B-11.** Aviso por defecto a 60 días, citando el Art. 59 |
+| 61 | Autoimpresor por sistema: autorización **por cada Sistema** y tipo de documento | C L.2279-2295 | ➖ | — | ➖ | P-02: ¿qué es «un Sistema» cuando es una API multi-tenant? |
+| **62** | Vigencia máxima de **1 año**; vencida, el documento pierde validez | C L.2297-2303 | ✅ `AUTORIZACION_VENCIDA`; `AVISO_VIGENCIA_MAYOR_1_ANIO` con `fechaAutorizacion` | `reloj.test.ts` «el último día de la fecha límite …»; `matriz.test.ts` «Art. 62 …»; contrato `factura-hn/pruebas` «salta los números de una autorización vencida …» | ✅ | Agregar la advertencia `AVISO_VIGENCIA_MAYOR_1_ANIO` si la autorización trae `fechaAutorizacion` |
+| 63 | El SAR puede limitar o cancelar autorizaciones por el comportamiento tributario | C L.2312-2345 | ➖ Baja de un CAI: API (Fase 2) | — | ➖ | La API debe permitir dar de baja un CAI antes de su fecha límite (estado `cancelada`) |
+| 76-A | Desde el 1 de marzo de 2019, todos los documentos con todos los requisitos | C L.2585-2604; 817 | ✅ | El conjunto de la matriz | ✅ | — |
 
 ### Ley del Impuesto Sobre Ventas
 
-| # | Requisito | Fuente | factura-hn 0.1 | invoicehn | Brecha → acción |
-|---|---|---|---|---|---|
-| ISV 3 | Los descuentos efectivos que consten en la factura **no forman parte de la base gravable** | ISV L.80-83 | ✅ El importe es neto de descuento antes del ISV | ✅ | Prueba explícita citando el Art. 3 |
-| ISV 6 | Tasas. **Vigentes: 15 % y 18 % (Decreto 278-2013 Art. 16, sin texto primario local).** La copia del TSC dice 12 %/15 % | ISV L.178-200 (desactualizado) | ✅ 15/18 | ✅ 15/18 | **B-14.** Conseguir el Decreto 278-2013 (P-11). No codificar listas de productos al 18 % |
-| **ISV 9** | Fracción < 0.005 → **debe** bajarse; ≥ 0.005 → **puede** subirse. Cobrar fuera de esta regla «se considerará como hurto» | ISV L.252-260 | 🟡 Redondeo mitad hacia arriba ✅. **Con `preciosIncluyenISV: true` el ISV se calcula por diferencia (total − base) y no cumple la regla**: ver B-03 | ✅ (no admite precios con ISV incluido) | **B-03** (alto impacto) |
-| ISV 9 | ¿Por línea o por total? «sobre el precio del artículo vendido» se lee por ítem; el Art. 11 h-i pide subtotales por tarifa | ISV L.252-253; C L.678-680 | Por grupo de tasa (documentado) | Por grupo de tasa (documentado) | Se mantiene la lectura. Pregunta P-10 |
+| # | Requisito | Fuente | factura-hn 0.2 | Prueba | invoicehn | Brecha (0.1) → acción |
+|---|---|---|---|---|---|---|
+| ISV 3 | Los descuentos efectivos que consten en la factura **no forman parte de la base gravable** | ISV L.80-83 | ✅ | `matriz.test.ts` «Ley del ISV Art. 3 …» | ✅ | Prueba explícita citando el Art. 3 |
+| ISV 6 | Tasas. **Vigentes: 15 % y 18 % (Decreto 278-2013 Art. 16, sin texto primario local).** La copia del TSC dice 12 %/15 % | ISV L.178-200 (desactualizado) | ✅ 15/18; qué va al 18 % lo decide el integrador | `factura.test.ts` «precios sin ISV, tasas mixtas y descuento» | ✅ 15/18 | **B-14.** Conseguir el Decreto 278-2013 (P-11). No codificar listas de productos al 18 % |
+| **ISV 9** | Fracción < 0.005 → **debe** bajarse; ≥ 0.005 → **puede** subirse. Cobrar fuera de esta regla «se considerará como hurto» | ISV L.252-260 | ✅ Redondeo del Art. 9 sobre la base impresa (D-01) | `art9-redondeo.test.ts` | ✅ (no admite precios con ISV incluido) | **B-03** (alto impacto) |
+| ISV 9 | ¿Por línea o por total? «sobre el precio del artículo vendido» se lee por ítem; el Art. 11 h-i pide subtotales por tarifa | ISV L.252-253; C L.678-680 | ✅ Por grupo de tasa | `matriz.test.ts` «Ley del ISV Art. 9 …» | Por grupo de tasa (documentado) | Se mantiene la lectura. Pregunta P-10 |
 
 ---
 

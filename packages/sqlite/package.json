@@ -2,7 +2,14 @@
   "name": "@factura-hn/sqlite",
   "version": "0.2.0",
   "description": "Adaptador SQLite de AlmacenFiscal para factura-hn (POS fuera de línea). Funciona con better-sqlite3 o node:sqlite.",
-  "keywords": ["honduras", "sar", "factura", "sqlite", "pos", "offline"],
+  "keywords": [
+    "honduras",
+    "sar",
+    "factura",
+    "sqlite",
+    "pos",
+    "offline"
+  ],
   "license": "MIT",
   "author": "Augusto Melara (VitoCode Technologies)",
   "type": "module",
@@ -11,12 +18,20 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "sideEffects": false,
   "engines": {
     "node": ">=18"

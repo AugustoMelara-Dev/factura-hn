@@ -82,6 +82,8 @@ export interface AutorizacionCAI {
    * documentos externos (no están en el almacén). Omítelo si la autorización es nueva.
    */
   ultimoEmitidoAntes?: number;
+  /** Fecha de la resolución que otorga el CAI (YYYY-MM-DD), si se conoce. Permite revisar el Art. 62. */
+  fechaAutorizacion?: string;
 }
 
 export type TipoIdentificacion = 'DNI' | 'RTN' | 'PASAPORTE' | 'CARNET_RESIDENTE' | 'OTRO';

@@ -1,8 +1,19 @@
 {
   "name": "factura-hn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Facturación SAR Honduras (Acuerdo 481-2017): numeración, control de CAI y rangos, cálculo de ISV 15%/18%, montos en letras, validación y render imprimible. Sin dependencias. Lista para usar con agentes de IA.",
-  "keywords": ["honduras", "sar", "factura", "facturacion", "cai", "isv", "autoimpresor", "pos", "invoice", "lempiras"],
+  "keywords": [
+    "honduras",
+    "sar",
+    "factura",
+    "facturacion",
+    "cai",
+    "isv",
+    "autoimpresor",
+    "pos",
+    "invoice",
+    "lempiras"
+  ],
   "license": "MIT",
   "author": "Augusto Melara (VitoCode Technologies)",
   "type": "module",
@@ -11,17 +22,35 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./pruebas": {
-      "types": "./dist/pruebas.d.ts",
-      "import": "./dist/pruebas.js",
-      "require": "./dist/pruebas.cjs"
+      "import": {
+        "types": "./dist/pruebas.d.ts",
+        "default": "./dist/pruebas.js"
+      },
+      "require": {
+        "types": "./dist/pruebas.d.cts",
+        "default": "./dist/pruebas.cjs"
+      }
     }
   },
-  "files": ["dist", "README.md", "AGENTS.md", "llms.txt", "skills", "docs", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "AGENTS.md",
+    "llms.txt",
+    "skills",
+    "docs",
+    "LICENSE"
+  ],
   "sideEffects": false,
   "engines": {
     "node": ">=18"

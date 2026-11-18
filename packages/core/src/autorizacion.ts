@@ -77,6 +77,23 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
   if (!esFechaValida(aut.fechaLimiteEmision)) {
     problemas.push({ codigo: 'FECHA_LIMITE', mensaje: 'fechaLimiteEmision debe ser YYYY-MM-DD.', campo: 'fechaLimiteEmision' });
   }
+  if (aut.fechaAutorizacion !== undefined) {
+    if (!esFechaValida(aut.fechaAutorizacion)) {
+      problemas.push({ codigo: 'FECHA_AUTORIZACION', mensaje: 'fechaAutorizacion debe ser YYYY-MM-DD.', campo: 'fechaAutorizacion' });
+    } else if (esFechaValida(aut.fechaLimiteEmision)) {
+      // Art. 62 (C L.2297-2303): la vigencia de la autorización es de hasta un (1) año. Si la fecha límite
+      // capturada pasa de un año desde la resolución, lo más probable es un error de digitación: aviso.
+      const [a, m, d] = aut.fechaAutorizacion.split('-');
+      const unAnio = `${Number(a) + 1}-${m}-${d}`;
+      if (aut.fechaLimiteEmision > unAnio) {
+        problemas.push({
+          codigo: 'AVISO_VIGENCIA_MAYOR_1_ANIO',
+          mensaje: `La fecha límite (${aut.fechaLimiteEmision}) está a más de un año de la autorización (${aut.fechaAutorizacion}); el Art. 62 fija una vigencia máxima de 1 año. Verifícala contra la resolución.`,
+          campo: 'fechaLimiteEmision',
+        });
+      }
+    }
+  }
   return problemas;
 }
 
