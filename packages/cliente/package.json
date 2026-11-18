@@ -1,0 +1,55 @@
+{
+  "name": "@factura-hn/cliente",
+  "version": "0.2.0",
+  "description": "Cliente tipado de la API REST de factura-hn, generado desde su OpenAPI. Funciona en Node, navegador, Deno y edge.",
+  "keywords": [
+    "honduras",
+    "sar",
+    "factura",
+    "api",
+    "openapi"
+  ],
+  "license": "MIT",
+  "author": "Augusto Melara (VitoCode Technologies)",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "generar": "openapi-typescript ../api/openapi.json -o src/esquema.ts",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../AGENTS.md', 'AGENTS.md')\""
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@factura-hn/api": "workspace:*",
+    "@types/pg": "8.23.1",
+    "openapi-typescript": "7.13.0",
+    "pg": "8.23.1"
+  }
+}

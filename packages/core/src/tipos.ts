@@ -135,6 +135,14 @@ export interface ReferenciaDocumento {
   numero: string;
   /** YYYY-MM-DD */
   fecha: string;
+  /**
+   * Moneda del documento original (DEC-018). Si no es HNL, las líneas de la nota se escriben en esa moneda
+   * y se convierten a lempiras con `tipoCambio`; la nota se emite en lempiras e imprime el tipo de cambio
+   * como referencia. Con `emitir`, si el original está en el almacén, se toman de él.
+   */
+  moneda?: Moneda;
+  /** Tipo de cambio del documento original (lempiras por unidad). */
+  tipoCambio?: Monto;
 }
 
 export interface DocumentoEntrada {
@@ -161,6 +169,12 @@ export interface DocumentoEntrada {
   motivo?: string;
   condicionPago?: 'CONTADO' | 'CREDITO';
   observaciones?: string;
+  /**
+   * Nombre de quien atendió (p. ej. el cajero), para imprimirlo en el documento como «Atendido por». Opcional:
+   * no lo exige el Reglamento. Queda en el documento y en todas sus copias. Para dejarlo solo en la bitácora usa
+   * `operador` en las opciones de `emitir`.
+   */
+  operador?: string;
 }
 
 export interface OpcionesDocumento {
@@ -244,6 +258,8 @@ export interface DocumentoFiscal {
   motivo?: string;
   condicionPago?: 'CONTADO' | 'CREDITO';
   observaciones?: string;
+  /** Quien atendió, si se pidió imprimirlo (`DocumentoEntrada.operador`). */
+  operador?: string;
   destinoEjemplares: string;
   advertencias: Problema[];
   /** EMITIDO al construirse; ANULADO solo mediante `anularDocumento` (Art. 41). */

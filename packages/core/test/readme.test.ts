@@ -1,6 +1,7 @@
 /**
  * La documentación es código: cada bloque ```ts del README y de AGENTS.md debe compilar contra la API
- * actual, y el ejemplo principal debe dar los números que promete.
+ * actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md, llms.txt y la skill
+ * deben llevar los mismos prompts y nombrar solo funciones y tipos que existen.
  *
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
  * HTML inmediatamente anterior:  <!-- declaraciones: declare const carrito: Item[]; -->
@@ -47,6 +48,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
       'factura-hn': [INDICE],
       '@factura-hn/postgres': [join(RAIZ, 'packages', 'postgres', 'src', 'index.ts')],
       '@factura-hn/sqlite': [join(RAIZ, 'packages', 'sqlite', 'src', 'index.ts')],
+      '@factura-hn/cliente': [join(RAIZ, 'packages', 'cliente', 'src', 'index.ts')],
       pg: [join(RAIZ, 'packages', 'postgres', 'node_modules', '@types', 'pg', 'index.d.ts')],
     },
   };
@@ -90,10 +92,10 @@ it('el ejemplo del README da los números que promete', async () => {
     puntoEmision: '001', rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30',
   });
   const f = await emitir({
-    emisor: { rtn: '08011999123456', razonSocial: 'Inversiones Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
-      direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón', direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-      telefono: '2444-0000', correo: 'ventas@ejemplo.hn' },
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    emisor: { rtn: '99990000000001', razonSocial: 'Inversiones Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
+      direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo', direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+      telefono: '0000-0001', correo: 'ventas@ejemplo.example' },
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
     preciosIncluyenISV: true,
     lineas: [
       { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
@@ -108,7 +110,7 @@ it('el ejemplo del README da los números que promete', async () => {
   // «Avisos que verás»: venta mixta.
   const mixta = await emitir({
     emisor: f.emisor,
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
     lineas: [
       { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
       { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
@@ -116,4 +118,66 @@ it('el ejemplo del README da los números que promete', async () => {
   }, { almacen, establecimiento: '000', puntoEmision: '001' });
   expect(mixta.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
   expect(mixta.totales.baseCreditoFiscal).toBe(100);
+});
+
+// --- Prompts y nombres en la documentación para agentes -------------------------------------------------
+
+const DOCS_AGENTES = ['README.md', 'AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md'];
+const PROMPT_SDK = 'Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.';
+const PROMPT_API = 'Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.';
+
+describe('documentación para agentes', () => {
+  it('los cuatro documentos traen los mismos prompts de una línea (SDK y API)', () => {
+    for (const archivo of DOCS_AGENTES) {
+      const texto = readFileSync(join(RAIZ, archivo), 'utf8');
+      expect(texto.includes(PROMPT_SDK), `${archivo}: prompt del SDK`).toBe(true);
+      expect(texto.includes(PROMPT_API), `${archivo}: prompt de la API`).toBe(true);
+    }
+  });
+
+  it('las funciones y los tipos que nombran existen en algún paquete', () => {
+    const paquetes = ['core', 'sqlite', 'postgres', 'pdf', 'api', 'cliente', 'mcp'].map((n) => join(RAIZ, 'packages', n, 'src', 'index.ts'));
+    const programa = ts.createProgram(paquetes, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, skipLibCheck: true, noEmit: true });
+    const checker = programa.getTypeChecker();
+    const exportados = new Set<string>();
+    for (const f of paquetes) {
+      const modulo = checker.getSymbolAtLocation(programa.getSourceFile(f)!);
+      for (const s of checker.getExportsOfModule(modulo!)) exportados.add(s.name);
+    }
+    // Métodos y opciones que los documentos escriben con paréntesis pero no son exportaciones.
+    const metodos = new Set(['migrar', 'transaccion', 'paraTenant', 'alEmitir', 'alAnular']);
+    const faltan: string[] = [];
+    for (const archivo of DOCS_AGENTES) {
+      const texto = readFileSync(join(RAIZ, archivo), 'utf8');
+      for (const m of texto.matchAll(/`([A-Za-z_]\w*)(\(|`)/g)) {
+        const nombre = m[1]!;
+        const esLlamada = m[2] === '(';
+        const esTipo = /^[A-Z][a-z]\w*$/.test(nombre);
+        if ((esLlamada || esTipo) && !metodos.has(nombre) && !exportados.has(nombre)) faltan.push(`${archivo}: ${nombre}`);
+      }
+    }
+    expect([...new Set(faltan)]).toEqual([]);
+  }, 60_000);
+
+  it('lo que el prompt de la API manda a leer existe donde dice', () => {
+    // node_modules/@factura-hn/cliente/AGENTS.md: el cliente publica AGENTS.md (lo copia al empaquetar).
+    const cliente = JSON.parse(readFileSync(join(RAIZ, 'packages', 'cliente', 'package.json'), 'utf8')) as { files: string[]; scripts: Record<string, string> };
+    expect(cliente.files).toContain('AGENTS.md');
+    expect(cliente.scripts.prepack).toContain('../../AGENTS.md');
+    expect(readFileSync(join(RAIZ, 'AGENTS.md'), 'utf8')).toContain('## Con la API REST');
+    // FHN_API_URL/openapi.json: su descripción trae las reglas.
+    const openapi = JSON.parse(readFileSync(join(RAIZ, 'packages', 'api', 'openapi.json'), 'utf8')) as { info: { description: string } };
+    expect(openapi.info.description).toContain('Idempotency-Key estable por venta');
+    expect(openapi.info.description).toContain('X-FacturaHN-Firma');
+  });
+
+  it('las herramientas MCP que se listan son las que el servidor registra', () => {
+    const servidor = readFileSync(join(RAIZ, 'packages', 'mcp', 'src', 'servidor.ts'), 'utf8');
+    const registradas = [...servidor.matchAll(/registerTool\(\s*'(\w+)'/g)].map((m) => m[1]).sort();
+    expect(registradas).toHaveLength(6);
+    for (const archivo of ['README.md', 'llms.txt', 'packages/mcp/README.md']) {
+      const texto = readFileSync(join(RAIZ, archivo), 'utf8');
+      for (const h of registradas) expect(texto.includes(h!), `${archivo}: ${h}`).toBe(true);
+    }
+  });
 });

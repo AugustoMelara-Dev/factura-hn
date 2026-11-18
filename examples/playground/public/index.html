@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playground factura-hn</title>
+<style>
+  :root { --fondo: #f7f6f3; --panel: #ffffff; --texto: #1c1c1a; --tenue: #6b6a64; --borde: #dcd9d1; --acento: #1f5f8b; --ok: #1d6b3a; --aviso: #8a5a00; --error: #a32020; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fondo: #171716; --panel: #201f1e; --texto: #ebeae6; --tenue: #a3a19a; --borde: #3a3936; --acento: #7fb6dc; --ok: #74c69d; --aviso: #e0b050; --error: #f08a8a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.45 system-ui, sans-serif; }
+  header { padding: 16px; border-bottom: 1px solid var(--borde); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 4px 0 0; color: var(--tenue); font-size: 13px; }
+  main { display: grid; gap: 16px; padding: 16px; grid-template-columns: 1fr; max-width: 1280px; margin: 0 auto; }
+  @media (min-width: 980px) { main { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
+  section { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 14px; min-width: 0; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  textarea { width: 100%; min-height: 360px; resize: vertical; font: 13px/1.4 ui-monospace, monospace; padding: 10px; border: 1px solid var(--borde); border-radius: 6px; background: transparent; color: inherit; }
+  select, button { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: inherit; }
+  button.primario { background: var(--acento); color: #fff; border-color: var(--acento); }
+  .barra { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  iframe { width: 100%; height: 640px; border: 1px solid var(--borde); border-radius: 6px; background: #fff; }
+  pre { margin: 0; overflow-x: auto; font: 12px/1.35 ui-monospace, monospace; }
+  details { margin-top: 12px; }
+  ul { margin: 6px 0; padding-left: 18px; }
+  li button { padding: 2px 8px; font-size: 13px; margin-left: 6px; }
+  .ok { color: var(--ok); } .aviso { color: var(--aviso); } .error { color: var(--error); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Playground de factura-hn</h1>
+  <p>El SDK corre en tu navegador, sin servidor. Los CAI son ficticios: nada de lo que emitas aquí tiene validez fiscal. Se borra al recargar.</p>
+</header>
+<main>
+  <section>
+    <h2>Entrada (<code>DocumentoEntrada</code>)</h2>
+    <div class="barra">
+      <label for="ejemplos" hidden>Ejemplo</label>
+      <select id="ejemplos" aria-label="Ejemplo"></select>
+      <button id="emitir" class="primario" type="button">Emitir</button>
+    </div>
+    <textarea id="entrada" spellcheck="false" aria-label="Entrada en JSON"></textarea>
+    <div id="mensajes" role="status" aria-live="polite"></div>
+    <h2>Series</h2>
+    <ul id="estado"></ul>
+    <h2>Emitidos</h2>
+    <ul id="emitidos"></ul>
+  </section>
+  <section>
+    <h2>Representación impresa</h2>
+    <iframe id="vista" sandbox="" title="Documento emitido"></iframe>
+    <details><summary>Ticket térmico (texto)</summary><pre id="ticket"></pre></details>
+    <details><summary>Documento (JSON)</summary><pre id="json"></pre></details>
+  </section>
+</main>
+<script src="playground.global.js"></script>
+<script>Playground.iniciar(document);</script>
+</body>
+</html>

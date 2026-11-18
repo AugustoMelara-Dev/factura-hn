@@ -92,7 +92,7 @@ describe('precios con ISV incluido (D-01)', () => {
     };
     const entrada = {
       fechaEmision: '2026-11-18',
-      emisor: { rtn: '08011999123456', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@b.hn' },
+      emisor: { rtn: '99990000000001', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@ejemplo.example' },
       preciosIncluyenISV: true,
       lineas: [{ descripcion: 'Chicle', cantidad: 1, precioUnitario: '0.27' }],
     };

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "factura-hn": ["../core/src/index.ts"],
+      "@factura-hn/postgres": ["../postgres/src/index.ts"],
+      "@factura-hn/pdf": ["../pdf/src/index.ts"]
+    }
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

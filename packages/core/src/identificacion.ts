@@ -18,14 +18,14 @@ export function esDNIValido(dni: string): boolean {
   return /^\d{13}$/.test(limpiarIdentificador(dni));
 }
 
-/** RTN como "0801-1999-123456" (4-4-6). */
+/** RTN como "9999-0000-000001" (4-4-6). */
 export function formatearRTN(rtn: string): string {
   const l = limpiarIdentificador(rtn);
   if (!/^\d{14}$/.test(l)) return rtn;
   return `${l.slice(0, 4)}-${l.slice(4, 8)}-${l.slice(8)}`;
 }
 
-/** DNI como "0801-1999-12345" (4-4-5). */
+/** DNI como "9999-0000-00001" (4-4-5). */
 export function formatearDNI(dni: string): string {
   const l = limpiarIdentificador(dni);
   if (!/^\d{13}$/.test(l)) return dni;
@@ -43,8 +43,11 @@ export function normalizarCAI(cai: string): string {
   return cai.trim().toUpperCase();
 }
 
-/** Forma mínima por defecto: letras y dígitos, con guiones solo entre grupos. */
-export const PATRON_CAI_BASICO = /^[0-9A-Z]+(-[0-9A-Z]+)*$/;
+/**
+ * Forma mínima por defecto (DEC-013): solo letras, dígitos y guiones, después de recortar los espacios del
+ * inicio y del final (`normalizarCAI`). Un espacio u otro carácter en medio es error.
+ */
+export const PATRON_CAI_BASICO = /^[0-9A-Z-]+$/;
 
 export function esCAIValido(cai: string): boolean {
   return PATRON_CAI.test(normalizarCAI(cai));

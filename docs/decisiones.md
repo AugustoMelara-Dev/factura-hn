@@ -58,7 +58,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   números ≤ ese valor que no están en el almacén son externos (aviso); los mayores no consumidos, error.
 - **Alternativa:** un método `avanzarSerie` en el contrato del almacén (cambia los tres adaptadores).
 
-### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión · [REVISAR]
+### DEC-009 · Fecha del acontecimiento por vencimiento = fecha límite de emisión · [APROBADA 2026-11-18]
 - **Contexto:** Art. 42 num. 1 cuenta el plazo desde el «vencimiento del plazo de vigencia». Puede leerse como
   la fecha límite o el día siguiente; si la fecha límite es el último día del mes, el aviso cambia de mes.
 - **Elegida:** la fecha límite (lectura conservadora: el aviso nunca queda tarde).
@@ -84,12 +84,13 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   se recomienda una cola (outbox) en la misma base.
 - **Alternativa:** notificar después del commit (más rápido, pero los libros pueden descuadrarse).
 
-### DEC-013 · CAI: error si no es alfanumérico con guiones · [REVISAR]
+### DEC-013 · CAI: letras, dígitos y guiones; espacios del borde se recortan · [APROBADA 2026-11-18]
 - **Contexto:** B-09 quita el patrón hexadecimal por defecto (sin fuente). El Art. 4 num. 7 dice «serie
-  alfanumérica».
-- **Elegida:** por defecto, error `CAI_FORMATO` solo si tiene espacios internos, signos o guiones repetidos
-  (letras y dígitos con guiones entre grupos). El patrón 6-6-6-6-6-2 queda en `caiEstricto`.
-- **Alternativa:** aceptar cualquier texto no vacío (deja pasar errores de digitación evidentes).
+  alfanumérica»; los CAI reales llevan guiones.
+- **Elegida:** se aceptan letras, dígitos y guiones. Los espacios del inicio y del final se recortan
+  (normalización, sin error); solo es error `CAI_FORMATO` un carácter distinto en medio. El patrón
+  6-6-6-6-6-2 queda en `caiEstricto`.
+- **Alternativa:** aceptar cualquier texto no vacío.
 
 ### DEC-014 · El PDF reutiliza `renderizarTexto`
 - **Contexto:** el PDF debe tener exactamente los datos fiscales del documento, y el impreso HTML y el
@@ -111,31 +112,39 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 
 ### Reglas derivadas que señaló la revisión independiente (2026-11-18)
 
-### DEC-016 · La Nota de Débito puede referir cualquier documento · [REVISAR]
+### DEC-016 · La Nota de Débito puede referir cualquier documento · [APROBADA 2026-11-18]
 - **Contexto:** el Art. 4 num. 31 (C L.377-379) dice que la ND está «vinculada a un Comprobante Fiscal»; el
   Art. 28 num. 3 b (C L.1479) dice «Comprobante Fiscal **o el documento**».
 - **Elegida:** la NC solo sobre Comprobantes Fiscales (Art. 6); la ND sobre cualquier tipo (p. ej. otra ND o
   una NC).
 - **Alternativa:** restringir también la ND a Comprobantes Fiscales.
 
-### DEC-017 · La nota no puede tener fecha anterior al original, también la ND · [REVISAR]
+### DEC-017 · La nota no puede tener fecha anterior al original, también la ND · [APROBADA 2026-11-18]
 - **Contexto:** el Art. 4 num. 32 (C L.384) habla de ajustes «con posterioridad» solo para la NC.
 - **Elegida:** `REFERENCIA_FECHA_POSTERIOR` para 06 y 07: un documento no se modifica antes de existir.
 - **Alternativa:** aplicarla solo a la NC.
 
-### DEC-018 · Las notas se emiten solo en lempiras · [REVISAR]
+### DEC-018 · Las notas se emiten solo en lempiras · [APROBADA 2026-11-18]
 - **Contexto:** los Arts. 26 num. 9 y 28 num. 8 (C L.1389-1390, L.1491-1492) piden «Denominación literal de la
-  Moneda Nacional Lempira o símbolo (L)»; no prohíben expresamente otra moneda.
-- **Elegida:** error `NOTA_MONEDA` si la moneda no es HNL.
-- **Alternativa:** permitir moneda extranjera con tipo de cambio, como la factura (Art. 11).
+  Moneda Nacional Lempira o símbolo (L)».
+- **Elegida:** error `NOTA_MONEDA` si la nota no está en HNL. Si la factura original está en moneda
+  extranjera, las líneas de la nota se escriben en esa moneda y se convierten a lempiras con el **tipo de
+  cambio de la factura original** (precio a 4 decimales, descuento a 2, redondeo del Art. 9 de la Ley del ISV).
+  La nota imprime la moneda y el tipo de cambio del original como referencia. Con el original en el almacén,
+  ambos se toman de él y un valor distinto es error (`REFERENCIA_MONEDA_NO_COINCIDE`,
+  `REFERENCIA_TIPO_CAMBIO_NO_COINCIDE`); con un original externo hay que indicarlos
+  (`REFERENCIA_TIPO_CAMBIO`). Lectura: la nota modifica una operación ya valorada; usar el tipo de cambio del
+  día cambiaría el valor de lo que se devuelve o ajusta.
+- **Alternativa:** tipo de cambio del día de la nota.
 
-### DEC-019 · Exoneración de todo el documento · [REVISAR]
+### DEC-019 · Exoneración de todo el documento · [APROBADA 2026-11-18]
 - **Contexto:** con `exoneracion`, todo lo gravado pasa a importe exonerado. El Reglamento no regula una
   exoneración parcial por línea.
-- **Elegida:** exoneración del documento completo; para mezclar, emitir dos documentos.
+- **Elegida:** exoneración del documento completo. Si la OCE no cubre todos los artículos, se emiten dos
+  facturas: una exonerada con los artículos cubiertos y otra normal con el resto (README y AGENTS.md).
 - **Alternativa:** marcar la exoneración por línea.
 
-### DEC-020 · La base de crédito fiscal no incluye lo gravado al 0 % · [REVISAR]
+### DEC-020 · La base de crédito fiscal no incluye lo gravado al 0 % · [APROBADA 2026-11-18]
 - **Contexto:** Art. 11 num. 3 (C L.736-737): «solo se reconocerá el crédito fiscal sobre las ventas gravadas».
   Una venta con alícuota cero no genera ISV que acreditar.
 - **Elegida:** `baseCreditoFiscal` = gravado 15 % + gravado 18 %.
@@ -151,12 +160,12 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** `FECHA_EMISION_NO_ES_HOY` si se envía una fecha distinta de la del reloj.
 - **Alternativa:** permitir retrofechar con advertencia.
 
-### DEC-023 · Correo del emisor con formato válido · [REVISAR]
+### DEC-023 · Correo del emisor con formato válido · [APROBADA 2026-11-18]
 - **Contexto:** Art. 10 num. 1 f (C L.594-595) exige el correo, sin fijar formato.
 - **Elegida:** error `EMISOR_CORREO` si no tiene forma de correo (`algo@dominio.tld`).
 - **Alternativa:** solo exigir que no esté vacío.
 
-### DEC-024 · RTN de 14 dígitos y DNI de 13 · [REVISAR]
+### DEC-024 · RTN de 14 dígitos y DNI de 13 · [APROBADA 2026-11-18]
 - **Contexto:** el Reglamento no fija longitudes; son las del RTN y la tarjeta de identidad en uso.
 - **Elegida:** validar esas longitudes (`CLIENTE_RTN`, `EMISOR_RTN`, DNI).
 - **Alternativa:** aceptar cualquier secuencia de dígitos.
@@ -166,3 +175,139 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** avisar desde la misma fecha dos meses antes (último día del mes si no existe); `diasAviso` la
   reemplaza.
 - **Alternativa:** 60 días fijos.
+
+## Fase 2: API
+
+### DEC-026 · Llaves de API con SHA-256, no con un hash lento
+- **Contexto:** la llave tiene 256 bits aleatorios; un hash lento (bcrypt, scrypt) protege contraseñas de baja
+  entropía y cuesta en cada solicitud.
+- **Elegida:** `fhn_<prefijo>_<secreto>`; se guarda SHA-256 de la llave completa, se busca por prefijo y se
+  compara en tiempo constante.
+- **Alternativa:** scrypt por solicitud con caché.
+
+### DEC-027 · SQL con `pg`, sin ORM
+- **Contexto:** el adaptador `@factura-hn/postgres` ya usa SQL parametrizado, RLS y disparadores.
+- **Elegida:** `pg` + SQL en la API también; un solo modelo de transacción (`AlmacenPostgres.transaccion`).
+- **Alternativa:** Drizzle para las tablas `api_*`.
+
+### DEC-028 · Un emisor por tenant; el RTN no cambia
+- **Contexto:** la numeración y las autorizaciones son del obligado tributario (RTN).
+- **Elegida:** tenant = un RTN. `PATCH` cambia datos de contacto o direcciones (solo para documentos futuros);
+  cambiar el RTN es 422.
+- **Alternativa:** varios emisores por tenant con series separadas.
+
+### DEC-029 · `Idempotency-Key` obligatoria; solo se guardan las emisiones exitosas
+- **Contexto:** un POS que reintenta por un corte de red no debe emitir dos facturas.
+- **Elegida:** sin la cabecera, 400. La clave es por tenant y se guarda en la misma transacción que el
+  documento. Una solicitud rechazada no guarda la clave.
+- **Alternativa:** cabecera opcional; guardar también las respuestas de error.
+
+### DEC-030 · Límites: por solicitud en memoria, mensual en la base
+- **Contexto:** el límite por segundo protege el servicio; el mensual es comercial y debe ser exacto.
+- **Elegida:** token bucket por llave en memoria (por réplica). Conteo mensual con
+  `INSERT … ON CONFLICT DO UPDATE` en la transacción de emisión: exacto, a costa de serializar el commit de las
+  emisiones del mismo tenant.
+- **Alternativa:** Redis para el límite por segundo; contador mensual aproximado.
+
+### DEC-031 · Bitácora: actor = llave (id, rol, nombre) + operador opcional · [APROBADA 2026-11-18]
+- **Contexto:** Art. 53 num. 2 pide «controles de auditoría». La API sabe qué llave hizo cada operación, no qué
+  persona. El responsable aprobó la propuesta con cambios.
+- **Elegida:**
+  - `actor = "llave:<id> (<rol>: <nombre>)"` en la bitácora fiscal (`fhn_eventos`) y en la de la API
+    (`api_bitacora`). `<id>` es un id interno (uuid) de la llave, no su prefijo; el nombre y el rol son los
+    del momento de la operación.
+  - Cada solicitud puede indicar el `operador` (p. ej. el cajero): campo `operador` del cuerpo (emitir, anular,
+    corregir fecha) o cabecera `X-Operador`, codificada con `encodeURIComponent` si lleva tildes. Si llegan
+    ambos y no coinciden, 400 `OPERADOR_CONFLICTO`. Se valida (1 a 80 caracteres, sin caracteres de control:
+    `OPERADOR`).
+  - El operador se guarda en la bitácora. Se imprime en el documento («Atendido por») solo si se pide
+    (`imprimirOperador` en la API, `DocumentoEntrada.operador` en el SDK). No lo exige el Reglamento.
+  - Cada emisión deja además un evento `DOCUMENTO_EMITIDO` en la bitácora fiscal, con actor y operador.
+  - El operador solo forma parte de la huella de idempotencia si se imprime: el reintento de otro cajero con
+    la misma clave devuelve la misma factura.
+  - Cliente (`operador` en `crearCliente`, `anular(…, { operador })`), MCP (`FHN_OPERADOR` y parámetro
+    `operador` de las herramientas) y ejemplos (Next.js, Express, POS, playground) lo exponen.
+- **Alternativa:** exigir el operador en cada solicitud. Se descartó: una integración servidor a servidor (una
+  tienda en línea) no tiene cajero.
+
+### DEC-032 · Avisos de autorización al emitir
+- **Contexto:** `autorizacion.por_vencer` y `autorizacion.agotada` necesitan un disparador.
+- **Elegida:** se evalúan con `estadoAutorizacion` en cada emisión y se avisan una vez por autorización. Una
+  autorización sin emisiones no avisa; `GET /v1/autorizaciones/{cai}/estado` da el estado a demanda.
+- **Alternativa:** revisión diaria programada.
+
+### DEC-033 · Destinos de webhooks
+- **Contexto:** en el modo alojado una URL arbitraria permite alcanzar la red interna del servidor (SSRF).
+- **Elegida:** alojado: solo https, sin IP privadas, de enlace local ni nombres internos, y el nombre se
+  resuelve otra vez al entregar; sin redirecciones. Local: http y red del negocio permitidos.
+- **Alternativa:** lista blanca de dominios por tenant.
+
+### DEC-034 · Modo local con tenant `local` y la demostración en un tenant aparte
+- **Contexto:** Art. 47 y la recomendación de P-02: instalación en el establecimiento. La revisión mostró que
+  poner la demostración en el mismo tenant dejaba inservible la instalación para el RTN y los CAI reales.
+- **Elegida:** el mismo código con `FHN_MODO=local`; al primer arranque crea el tenant `local` (vacío) y su
+  llave admin. `FHN_DEMO=1` crea además el tenant `demo` con un CAI ficticio (`DEMO00-NO-VALIDO-…`) y un
+  emisor «NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)».
+- **Alternativa:** una imagen distinta para cada modo.
+
+### DEC-035 · Revisión de seguridad de la Fase 2: cambios de diseño
+- **Contexto:** revisión independiente (sin hallazgos críticos ni altos; siete medios).
+- **Elegida:**
+  - Autenticación: la función de búsqueda ya no escribe. El último uso se marca solo con el secreto correcto, a
+    lo sumo una vez por minuto. El límite por llave se aplica antes de consultar la base.
+  - Webhooks: la entrega se reclama en una transacción corta y el HTTP corre fuera, en paralelo por tenant. La
+    conexión usa la IP validada y los rangos bloqueados cubren IPv6 completo.
+  - Las llaves de caja siempre van atadas a un punto de emisión.
+  - Postgres no publica su puerto en el `docker-compose.yml` (sí en `docker-compose.dev.yml`).
+  - `FHN_MODO` falla cerrado.
+  - Los CSV protegen el texto contra fórmulas (`textoSeguroCSV` en el núcleo). JSONL y TXT no cambian.
+- **Alternativa:** dejarlo documentado como riesgo.
+
+### DEC-036 · Cliente: tipos generados y verificación de webhooks con Web Crypto
+- **Contexto:** Fase 3, cliente tipado. Los receptores de webhooks suelen correr en edge (Next.js, Workers).
+- **Elegida:** `openapi-typescript` sobre `packages/api/openapi.json` (una prueba falla si los tipos quedan
+  viejos) y `openapi-fetch` como única dependencia. `verificarFirmaWebhook` del cliente es asíncrona (Web
+  Crypto, comparación en tiempo constante con `subtle.verify`); la de `@factura-hn/api` sigue síncrona. Una
+  prueba cruzada verifica con el cliente lo que firma la API. El cliente pide Node 20+.
+- **Alternativa:** que el cliente dependa de `@factura-hn/api` (trae pg y Hono) o duplicar con `node:crypto`.
+
+### DEC-037 · Servidor MCP: herramientas acotadas
+- **Contexto:** Fase 3. Un agente que factura debe poder hacer lo de la caja, no administrar.
+- **Elegida:** seis herramientas; `anular_documento` lleva `destructiveHint`. No hay herramientas para
+  registrar CAI, emisores, llaves ni webhooks. La nota de crédito toma la referencia (CAI, número, fecha) y el
+  cliente del documento original. Vía la API, el rol de la llave manda (con una de caja, anular da 403).
+  Con el SDK local, las claves de idempotencia van en `mcp_claves`, en la transacción de la emisión.
+- **Alternativa:** exponer toda la API como herramientas.
+
+### DEC-038 · Ejemplos: idempotencia de punta a punta
+- **Contexto:** los ejemplos se copian tal cual a proyectos reales.
+- **Elegida:** todos emiten con una clave estable por venta: id del pedido (Express), clave por formulario
+  (Next.js), clave del navegador guardada hasta tener respuesta (POS). El POS guarda la clave y su cola de
+  sincronización en la transacción de emisión (`alEmitir`/`alAnular`). Las llaves de API viven solo en el
+  servidor y los ejemplos usan llaves de caja.
+- **Alternativa:** ejemplos mínimos sin idempotencia.
+
+### DEC-039 · Revisión de la Fase 3: cambios
+- **Contexto:** revisión independiente (1 crítico, 3 altos, 5 medios, 6 bajos).
+- **Elegida:**
+  - El ejecutable del MCP carga `node:sqlite` solo en el modo SQLite; una prueba arranca el `dist`.
+  - La clave de idempotencia es obligatoria en las herramientas de emisión del MCP.
+  - En el MCP local y en el POS, la clave guarda la huella del contenido: la misma clave con otra venta es un
+    conflicto, como en la API.
+  - El texto de los documentos llega al agente delimitado y marcado como datos.
+  - El POS rechaza otros `Host`, otros `Origin` y POST que no sean JSON (CSRF y DNS rebinding).
+  - Next.js conserva la clave sin usar tras un error y firma los enlaces al PDF. Express sirve el PDF por pedido.
+  - El prompt de la API apunta a lo que existe: `AGENTS.md` dentro de `@factura-hn/cliente` y las reglas en
+    la descripción de `/openapi.json`.
+  - Las pruebas de Postgres usan la base `factura_hn_pruebas`.
+- **Alternativa:** dejar los ejemplos sin estas defensas y advertirlo en sus README.
+
+### DEC-040 · MCP local solo con SQLite en archivo; `server-only` en Next.js
+- **Contexto:** dos bajos pendientes de la revisión de la Fase 3.
+- **Elegida:**
+  - `BackendLocal` recibe la base SQLite y arma él mismo el almacén y las claves de idempotencia. Rechaza una
+    base en memoria, y el ejecutable rechaza `FHN_SQLITE=:memory:`. Se elimina `clavesEnMemoria`: una caja
+    que pierde sus documentos al reiniciar pierde números consumidos (Art. 41) y la clave de un reintento.
+  - En Next.js, los módulos con la llave o los secretos importan `server-only` (0.0.1). Una prueba lo verifica
+    y comprueba que ningún componente `'use client'` importe valores de `lib/`.
+- **Alternativa:** dejar el modo en memoria con una advertencia.

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
+    "paths": {
+      "factura-hn": ["../../packages/core/src/index.ts"],
+      "@factura-hn/sqlite": ["../../packages/sqlite/src/index.ts"],
+      "@factura-hn/postgres": ["../../packages/postgres/src/index.ts"],
+      "@factura-hn/pdf": ["../../packages/pdf/src/index.ts"],
+      "@factura-hn/api": ["../../packages/api/src/index.ts"],
+      "@factura-hn/cliente": ["../../packages/cliente/src/index.ts"]
+    }
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

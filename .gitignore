@@ -1,6 +1,7 @@
 node_modules
 dist
 *.html
+!examples/playground/public/index.html
 *.txt
 !llms.txt
 .DS_Store
@@ -11,3 +12,5 @@ packages/core/llms.txt
 packages/core/LICENSE
 packages/core/skills/
 packages/core/docs/
+packages/cliente/AGENTS.md
+dist-docker

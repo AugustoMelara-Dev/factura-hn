@@ -3,6 +3,27 @@
 Instrucciones para agentes de IA (Claude, Cursor, OpenCode, Codex…) que integran facturación SAR Honduras.
 Léelo completo antes de escribir código.
 
+Hay dos caminos. Elige uno con el usuario si el proyecto no lo deja claro:
+
+- **SDK**: el proyecto es JS/TS y emite contra su propia base (Postgres, SQLite u otra). Todo este documento
+  salvo «Con la API REST».
+- **API**: el proyecto es de otro lenguaje, o varias cajas emiten contra un servidor de factura-hn ya
+  instalado. Ve a «Con la API REST».
+
+Prompts de una línea:
+
+**SDK** (tu proyecto JS/TS emite con su propia base):
+
+```text
+Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+```
+
+**API** (cualquier lenguaje; la API de factura-hn emite):
+
+```text
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+```
+
 ## Principios no negociables
 
 1. **No inventes reglas fiscales.** Usa `validarEntrada` y `emitir`, y muestra al usuario los mensajes de
@@ -88,6 +109,9 @@ Si el cliente es exonerado, agrega `exoneracion` con la Orden de Compra Exenta *
 Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4):
 `{ ordenCompraExenta, constanciaRegistroExonerado }` o `{ registroSAG }`.
 
+Si la Orden de Compra Exenta **no cubre todos los artículos**, emite dos facturas: una con `exoneracion` y
+los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo (DEC-019).
+
 En exportaciones usa `isv: 'GRAVADO0'` (tasa cero, Art. 12); no es lo mismo que `EXENTO`.
 
 Los siete datos del emisor son obligatorios (Art. 10 num. 1): RTN, razón social, nombre comercial (repite la
@@ -149,6 +173,10 @@ const nota = await emitir({
 }, { almacen, establecimiento: '000', puntoEmision: '001' });   // usa la autorización del tipo 06
 ```
 
+Si la factura original se emitió en dólares, escribe las líneas de la nota en dólares: la nota se emite en
+lempiras con el tipo de cambio de la factura original, que se imprime como referencia (DEC-018). Si el
+original no está en el almacén, indica `referencia.moneda` y `referencia.tipoCambio`.
+
 ## Momento de emisión (Art. 14)
 
 Emite el documento cuando ocurre lo primero entre la entrega del bien y el pago o el otorgamiento del
@@ -188,6 +216,28 @@ const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' }
 
 Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
 
+## Quién opera (bitácora)
+
+Pasa `actor` (el usuario o la caja de tu sistema) y, si varias personas usan la misma caja, `operador` (quien
+cobra) a `emitir`, `anular` y `corregirFechaAdelantada`: quedan en la bitácora (`eventosAuditoria`). Para
+imprimir «Atendido por» en el documento, agrega `operador` a la `DocumentoEntrada`. Con la API: campo
+`operador` o cabecera `X-Operador`, e `imprimirOperador: true`.
+
+<!-- declaraciones:
+import type { AlmacenFiscal, DocumentoEntrada } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const entrada: DocumentoEntrada;
+declare const caja: { establecimiento: string; puntoEmision: string };
+declare const sesion: { id: string; nombre: string };
+-->
+```ts
+import { emitir } from 'factura-hn';
+
+await emitir({ ...entrada, operador: sesion.nombre /* solo si se imprime */ }, {
+  almacen, ...caja, actor: `usuario:${sesion.id}`, operador: sesion.nombre,
+});
+```
+
 ## UI recomendada
 
 - Pantalla de configuración: datos del emisor y alta de autorizaciones con `registrarAutorizacion`.
@@ -203,6 +253,52 @@ Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
 - Una validación fallida no consume correlativo.
 - Emitir con autorización vencida o agotada muestra el error al usuario.
 - El total impreso coincide con lo cobrado en caja.
+
+## Con la API REST
+
+La API aplica las mismas reglas que el SDK; tu código solo arma la solicitud y muestra el resultado.
+Referencia completa: `docs/api.md`.
+
+1. La llave va **solo en el servidor** (variables de entorno). Usa una llave de **caja**, atada a su punto de
+   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks.
+2. **`Idempotency-Key` estable por venta** (el id del pedido o de la venta, nunca un valor nuevo por intento):
+   si la respuesta se pierde y reintentas, recibes la misma factura.
+3. **422 = reglas fiscales.** Muestra `errores[].mensaje` tal cual. Una solicitud rechazada no consume número
+   ni la clave: corrígela y reintenta con la misma.
+4. Guarda el `numero` y reimprime desde la API (`.pdf`, `.html`, `.txt`): no recalcules.
+5. Webhooks: verifica la firma sobre el cuerpo **crudo**, descarta repetidos por `id` y responde 2xx solo
+   cuando ya procesaste el aviso.
+
+<!-- declaraciones:
+declare const req: { texto: string; firma: string | null };
+-->
+```ts
+import { crearCliente, ErrorFacturaHN, verificarFirmaWebhook, type DocumentoEntrada } from '@factura-hn/cliente';
+
+const fhn = crearCliente({ url: process.env.FHN_API_URL!, llave: process.env.FHN_LLAVE! });
+
+export async function facturarPedido(pedido: { id: string; lineas: DocumentoEntrada['lineas'] }) {
+  try {
+    const { documento } = await fhn.emitir(
+      { documento: { preciosIncluyenISV: true, lineas: pedido.lineas } },
+      { idempotencyKey: `pedido-${pedido.id}` },
+    );
+    return { ok: true as const, numero: documento.numero, total: documento.totales.total };
+  } catch (e) {
+    if (e instanceof ErrorFacturaHN && e.estado === 422) return { ok: false as const, errores: e.errores.map((x) => x.mensaje) };
+    throw e;
+  }
+}
+
+// Receptor de webhooks: `req.texto` es el cuerpo tal como llegó, antes de JSON.parse.
+export async function recibirAviso() {
+  if (!(await verificarFirmaWebhook(req.texto, req.firma, process.env.FHN_SECRETO_WEBHOOK!))) return 400;
+  const aviso = JSON.parse(req.texto) as { id: string; evento: string };
+  return aviso.id ? 204 : 400;
+}
+```
+
+Si el agente debe operar la facturación (no integrarla), usa el servidor MCP `@factura-hn/mcp`.
 
 ## Referencia rápida de errores
 

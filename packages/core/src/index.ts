@@ -21,6 +21,7 @@ export {
   dividirRedondeando,
   centavosATexto,
   escaladoATexto,
+  textoSeguroCSV,
   ErrorMonto,
 } from './dinero';
 export type { Monto } from './dinero';
@@ -72,6 +73,7 @@ export {
 export type { OpcionesCalculo, TotalesCentavos } from './calculo';
 export {
   validarEntrada,
+  problemaDeOperador,
   problemaDeTipo,
   TIPOS_NO_EMITIBLES_POR_SISTEMA,
   COMPROBANTES_FISCALES,

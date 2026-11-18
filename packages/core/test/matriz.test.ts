@@ -23,11 +23,11 @@ const AUT: AutorizacionCAI = {
   rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-06-30',
 };
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'Comercial Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
-  direccionCasaMatriz: 'Barrio El Centro, Tocoa', direccionEstablecimiento: 'Colonia Aurora, Tocoa',
-  telefono: '2444-0000', correo: 'ventas@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Comercial Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
+  direccionCasaMatriz: 'Bo. El Centro, Ciudad Ejemplo', direccionEstablecimiento: 'Colonia Aurora, Ciudad Ejemplo',
+  telefono: '0000-0001', correo: 'ventas@ejemplo.example',
 };
-const CLIENTE = { nombre: 'Ferretería Pérez', rtn: '08019005123456' };
+const CLIENTE = { nombre: 'Ferretería Pérez', rtn: '99990000000002' };
 const entrada = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
   emisor: EMISOR,
   cliente: CLIENTE,
@@ -80,7 +80,7 @@ describe('Art. 10 num. 2-6: denominación, CAI, fecha límite, rango y destino i
 describe('Art. 10 num. 1: datos del emisor impresos', () => {
   it('nombre comercial, razón social, RTN, direcciones, teléfono y correo', () => {
     const t = renderizarTexto(doc());
-    for (const v of ['Pulpería La Bendición', 'Comercial Ejemplo S. de R.L.', '0801-1999-123456', 'Colonia Aurora, Tocoa', 'Casa matriz: Barrio El Centro, Tocoa', '2444-0000', 'ventas@ejemplo.hn']) {
+    for (const v of ['Pulpería La Bendición', 'Comercial Ejemplo S. de R.L.', '9999-0000-000001', 'Colonia Aurora, Ciudad Ejemplo', 'Casa matriz: Bo. El Centro, Ciudad Ejemplo', '0000-0001', 'ventas@ejemplo.example']) {
       expect(t).toContain(v);
     }
   });
@@ -110,7 +110,7 @@ describe('Art. 11 num. 1 a-f, j-l: datos para crédito fiscal', () => {
   const t = renderizarTexto(d);
   it('a-c: nombre y RTN del cliente, fecha', () => {
     expect(t).toContain('Cliente: Ferretería Pérez');
-    expect(t).toContain('RTN: 0801-9005-123456');
+    expect(t).toContain('RTN: 9999-0000-000002');
     expect(t).toContain('Fecha: 18/11/2026');
   });
   it('d-f: descripción, cantidad y valor unitario', () => {
@@ -185,14 +185,14 @@ describe('Arts. 25-28: notas de crédito y débito', () => {
     expect(codigos(nota('06', { cliente: undefined }), AUT_NC)).toEqual(expect.arrayContaining(['CLIENTE_NOMBRE', 'NOTA_CLIENTE_RTN']));
     expect(codigos(nota('07', { cliente: { nombre: 'Sin RTN' } }), AUT_ND)).toContain('NOTA_CLIENTE_RTN');
     // Con RTN y sin nombre, el error de nombre sale una sola vez.
-    expect(codigos(nota('06', { cliente: { nombre: '', rtn: '08019005123456' } }), AUT_NC)).toEqual(['CLIENTE_NOMBRE']);
+    expect(codigos(nota('06', { cliente: { nombre: '', rtn: '99990000000002' } }), AUT_NC)).toEqual(['CLIENTE_NOMBRE']);
   });
   it('25.1-7 / 27.1-7: formato de la nota (emisor, CAI, fecha límite, rango, destino)', () => {
     for (const [tipo, aut] of [['06', AUT_NC], ['07', AUT_ND]] as const) {
       const d = doc(nota(tipo), aut, 1);
       const t = renderizarTexto(d, { ancho: 80 });
-      for (const v of ['Pulpería La Bendición', 'Comercial Ejemplo S. de R.L.', '0801-1999-123456', 'Colonia Aurora, Tocoa',
-        'Casa matriz: Barrio El Centro, Tocoa', '2444-0000', 'ventas@ejemplo.hn', `CAI: ${aut.cai}`, '30/06/2027', d.rangoAutorizado,
+      for (const v of ['Pulpería La Bendición', 'Comercial Ejemplo S. de R.L.', '9999-0000-000001', 'Colonia Aurora, Ciudad Ejemplo',
+        'Casa matriz: Bo. El Centro, Ciudad Ejemplo', '0000-0001', 'ventas@ejemplo.example', `CAI: ${aut.cai}`, '30/06/2027', d.rangoAutorizado,
         'Original: Cliente / Copia: Emisor']) expect(t).toContain(v);
     }
   });

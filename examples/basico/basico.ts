@@ -31,15 +31,15 @@ await registrarAutorizacion(almacen, autorizacion);
 const doc = await emitir(
   {
     emisor: {
-      rtn: '08011999123456',
+      rtn: '99990000000001',
       razonSocial: 'Inversiones Ejemplo S. de R.L.',
       nombreComercial: 'Pulpería La Bendición',
-      direccionCasaMatriz: 'Barrio El Centro, frente al parque, Tocoa, Colón',
-      direccionEstablecimiento: 'Barrio El Centro, frente al parque, Tocoa, Colón',
-      telefono: '+504 2444-0000',
-      correo: 'ventas@ejemplo.hn',
+      direccionCasaMatriz: 'Barrio El Centro, frente al parque, Ciudad Ejemplo',
+      direccionEstablecimiento: 'Barrio El Centro, frente al parque, Ciudad Ejemplo',
+      telefono: '+504 0000-0001',
+      correo: 'ventas@ejemplo.example',
     },
-    cliente: { nombre: 'Ferretería Hermanos Pérez', rtn: '08019005123456' },
+    cliente: { nombre: 'Ferretería Hermanos Pérez', rtn: '99990000000002' },
     preciosIncluyenISV: true,
     condicionPago: 'CONTADO',
     lineas: [
