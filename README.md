@@ -1,5 +1,11 @@
 # factura-hn
 
+[![CI](https://github.com/factura-hn/factura-hn/actions/workflows/ci.yml/badge.svg)](https://github.com/factura-hn/factura-hn/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/factura-hn?label=npm)](https://www.npmjs.com/package/factura-hn)
+[![procedencia npm](https://img.shields.io/badge/npm-procedencia_firmada-0b5d8f)](https://docs.npmjs.com/generating-provenance-statements)
+[![licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+[![documentación](https://img.shields.io/badge/docs-espa%C3%B1ol-0b5d8f)](https://factura-hn.github.io/factura-hn/)
+
 **Facturación SAR Honduras para JavaScript/TypeScript.** Numeración de 16 dígitos, control de CAI y rangos,
 cálculo de ISV 15% / 18% / 0% / exento / exonerado, montos en letras, validación según el Acuerdo 481-2017 e
 impresión en hoja carta, ticket de 80 mm o texto para impresoras térmicas.
@@ -264,12 +270,13 @@ Monorepo con pnpm workspaces:
 
 | Carpeta | Paquete | Estado |
 |---|---|---|
-| `packages/core` | `factura-hn` (el SDK, sin dependencias) | estable |
-| `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | sin publicar |
-| `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | sin publicar |
-| `packages/api` | `@factura-hn/api` (API REST + Docker) | sin publicar |
-| `packages/cliente` | `@factura-hn/cliente` (cliente tipado de la API, generado desde OpenAPI) | sin publicar |
-| `packages/mcp` | `@factura-hn/mcp` (servidor MCP: API o SDK local) | sin publicar |
+| `packages/core` | `factura-hn` (el SDK, sin dependencias) | npm (0.2.0 al publicar) |
+| `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | npm |
+| `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | npm |
+| `packages/pdf` | `@factura-hn/pdf` (PDF carta y ticket, sin navegador) | npm |
+| `packages/cliente` | `@factura-hn/cliente` (cliente tipado de la API, generado desde OpenAPI) | npm |
+| `packages/mcp` | `@factura-hn/mcp` (servidor MCP: API o SDK local) | npm |
+| `packages/api` | `@factura-hn/api` (API REST) | Docker (no se publica en npm) |
 | `examples/` | básico, POS fuera de línea, Express, Next.js, playground | |
 
 ```bash
@@ -279,7 +286,13 @@ pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de P
 pnpm typecheck
 pnpm build        # ESM + CJS + tipos en packages/*/dist
 pnpm example      # genera factura-ejemplo.html y ticket-ejemplo.txt en examples/basico
+pnpm verificar:dist  # empaqueta cada paquete y revisa lo que se publicaría
+pnpm sitio        # sitio de documentación en sitio/ (GitHub Pages)
 ```
+
+Guía para contribuir: [CONTRIBUTING.md](CONTRIBUTING.md). Seguridad: [SECURITY.md](SECURITY.md). Cada cambio a
+un paquete publicado lleva un changeset (`pnpm changeset`); el flujo de publicación está en
+[docs/lanzamiento.md](docs/lanzamiento.md).
 
 La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y se copia a
 `packages/core` al empaquetar (`scripts/copiar-docs.mjs`).
