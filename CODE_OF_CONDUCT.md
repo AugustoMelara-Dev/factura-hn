@@ -30,8 +30,14 @@ educación, nivel socioeconómico, nacionalidad, apariencia, raza, religión u o
 Los mantenedores deciden qué conducta es inaceptable y pueden quitar comentarios, commits o issues, y
 restringir temporal o permanentemente la participación de quien la tenga.
 
-Reporta una conducta inaceptable a CORREO_DE_CONTACTO. Todas las denuncias se revisan con prontitud y
-discreción, y se respeta la privacidad de quien reporta.
+Reporta una conducta inaceptable sin exponerte en público:
+
+- abre un reporte privado en la pestaña **Security** del repositorio (**Report a vulnerability**) con
+  «Conducta» al inicio del título. Solo los mantenedores lo ven, aunque no sea una vulnerabilidad;
+- si la conducta es de una cuenta de GitHub, puedes además usar «Report content» de GitHub.
+
+Si no necesita privacidad, puedes abrir una conversación en Discussions. Todas las denuncias se revisan con
+prontitud y discreción, y se respeta la privacidad de quien reporta.
 
 ## Alcance
 
