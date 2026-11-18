@@ -15,11 +15,14 @@ import { AlmacenSQLite } from '@factura-hn/sqlite';
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 describe('factura-hn-mcp por stdio', () => {
-  it('el ejecutable compilado (dist/cli.js) arranca en modo API y en modo SQLite', async () => {
+  it('el ejecutable compilado arranca en modo API y en modo SQLite', async () => {
     const paquete = fileURLToPath(new URL('..', import.meta.url));
     const raiz = fileURLToPath(new URL('../../../', import.meta.url));
-    execFileSync(process.execPath, [join(raiz, 'node_modules', 'tsup', 'dist', 'cli-default.js'), 'src/index.ts', 'src/cli.ts', '--format', 'esm', '--target', 'node22', '--clean'], { cwd: paquete, stdio: 'pipe' });
-    const cli = join(paquete, 'dist', 'cli.js');
+    // Se compila aparte, sin tocar dist/ (que lleva los tipos y es lo que verifica verificar-dist). La carpeta va
+    // dentro de node_modules del paquete para que el ejecutable resuelva sus dependencias como en dist/.
+    const salidaPrueba = join(paquete, 'node_modules', '.cache', 'dist-prueba-stdio');
+    execFileSync(process.execPath, [join(raiz, 'node_modules', 'tsup', 'dist', 'cli-default.js'), 'src/index.ts', 'src/cli.ts', '--format', 'esm', '--target', 'node22', '--clean', '--out-dir', salidaPrueba], { cwd: paquete, stdio: 'pipe' });
+    const cli = join(salidaPrueba, 'cli.js');
     for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(mkdtempSync(join(tmpdir(), 'fhn-dist-')), 'f.db'), FHN_EMISOR: join(paquete, 'package.json') }]) {
       const cliente = new Client({ name: 'prueba', version: '1.0.0' });
       await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
