@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { AlmacenFiscalMemoria, anular, emitir, registrarAutorizacion, type DocumentoFiscal } from 'factura-hn';
+import { AlmacenFiscalMemoria, anular, buscarDocumento, emitir, registrarAutorizacion, type DocumentoFiscal } from 'factura-hn';
 import { aWinAnsi, lineasPDF, renderizarPDF } from '../src';
 
 const EMISOR = {
@@ -66,6 +66,14 @@ describe('formatos', () => {
     }, { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj } });
     const pdf = await PDFDocument.load(await renderizarPDF(largo));
     expect(pdf.getPageCount()).toBeGreaterThan(1);
+  });
+  it('Art. 38: la copia reimpresa desde el almacén es idéntica al original, en carta y en ticket', async () => {
+    const guardado = await buscarDocumento(almacen, factura.numero);
+    for (const formato of ['carta', 'ticket'] as const) {
+      const original = Buffer.from(await renderizarPDF(factura, { formato }));
+      const copia = Buffer.from(await renderizarPDF(guardado!, { formato }));
+      expect(copia.equals(original)).toBe(true);
+    }
   });
   it('determinista: el mismo documento da los mismos bytes', async () => {
     expect(Buffer.from(await renderizarPDF(factura)).equals(Buffer.from(await renderizarPDF(factura)))).toBe(true);

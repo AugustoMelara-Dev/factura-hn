@@ -81,13 +81,40 @@ describe('B-07 · rangos no utilizados', () => {
   });
 });
 
+describe('B-07 · revisión independiente: números saltados de una autorización vencida', () => {
+  it('se siguen reportando después de que la serie continúa en la autorización siguiente', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    const A = { ...AUT, rangoFinal: 10 };
+    const B: AutorizacionCAI = { ...AUT, cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-0B', rangoInicial: 11, rangoFinal: 20, fechaLimiteEmision: '2027-06-30' };
+    const antes = () => new Date('2026-10-30T15:00:00Z');
+    const despues = () => new Date('2026-11-02T15:00:00Z');
+    await registrarAutorizacion(almacen, A, { reloj: antes });
+    await registrarAutorizacion(almacen, B, { reloj: antes });
+    const emisor = { rtn: '08011999123456', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '2444-0000', correo: 'x@x.hn' };
+    const vender = (reloj: () => Date) => emitir({ emisor, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj } });
+    for (let i = 0; i < 5; i++) await vender(antes);
+    const esperado = [{ cai: A.cai, desde: 6, hasta: 10, cantidad: 5, causal: 1, fechaLimiteAviso: '2026-11-13' }];
+    expect(await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy: '2026-11-02' })).toMatchObject(esperado);
+    // A venció: la serie salta a B (Art. 62) y emite el 11.
+    expect((await vender(despues)).correlativo).toBe(11);
+    expect(await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy: '2026-11-02' })).toMatchObject(esperado);
+  });
+  it('documentosNoUtilizados acepta el último emitido por autorización', () => {
+    const r = documentosNoUtilizados([{ ...AUT, rangoFinal: 10 }], (a) => (a.cai === AUT.cai ? 5 : null), { hoy: '2026-11-02' });
+    expect(r).toMatchObject([{ desde: 6, hasta: 10 }]);
+  });
+});
+
 describe('B-11 · Art. 59: aviso de renovación «dentro de los dos (2) meses previos»', () => {
   const aut = { ...AUT, fechaLimiteEmision: '2027-01-31' };
-  it('avisa por defecto a 60 días o menos', () => {
+  it('avisa por defecto desde que se abre la ventana de dos meses de calendario', () => {
     const codigos = (hoy: string) => estadoAutorizacion(aut, 1, { hoy }).alertas.map((a) => a.codigo);
-    expect(codigos('2026-12-03')).toEqual(['AVISO_VENCIMIENTO']); // 59 días
-    expect(codigos('2026-12-02')).toEqual(['AVISO_VENCIMIENTO']); // 60 días
-    expect(codigos('2026-11-30')).toEqual([]); // 62 días
+    expect(codigos('2026-11-30')).toEqual(['AVISO_VENCIMIENTO']); // 31/01 − 2 meses = 30/11 (no hay 31/11)
+    expect(codigos('2026-12-15')).toEqual(['AVISO_VENCIMIENTO']);
+    expect(codigos('2026-11-29')).toEqual([]);
+    const marzo = { ...AUT, fechaLimiteEmision: '2027-03-15' };
+    expect(estadoAutorizacion(marzo, 1, { hoy: '2027-01-15' }).alertas.map((a) => a.codigo)).toEqual(['AVISO_VENCIMIENTO']);
+    expect(estadoAutorizacion(marzo, 1, { hoy: '2027-01-14' }).alertas).toEqual([]);
   });
   it('se puede ajustar con diasAviso', () => {
     expect(estadoAutorizacion(aut, 1, { hoy: '2026-12-03', diasAviso: 30 }).alertas).toEqual([]);

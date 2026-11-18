@@ -43,6 +43,15 @@ const nota = (tipo: '06' | '07', extra: Partial<DocumentoEntrada> = {}) => entra
 });
 
 describe('Art. 9: en sistemas computarizados, un documento por venta (sin consolidación diaria)', () => {
+  it('se emite documento aun por L 0.01 y a título gratuito (precio 0), sin exención de L 50', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, AUT);
+    const caja = { almacen, establecimiento: '000', puntoEmision: '001' };
+    const centavo = await emitir(entrada({ cliente: undefined, lineas: [{ descripcion: 'Dulce', cantidad: 1, precioUnitario: '0.01', isv: 'EXENTO' }] }), caja);
+    const gratis = await emitir(entrada({ cliente: undefined, lineas: [{ descripcion: 'Muestra gratis', cantidad: 1, precioUnitario: '0' }] }), caja);
+    expect([centavo.totales.total, gratis.totales.total]).toEqual([0.01, 0]);
+    expect([centavo.correlativo, gratis.correlativo]).toEqual([1, 2]);
+  });
   it('la API pública no ofrece consolidar ventas', () => {
     expect(Object.keys(api).filter((k) => /consolid|resumenDiario|ventasMenores/i.test(k))).toEqual([]);
   });
@@ -57,11 +66,13 @@ describe('Art. 9: en sistemas computarizados, un documento por venta (sin consol
 
 describe('Art. 10 num. 2-6: denominación, CAI, fecha límite, rango y destino impresos', () => {
   const d = doc();
-  for (const [nombre, salida] of [['HTML', renderizarHTML(d)], ['texto', renderizarTexto(d)]] as const) {
+  for (const [nombre, salida] of [['HTML', renderizarHTML(d)], ['texto', renderizarTexto(d, { ancho: 80 })]] as const) {
     it(nombre, () => {
-      for (const t of ['Factura'.toUpperCase(), d.cai, d.rangoAutorizado.replace(/ al .*/, ''), '30/06/2027', 'Original: Cliente / Copia: Emisor']) {
-        expect(salida.toUpperCase()).toContain(t.toUpperCase());
+      for (const t of [d.cai, d.rangoAutorizado, '30/06/2027', 'Original: Cliente / Copia: Emisor']) {
+        expect(salida).toContain(t);
       }
+      if (nombre === 'HTML') expect(salida).toMatch(/<h2>Factura<\/h2>/);
+      else expect(salida).toMatch(/^\s+FACTURA$/m);
     });
   }
 });
@@ -115,15 +126,41 @@ describe('Art. 11 num. 1 a-f, j-l: datos para crédito fiscal', () => {
   });
 });
 
+describe('Art. 11 num. 1 h-i / 2 e-f: subtotales e impuestos impresos por tarifa', () => {
+  const d = doc({ lineas: [
+    { descripcion: 'Arroz', cantidad: 1, precioUnitario: '100.00' },
+    { descripcion: 'Cerveza', cantidad: 1, precioUnitario: '50.00', isv: 'ISV18' },
+    { descripcion: 'Frijoles', cantidad: 1, precioUnitario: '30.00', isv: 'EXENTO' },
+    { descripcion: 'Exportación', cantidad: 1, precioUnitario: '20.00', isv: 'GRAVADO0' },
+  ] });
+  for (const [nombre, salida] of [['texto', renderizarTexto(d)], ['HTML', renderizarHTML(d)]] as const) {
+    it(nombre, () => {
+      // El monto aparece poco después de la etiqueta (misma línea en texto, celda vecina en HTML).
+      const montoTras = (etq: string) => {
+        const i = salida.indexOf(etq);
+        expect(i, etq).toBeGreaterThanOrEqual(0);
+        return salida.slice(i + etq.length, i + etq.length + 120).match(/\d[\d,]*\.\d\d/)?.[0];
+      };
+      expect(montoTras('Importe exento')).toBe('30.00');
+      expect(montoTras('Importe gravado 0%')).toBe('20.00');
+      expect(montoTras('Importe gravado 15%')).toBe('100.00');
+      expect(montoTras('Importe gravado 18%')).toBe('50.00');
+      expect(montoTras('I.S.V. 15%')).toBe('15.00');
+      expect(montoTras('I.S.V. 18%')).toBe('9.00');
+    });
+  }
+});
+
 describe('Art. 11 num. 2 a: consumidor final', () => {
   it('sin cliente se imprime «CONSUMIDOR FINAL»', () => {
     const d = doc({ cliente: undefined });
     expect(d.cliente.nombreImpreso).toBe('CONSUMIDOR FINAL');
     expect(renderizarTexto(d)).toContain('CONSUMIDOR FINAL');
   });
-  it('párrafo final: más de L 10,000 exige identificación', () => {
-    const grande = entrada({ cliente: undefined, lineas: [{ descripcion: 'Refrigeradora', cantidad: 1, precioUnitario: '9000.00' }] });
-    expect(codigos(grande)).toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
+  it('párrafo final: más de L 10,000 exige identificación (L 10,000.00 exactos no)', () => {
+    const conTotal = (precio: string) => entrada({ cliente: undefined, preciosIncluyenISV: true, lineas: [{ descripcion: 'Refrigeradora', cantidad: 1, precioUnitario: precio, isv: 'EXENTO' }] });
+    expect(codigos(conTotal('10000.01'))).toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
+    expect(codigos(conTotal('10000.00'))).not.toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
   });
 });
 
@@ -145,8 +182,31 @@ describe('Arts. 25-28: notas de crédito y débito', () => {
     expect(nd.numero).toBe('000-001-07-00000001');
   });
   it('26.1-2 / 28.1-2: nombre y RTN del adquirente obligatorios', () => {
-    expect(codigos(nota('06', { cliente: undefined }), AUT_NC)).toContain('NOTA_CLIENTE_RTN');
+    expect(codigos(nota('06', { cliente: undefined }), AUT_NC)).toEqual(expect.arrayContaining(['CLIENTE_NOMBRE', 'NOTA_CLIENTE_RTN']));
     expect(codigos(nota('07', { cliente: { nombre: 'Sin RTN' } }), AUT_ND)).toContain('NOTA_CLIENTE_RTN');
+    // Con RTN y sin nombre, el error de nombre sale una sola vez.
+    expect(codigos(nota('06', { cliente: { nombre: '', rtn: '08019005123456' } }), AUT_NC)).toEqual(['CLIENTE_NOMBRE']);
+  });
+  it('25.1-7 / 27.1-7: formato de la nota (emisor, CAI, fecha límite, rango, destino)', () => {
+    for (const [tipo, aut] of [['06', AUT_NC], ['07', AUT_ND]] as const) {
+      const d = doc(nota(tipo), aut, 1);
+      const t = renderizarTexto(d, { ancho: 80 });
+      for (const v of ['Pulpería La Bendición', 'Comercial Ejemplo S. de R.L.', '0801-1999-123456', 'Colonia Aurora, Tocoa',
+        'Casa matriz: Barrio El Centro, Tocoa', '2444-0000', 'ventas@ejemplo.hn', `CAI: ${aut.cai}`, '30/06/2027', d.rangoAutorizado,
+        'Original: Cliente / Copia: Emisor']) expect(t).toContain(v);
+    }
+  });
+  it('26.5-6, 26.8, 26.10 / 28.5-7, 28.9: importe en letras y números, impuestos por tarifa, fecha, unidades y descripción', () => {
+    for (const [tipo, aut] of [['06', AUT_NC], ['07', AUT_ND]] as const) {
+      const d = doc(nota(tipo), aut, 1);
+      const t = renderizarTexto(d, { ancho: 80 });
+      expect(t).toContain(d.totales.totalEnLetras);
+      expect(t).toMatch(/TOTAL A PAGAR\s+L 218\.50/);
+      expect(t).toMatch(/I\.S\.V\. 15%\s+L 28\.50/);
+      expect(t).toContain('Fecha: 18/11/2026');
+      expect(t).toContain('Arroz 5 lb');
+      expect(t).toContain('2 x 100.00');
+    }
   });
   it('26.3 / 28.3: CAI, número y fecha del documento que se modifica, impresos', () => {
     expect(codigos(nota('06', { referencia: undefined }), AUT_NC).some((c) => c.startsWith('REFERENCIA'))).toBe(true);

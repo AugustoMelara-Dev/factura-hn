@@ -213,7 +213,9 @@ export function validarEntrada(
       }
     }
     if (!entrada.motivo?.trim()) problemas.push({ codigo: 'MOTIVO', mensaje: 'Las notas de crédito y débito requieren el motivo.', campo: 'motivo' });
-    if (!c.nombre?.trim()) problemas.push({ codigo: 'CLIENTE_NOMBRE', mensaje: 'Las notas de crédito y débito requieren el nombre del adquirente.', campo: 'cliente.nombre' });
+    // Arts. 26 y 28 num. 1 (una sola vez aunque el cliente traiga RTN sin nombre).
+    if (!c.nombre?.trim() && !problemas.some((p) => p.codigo === 'CLIENTE_NOMBRE'))
+      problemas.push({ codigo: 'CLIENTE_NOMBRE', mensaje: 'Las notas de crédito y débito requieren el nombre del adquirente (Arts. 26 y 28).', campo: 'cliente.nombre' });
     // Arts. 26 y 28 num. 1-2: piden el RTN del adquirente, sin alternativa de CONSUMIDOR FINAL.
     if (!c.rtn) problemas.push({ codigo: 'NOTA_CLIENTE_RTN', mensaje: 'Las notas de crédito y débito requieren el RTN del adquirente (Arts. 26 y 28).', campo: 'cliente.rtn' });
     // Arts. 26 num. 9 y 28 num. 8: moneda nacional Lempira.

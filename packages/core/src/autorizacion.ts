@@ -41,6 +41,16 @@ export function diasEntre(desde: string, hasta: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+/** `fecha` menos `meses` de calendario (YYYY-MM-DD); si el día no existe en el mes destino, el último. */
+export function restarMeses(fecha: string, meses: number): string {
+  const [a, m, d] = fecha.split('-').map(Number) as [number, number, number];
+  const total = a * 12 + (m - 1) - meses;
+  const anio = Math.floor(total / 12);
+  const mes = (total % 12) + 1;
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
+}
+
 /** Problemas estructurales de una autorización (independientes de la fecha y del consumo). */
 export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstricto?: boolean } = {}): Problema[] {
   const problemas: Problema[] = [];
@@ -127,8 +137,9 @@ export function estadoAutorizacion(
 ): EstadoAutorizacion {
   const hoy = opciones.hoy ?? fechaHonduras();
   // Art. 59 (C L.2245-2266): la nueva autorización se solicita «dentro de los dos (2) meses previos» a la
-  // fecha límite de emisión. Avisar a 60 días deja la ventana completa para tramitarla.
-  const diasAviso = opciones.diasAviso ?? 60;
+  // fecha límite de emisión. Por defecto se avisa desde que se abre esa ventana: la misma fecha dos meses
+  // de calendario antes (si ese día no existe, el último del mes). `diasAviso` la reemplaza por días.
+  const inicioVentana = opciones.diasAviso === undefined ? restarMeses(aut.fechaLimiteEmision, 2) : null;
   const porcentajeAviso = opciones.porcentajeAviso ?? 90;
 
   const total = aut.rangoFinal - aut.rangoInicial + 1;
@@ -142,7 +153,7 @@ export function estadoAutorizacion(
   const vencida = diasRestantes < 0;
   const agotada = restantes === 0;
   if (vencida) alertas.push({ codigo: 'AUTORIZACION_VENCIDA', mensaje: `La fecha límite de emisión (${aut.fechaLimiteEmision}) ya pasó.` });
-  else if (diasRestantes <= diasAviso)
+  else if (inicioVentana !== null ? hoy >= inicioVentana : diasRestantes <= opciones.diasAviso!)
     alertas.push({ codigo: 'AVISO_VENCIMIENTO', mensaje: `Faltan ${diasRestantes} días para la fecha límite de emisión.` });
   if (agotada) alertas.push({ codigo: 'RANGO_AGOTADO', mensaje: 'Se agotó el rango autorizado.' });
   else if (porcentajeUsado >= porcentajeAviso)

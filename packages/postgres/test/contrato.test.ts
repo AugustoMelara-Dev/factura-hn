@@ -64,9 +64,14 @@ conPostgres('Postgres', () => {
     await expect(pool.query('DELETE FROM fhn_documentos WHERE tenant = $1', [t])).rejects.toThrow(/no se borran/);
     await expect(pool.query('DELETE FROM fhn_autorizaciones WHERE tenant = $1', [t])).rejects.toThrow(/no se borran/);
     await expect(pool.query('UPDATE fhn_documentos SET correlativo = 9 WHERE tenant = $1', [t])).rejects.toThrow(/solo puede anularse/);
+    const alterado = { ...doc, estado: 'ANULADO', totales: { ...doc.totales, total: 1 } };
+    await expect(pool.query("UPDATE fhn_documentos SET estado = 'ANULADO', datos = $3 WHERE tenant = $1 AND numero = $2", [t, doc.numero, JSON.stringify(alterado)]))
+      .rejects.toThrow(/solo puede anularse/);
     await pool.query("UPDATE fhn_documentos SET estado = 'ANULADO' WHERE tenant = $1 AND numero = $2", [t, doc.numero]);
     await expect(pool.query("UPDATE fhn_documentos SET estado = 'EMITIDO' WHERE tenant = $1", [t])).rejects.toThrow(/solo puede anularse/);
     await expect(pool.query('UPDATE fhn_series SET ultimo = 0 WHERE tenant = $1', [t])).rejects.toThrow(/no retrocede/);
+    // Art. 53 num. 2: una autorización no se edita y al anular el contenido no cambia.
+    await expect(pool.query('UPDATE fhn_autorizaciones SET rango_final = 999999 WHERE tenant = $1', [t])).rejects.toThrow(/no se modifican/);
     await expect(pool.query('DELETE FROM fhn_series WHERE tenant = $1', [t])).rejects.toThrow(/no se borran/);
     await expect(pool.query('DELETE FROM fhn_eventos WHERE tenant = $1', [t])).rejects.toThrow(/bitácora/);
     await expect(pool.query("UPDATE fhn_eventos SET tipo = 'X' WHERE tenant = $1", [t])).rejects.toThrow(/bitácora/);

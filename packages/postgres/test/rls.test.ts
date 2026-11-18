@@ -73,8 +73,9 @@ conPostgres('Postgres con RLS', () => {
     expect((await sql(B, "UPDATE fhn_documentos SET estado = 'ANULADO' WHERE tenant = $1", [A])).rowCount).toBe(0);
     // Sin tenant fijado no se ve nada (por defecto, denegar).
     expect((await sql(null, 'SELECT * FROM fhn_documentos')).rowCount).toBe(0);
-    // El rol no tiene DELETE.
+    // El rol no tiene DELETE ni puede editar autorizaciones.
     await expect(sql(A, 'DELETE FROM fhn_eventos')).rejects.toThrow(/permission denied/);
+    await expect(sql(A, 'UPDATE fhn_autorizaciones SET rango_final = 999')).rejects.toThrow(/permission denied/);
   });
 
   it('la transacción expone SQL dentro del mismo tenant (para la API)', async () => {

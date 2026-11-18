@@ -108,3 +108,61 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   sin DELETE. `AlmacenPostgres({ rol })` hace `SET LOCAL ROLE` en cada transacción. El DDL se registra en
   `fhn_migraciones` y solo corre una vez por versión.
 - **Alternativa:** filtrar solo en la aplicación (`WHERE tenant = $1`): un olvido expone datos de otro negocio.
+
+### Reglas derivadas que señaló la revisión independiente (2026-11-18)
+
+### DEC-016 · La Nota de Débito puede referir cualquier documento · [REVISAR]
+- **Contexto:** el Art. 4 num. 31 (C L.377-379) dice que la ND está «vinculada a un Comprobante Fiscal»; el
+  Art. 28 num. 3 b (C L.1479) dice «Comprobante Fiscal **o el documento**».
+- **Elegida:** la NC solo sobre Comprobantes Fiscales (Art. 6); la ND sobre cualquier tipo (p. ej. otra ND o
+  una NC).
+- **Alternativa:** restringir también la ND a Comprobantes Fiscales.
+
+### DEC-017 · La nota no puede tener fecha anterior al original, también la ND · [REVISAR]
+- **Contexto:** el Art. 4 num. 32 (C L.384) habla de ajustes «con posterioridad» solo para la NC.
+- **Elegida:** `REFERENCIA_FECHA_POSTERIOR` para 06 y 07: un documento no se modifica antes de existir.
+- **Alternativa:** aplicarla solo a la NC.
+
+### DEC-018 · Las notas se emiten solo en lempiras · [REVISAR]
+- **Contexto:** los Arts. 26 num. 9 y 28 num. 8 (C L.1389-1390, L.1491-1492) piden «Denominación literal de la
+  Moneda Nacional Lempira o símbolo (L)»; no prohíben expresamente otra moneda.
+- **Elegida:** error `NOTA_MONEDA` si la moneda no es HNL.
+- **Alternativa:** permitir moneda extranjera con tipo de cambio, como la factura (Art. 11).
+
+### DEC-019 · Exoneración de todo el documento · [REVISAR]
+- **Contexto:** con `exoneracion`, todo lo gravado pasa a importe exonerado. El Reglamento no regula una
+  exoneración parcial por línea.
+- **Elegida:** exoneración del documento completo; para mezclar, emitir dos documentos.
+- **Alternativa:** marcar la exoneración por línea.
+
+### DEC-020 · La base de crédito fiscal no incluye lo gravado al 0 % · [REVISAR]
+- **Contexto:** Art. 11 num. 3 (C L.736-737): «solo se reconocerá el crédito fiscal sobre las ventas gravadas».
+  Una venta con alícuota cero no genera ISV que acreditar.
+- **Elegida:** `baseCreditoFiscal` = gravado 15 % + gravado 18 %.
+- **Alternativa:** incluir el gravado 0 % (no cambia el ISV acreditable, sí la base reportada).
+
+### DEC-021 · Exonerado: OCE + constancia, o registro SAG/RUPNSA · [APROBADA 2026-11-18]
+- **Contexto:** Art. 11 num. 4 (C L.739-749) con «… o …»; pregunta P-08. Aprobado con el plan de la Fase 1 (B-12).
+- **Elegida:** con `registroSAG` no se exige lo demás; sin él, OCE **y** constancia.
+- **Alternativa:** exigir siempre OCE y constancia.
+
+### DEC-022 · La fecha de emisión es la de hoy en Honduras · [APROBADA 2026-11-18]
+- **Contexto:** los Arts. 14 y 43 no prohíben literalmente otra fecha; aprobado con el plan (B-08).
+- **Elegida:** `FECHA_EMISION_NO_ES_HOY` si se envía una fecha distinta de la del reloj.
+- **Alternativa:** permitir retrofechar con advertencia.
+
+### DEC-023 · Correo del emisor con formato válido · [REVISAR]
+- **Contexto:** Art. 10 num. 1 f (C L.594-595) exige el correo, sin fijar formato.
+- **Elegida:** error `EMISOR_CORREO` si no tiene forma de correo (`algo@dominio.tld`).
+- **Alternativa:** solo exigir que no esté vacío.
+
+### DEC-024 · RTN de 14 dígitos y DNI de 13 · [REVISAR]
+- **Contexto:** el Reglamento no fija longitudes; son las del RTN y la tarjeta de identidad en uso.
+- **Elegida:** validar esas longitudes (`CLIENTE_RTN`, `EMISOR_RTN`, DNI).
+- **Alternativa:** aceptar cualquier secuencia de dígitos.
+
+### DEC-025 · Aviso de renovación: dos meses de calendario
+- **Contexto:** Art. 59 (C L.2263-2265): «dentro de los dos (2) meses previos». 60 días avisaba 1 a 3 días tarde.
+- **Elegida:** avisar desde la misma fecha dos meses antes (último día del mes si no existe); `diasAviso` la
+  reemplaza.
+- **Alternativa:** 60 días fijos.

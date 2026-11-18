@@ -80,8 +80,13 @@ export const TABLAS_FISCALES = ['fhn_series', 'fhn_autorizaciones', 'fhn_documen
  * SQL idempotente que crea el rol (NOLOGIN, sin BYPASSRLS) y activa RLS forzada en `tablas`, con una
  * política por tenant: solo se ven y se escriben filas con `tenant = current_setting('factura_hn.tenant')`.
  * Sin tenant fijado no se ve nada (por defecto, denegar).
+ *
+ * Con `forzar: false` la política no aplica al dueño de la tabla: solo para tablas que una función
+ * `SECURITY DEFINER` del dueño debe leer sin tenant (p. ej. buscar una llave de API antes de saber de
+ * qué tenant es).
  */
-export function politicasRLS(rol: string, tablas: readonly string[]): string {
+export function politicasRLS(rol: string, tablas: readonly string[], opciones: { forzar?: boolean } = {}): string {
+  const forzar = opciones.forzar ?? true;
   const r = rolValido(rol);
   const partes = [
     `DO $$ BEGIN
@@ -93,7 +98,7 @@ END $$;`,
   for (const t of tablas) {
     if (!/^[a-z_][a-z0-9_]*$/.test(t)) throw new Error(`Nombre de tabla inválido: ${t}`);
     partes.push(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ${t} FORCE ROW LEVEL SECURITY;
+ALTER TABLE ${t} ${forzar ? 'FORCE' : 'NO FORCE'} ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS fhn_por_tenant ON ${t};
 CREATE POLICY fhn_por_tenant ON ${t}
   USING (tenant = current_setting('factura_hn.tenant', true))
@@ -105,12 +110,14 @@ CREATE POLICY fhn_por_tenant ON ${t}
 /** Permisos del rol sobre las tablas fiscales: sin DELETE; la bitácora solo admite INSERT y SELECT. */
 function permisosFiscales(rol: string): string {
   const r = rolValido(rol);
-  return `GRANT SELECT, INSERT, UPDATE ON fhn_series, fhn_autorizaciones, fhn_documentos TO ${r};
+  return `GRANT SELECT, INSERT, UPDATE ON fhn_series, fhn_documentos TO ${r};
+GRANT SELECT, INSERT ON fhn_autorizaciones TO ${r};
+REVOKE UPDATE, DELETE ON fhn_autorizaciones FROM ${r};
 GRANT SELECT, INSERT ON fhn_eventos TO ${r};
 DO $$ BEGIN EXECUTE format('GRANT USAGE ON SEQUENCE %s TO ${r}', pg_get_serial_sequence('fhn_eventos', 'id')); END $$;`;
 }
 
-export const VERSION_ESQUEMA_POSTGRES = 2;
+export const VERSION_ESQUEMA_POSTGRES = 3;
 
 /** Esquema idempotente; `migrar()` lo aplica con un candado consultivo para no chocar entre réplicas. */
 export const ESQUEMA_POSTGRES = `
@@ -164,7 +171,9 @@ CREATE OR REPLACE FUNCTION fhn_solo_anular() RETURNS trigger LANGUAGE plpgsql AS
 BEGIN
   IF NOT (OLD.estado = 'EMITIDO' AND NEW.estado = 'ANULADO' AND NEW.tenant = OLD.tenant
           AND NEW.numero = OLD.numero AND NEW.identificador = OLD.identificador
-          AND NEW.correlativo = OLD.correlativo AND NEW.fecha_emision = OLD.fecha_emision) THEN
+          AND NEW.correlativo = OLD.correlativo AND NEW.fecha_emision = OLD.fecha_emision
+          -- Al anular, el contenido no cambia: solo «estado» y «anulacion» (Art. 41; Art. 53 num. 2).
+          AND (NEW.datos::jsonb - 'estado' - 'anulacion') = (OLD.datos::jsonb - 'estado' - 'anulacion')) THEN
     RAISE EXCEPTION 'factura-hn: un documento emitido solo puede anularse (Art. 41)';
   END IF;
   RETURN NEW;
@@ -182,6 +191,13 @@ END $$;
 
 DROP TRIGGER IF EXISTS fhn_documentos_sin_borrar ON fhn_documentos;
 CREATE TRIGGER fhn_documentos_sin_borrar BEFORE DELETE ON fhn_documentos FOR EACH ROW EXECUTE FUNCTION fhn_no_borrar();
+CREATE OR REPLACE FUNCTION fhn_autorizacion_inmutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'factura-hn: las autorizaciones registradas no se modifican';
+END $$;
+DROP TRIGGER IF EXISTS fhn_autorizaciones_sin_editar ON fhn_autorizaciones;
+-- Art. 53 num. 2 y Art. 62: una autorización registrada no se edita (rango ni fecha límite).
+CREATE TRIGGER fhn_autorizaciones_sin_editar BEFORE UPDATE ON fhn_autorizaciones FOR EACH ROW EXECUTE FUNCTION fhn_autorizacion_inmutable();
 DROP TRIGGER IF EXISTS fhn_autorizaciones_sin_borrar ON fhn_autorizaciones;
 CREATE TRIGGER fhn_autorizaciones_sin_borrar BEFORE DELETE ON fhn_autorizaciones FOR EACH ROW EXECUTE FUNCTION fhn_no_borrar();
 DROP TRIGGER IF EXISTS fhn_documentos_solo_anular ON fhn_documentos;

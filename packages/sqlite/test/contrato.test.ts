@@ -62,6 +62,16 @@ describe('la base protege los documentos aunque se edite a mano', () => {
     expect(() => db.prepare("UPDATE fhn_series SET ultimo = 0 WHERE identificador = '000-001-01'").run()).toThrow(/no retrocede/);
   });
 
+  it('Art. 53 num. 2: una autorización no se edita y al anular el contenido del documento no cambia', async () => {
+    const { db, doc } = await preparar();
+    expect(() => db.prepare("UPDATE fhn_autorizaciones SET rango_final = 999999").run()).toThrow(/no se modifican/);
+    expect(() => db.prepare("UPDATE fhn_autorizaciones SET datos = json_set(datos, '$.fechaLimiteEmision', '2099-12-31')").run()).toThrow(/no se modifican/);
+    const alterado = { ...doc, estado: 'ANULADO', totales: { ...doc.totales, total: 1 } };
+    expect(() => db.prepare("UPDATE fhn_documentos SET estado = 'ANULADO', datos = ? WHERE numero = ?").run(JSON.stringify(alterado), doc.numero)).toThrow(/solo puede anularse/);
+    const legitimo = { ...doc, estado: 'ANULADO', anulacion: { motivo: 'x', fecha: '2026-11-18', hora: '10:00' } };
+    db.prepare("UPDATE fhn_documentos SET estado = 'ANULADO', datos = ? WHERE numero = ?").run(JSON.stringify(legitimo), doc.numero);
+  });
+
   it('las autorizaciones y las series no se borran; la bitácora no se modifica', async () => {
     const { db } = await preparar();
     expect(() => db.prepare('DELETE FROM fhn_autorizaciones').run()).toThrow(/no se borran/);

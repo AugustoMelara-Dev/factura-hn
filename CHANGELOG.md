@@ -43,6 +43,10 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- Revisión independiente de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
+  autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
+  al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
+  sale duplicado en notas.
 - `AutorizacionCAI.fechaAutorizacion` (opcional) y el aviso `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62); los avisos
   de la autorización quedan en el evento `AUTORIZACION_REGISTRADA` de la bitácora.
 - Paquetes compilados con tipos separados para ESM (`.d.ts`) y CJS (`.d.cts`); `pnpm verificar:dist` carga
@@ -57,7 +61,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **Documentos no utilizados (B-07, Art. 42):** `documentosNoUtilizados` y `noUtilizadosDelAlmacen` devuelven
   los rangos sin usar, la causal (numerales 1 a 12) y la fecha límite del aviso (décimo día hábil del mes
   siguiente; feriados opcionales).
-- `estadoAutorizacion` avisa la renovación a 60 días por defecto (antes 30), según el Art. 59 (B-11).
+- `estadoAutorizacion` avisa la renovación desde dos meses de calendario antes de la fecha límite (antes 30
+  días), según el Art. 59 (B-11).
 - **Gravado 0 % (B-01, Arts. 11 y 12):** `isv: 'GRAVADO0'` y `totales.importeGravado0`, discriminado en
   render y libro.
 - **Crédito fiscal (B-02, Art. 11 num. 3):** `totales.baseCreditoFiscal` y el aviso `AVISO_VENTA_MIXTA` cuando

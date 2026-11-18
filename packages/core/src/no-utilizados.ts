@@ -88,7 +88,14 @@ export function decimoDiaHabilDelMesSiguiente(fecha: string, feriados: string[] 
 }
 
 /**
- * Rangos sin usar de las autorizaciones de **un** identificador, dado el último correlativo consumido.
+ * Último correlativo consumido. Un número es el último de la serie (sirve si la serie nunca saltó de una
+ * autorización vencida a la siguiente); una función da el último emitido **dentro** de cada autorización,
+ * que es lo correcto cuando la serie continuó en otra (`noUtilizadosDelAlmacen` la calcula).
+ */
+export type UltimoConsumido = number | null | ((autorizacion: AutorizacionCAI) => number | null);
+
+/**
+ * Rangos sin usar de las autorizaciones de **un** identificador.
  *
  * - Causal 1 (vencimiento): cada autorización cuya fecha límite ya pasó deja sin uso los números
  *   posteriores al último consumido. El acontecimiento es la fecha límite misma (lectura conservadora: la
@@ -97,15 +104,18 @@ export function decimoDiaHabilDelMesSiguiente(fecha: string, feriados: string[] 
  */
 export function documentosNoUtilizados(
   autorizaciones: AutorizacionCAI[],
-  ultimoConsumido: number | null,
+  ultimoConsumido: UltimoConsumido,
   opciones: OpcionesNoUtilizados = {},
 ): RangoNoUtilizado[] {
   const hoy = opciones.hoy ?? fechaHonduras();
   const feriados = opciones.feriados ?? [];
   const resultado: RangoNoUtilizado[] = [];
   const ordenadas = [...autorizaciones].sort((a, b) => a.rangoInicial - b.rangoInicial);
-  const consumido = Math.max(ultimoConsumido ?? 0, ...ordenadas.map((a) => a.ultimoEmitidoAntes ?? 0));
+  const global = typeof ultimoConsumido === 'function' ? null : Math.max(ultimoConsumido ?? 0, ...ordenadas.map((a) => a.ultimoEmitidoAntes ?? 0));
   for (const a of ordenadas) {
+    const consumido = typeof ultimoConsumido === 'function'
+      ? Math.max(ultimoConsumido(a) ?? 0, a.ultimoEmitidoAntes ?? 0)
+      : global!;
     const desde = Math.max(a.rangoInicial, consumido + 1);
     if (desde > a.rangoFinal || !esFechaValida(a.fechaLimiteEmision)) continue;
     const vencida = a.fechaLimiteEmision < hoy;
@@ -144,7 +154,15 @@ export async function noUtilizadosDelAlmacen(
   opciones: OpcionesNoUtilizados = {},
 ): Promise<RangoNoUtilizado[]> {
   return almacen.transaccion(async (tx) => {
-    const serie = await tx.bloquearSerie(identificador);
-    return documentosNoUtilizados(await tx.autorizaciones(identificador), serie.ultimo, opciones);
+    await tx.bloquearSerie(identificador);
+    // Último emitido dentro de cada autorización: la serie puede haber saltado los números de una vencida
+    // (Arts. 42 y 62) y seguir en la siguiente; esos números saltados son los que hay que reportar.
+    const correlativos = (await tx.documentos({ identificador })).map((d) => d.correlativo);
+    const ultimoEn = (a: AutorizacionCAI) => {
+      let max: number | null = null;
+      for (const c of correlativos) if (c >= a.rangoInicial && c <= a.rangoFinal && (max === null || c > max)) max = c;
+      return max;
+    };
+    return documentosNoUtilizados(await tx.autorizaciones(identificador), ultimoEn, opciones);
   });
 }

@@ -112,7 +112,7 @@ export {
   documentosNoUtilizados,
   noUtilizadosDelAlmacen,
 } from './no-utilizados';
-export type { CausalNoUtilizacion, OpcionesNoUtilizados, RangoNoUtilizado } from './no-utilizados';
+export type { CausalNoUtilizacion, OpcionesNoUtilizados, RangoNoUtilizado, UltimoConsumido } from './no-utilizados';
 export { estaAnulado, LEYENDA_ANULADA } from './anulacion';
 export { congelar } from './inmutable';
 export { renderizarHTML, renderizarTexto } from './render';

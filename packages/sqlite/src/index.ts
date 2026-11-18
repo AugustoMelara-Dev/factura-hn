@@ -49,7 +49,7 @@ export interface OpcionesAlmacenSQLite {
 }
 
 /** Versión del esquema creado por `ESQUEMA_SQLITE`. */
-export const VERSION_ESQUEMA_SQLITE = 1;
+export const VERSION_ESQUEMA_SQLITE = 2;
 
 /** Esquema idempotente. Se aplica al crear el almacén; puedes revisarlo o aplicarlo en tus migraciones. */
 export const ESQUEMA_SQLITE = `
@@ -91,10 +91,13 @@ CREATE INDEX IF NOT EXISTS fhn_eventos_identificador ON fhn_eventos (identificad
 -- Reglamento Art. 41: los documentos no se borran; uno emitido solo puede pasar a ANULADO.
 CREATE TRIGGER IF NOT EXISTS fhn_documentos_sin_borrar BEFORE DELETE ON fhn_documentos
 BEGIN SELECT RAISE(ABORT, 'factura-hn: los documentos fiscales no se borran (Art. 41)'); END;
-CREATE TRIGGER IF NOT EXISTS fhn_documentos_solo_anular BEFORE UPDATE ON fhn_documentos
+-- Al anular, el contenido del documento no cambia: solo «estado» y «anulacion» (Art. 41; Art. 53 num. 2).
+DROP TRIGGER IF EXISTS fhn_documentos_solo_anular;
+CREATE TRIGGER fhn_documentos_solo_anular BEFORE UPDATE ON fhn_documentos
 WHEN NOT (OLD.estado = 'EMITIDO' AND NEW.estado = 'ANULADO' AND NEW.numero = OLD.numero
   AND NEW.identificador = OLD.identificador AND NEW.correlativo = OLD.correlativo
-  AND NEW.fecha_emision = OLD.fecha_emision)
+  AND NEW.fecha_emision = OLD.fecha_emision
+  AND json_remove(NEW.datos, '$.estado', '$.anulacion') = json_remove(OLD.datos, '$.estado', '$.anulacion'))
 BEGIN SELECT RAISE(ABORT, 'factura-hn: un documento emitido solo puede anularse (Art. 41)'); END;
 -- Un número consumido no se reutiliza: la serie nunca retrocede (la unicidad de fhn_documentos impide
 -- repetir). ultima_fecha sí puede bajar al anular un documento con fecha errónea.
@@ -110,6 +113,9 @@ CREATE TRIGGER IF NOT EXISTS fhn_eventos_sin_editar BEFORE UPDATE ON fhn_eventos
 BEGIN SELECT RAISE(ABORT, 'factura-hn: la bitácora no se modifica'); END;
 CREATE TRIGGER IF NOT EXISTS fhn_autorizaciones_sin_borrar BEFORE DELETE ON fhn_autorizaciones
 BEGIN SELECT RAISE(ABORT, 'factura-hn: las autorizaciones registradas no se borran'); END;
+-- Art. 53 num. 2 y Art. 62: una autorización registrada no se edita (rango ni fecha límite).
+CREATE TRIGGER IF NOT EXISTS fhn_autorizaciones_sin_editar BEFORE UPDATE ON fhn_autorizaciones
+BEGIN SELECT RAISE(ABORT, 'factura-hn: las autorizaciones registradas no se modifican'); END;
 `;
 
 const esOcupada = (e: unknown): boolean => {
