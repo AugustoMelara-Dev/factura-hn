@@ -31,8 +31,8 @@ export interface OpcionesAnulacion {
 
 /**
  * Anula un documento emitido (Art. 41). Devuelve un documento nuevo e inmutable con la leyenda ANULADA;
- * el número queda consumido. Guarda el resultado en lugar del emitido (el almacén conserva ambos estados
- * en su bitácora), nunca borres el registro.
+ * el número queda consumido. Con un `AlmacenFiscal`, usa `anular(numero, …)`, que lo guarda en la misma
+ * transacción; el registro nunca se borra.
  *
  * @throws ErrorValidacion `ANULACION_MOTIVO` si falta el motivo, `YA_ANULADO` si ya estaba anulado.
  */

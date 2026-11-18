@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "factura-hn": ["../core/src/index.ts"],
+      "factura-hn/pruebas": ["../core/src/pruebas.ts"]
+    }
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}
