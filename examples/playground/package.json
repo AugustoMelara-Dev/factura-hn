@@ -1,0 +1,15 @@
+{
+  "name": "@factura-hn/ejemplo-playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Playground del SDK en el navegador, sin backend.",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "factura-hn": "workspace:*"
+  }
+}

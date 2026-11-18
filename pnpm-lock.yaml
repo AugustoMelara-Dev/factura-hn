@@ -238,6 +238,12 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
 
+  examples/playground:
+    dependencies:
+      factura-hn:
+        specifier: workspace:*
+        version: link:../../packages/core
+
   examples/pos-offline:
     dependencies:
       '@factura-hn/sqlite':
