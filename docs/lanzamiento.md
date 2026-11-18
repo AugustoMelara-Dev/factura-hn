@@ -50,13 +50,9 @@ Si no quieres publicar alguno, tienes dos opciones:
    git filter-repo --mailmap ../mailmap.txt
    ```
 
-## 1. Completar los marcadores
+## 1. Nombre del repositorio (solo si cambia)
 
 ```bash
-grep -rn "CORREO_DE_CONTACTO" --exclude-dir=node_modules .
-# Reemplázalo por un correo del proyecto (no personal), p. ej.:
-sed -i 's/CORREO_DE_CONTACTO/conducta@tu-dominio/' CODE_OF_CONDUCT.md
-
 # Solo si la organización o el repositorio no se llaman factura-hn/factura-hn:
 git grep -l "factura-hn/factura-hn\|factura-hn.github.io" | xargs sed -i \
   -e 's#factura-hn/factura-hn#TU_ORG/TU_REPO#g' -e 's#factura-hn.github.io/factura-hn#TU_ORG.github.io/TU_REPO#g'
