@@ -1,7 +1,8 @@
 /**
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
-import { calcularDocumento, validarLineas } from './calculo';
+import { calcularCentavos, calcularDocumento, validarLineas } from './calculo';
+import { escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import type { AlmacenCorrelativos } from './correlativos';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
@@ -19,6 +20,20 @@ import type {
 export const UMBRAL_CONSUMIDOR_FINAL = 10_000;
 export const CONSUMIDOR_FINAL = 'CONSUMIDOR FINAL';
 export const DESTINO_EJEMPLARES = 'Original: Cliente / Copia: Emisor';
+
+/** El tipo de cambio se lee con 6 decimales. */
+const ESCALA_TC = 1_000_000n;
+
+function leerTipoCambio(valor: Monto | undefined): bigint | null {
+  if (valor === undefined || valor === null || valor === '') return null;
+  try {
+    const tc = parsearDecimal(valor, 6, 'tipoCambio');
+    return tc > 0n ? tc : null;
+  } catch (e) {
+    if (e instanceof ErrorMonto) return null;
+    throw e;
+  }
+}
 
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
@@ -107,8 +122,9 @@ export function validarEntrada(
 
   // Moneda
   const moneda = entrada.moneda ?? 'HNL';
-  if (moneda !== 'HNL' && !(Number.isFinite(entrada.tipoCambio) && (entrada.tipoCambio ?? 0) > 0)) {
-    problemas.push({ codigo: 'TIPO_CAMBIO', mensaje: 'En moneda extranjera se debe indicar el tipo de cambio de la fecha de emisión.', campo: 'tipoCambio' });
+  const tipoCambio = moneda === 'HNL' ? null : leerTipoCambio(entrada.tipoCambio);
+  if (moneda !== 'HNL' && tipoCambio === null) {
+    problemas.push({ codigo: 'TIPO_CAMBIO', mensaje: 'En moneda extranjera se debe indicar el tipo de cambio de la fecha de emisión (mayor que 0, hasta 6 decimales).', campo: 'tipoCambio' });
   }
 
   // Notas de crédito / débito
@@ -132,18 +148,20 @@ export function validarEntrada(
   const problemasLineas = validarLineas(entrada.lineas);
   problemas.push(...problemasLineas);
   if (problemasLineas.length === 0) {
-    const { totales } = calcularDocumento(entrada.lineas, {
+    const { totales } = calcularCentavos(entrada.lineas, {
       preciosIncluyenISV: entrada.preciosIncluyenISV ?? false,
       exonerado: Boolean(entrada.exoneracion),
       moneda,
     });
-    const totalLempiras = moneda === 'HNL' ? totales.total : totales.total * (entrada.tipoCambio ?? 0);
+    // Comparación exacta: total (centavos) × tipo de cambio (10^-6) contra umbral (centavos × 10^6).
+    const totalLempiras6 = totales.total * (tipoCambio ?? ESCALA_TC);
     const umbral = opciones.umbralIdentificacionConsumidorFinal ?? UMBRAL_CONSUMIDOR_FINAL;
+    const umbral6 = parsearDecimal(umbral, 2, 'umbralIdentificacionConsumidorFinal') * ESCALA_TC;
     const identificado = Boolean(c.rtn) || (Boolean(c.nombre?.trim()) && Boolean(c.identificacion?.numero?.trim()));
-    if (totalLempiras > umbral && !identificado) {
+    if (totalLempiras6 > umbral6 && !identificado) {
       problemas.push({
         codigo: 'CONSUMIDOR_FINAL_IDENTIFICACION',
-        mensaje: `Ventas a consumidor final mayores de L ${umbral.toLocaleString('en-US')} requieren nombre e identificación del cliente (Art. 11).`,
+        mensaje: `Ventas a consumidor final mayores de L ${formatearMonto(umbral)} requieren nombre e identificación del cliente (Art. 11).`,
         campo: 'cliente',
       });
     }
@@ -212,7 +230,7 @@ export function construirDocumento(
   };
   if (entrada.horaEmision) doc.horaEmision = entrada.horaEmision;
   if (entrada.exoneracion) doc.exoneracion = entrada.exoneracion;
-  if (moneda !== 'HNL') doc.tipoCambio = entrada.tipoCambio;
+  if (moneda !== 'HNL') doc.tipoCambio = Number(escaladoATexto(leerTipoCambio(entrada.tipoCambio)!, 6));
   if (entrada.referencia) doc.referencia = entrada.referencia;
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;

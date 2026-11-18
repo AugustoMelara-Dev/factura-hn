@@ -2,7 +2,7 @@
  * Conversión de montos a letras en español (Art. 11: importe total en número y letras).
  * Formato: "MIL DOSCIENTOS TREINTA Y CUATRO LEMPIRAS CON 50/100".
  */
-import { aCentavos } from './dinero';
+import { redondearDecimal, type Monto } from './dinero';
 import type { Moneda } from './tipos';
 
 const UNIDADES = [
@@ -70,11 +70,15 @@ const NOMBRE_MONEDA: Record<Moneda, { singular: string; plural: string }> = {
  * Monto a letras con centavos en fracción /100.
  * @example montoEnLetras(1234.5) // "MIL DOSCIENTOS TREINTA Y CUATRO LEMPIRAS CON 50/100"
  */
-export function montoEnLetras(monto: number, moneda: Moneda = 'HNL'): string {
-  const centavos = aCentavos(monto);
-  if (centavos < 0) throw new RangeError('El monto no puede ser negativo');
-  const enteros = Math.floor(centavos / 100);
-  const fraccion = (centavos % 100).toString().padStart(2, '0');
+export function montoEnLetras(monto: Monto, moneda: Moneda = 'HNL'): string {
+  return centavosEnLetras(redondearDecimal(monto, 2), moneda);
+}
+
+/** Igual que `montoEnLetras`, a partir de centavos exactos. */
+export function centavosEnLetras(centavos: bigint, moneda: Moneda = 'HNL'): string {
+  if (centavos < 0n) throw new RangeError('El monto no puede ser negativo');
+  const enteros = Number(centavos / 100n);
+  const fraccion = (centavos % 100n).toString().padStart(2, '0');
   const nombre = NOMBRE_MONEDA[moneda];
   const palabras = enteros === 0 ? 'CERO' : apocopar(enteroALetras(enteros));
   // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS"

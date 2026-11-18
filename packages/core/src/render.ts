@@ -2,7 +2,7 @@
  * Representación impresa del documento: HTML (carta o ticket 80 mm) y texto plano
  * para impresoras térmicas. Incluye todos los campos de los Arts. 10 y 11.
  */
-import { formatearMonto } from './dinero';
+import { escaladoATexto, formatearMonto, parsearDecimal } from './dinero';
 import { formatearDNI, formatearRTN } from './identificacion';
 import type { DocumentoFiscal, TratamientoISV } from './tipos';
 
@@ -19,6 +19,13 @@ export interface OpcionesRender {
 
 
 const ETIQUETA_ISV: Record<TratamientoISV, string> = { ISV15: 'G', ISV18: 'G18', EXENTO: 'E' };
+
+/** Precio unitario con 2 decimales, o hasta 4 si los trae (Art. 11 num. 1 lit. f: valor unitario). */
+function formatearPrecio(precio: number): string {
+  const [ent, dec = ''] = escaladoATexto(parsearDecimal(precio, 4), 4).split('.');
+  if (dec.length <= 2) return formatearMonto(precio);
+  return `${ent!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
+}
 
 function esc(v: unknown): string {
   return String(v ?? '')
@@ -74,7 +81,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
         <td>${l.codigo ? `<span class="cod">${esc(l.codigo)}</span> ` : ''}${esc(l.descripcion)}${
           l.descuento > 0 ? `<div class="desc">Descuento: ${formatearMonto(l.descuento)}</div>` : ''
         }</td>
-        <td class="num">${formatearMonto(l.precioUnitario)}</td>
+        <td class="num">${formatearPrecio(l.precioUnitario)}</td>
         <td class="num">${formatearMonto(l.importe)} <span class="trat">${ETIQUETA_ISV[l.isv]}</span></td>
       </tr>`,
     )
@@ -240,7 +247,7 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   out.push(sep);
   for (const l of doc.lineas) {
     izq(l.descripcion);
-    par(`  ${l.cantidad} x ${formatearMonto(l.precioUnitario)}`, `${formatearMonto(l.importe)} ${ETIQUETA_ISV[l.isv]}`);
+    par(`  ${l.cantidad} x ${formatearPrecio(l.precioUnitario)}`, `${formatearMonto(l.importe)} ${ETIQUETA_ISV[l.isv]}`);
     if (l.descuento > 0) par('  Descuento', `-${formatearMonto(l.descuento)}`);
   }
   out.push(sep);

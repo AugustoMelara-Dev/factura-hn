@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.0 — sin publicar
+
+Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles
+van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0.0.
+
+### Cambios incompatibles
+
+- **Dinero sin punto flotante (B-17).** Cantidad, precio unitario, descuento, tipo de cambio y umbral aceptan
+  `number | string` (se recomienda texto: `"19.99"`). Un `number` se lee por su texto decimal exacto. Si trae
+  más decimales de los permitidos (cantidad y precio: 4; descuento: 2; tipo de cambio: 6), se rechaza en lugar
+  de redondearse: `0.1 + 0.2` como precio da `LINEA_PRECIO`. Antes el precio se redondeaba a centavos en silencio.
+
+### Agregado
+
+- `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
+  `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
+- El precio unitario se imprime con hasta 4 decimales cuando los trae.
+- Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
+
+### Cambiado
+
+- `pnpm` workspaces: el SDK vive en `packages/core`.
+
 ## 0.1.0 — 2026-11-18
 
 - Primera versión: Factura (01), Nota de Crédito (06), Nota de Débito (07), con la tabla de códigos vigente tras el Acuerdo 609-2017.

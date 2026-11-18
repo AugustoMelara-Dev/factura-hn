@@ -2,7 +2,7 @@
  * Resúmenes para el libro de ventas y la declaración mensual del ISV.
  * Las notas de crédito restan y las notas de débito suman.
  */
-import { aCentavos, deCentavos } from './dinero';
+import { centavosATexto, deCentavos, redondearDecimal } from './dinero';
 import type { DocumentoFiscal } from './tipos';
 
 export interface FilaLibroVentas {
@@ -52,10 +52,10 @@ export type ResumenVentas = Omit<FilaLibroVentas, 'fecha' | 'tipoDocumento' | 'n
 
 export function resumenVentas(filas: FilaLibroVentas[]): ResumenVentas {
   const campos = ['importeExonerado', 'importeExento', 'importeGravado15', 'importeGravado18', 'isv15', 'isv18', 'total'] as const;
-  const acc: Record<(typeof campos)[number], number> = {
-    importeExonerado: 0, importeExento: 0, importeGravado15: 0, importeGravado18: 0, isv15: 0, isv18: 0, total: 0,
+  const acc: Record<(typeof campos)[number], bigint> = {
+    importeExonerado: 0n, importeExento: 0n, importeGravado15: 0n, importeGravado18: 0n, isv15: 0n, isv18: 0n, total: 0n,
   };
-  for (const f of filas) for (const c of campos) acc[c] += aCentavos(f[c]);
+  for (const f of filas) for (const c of campos) acc[c] += redondearDecimal(f[c], 2);
   const r = { documentos: filas.length } as ResumenVentas;
   for (const c of campos) r[c] = deCentavos(acc[c]);
   return r;
@@ -68,10 +68,11 @@ export function libroVentasCSV(filas: FilaLibroVentas[]): string {
     const s = String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
+  const m = (v: number) => centavosATexto(redondearDecimal(v, 2));
   const filasCsv = filas.map((f) =>
     [f.fecha, f.tipoDocumento, f.numero, f.cai, f.clienteNombre, f.clienteRTN,
-      f.importeExonerado.toFixed(2), f.importeExento.toFixed(2), f.importeGravado15.toFixed(2), f.importeGravado18.toFixed(2),
-      f.isv15.toFixed(2), f.isv18.toFixed(2), f.total.toFixed(2), f.anulado ? 'SI' : 'NO'].map(q).join(','),
+      m(f.importeExonerado), m(f.importeExento), m(f.importeGravado15), m(f.importeGravado18),
+      m(f.isv15), m(f.isv18), m(f.total), f.anulado ? 'SI' : 'NO'].map(q).join(','),
   );
   return '﻿' + [enc.join(','), ...filasCsv].join('\n') + '\n';
 }

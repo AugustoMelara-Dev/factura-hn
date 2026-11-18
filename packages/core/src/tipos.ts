@@ -3,6 +3,7 @@
  * Base normativa: Acuerdo 481-2017 (Reglamento del Régimen de Facturación,
  * Otros Documentos Fiscales y Registro Fiscal de Imprentas) y sus reformas.
  */
+import type { Monto } from './dinero';
 
 /**
  * Códigos de tipo de documento fiscal (segmento TT del número de 16 dígitos), según el texto
@@ -88,13 +89,16 @@ export interface Exoneracion {
 export interface LineaEntrada {
   codigo?: string;
   descripcion: string;
-  cantidad: number;
-  /** Precio unitario. Incluye o no el ISV según `preciosIncluyenISV` del documento. */
-  precioUnitario: number;
+  cantidad: Monto;
+  /**
+   * Precio unitario, hasta 4 decimales. Incluye o no el ISV según `preciosIncluyenISV` del documento.
+   * Se recomienda pasarlo como texto ("19.99"); un `number` con más decimales de los permitidos se rechaza.
+   */
+  precioUnitario: Monto;
   /** Tratamiento fiscal. Por defecto ISV15. */
   isv?: TratamientoISV;
   /** Descuento total de la línea (monto, no porcentaje). */
-  descuento?: number;
+  descuento?: Monto;
   unidad?: string;
 }
 
@@ -120,7 +124,7 @@ export interface DocumentoEntrada {
   exoneracion?: Exoneracion;
   moneda?: Moneda;
   /** Obligatorio si la moneda no es HNL: lempiras por unidad de moneda extranjera en la fecha de emisión. */
-  tipoCambio?: number;
+  tipoCambio?: Monto;
   /** Obligatorio para notas de crédito y débito. */
   referencia?: ReferenciaDocumento;
   /** Motivo, obligatorio para notas de crédito y débito. */
@@ -131,7 +135,7 @@ export interface DocumentoEntrada {
 
 export interface OpcionesDocumento {
   /** Umbral para exigir identificación del consumidor final. Por defecto 10,000 (Art. 11.2). */
-  umbralIdentificacionConsumidorFinal?: number;
+  umbralIdentificacionConsumidorFinal?: Monto;
   /** Validar el formato del CAI de forma estricta (error en lugar de advertencia). Por defecto false. */
   caiEstricto?: boolean;
 }

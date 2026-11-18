@@ -6,8 +6,21 @@
  *   const html = renderizarHTML(doc);
  */
 export * from './tipos';
-export { aCentavos, deCentavos, redondear2, formatearMonto, formatearMoneda } from './dinero';
-export { montoEnLetras, enteroALetras } from './letras';
+export {
+  aCentavos,
+  deCentavos,
+  redondear2,
+  formatearMonto,
+  formatearMoneda,
+  parsearDecimal,
+  redondearDecimal,
+  dividirRedondeando,
+  centavosATexto,
+  escaladoATexto,
+  ErrorMonto,
+} from './dinero';
+export type { Monto } from './dinero';
+export { montoEnLetras, centavosEnLetras, enteroALetras } from './letras';
 export {
   TIPOS_DOCUMENTO,
   CORRELATIVO_MAXIMO,
@@ -39,8 +52,17 @@ export {
 export type { EstadoAutorizacion } from './autorizacion';
 export { AlmacenMemoria, RangoAgotadoError } from './correlativos';
 export type { AlmacenCorrelativos } from './correlativos';
-export { calcularDocumento, validarLineas, TASAS_ISV, ErrorCalculo } from './calculo';
-export type { OpcionesCalculo } from './calculo';
+export {
+  calcularDocumento,
+  calcularCentavos,
+  impuestoArt9,
+  validarLineas,
+  TASAS_ISV,
+  ESCALA_CANTIDAD,
+  ESCALA_PRECIO,
+  ErrorCalculo,
+} from './calculo';
+export type { OpcionesCalculo, TotalesCentavos } from './calculo';
 export {
   validarEntrada,
   construirDocumento,
