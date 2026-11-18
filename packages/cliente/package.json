@@ -33,7 +33,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "generar": "openapi-typescript ../api/openapi.json -o src/esquema.ts",

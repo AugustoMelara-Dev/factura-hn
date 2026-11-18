@@ -141,3 +141,6 @@ export function crearCliente(o: OpcionesCliente) {
 }
 
 export type ClienteFacturaHN = ReturnType<typeof crearCliente>;
+
+export { verificarFirmaWebhook } from './webhooks';
+export type { AvisoWebhook } from './webhooks';
