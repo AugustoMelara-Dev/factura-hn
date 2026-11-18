@@ -145,6 +145,12 @@ describe('B-12 · adquirente exonerado: OCE + constancia, o registro SAG/RUPNSA 
     const html = renderizarHTML(construirDocumento(entrada({ cliente, exoneracion: { registroSAG: 'RUPNSA-77' } }), AUT, 1));
     expect(html).toContain('RUPNSA-77');
   });
+  it('el texto térmico no imprime «undefined» cuando falta la OCE o la constancia', () => {
+    const texto = renderizarTexto(construirDocumento(entrada({ cliente, exoneracion: { registroSAG: 'RUPNSA-77' } }), AUT, 1));
+    expect(texto).toContain('Reg. SAG / RUPNSA: RUPNSA-77');
+    expect(texto).toContain('OCE: -');
+    expect(texto).not.toContain('undefined');
+  });
 });
 
 describe('B-15 · tipos que un sistema computarizado no puede emitir (Arts. 4 num. 43, 46 y 47)', () => {

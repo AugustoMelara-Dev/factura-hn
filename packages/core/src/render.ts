@@ -254,9 +254,9 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   const id = identificacionCliente(doc);
   if (id) izq(id);
   if (doc.exoneracion) {
-    izq(`OCE: ${doc.exoneracion.ordenCompraExenta}`);
-    izq(`Const. exonerado: ${doc.exoneracion.constanciaRegistroExonerado}`);
-    izq(`Reg. SAG: ${doc.exoneracion.registroSAG ?? '-'}`);
+    izq(`OCE: ${doc.exoneracion.ordenCompraExenta ?? '-'}`);
+    izq(`Const. exonerado: ${doc.exoneracion.constanciaRegistroExonerado ?? '-'}`);
+    izq(`Reg. SAG / RUPNSA: ${doc.exoneracion.registroSAG ?? '-'}`);
   }
   if (doc.referencia) {
     izq(`Modifica: ${doc.referencia.numero} (${fechaLegible(doc.referencia.fecha)})`);
@@ -282,7 +282,7 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
     izq('Identidad: ' + '_'.repeat(Math.max(4, W - 11)));
     izq('Firma: ' + '_'.repeat(Math.max(4, W - 7)));
   }
-  izq('G=gravado 15% G18=gravado 18% E=exento');
+  izq(`G=gravado 15% G18=gravado 18%${doc.lineas.some((l) => l.isv === 'GRAVADO0') ? ' G0=gravado 0%' : ''} E=exento`);
   out.push(sep);
   centro(doc.destinoEjemplares);
   if (anulada) centro('*** ANULADA ***');
