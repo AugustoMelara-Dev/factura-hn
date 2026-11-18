@@ -1,7 +1,32 @@
 {
   "name": "@factura-hn/mcp",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Pendiente (Fase 3). Ver docs/investigacion.md.",
-  "license": "MIT"
+  "version": "0.2.0",
+  "description": "Servidor MCP de factura-hn: emite, consulta y anula documentos SAR Honduras desde un agente de IA, vía la API o el SDK local.",
+  "keywords": ["honduras", "sar", "factura", "mcp", "model-context-protocol"],
+  "license": "MIT",
+  "author": "Augusto Melara (VitoCode Technologies)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "bin": { "factura-hn-mcp": "./dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts --format esm --dts --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@factura-hn/cliente": "workspace:*",
+    "@factura-hn/sqlite": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "factura-hn": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@factura-hn/api": "workspace:*",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1"
+  }
 }

@@ -1,0 +1,51 @@
+/** El ejecutable por stdio, como lo arranca un cliente MCP (Claude Desktop, Claude Code), con SQLite local. */
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { describe, expect, it } from 'vitest';
+import { registrarAutorizacion } from 'factura-hn';
+import { AlmacenSQLite } from '@factura-hn/sqlite';
+
+// node:sqlite se carga con require para que el empaquetador de las pruebas no intente resolverlo.
+const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+
+describe('factura-hn-mcp por stdio', () => {
+  it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-mcp-'));
+    const db = join(dir, 'factura.db');
+    const emisor = join(dir, 'emisor.json');
+    writeFileSync(emisor, JSON.stringify({
+      rtn: '08011999123456', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Tocoa',
+      direccionEstablecimiento: 'Tocoa', telefono: '2444-0000', correo: 'v@ejemplo.hn',
+    }));
+    const base = new DatabaseSync(db);
+    await registrarAutorizacion(new AlmacenSQLite(base), {
+      cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
+      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: '2027-10-31',
+    });
+    base.close();
+
+    const raiz = fileURLToPath(new URL('../../../', import.meta.url));
+    const transporte = new StdioClientTransport({
+      command: process.execPath,
+      args: [join(raiz, 'node_modules', 'tsx', 'dist', 'cli.mjs'), fileURLToPath(new URL('../src/cli.ts', import.meta.url))],
+      env: { ...process.env, FHN_SQLITE: db, FHN_EMISOR: emisor, FHN_PUNTO: '001' } as Record<string, string>,
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      stderr: 'pipe',
+    });
+    const cliente = new Client({ name: 'prueba', version: '1.0.0' });
+    await cliente.connect(transporte);
+    try {
+      const r = (await cliente.callTool({ name: 'emitir_factura', arguments: { lineas: [{ descripcion: 'Café', cantidad: 1, precioUnitario: '50.00' }] } })) as { content: { text: string }[] };
+      expect(r.content[0]!.text).toMatch(/^Emitida: Factura 000-001-01-00000001/);
+    } finally {
+      await cliente.close();
+    }
+    const fila = new DatabaseSync(db).prepare('SELECT count(*) AS n FROM fhn_documentos').get() as { n: number };
+    expect(fila.n).toBe(1);
+  }, 60_000);
+});
