@@ -18,13 +18,23 @@
     "test:ejemplos": "pnpm -r --filter \"./examples/*\" test",
     "playground": "pnpm --filter @factura-hn/ejemplo-playground build",
     "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start",
-    "auditar:datos": "node scripts/auditar-datos.mjs"
+    "auditar:datos": "node scripts/auditar-datos.mjs",
+    "changeset": "changeset",
+    "release": "pnpm build && node scripts/verificar-dist.mjs && changeset publish",
+    "sitio": "pnpm playground && node scripts/sitio.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@types/node": "^22.0.0",
+    "marked": "18.1.3",
     "tsup": "^8.0.0",
     "tsx": "^4.23.15",
     "typescript": "^5.0.0",
     "vitest": "^2.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/factura-hn/factura-hn.git"
+  },
+  "homepage": "https://factura-hn.github.io/factura-hn/"
 }

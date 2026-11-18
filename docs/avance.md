@@ -4,8 +4,8 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Estado
 
-- **Rama:** `fase-2-api` (la Fase 1 está fusionada en `main`, sin push).
-- **Fase actual:** 2, API (lote 2).
+- **Rama:** `main` (fases 1 a 4 fusionadas localmente; nada publicado ni empujado).
+- **Fase actual:** 4, lanzamiento: preparado, esperando al responsable (`docs/lanzamiento.md`).
 - **Reglas de trabajo:** lotes por fase; decisiones en `docs/decisiones.md` ([REVISAR] si cambian la
   interpretación fiscal); Docker solo para `docker-compose.yml` de factura-hn; pedir permiso para npm, push,
   despliegues, cuentas, instalaciones globales, contenedores ajenos y licencia.
@@ -53,11 +53,23 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | 2587741 |
 | Pruebas de Postgres en su propia base | 97e2272 |
 | Correcciones de la revisión independiente de la Fase 3 (DEC-039) | 148960a |
-| Operador en la bitácora (DEC-031 aprobada con cambios); MCP solo SQLite en archivo y `server-only` (DEC-040) | (este commit) |
+| Operador en la bitácora (DEC-031 aprobada con cambios); MCP solo SQLite en archivo y `server-only` (DEC-040) | d9d446c |
+| Datos de ejemplo ficticios y `auditar:datos` | 3884adb |
+
+## Hecho (Fase 4, preparación del lanzamiento)
+
+- Paquetes listos para npm (procedencia, LICENSE, `verificar:dist`).
+- CI (Node 22 y 24, Postgres como servicio, imagen Docker).
+- Release con changesets y Pages, apagados por variable (DEC-041 a DEC-044).
+- Archivos de comunidad y plantillas.
+- Sitio (`pnpm sitio`).
+- Modelo de negocio y pasos de lanzamiento.
 
 ## Sigue
 
-1. Reporte al usuario: resumen, decisiones [REVISAR] y cómo levantar todo localmente.
+1. El responsable ejecuta `docs/lanzamiento.md` (repositorio, npm, token, publicación, Pages). Nada de eso lo
+   hace el agente sin permiso.
+2. Enviar `docs/consulta-sar.md` y archivar las respuestas.
 
 ## Cómo correr
 

@@ -9,7 +9,7 @@ referencias/
 packages/core/README.md
 packages/core/AGENTS.md
 packages/core/llms.txt
-packages/core/LICENSE
+packages/*/LICENSE
 packages/core/skills/
 packages/core/docs/
 packages/cliente/AGENTS.md
@@ -17,3 +17,4 @@ dist-docker
 
 # Notas internas del autor (no se publican)
 PROMPT_CLAUDE_CODE.md
+sitio/

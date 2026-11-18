@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "engines": {
@@ -47,6 +48,20 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepack": "node ../../scripts/copiar-docs.mjs packages/postgres LICENSE"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "directory": "packages/postgres"
+  },
+  "homepage": "https://factura-hn.github.io/factura-hn/",
+  "bugs": {
+    "url": "https://github.com/factura-hn/factura-hn/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

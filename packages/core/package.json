@@ -59,6 +59,19 @@
     "build": "tsup src/index.ts src/pruebas.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepack": "node ../../scripts/copiar-docs.mjs packages/core"
+    "prepack": "node ../../scripts/copiar-docs.mjs packages/core README.md AGENTS.md llms.txt LICENSE skills docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://factura-hn.github.io/factura-hn/",
+  "bugs": {
+    "url": "https://github.com/factura-hn/factura-hn/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

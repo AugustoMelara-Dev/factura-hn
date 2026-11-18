@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [["factura-hn", "@factura-hn/sqlite", "@factura-hn/postgres", "@factura-hn/pdf", "@factura-hn/cliente", "@factura-hn/mcp"]],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@factura-hn/api",
+    "@factura-hn/ejemplo-basico",
+    "@factura-hn/ejemplo-express",
+    "@factura-hn/ejemplo-nextjs",
+    "@factura-hn/ejemplo-playground",
+    "@factura-hn/ejemplo-pos-offline"
+  ]
+}
