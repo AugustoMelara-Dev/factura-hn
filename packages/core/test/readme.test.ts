@@ -49,6 +49,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
       '@factura-hn/postgres': [join(RAIZ, 'packages', 'postgres', 'src', 'index.ts')],
       '@factura-hn/sqlite': [join(RAIZ, 'packages', 'sqlite', 'src', 'index.ts')],
       '@factura-hn/cliente': [join(RAIZ, 'packages', 'cliente', 'src', 'index.ts')],
+      '@factura-hn/pdf': [join(RAIZ, 'packages', 'pdf', 'src', 'index.ts')],
       pg: [join(RAIZ, 'packages', 'postgres', 'node_modules', '@types', 'pg', 'index.d.ts')],
     },
   };
@@ -71,7 +72,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
 }
 
 describe('los fragmentos de código de la documentación compilan', () => {
-  for (const archivo of ['README.md', 'AGENTS.md']) {
+  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md']) {
     it(archivo, () => {
       const fragmentos = fragmentosTS(archivo);
       expect(fragmentos.length).toBeGreaterThan(0);
@@ -163,7 +164,8 @@ describe('documentación para agentes', () => {
     // node_modules/@factura-hn/cliente/AGENTS.md: el cliente publica AGENTS.md (lo copia al empaquetar).
     const cliente = JSON.parse(readFileSync(join(RAIZ, 'packages', 'cliente', 'package.json'), 'utf8')) as { files: string[]; scripts: Record<string, string> };
     expect(cliente.files).toContain('AGENTS.md');
-    expect(cliente.scripts.prepack).toContain('../../AGENTS.md');
+    // prepack copia el AGENTS.md de la raíz (scripts/copiar-docs.mjs) al paquete.
+    expect(cliente.scripts.prepack).toMatch(/copiar-docs\.mjs packages\/cliente .*AGENTS\.md/);
     expect(readFileSync(join(RAIZ, 'AGENTS.md'), 'utf8')).toContain('## Con la API REST');
     // FHN_API_URL/openapi.json: su descripción trae las reglas.
     const openapi = JSON.parse(readFileSync(join(RAIZ, 'packages', 'api', 'openapi.json'), 'utf8')) as { info: { description: string } };
