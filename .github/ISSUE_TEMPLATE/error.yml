@@ -1,0 +1,42 @@
+name: Error
+description: Algo no funciona como dice la documentación.
+labels: [error]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¿Es una vulnerabilidad? No la reportes aquí: sigue SECURITY.md.
+        No pegues datos reales (RTN, CAI, nombres de clientes): usa los ficticios de CONTRIBUTING.md.
+  - type: dropdown
+    id: paquete
+    attributes:
+      label: Paquete
+      options: [factura-hn (SDK), "@factura-hn/sqlite", "@factura-hn/postgres", "@factura-hn/pdf", "@factura-hn/cliente", "@factura-hn/mcp", API (Docker), Ejemplos, Documentación]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Cómo reproducirlo
+      description: El código o la solicitud mínimos, con datos ficticios.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué esperabas y qué pasó
+    validations:
+      required: true
+  - type: input
+    id: entorno
+    attributes:
+      label: Entorno
+      placeholder: Node 24, Windows 11, PostgreSQL 16
