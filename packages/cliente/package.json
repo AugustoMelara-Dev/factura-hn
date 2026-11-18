@@ -30,7 +30,8 @@
   "files": [
     "dist",
     "README.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "LICENSE"
   ],
   "sideEffects": false,
   "engines": {
@@ -41,7 +42,7 @@
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepack": "node -e \"require('node:fs').copyFileSync('../../AGENTS.md', 'AGENTS.md')\""
+    "prepack": "node ../../scripts/copiar-docs.mjs packages/cliente LICENSE AGENTS.md"
   },
   "dependencies": {
     "openapi-fetch": "0.17.0"
@@ -51,5 +52,18 @@
     "@types/pg": "8.23.1",
     "openapi-typescript": "7.13.0",
     "pg": "8.23.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "directory": "packages/cliente"
+  },
+  "homepage": "https://factura-hn.github.io/factura-hn/",
+  "bugs": {
+    "url": "https://github.com/factura-hn/factura-hn/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

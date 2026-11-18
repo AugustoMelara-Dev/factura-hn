@@ -126,6 +126,12 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   góndola que no requieren ajuste), `baseDesdePrecioConISV`.
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
+- Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública con procedencia firmada
+  (`provenance`) y `LICENSE` dentro de cada paquete. `@factura-hn/pdf` se publica junto con los demás.
+- Guía rápida del SDK (`docs/guia-sdk.md`, con sus ejemplos compilados en las pruebas) y guía de
+  autoalojamiento con Docker (`docs/autoalojamiento.md`).
+- Sitio de documentación en español para GitHub Pages (`pnpm sitio`): inicio, SDK, API con referencia generada
+  desde OpenAPI, autoalojamiento, playground, matriz de cumplimiento y consulta al SAR.
 
 ### Cambiado
 

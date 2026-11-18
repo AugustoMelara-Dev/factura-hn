@@ -45,5 +45,10 @@
   "files": [
     "dist",
     "openapi.json"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "directory": "packages/api"
+  }
 }

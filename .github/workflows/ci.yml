@@ -1,0 +1,113 @@
+# Integración continua: cada push y cada PR.
+# Las acciones van fijadas por SHA (con la versión en el comentario): una etiqueta movida no cambia el CI.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Tipos, pruebas, build, dist y documentación (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    env:
+      TZ: UTC # las fechas fiscales salen de America/Tegucigalpa, no de la zona del equipo
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Datos de ejemplo ficticios
+        run: pnpm auditar:datos
+      - name: Build
+        run: pnpm build
+      - name: Tipos
+        run: pnpm typecheck
+      - name: Pruebas (incluye los fragmentos de README, AGENTS.md, llms.txt y la skill)
+        run: pnpm test
+      - name: Pruebas de los ejemplos
+        run: pnpm test:ejemplos
+      - name: Verificación de lo que se publica (paquetes, ESM/CJS, emisión desde dist)
+        run: node scripts/verificar-dist.mjs
+      - name: OpenAPI y tipos del cliente al día
+        run: |
+          pnpm --filter @factura-hn/api openapi
+          pnpm --filter @factura-hn/cliente generar
+          git diff --exit-code -- packages/api/openapi.json packages/cliente/src/esquema.ts
+      - name: Build de Next.js y del playground
+        run: |
+          pnpm --filter @factura-hn/ejemplo-nextjs build
+          pnpm playground
+      - name: Sitio de documentación (enlaces internos verificados)
+        run: pnpm sitio
+
+  postgres:
+    name: Postgres (almacén, API, cliente, MCP, Express, Next.js)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: factura_hn_pruebas
+          # Solo en el contenedor efímero del CI.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TZ: UTC
+      FHN_PG_URL: postgres://postgres@localhost:5432/factura_hn_pruebas
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Pruebas con Postgres (RLS, concurrencia, idempotencia, bitácora)
+        run: pnpm test:pg
+
+  docker:
+    name: Imagen de la API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: docker compose up y /salud
+        run: |
+          docker compose up -d --build --wait
+          curl -fsS http://127.0.0.1:8787/salud
+          docker compose logs api | grep -q "Llave caja demo"
+      - if: always()
+        run: docker compose down -v
