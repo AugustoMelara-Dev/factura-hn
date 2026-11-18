@@ -147,6 +147,13 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       igual([doc.correlativo, doc.cai], [11, 'CAI-NUEVO'], 'salta al rango vigente');
     }));
 
+    t.it('una serie migrada (ultimoEmitidoAntes) continúa después de lo emitido fuera del sistema', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100, { ultimoEmitidoAntes: 40 }));
+      const lista = await a.transaccion((tx) => tx.autorizaciones('000-001-01'));
+      igual(lista[0]?.ultimoEmitidoAntes, 40, 'se conserva al guardar');
+      igual((await emitir(D.entrada(), { almacen: a, ...base })).correlativo, 41, 'continúa en 41');
+    }));
+
     t.it('sin autorización no emite', conAlmacen(async (a) => {
       igual(await codigoDeError(() => emitir(D.entrada(), { almacen: a, ...base })), 'SIN_AUTORIZACION', 'sin CAI');
     }));

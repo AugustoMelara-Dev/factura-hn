@@ -52,21 +52,56 @@ const factura = await emitir(
     lineas: [
       { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
       { descripcion: 'Cerveza lata', cantidad: 6, precioUnitario: '32.00', isv: 'ISV18' },
-      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
     ],
   },
   { almacen, establecimiento: '000', puntoEmision: '001' },
 );
 
 factura.numero;                 // "000-001-01-00000001"
-factura.totales.total;          // 455
-factura.totales.totalEnLetras;  // "CUATROCIENTOS CINCUENTA Y CINCO LEMPIRAS CON 00/100"
-factura.advertencias;           // [AVISO_VENTA_MIXTA]: para el crédito fiscal solo cuenta lo gravado
+factura.totales.total;          // 371
+factura.totales.totalEnLetras;  // "TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100"
+factura.advertencias;           // []
 renderizarHTML(factura);        // HTML listo para imprimir o convertir a PDF
 ```
 
 Los montos se pasan como texto (`'89.50'`) o número; el cálculo es exacto, sin punto flotante. La fecha de
 emisión la pone el reloj en hora de Honduras; no se puede retrofechar.
+
+## Avisos que verás
+
+Los errores bloquean la emisión; los avisos (`AVISO_*`) no, pero conviene mostrarlos en caja. Todos vienen en
+`documento.advertencias` con código, mensaje y campo.
+
+<!-- declaraciones:
+import type { AlmacenFiscal, Emisor } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const emisor: Emisor;
+-->
+```ts
+import { emitir } from 'factura-hn';
+
+// Venta mixta a un cliente con RTN: frijoles exentos + clavos gravados.
+const mixta = await emitir(
+  {
+    emisor,
+    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    lineas: [
+      { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
+      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
+    ],
+  },
+  { almacen, establecimiento: '000', puntoEmision: '001' },
+);
+mixta.advertencias[0]?.codigo;   // "AVISO_VENTA_MIXTA": para el crédito fiscal solo cuenta lo gravado
+mixta.totales.baseCreditoFiscal; // 100
+```
+
+| Aviso | Cuándo |
+|---|---|
+| `AVISO_VENTA_MIXTA` | Venta con partes exentas o exoneradas y partes gravadas a un cliente con RTN (Art. 11 num. 3) |
+| `AVISO_AJUSTE_CENTAVO` | Con precios con ISV incluido, el total bajó 1 centavo para cumplir el Art. 9 de la Ley del ISV |
+| `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
+| `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
 
 ## Impleméntalo con IA en un prompt
 

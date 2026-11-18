@@ -112,9 +112,29 @@ describe('contra el almacén, dentro de emitir', () => {
     expect(await codigoAlEmitir(nota({ ...factura, numero: '000-001-01-00000050' }))).toBe('REFERENCIA_NO_EXISTE');
   });
 
-  it('un documento de otra autorización (p. ej. talonario de imprenta): aviso, no error', async () => {
+  it('DEC-004: original fuera del almacén (talonario de imprenta u otro sistema): se emite con AVISO_ORIGINAL_EXTERNO', async () => {
     const nc = await emitir(nota({ cai: 'FFFFFF-D4E5F6-A1B2C3-D4E5F6-A1B2C3-99', numero: '000-002-01-00000010', fechaEmision: '2026-10-01' }), { almacen, ...caja });
-    expect(nc.advertencias.map((p) => p.codigo)).toEqual(['AVISO_REFERENCIA_NO_VERIFICADA']);
+    expect(nc.advertencias.map((p) => p.codigo)).toEqual(['AVISO_ORIGINAL_EXTERNO']);
+    expect(nc.referencia).toEqual({ cai: 'FFFFFF-D4E5F6-A1B2C3-D4E5F6-A1B2C3-99', numero: '000-002-01-00000010', fecha: '2026-10-01' });
+  });
+
+  it('DEC-004: original emitido antes de la migración (ultimoEmitidoAntes): aviso; la serie continúa después', async () => {
+    const migrado = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(migrado, { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-0F'), ultimoEmitidoAntes: 40 });
+    await registrarAutorizacion(migrado, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));
+    const f = await emitir({ emisor: EMISOR, cliente: CLIENTE, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen: migrado, ...caja });
+    expect(f.correlativo).toBe(41);
+    const previa = { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-0F', numero: '000-001-01-00000012', fechaEmision: '2026-09-30' };
+    const nc = await emitir(nota(previa), { almacen: migrado, ...caja });
+    expect(nc.advertencias.map((p) => p.codigo)).toEqual(['AVISO_ORIGINAL_EXTERNO']);
+    // Un número de la misma autorización aún no consumido no puede existir.
+    const futuro = { ...previa, numero: '000-001-01-00000060' };
+    await expect(emitir(nota(futuro), { almacen: migrado, ...caja })).rejects.toMatchObject({ errores: [{ codigo: 'REFERENCIA_NO_EXISTE' }] });
+  });
+
+  it('ultimoEmitidoAntes fuera del rango se rechaza al registrar', async () => {
+    await expect(registrarAutorizacion(new AlmacenFiscalMemoria(), { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-0F'), ultimoEmitidoAntes: 101 }))
+      .rejects.toMatchObject({ errores: [{ codigo: 'ULTIMO_EMITIDO_ANTES' }] });
   });
 
   it('original sin RTN: aviso para verificar que es el mismo cliente', async () => {

@@ -49,6 +49,16 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
   // B-15: no se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
   const tipo = problemaDeTipo(nueva.tipoDocumento);
   if (tipo?.codigo === 'TIPO_NO_EMITIBLE') problemas.push(tipo);
+  if (nueva.ultimoEmitidoAntes !== undefined) {
+    const u = nueva.ultimoEmitidoAntes;
+    if (!Number.isInteger(u) || u < nueva.rangoInicial - 1 || u > nueva.rangoFinal) {
+      problemas.push({
+        codigo: 'ULTIMO_EMITIDO_ANTES',
+        mensaje: `ultimoEmitidoAntes (${u}) debe estar entre ${nueva.rangoInicial - 1} y ${nueva.rangoFinal}.`,
+        campo: 'ultimoEmitidoAntes',
+      });
+    }
+  }
   const id = identificadorDe(nueva);
   for (const a of existentes) {
     if (identificadorDe(a) !== id) continue;
@@ -118,7 +128,9 @@ export function elegirAutorizacion(
     return { error: { codigo: 'SIN_AUTORIZACION', mensaje: 'No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).' } };
   }
   const ordenadas = [...autorizaciones].sort((a, b) => a.rangoInicial - b.rangoInicial);
-  const siguiente = ultimo === null ? ordenadas[0]!.rangoInicial : ultimo + 1;
+  // Una serie migrada continúa después de lo emitido fuera del sistema (`ultimoEmitidoAntes`).
+  const consumido = Math.max(ultimo ?? 0, ...ordenadas.map((a) => a.ultimoEmitidoAntes ?? 0));
+  const siguiente = consumido > 0 ? consumido + 1 : ordenadas[0]!.rangoInicial;
   const vigentes = ordenadas.filter((a) => esFechaValida(a.fechaLimiteEmision) && a.fechaLimiteEmision >= hoy);
   const candidata = vigentes.find((a) => a.rangoFinal >= siguiente);
   if (candidata) return { autorizacion: candidata, correlativo: Math.max(siguiente, candidata.rangoInicial) };
@@ -343,8 +355,8 @@ export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEve
  * - Si el original está en el almacén: no puede estar ANULADO (Art. 41: un anulado no respalda operación
  *   que ajustar) y su CAI, fecha y RTN del adquirente deben coincidir con los de la nota (Arts. 26 y 28
  *   num. 1-3: la nota identifica al adquirente y los datos del comprobante al que se aplica).
- * - Si no está pero su número cae en una autorización registrada aquí, el documento no existe: error.
- * - Si pertenece a otra autorización (p. ej. un talonario de imprenta), no se puede verificar: aviso.
+ * - Si no está: `AVISO_ORIGINAL_EXTERNO` (DEC-004), salvo que el número pertenezca a una autorización que
+ *   este sistema administra y no se haya consumido (`REFERENCIA_NO_EXISTE`).
  */
 async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<Problema[]> {
   const r = entrada.referencia;
@@ -354,11 +366,23 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
   const original = await tx.buscarDocumento(numero);
   const problemas: Problema[] = [];
   if (!original) {
+    // DEC-004: un original que no está en el almacén (talonario de imprenta, otro sistema, emisiones
+    // anteriores a la migración) se acepta con la referencia completa y un aviso. La única excepción es un
+    // número que este sistema administra y todavía no ha consumido: ese documento no puede existir.
     const auts = await tx.autorizaciones(identificadorDeNumero(numero));
-    if (auts.some((a) => partes.correlativo >= a.rangoInicial && partes.correlativo <= a.rangoFinal)) {
-      problemas.push({ codigo: 'REFERENCIA_NO_EXISTE', mensaje: `El documento ${numero} no existe: su número pertenece a una autorización de este sistema, pero no se ha emitido.`, campo: 'referencia.numero' });
+    const propia = auts.find((a) => partes.correlativo >= a.rangoInicial && partes.correlativo <= a.rangoFinal);
+    if (propia && partes.correlativo > (propia.ultimoEmitidoAntes ?? propia.rangoInicial - 1)) {
+      problemas.push({
+        codigo: 'REFERENCIA_NO_EXISTE',
+        mensaje: `El documento ${numero} no existe: su número pertenece a una autorización que administra este sistema y no se ha emitido.`,
+        campo: 'referencia.numero',
+      });
     } else {
-      problemas.push({ codigo: 'AVISO_REFERENCIA_NO_VERIFICADA', mensaje: `El documento ${numero} no está en este sistema; verifica sus datos a mano.`, campo: 'referencia.numero' });
+      problemas.push({
+        codigo: 'AVISO_ORIGINAL_EXTERNO',
+        mensaje: `El documento ${numero} no está en este sistema (talonario, otro sistema o emisión anterior a la migración); no se pudo verificar contra el original.`,
+        campo: 'referencia.numero',
+      });
     }
     return problemas;
   }

@@ -98,13 +98,22 @@ it('el ejemplo del README da los números que promete', async () => {
     lineas: [
       { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
       { descripcion: 'Cerveza lata', cantidad: 6, precioUnitario: '32.00', isv: 'ISV18' },
-      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
     ],
   }, { almacen, establecimiento: '000', puntoEmision: '001' });
   expect(f.numero).toBe('000-001-01-00000001');
-  expect(f.totales.total).toBe(455);
-  expect(f.totales.totalEnLetras).toBe('CUATROCIENTOS CINCUENTA Y CINCO LEMPIRAS CON 00/100');
-  // Frijoles exentos + productos gravados a un cliente con RTN: aviso del Art. 11 num. 3.
-  expect(f.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
-  expect(f.totales.baseCreditoFiscal).toBe(f.totales.importeGravado15 + f.totales.importeGravado18);
+  expect(f.totales.total).toBe(371);
+  expect(f.totales.totalEnLetras).toBe('TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100');
+  expect(f.advertencias).toEqual([]);
+
+  // «Avisos que verás»: venta mixta.
+  const mixta = await emitir({
+    emisor: f.emisor,
+    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    lineas: [
+      { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
+      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
+    ],
+  }, { almacen, establecimiento: '000', puntoEmision: '001' });
+  expect(mixta.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
+  expect(mixta.totales.baseCreditoFiscal).toBe(100);
 });

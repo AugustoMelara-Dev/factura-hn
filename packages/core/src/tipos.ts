@@ -76,6 +76,12 @@ export interface AutorizacionCAI {
   rangoFinal: number;
   /** Fecha límite de emisión, formato YYYY-MM-DD. */
   fechaLimiteEmision: string;
+  /**
+   * Solo al migrar: último correlativo de esta autorización que se emitió **antes** de usar este sistema
+   * (otro sistema o talonario). La serie continúa desde el siguiente y esos números se tratan como
+   * documentos externos (no están en el almacén). Omítelo si la autorización es nueva.
+   */
+  ultimoEmitidoAntes?: number;
 }
 
 export type TipoIdentificacion = 'DNI' | 'RTN' | 'PASAPORTE' | 'CARNET_RESIDENTE' | 'OTRO';

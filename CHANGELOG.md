@@ -45,7 +45,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   el comprador tiene RTN.
 - **Coherencia de notas (B-13):** la NC solo sobre Comprobantes Fiscales (Art. 6) y nunca con fecha anterior
   al original. Dentro de `emitir`, contra el almacén: el original debe existir, no estar ANULADO y coincidir en
-  CAI, fecha y RTN (`REFERENCIA_*`). Si pertenece a otra autorización, `AVISO_REFERENCIA_NO_VERIFICADA`.
+  CAI, fecha y RTN (`REFERENCIA_*`). Si no está en el almacén (talonario, otro sistema, antes de la migración), `AVISO_ORIGINAL_EXTERNO` (DEC-004). `AutorizacionCAI.ultimoEmitidoAntes` para migrar una serie existente.
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
