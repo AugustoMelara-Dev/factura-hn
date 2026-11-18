@@ -1,0 +1,19 @@
+{
+  "name": "@factura-hn/ejemplo-pos-offline",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mini POS fuera de línea: SDK + SQLite (node:sqlite) en el equipo de la caja.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "tsx src/servidor.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "factura-hn": "workspace:*",
+    "@factura-hn/sqlite": "workspace:*"
+  }
+}

@@ -188,6 +188,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
 
+  examples/pos-offline:
+    dependencies:
+      '@factura-hn/sqlite':
+        specifier: workspace:*
+        version: link:../../packages/sqlite
+      factura-hn:
+        specifier: workspace:*
+        version: link:../../packages/core
+
   packages/api:
     dependencies:
       '@factura-hn/pdf':
