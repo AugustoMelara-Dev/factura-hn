@@ -311,3 +311,35 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   - En Next.js, los módulos con la llave o los secretos importan `server-only` (0.0.1). Una prueba lo verifica
     y comprueba que ningún componente `'use client'` importe valores de `lib/`.
 - **Alternativa:** dejar el modo en memoria con una advertencia.
+
+### DEC-041 · Nombres del repositorio y de npm
+- **Contexto:** los manifiestos, los badges y el sitio necesitan la URL del repositorio antes de que exista.
+- **Elegida:** organización `factura-hn` en GitHub y npm, repositorio `factura-hn/factura-hn`, sitio en
+  `factura-hn.github.io/factura-hn`. El 18-11-2026 el nombre de la organización en GitHub y los seis nombres de
+  paquete en npm estaban libres (consulta de solo lectura). `docs/lanzamiento.md` trae el comando para
+  cambiarlos en todo el repositorio si se eligen otros.
+- **Alternativa:** publicar bajo la cuenta personal del responsable.
+
+### DEC-042 · Publicación y sitio apagados hasta que el responsable los active
+- **Contexto:** el CI no debe publicar en npm ni desplegar sin una decisión explícita.
+- **Elegida:** los flujos Release y Pages solo corren si las variables del repositorio `PUBLICAR_NPM` y
+  `PUBLICAR_SITIO` valen `true`. Release usa el entorno `npm`, con revisor obligatorio, y el secreto
+  `NPM_TOKEN`. Las acciones van fijadas por SHA. Los seis paquetes publicables van en un grupo `fixed` de
+  changesets (misma versión); la API y los ejemplos no se publican.
+- **Alternativa:** publicación de confianza (OIDC) desde el principio. npm la configura por paquete, y los
+  paquetes aún no existen: queda como paso posterior en `docs/lanzamiento.md`.
+
+### DEC-043 · Generador propio del sitio
+- **Contexto:** el sitio debe salir de los mismos Markdown del repositorio, sin una segunda copia.
+- **Elegida:** `scripts/sitio.mjs` con `marked` (dependencia de desarrollo). Reescribe los enlaces a páginas
+  del sitio o a GitHub, genera la referencia de la API desde `openapi.json`, incrusta el playground y falla si
+  hay enlaces internos, anclas o archivos del repositorio que no existen. El CI lo construye en cada cambio.
+- **Alternativa:** VitePress o Docusaurus: más funciones, pero decenas de dependencias y una segunda estructura
+  de documentación.
+
+### DEC-044 · Datos de ejemplo ficticios y verificados
+- **Contexto:** el repositorio será público; los ejemplos no pueden parecer datos de contribuyentes reales.
+- **Elegida:** RTN con prefijo `9999` (no existe el departamento 99), CAI `A1B2C3-…` o `DEMO00-NO-VALIDO-…`,
+  correos `@ejemplo.example` (RFC 2606), teléfonos `0000-000x` y «Ciudad Ejemplo». `pnpm auditar:datos` lo
+  verifica en el CI y busca también rutas de máquina. Las convenciones están en `CONTRIBUTING.md`.
+- **Alternativa:** confiar en la revisión manual.
