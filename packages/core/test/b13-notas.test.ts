@@ -17,10 +17,10 @@ import {
 } from '../src';
 
 const EMISOR: Emisor = {
-  rtn: '08011999123456', razonSocial: 'Ferretería Ejemplo', nombreComercial: 'Ferretería Ejemplo',
-  direccionCasaMatriz: 'Tocoa', direccionEstablecimiento: 'Tocoa', telefono: '2444-0000', correo: 'f@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Ferretería Ejemplo', nombreComercial: 'Ferretería Ejemplo',
+  direccionCasaMatriz: 'Ciudad Ejemplo', direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'f@ejemplo.example',
 };
-const CLIENTE = { nombre: 'Constructora Pérez', rtn: '08019005123456' };
+const CLIENTE = { nombre: 'Constructora Pérez', rtn: '99990000000002' };
 const aut = (tipo: AutorizacionCAI['tipoDocumento'], cai: string): AutorizacionCAI => ({
   cai, tipoDocumento: tipo, establecimiento: '000', puntoEmision: '001',
   rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-06-30',
@@ -104,7 +104,7 @@ describe('contra el almacén, dentro de emitir', () => {
   });
 
   it('Arts. 26 y 28 num. 1-2: el adquirente de la nota es el del original (mismo RTN)', async () => {
-    const otro = nota(factura, { cliente: { nombre: 'Otro', rtn: '08011985000001' } });
+    const otro = nota(factura, { cliente: { nombre: 'Otro', rtn: '99990000000004' } });
     expect(await codigoAlEmitir(otro)).toBe('REFERENCIA_RTN_NO_COINCIDE');
   });
 

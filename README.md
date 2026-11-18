@@ -39,15 +39,15 @@ await registrarAutorizacion(almacen, {
 const factura = await emitir(
   {
     emisor: {
-      rtn: '08011999123456',
+      rtn: '99990000000001',
       razonSocial: 'Inversiones Ejemplo S. de R.L.',
       nombreComercial: 'Pulpería La Bendición',
-      direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
-      direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-      telefono: '2444-0000',
-      correo: 'ventas@ejemplo.hn',
+      direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo',
+      direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+      telefono: '0000-0001',
+      correo: 'ventas@ejemplo.example',
     },
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' }, // u omítelo → CONSUMIDOR FINAL
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, // u omítelo → CONSUMIDOR FINAL
     preciosIncluyenISV: true,
     lineas: [
       { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
@@ -84,7 +84,7 @@ import { emitir } from 'factura-hn';
 const mixta = await emitir(
   {
     emisor,
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
     lineas: [
       { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
       { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },

@@ -8,8 +8,8 @@ import { crearPOS } from '../src/pos';
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Tocoa',
-  direccionEstablecimiento: 'Tocoa', telefono: '2444-0000', correo: 'v@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
+  direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
 };
 const reloj = () => new Date('2026-11-18T15:00:00Z');
 

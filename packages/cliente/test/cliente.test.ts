@@ -37,8 +37,8 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     const fhn = crearCliente({ url: 'http://api.local/', llave: llaveAdmin, fetch: fetchApi });
     await fhn.api.POST('/v1/emisores', {
       body: {
-        rtn: '08011999123456', razonSocial: 'Ejemplo', nombreComercial: 'Ejemplo', direccionCasaMatriz: 'Tegucigalpa',
-        direccionEstablecimiento: 'Tegucigalpa', telefono: '2222-0000', correo: 'a@ejemplo.hn',
+        rtn: '99990000000001', razonSocial: 'Ejemplo', nombreComercial: 'Ejemplo', direccionCasaMatriz: 'Tegucigalpa',
+        direccionEstablecimiento: 'Tegucigalpa', telefono: '0000-0003', correo: 'a@ejemplo.example',
       },
     });
     const cai = 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4';

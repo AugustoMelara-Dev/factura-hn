@@ -10,7 +10,7 @@ if (!env.FHN_LLAVE) throw new Error('Falta FHN_LLAVE (llave de caja de la API).'
 
 // Pedidos de ejemplo; en tu tienda vienen de la base de datos.
 const pedidos = new Map<string, Pedido>([
-  ['1001', { id: '1001', cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' }, articulos: [{ descripcion: 'Cemento 42.5 kg', cantidad: 3, precioConISV: '245.00' }] }],
+  ['1001', { id: '1001', cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, articulos: [{ descripcion: 'Cemento 42.5 kg', cantidad: 3, precioConISV: '245.00' }] }],
   ['1002', { id: '1002', articulos: [{ descripcion: 'Clavos 2" (lb)', cantidad: 2, precioConISV: '32.50' }] }],
 ]);
 

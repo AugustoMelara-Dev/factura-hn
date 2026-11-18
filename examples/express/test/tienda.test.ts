@@ -52,7 +52,7 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
     const api = crearApp({ pool, modo: 'local' });
     const fetchApi = ((e: RequestInfo | URL, init?: RequestInit) => api.fetch(e instanceof Request ? e : new Request(e, init))) as typeof fetch;
     const admin = crearCliente({ url: 'http://api', llave: llaveAdmin, fetch: fetchApi });
-    await admin.api.POST('/v1/emisores', { body: { rtn: '08011999123456', razonSocial: 'Ferretería Norte', nombreComercial: 'Ferretería Norte', direccionCasaMatriz: 'SPS', direccionEstablecimiento: 'SPS', telefono: '2550-0000', correo: 'f@ejemplo.hn' } });
+    await admin.api.POST('/v1/emisores', { body: { rtn: '99990000000001', razonSocial: 'Ferretería Norte', nombreComercial: 'Ferretería Norte', direccionCasaMatriz: 'SPS', direccionEstablecimiento: 'SPS', telefono: '0000-0002', correo: 'f@ejemplo.example' } });
     await admin.registrarAutorizacion({ cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31' });
     const { data } = await admin.api.POST('/v1/llaves', { body: { nombre: 'tienda', rol: 'caja', establecimiento: '000', puntoEmision: '001' } });
     const pedidos: Record<string, Pedido> = {

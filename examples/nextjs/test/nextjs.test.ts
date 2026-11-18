@@ -51,7 +51,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
     const api = crearApp({ pool, modo: 'local' });
     const fetchApi = ((e: RequestInfo | URL, init?: RequestInit) => api.fetch(e instanceof Request ? e : new Request(e, init))) as typeof fetch;
     const admin = crearCliente({ url: 'http://api', llave: llaveAdmin, fetch: fetchApi });
-    await admin.api.POST('/v1/emisores', { body: { rtn: '08011999123456', razonSocial: 'Café Copán', nombreComercial: 'Café Copán', direccionCasaMatriz: 'Copán', direccionEstablecimiento: 'Copán', telefono: '2651-0000', correo: 'c@ejemplo.hn' } });
+    await admin.api.POST('/v1/emisores', { body: { rtn: '99990000000001', razonSocial: 'Café Copán', nombreComercial: 'Café Copán', direccionCasaMatriz: 'Copán', direccionEstablecimiento: 'Copán', telefono: '0000-0004', correo: 'c@ejemplo.example' } });
     await admin.registrarAutorizacion({ cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31' });
 
     // Como en producción: la app usa una llave de caja, atada a su punto de emisión.
@@ -65,7 +65,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
     process.env.FHN_SECRETO_ENLACES = 'x'.repeat(40);
     let n = 0;
     const nueva = () => `clave-nueva-${String(++n).padStart(4, '0')}`;
-    const venta = { descripcion: 'Café molido 1 lb', cantidad: '2', precio: '120.00', cliente: 'Hotel Plaza', rtn: '08019005123456' };
+    const venta = { descripcion: 'Café molido 1 lb', cantidad: '2', precio: '120.00', cliente: 'Hotel Plaza', rtn: '99990000000002' };
 
     // Venta 1: se emite y el formulario recibe una clave nueva.
     const r1 = await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-inicial-1' }), nueva);

@@ -73,7 +73,7 @@ describe('B-07 · rangos no utilizados', () => {
     const almacen = new AlmacenFiscalMemoria();
     const reloj = () => new Date('2026-10-30T15:00:00Z');
     await registrarAutorizacion(almacen, AUT, { reloj });
-    const emisor = { rtn: '08011999123456', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '2444-0000', correo: 'x@x.hn' };
+    const emisor = { rtn: '99990000000001', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '0000-0001', correo: 'x@ejemplo.example' };
     for (let i = 0; i < 3; i++) {
       await emitir({ emisor, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj } });
     }
@@ -90,7 +90,7 @@ describe('B-07 · revisión independiente: números saltados de una autorizació
     const despues = () => new Date('2026-11-02T15:00:00Z');
     await registrarAutorizacion(almacen, A, { reloj: antes });
     await registrarAutorizacion(almacen, B, { reloj: antes });
-    const emisor = { rtn: '08011999123456', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '2444-0000', correo: 'x@x.hn' };
+    const emisor = { rtn: '99990000000001', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '0000-0001', correo: 'x@ejemplo.example' };
     const vender = (reloj: () => Date) => emitir({ emisor, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj } });
     for (let i = 0; i < 5; i++) await vender(antes);
     const esperado = [{ cai: A.cai, desde: 6, hasta: 10, cantidad: 5, causal: 1, fechaLimiteAviso: '2026-11-13' }];

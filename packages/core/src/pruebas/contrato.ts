@@ -82,13 +82,13 @@ export const DATOS_CONTRATO = {
   entrada(extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada {
     return {
       emisor: {
-        rtn: '08011999123456',
+        rtn: '99990000000001',
         razonSocial: 'Comercial de Prueba S. de R.L.',
         nombreComercial: 'Prueba',
-        direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
-        direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-        telefono: '2444-0000',
-        correo: 'prueba@ejemplo.hn',
+        direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo',
+        direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+        telefono: '0000-0001',
+        correo: 'prueba@ejemplo.example',
       },
       lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '2', precioUnitario: '89.50' }],
       ...extra,

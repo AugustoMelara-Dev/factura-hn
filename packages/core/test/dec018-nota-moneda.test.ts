@@ -15,10 +15,10 @@ import {
 } from '../src';
 
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'Exportadora Ejemplo', nombreComercial: 'Exportadora Ejemplo',
-  direccionCasaMatriz: 'San Pedro Sula', direccionEstablecimiento: 'San Pedro Sula', telefono: '2550-0000', correo: 'e@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Exportadora Ejemplo', nombreComercial: 'Exportadora Ejemplo',
+  direccionCasaMatriz: 'San Pedro Sula', direccionEstablecimiento: 'San Pedro Sula', telefono: '0000-0002', correo: 'e@ejemplo.example',
 };
-const CLIENTE = { nombre: 'Importadora Norte', rtn: '08019005123456' };
+const CLIENTE = { nombre: 'Importadora Norte', rtn: '99990000000002' };
 const aut = (tt: '01' | '06', cai: string) => ({
   cai, tipoDocumento: tt, establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-06-30',
 });

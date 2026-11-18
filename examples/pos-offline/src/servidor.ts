@@ -18,8 +18,8 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof
 const env = process.env;
 
 const EMISOR_DEMO: Emisor = {
-  rtn: '08011999000000', razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)', nombreComercial: 'Demostración',
-  direccionCasaMatriz: 'Tegucigalpa, M.D.C.', direccionEstablecimiento: 'Tegucigalpa, M.D.C.', telefono: '0000-0000', correo: 'demo@ejemplo.hn',
+  rtn: '99990000000000', razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)', nombreComercial: 'Demostración',
+  direccionCasaMatriz: 'Tegucigalpa, M.D.C.', direccionEstablecimiento: 'Tegucigalpa, M.D.C.', telefono: '0000-0000', correo: 'demo@ejemplo.example',
 };
 
 const emisor: Emisor = env.POS_EMISOR ? JSON.parse(readFileSync(env.POS_EMISOR, 'utf8')) : EMISOR_DEMO;

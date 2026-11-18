@@ -11,7 +11,7 @@ import { BackendLocal } from '../src';
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'e@e.hn',
+  rtn: '99990000000001', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'e@ejemplo.example',
 };
 
 describe('claves de idempotencia en SQLite', () => {

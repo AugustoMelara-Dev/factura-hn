@@ -24,7 +24,7 @@ describe('playground (código fuente)', () => {
     if (nc.ok) {
       expect(nc.documento.numero).toBe('000-001-06-00000001');
       expect(nc.documento.referencia?.numero).toBe('000-001-01-00000002');
-      expect(nc.documento.cliente.rtn).toBe('08019005123456');
+      expect(nc.documento.cliente.rtn).toBe('99990000000002');
       expect(nc.html).toContain('FICTICIO');
     }
     expect((await s.estado()).map((e) => [e.serie, e.restantes])).toEqual([['000-001-01', 47], ['000-001-06', 49], ['000-001-07', 50]]);

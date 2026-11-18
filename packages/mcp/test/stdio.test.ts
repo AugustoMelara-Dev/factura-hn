@@ -41,8 +41,8 @@ describe('factura-hn-mcp por stdio', () => {
     const db = join(dir, 'factura.db');
     const emisor = join(dir, 'emisor.json');
     writeFileSync(emisor, JSON.stringify({
-      rtn: '08011999123456', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Tocoa',
-      direccionEstablecimiento: 'Tocoa', telefono: '2444-0000', correo: 'v@ejemplo.hn',
+      rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
+      direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
     }));
     const base = new DatabaseSync(db);
     await registrarAutorizacion(new AlmacenSQLite(base), {
