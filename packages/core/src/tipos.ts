@@ -115,7 +115,10 @@ export interface DocumentoEntrada {
   emisor: Emisor;
   cliente?: Cliente;
   lineas: LineaEntrada[];
-  /** YYYY-MM-DD. Por defecto la fecha actual en Honduras (America/Tegucigalpa). */
+  /**
+   * YYYY-MM-DD. Se toma del reloj (fecha de hoy en Honduras). Si se envía, debe ser la de hoy:
+   * cualquier otra es el error `FECHA_EMISION_NO_ES_HOY` (no se permite retrofechar ni adelantar).
+   */
   fechaEmision?: string;
   /** HH:mm opcional. */
   horaEmision?: string;
@@ -138,6 +141,12 @@ export interface OpcionesDocumento {
   umbralIdentificacionConsumidorFinal?: Monto;
   /** Validar el formato del CAI de forma estricta (error en lugar de advertencia). Por defecto false. */
   caiEstricto?: boolean;
+  /**
+   * Reloj del sistema. La fecha de emisión es siempre la de hoy en Honduras (America/Tegucigalpa) según
+   * este reloj; no se puede retrofechar (Reglamento Arts. 14 y 43). Inyéctalo en pruebas.
+   * Por defecto `() => new Date()`.
+   */
+  reloj?: () => Date;
 }
 
 export interface LineaCalculada {

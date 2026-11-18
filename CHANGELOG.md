@@ -16,11 +16,15 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   por encima de la regla en el 4.35 % (15 %) y el 6.78 % (18 %) de los montos. Cuando un precio no tiene base
   exacta, el total queda 1 centavo **por debajo** del precio (nunca por encima), con
   `totales.ajustePorRedondeo` y el aviso `AVISO_AJUSTE_CENTAVO`. El POS debe cobrar `totales.total`.
+- **No se puede retrofechar (B-08).** La fecha de emisión la pone el reloj (`opciones.reloj`, por defecto
+  `() => new Date()`) en America/Tegucigalpa. Una `fechaEmision` distinta de hoy en Honduras es el error
+  `FECHA_EMISION_NO_ES_HOY` (Reglamento Arts. 14 y 43).
 
 ### Agregado
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
+- `opciones.reloj` y `hoyHonduras(opciones)`.
 - `totales.ajustePorRedondeo`, `calcularDocumento(...).advertencias`, `sugerirPrecioSinAjuste` (precios de
   góndola que no requieren ajuste), `baseDesdePrecioConISV`.
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.

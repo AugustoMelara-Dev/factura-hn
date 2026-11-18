@@ -35,6 +35,11 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
   }
 }
 
+/** Fecha de hoy en Honduras según el reloj de las opciones. */
+export function hoyHonduras(opciones: Pick<OpcionesDocumento, 'reloj'> = {}): string {
+  return fechaHonduras((opciones.reloj ?? (() => new Date()))());
+}
+
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
 export class ErrorValidacion extends Error {
@@ -55,7 +60,8 @@ export function validarEntrada(
 ): ResultadoValidacion {
   const problemas: Problema[] = [];
   const tipo = entrada.tipoDocumento ?? '01';
-  const fecha = entrada.fechaEmision ?? fechaHonduras();
+  const hoy = hoyHonduras(opciones);
+  const fecha = entrada.fechaEmision ?? hoy;
 
   if (!SOPORTADOS.includes(tipo)) {
     problemas.push({ codigo: 'TIPO_NO_SOPORTADO', mensaje: `Tipo de documento ${tipo} no soportado en esta versión (01, 06, 07).`, campo: 'tipoDocumento' });
@@ -74,6 +80,15 @@ export function validarEntrada(
   // Fecha
   if (!esFechaValida(fecha)) {
     problemas.push({ codigo: 'FECHA_EMISION', mensaje: 'fechaEmision debe ser YYYY-MM-DD.', campo: 'fechaEmision' });
+  } else if (fecha !== hoy) {
+    // Reglamento Art. 14 (momento de emisión) y Art. 43 (custodia en orden cronológico): el documento se
+    // emite con la fecha en que ocurre la operación. Retrofechar o adelantar no se permite; la contingencia
+    // del Art. 55 se cubre con talonarios preimpresos, no con fechas pasadas.
+    problemas.push({
+      codigo: 'FECHA_EMISION_NO_ES_HOY',
+      mensaje: `La fecha de emisión (${fecha}) debe ser la de hoy en Honduras (${hoy}). No se puede retrofechar ni adelantar (Arts. 14 y 43).`,
+      campo: 'fechaEmision',
+    });
   } else if (esFechaValida(autorizacion.fechaLimiteEmision) && fecha > autorizacion.fechaLimiteEmision) {
     problemas.push({
       codigo: 'AUTORIZACION_VENCIDA',
@@ -183,7 +198,7 @@ export function construirDocumento(
   correlativo: number,
   opciones: OpcionesDocumento = {},
 ): DocumentoFiscal {
-  entrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? fechaHonduras() };
+  entrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(opciones) };
   const v = validarEntrada(entrada, autorizacion, opciones);
   const errores = [...v.errores];
   if (!Number.isInteger(correlativo) || correlativo < autorizacion.rangoInicial || correlativo > autorizacion.rangoFinal) {
@@ -219,7 +234,7 @@ export function construirDocumento(
     cai: normalizarCAI(autorizacion.cai),
     rangoAutorizado: formatearRango(autorizacion),
     fechaLimiteEmision: autorizacion.fechaLimiteEmision,
-    fechaEmision: entrada.fechaEmision ?? fechaHonduras(),
+    fechaEmision: entrada.fechaEmision!,
     emisor: { ...entrada.emisor, rtn: limpiarIdentificador(entrada.emisor.rtn) },
     cliente,
     moneda,
@@ -248,7 +263,7 @@ export async function crearDocumento(
   config: { autorizacion: AutorizacionCAI; almacen: AlmacenCorrelativos; opciones?: OpcionesDocumento },
 ): Promise<DocumentoFiscal> {
   // Fijar la fecha una sola vez para que validación y documento usen la misma.
-  const e: DocumentoEntrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? fechaHonduras() };
+  const e: DocumentoEntrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(config.opciones) };
   const v = validarEntrada(e, config.autorizacion, config.opciones);
   if (!v.ok) throw new ErrorValidacion(v.errores, v.advertencias);
   const correlativo = await config.almacen.siguiente(config.autorizacion);

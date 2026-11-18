@@ -168,8 +168,9 @@ describe('validación', () => {
     expect(v.ok).toBe(true);
   });
   it('autorización vencida', () => {
-    const v = validarEntrada(base({ fechaEmision: '2027-07-01' }), AUT);
-    expect(v.errores.map((e) => e.codigo)).toContain('AUTORIZACION_VENCIDA');
+    const reloj = () => new Date('2027-07-01T12:00:00-06:00');
+    const v = validarEntrada(base({ fechaEmision: undefined }), AUT, { reloj });
+    expect(v.errores.map((e) => e.codigo)).toEqual(['AUTORIZACION_VENCIDA']);
   });
   it('consumidor final sobre el umbral requiere identificación', () => {
     const grande = base({ lineas: [{ descripcion: 'Laptop', cantidad: 1, precioUnitario: 20000 }] });

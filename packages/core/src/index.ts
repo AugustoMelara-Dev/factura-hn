@@ -71,6 +71,7 @@ export {
   construirDocumento,
   crearDocumento,
   ErrorValidacion,
+  hoyHonduras,
   UMBRAL_CONSUMIDOR_FINAL,
   CONSUMIDOR_FINAL,
   DESTINO_EJEMPLARES,
