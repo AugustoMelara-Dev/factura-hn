@@ -19,7 +19,8 @@
     "dev": "tsx src/servidor.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "openapi": "tsx src/scripts/openapi.ts"
+    "openapi": "tsx src/cli.ts openapi openapi.json",
+    "build:docker": "tsup --config tsup.docker.config.ts"
   },
   "dependencies": {
     "@factura-hn/pdf": "workspace:*",
@@ -34,5 +35,15 @@
   },
   "devDependencies": {
     "@types/pg": "8.23.1"
-  }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "openapi.json"
+  ]
 }

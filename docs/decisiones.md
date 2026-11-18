@@ -175,3 +175,62 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** avisar desde la misma fecha dos meses antes (último día del mes si no existe); `diasAviso` la
   reemplaza.
 - **Alternativa:** 60 días fijos.
+
+## Fase 2: API
+
+### DEC-026 · Llaves de API con SHA-256, no con un hash lento
+- **Contexto:** la llave tiene 256 bits aleatorios; un hash lento (bcrypt, scrypt) protege contraseñas de baja
+  entropía y cuesta en cada solicitud.
+- **Elegida:** `fhn_<prefijo>_<secreto>`; se guarda SHA-256 de la llave completa, se busca por prefijo y se
+  compara en tiempo constante.
+- **Alternativa:** scrypt por solicitud con caché.
+
+### DEC-027 · SQL con `pg`, sin ORM
+- **Contexto:** el adaptador `@factura-hn/postgres` ya usa SQL parametrizado, RLS y disparadores.
+- **Elegida:** `pg` + SQL en la API también; un solo modelo de transacción (`AlmacenPostgres.transaccion`).
+- **Alternativa:** Drizzle para las tablas `api_*`.
+
+### DEC-028 · Un emisor por tenant; el RTN no cambia
+- **Contexto:** la numeración y las autorizaciones son del obligado tributario (RTN).
+- **Elegida:** tenant = un RTN. `PATCH` cambia datos de contacto o direcciones (solo para documentos futuros);
+  cambiar el RTN es 422.
+- **Alternativa:** varios emisores por tenant con series separadas.
+
+### DEC-029 · `Idempotency-Key` obligatoria; solo se guardan las emisiones exitosas
+- **Contexto:** un POS que reintenta por un corte de red no debe emitir dos facturas.
+- **Elegida:** sin la cabecera, 400. La clave es por tenant y se guarda en la misma transacción que el
+  documento. Una solicitud rechazada no guarda la clave.
+- **Alternativa:** cabecera opcional; guardar también las respuestas de error.
+
+### DEC-030 · Límites: por solicitud en memoria, mensual en la base
+- **Contexto:** el límite por segundo protege el servicio; el mensual es comercial y debe ser exacto.
+- **Elegida:** token bucket por llave en memoria (por réplica). Conteo mensual con
+  `INSERT … ON CONFLICT DO UPDATE` en la transacción de emisión: exacto, a costa de serializar el commit de las
+  emisiones del mismo tenant.
+- **Alternativa:** Redis para el límite por segundo; contador mensual aproximado.
+
+### DEC-031 · Bitácora: la llave identifica al actor · [REVISAR]
+- **Contexto:** Art. 53 num. 2 pide «controles de auditoría». La API sabe qué llave hizo cada operación, no qué
+  persona.
+- **Elegida:** `actor = llave:<prefijo>` en la bitácora fiscal y en la de la API. Se recomienda una llave por
+  caja o por persona (el nombre de la llave queda en `GET /v1/llaves`).
+- **Alternativa:** exigir un campo `usuario` en cada solicitud.
+
+### DEC-032 · Avisos de autorización al emitir
+- **Contexto:** `autorizacion.por_vencer` y `autorizacion.agotada` necesitan un disparador.
+- **Elegida:** se evalúan con `estadoAutorizacion` en cada emisión y se avisan una vez por autorización. Una
+  autorización sin emisiones no avisa; `GET /v1/autorizaciones/{cai}/estado` da el estado a demanda.
+- **Alternativa:** revisión diaria programada.
+
+### DEC-033 · Destinos de webhooks
+- **Contexto:** en el modo alojado una URL arbitraria permite alcanzar la red interna del servidor (SSRF).
+- **Elegida:** alojado: solo https, sin IP privadas, de enlace local ni nombres internos, y el nombre se
+  resuelve otra vez al entregar; sin redirecciones. Local: http y red del negocio permitidos.
+- **Alternativa:** lista blanca de dominios por tenant.
+
+### DEC-034 · Modo local con tenant `local` y datos de demostración marcados
+- **Contexto:** Art. 47 y la recomendación de P-02: instalación en el establecimiento.
+- **Elegida:** el mismo código con `FHN_MODO=local`; al primer arranque crea el tenant y la llave admin y las
+  imprime una vez. `FHN_DEMO=1` carga un CAI ficticio (`DEMO00-NO-VALIDO-…`) y un emisor «NEGOCIO DE
+  DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)».
+- **Alternativa:** una imagen distinta para cada modo.

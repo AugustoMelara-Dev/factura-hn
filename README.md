@@ -196,6 +196,19 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 - `exportarTexto(docs, { formato: 'jsonl' | 'csv' | 'txt' })` · `leerExportacionJSONL(texto)`: archivos de texto para respaldo y traslado (Art. 53 num. 5)
 - `libroContable` en `emitir`, `anular` y `corregirFechaAdelantada`: asiento contable o de inventario dentro de la misma transacción (Art. 53 num. 1)
 
+## API REST
+
+Si tu POS no es JavaScript, o tienes varias cajas contra un servidor, usa la API (`packages/api`): Hono,
+OpenAPI 3.1 y PostgreSQL, instalada en el local del negocio (Art. 47) o alojada para varios negocios.
+
+```bash
+docker compose up --build    # API en http://127.0.0.1:8787/docs + Postgres, con datos de demostración (CAI ficticio)
+docker compose logs api      # llaves admin y caja (se muestran una sola vez)
+```
+
+Llaves con roles caja/admin, `Idempotency-Key` obligatoria en la emisión, PDF/HTML/TXT, libro de ventas,
+exportación (Art. 53 num. 5), bitácora y webhooks firmados. Detalle en [docs/api.md](docs/api.md).
+
 ## Reglas que tu sistema debe respetar
 
 1. **Emite solo con `emitir`.** Reserva el número, valida y guarda en una transacción; no armes la numeración
@@ -214,14 +227,14 @@ Monorepo con pnpm workspaces:
 | `packages/core` | `factura-hn` (el SDK, sin dependencias) | estable |
 | `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | sin publicar |
 | `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | sin publicar |
-| `packages/api` | `@factura-hn/api` | Fase 2 |
+| `packages/api` | `@factura-hn/api` (API REST + Docker) | sin publicar |
 | `packages/mcp` | `@factura-hn/mcp` | Fase 3 |
 | `examples/` | ejemplos | en crecimiento |
 
 ```bash
 pnpm install
 pnpm test         # vitest en todos los paquetes
-pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de @factura-hn/postgres
+pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de Postgres y de la API
 pnpm typecheck
 pnpm build        # ESM + CJS + tipos en packages/*/dist
 pnpm example      # genera factura-ejemplo.html y ticket-ejemplo.txt en examples/basico
@@ -234,9 +247,10 @@ La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y
 
 - [x] Exportaciones a tasa cero (Art. 12)
 - [x] Anulación (Art. 41)
-- [ ] Aviso de documentos no utilizados (Art. 42)
-- [ ] Generación de PDF sin navegador
-- [ ] API REST (alojada o instalada en el local del negocio) y servidor MCP
+- [x] Aviso de documentos no utilizados (Art. 42)
+- [x] Generación de PDF sin navegador
+- [x] API REST (alojada o instalada en el local del negocio)
+- [ ] Servidor MCP
 - [ ] Comprobante de Retención (05), Guía de Remisión (08) y Boleta de Compra (11)
 - [ ] Paquetes hermanos: Python y .NET
 - [ ] Módulo de factura electrónica (CAEE) cuando el SAR publique la documentación técnica (Arts. 54 y 58)

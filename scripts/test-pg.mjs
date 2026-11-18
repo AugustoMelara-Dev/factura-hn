@@ -1,4 +1,4 @@
-// Levanta Postgres de docker-compose.yml y corre las pruebas de @factura-hn/postgres contra él.
+// Levanta Postgres de docker-compose.yml y corre las pruebas de @factura-hn/postgres y @factura-hn/api contra él.
 import { spawnSync } from 'node:child_process';
 
 const correr = (cmd, args, env = {}) => {
@@ -7,6 +7,6 @@ const correr = (cmd, args, env = {}) => {
 };
 
 correr('docker', ['compose', 'up', '-d', '--wait', 'db']);
-correr('pnpm', ['--filter', '@factura-hn/postgres', 'test'], {
+correr('pnpm', ['--filter', '@factura-hn/postgres', '--filter', '@factura-hn/api', 'test'], {
   FHN_PG_URL: process.env.FHN_PG_URL ?? 'postgres://postgres@127.0.0.1:54329/factura_hn',
 });

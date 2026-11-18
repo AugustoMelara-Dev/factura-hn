@@ -43,6 +43,10 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- **`@factura-hn/api`** (privado, 0.2.0): API REST con Hono y OpenAPI 3.1 sobre Postgres. Modos local
+  (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
+  y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
+  `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
 - Notas sobre facturas en moneda extranjera (DEC-018): se emiten en lempiras con el tipo de cambio del
   original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
 - CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.

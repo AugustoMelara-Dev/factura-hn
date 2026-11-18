@@ -11,3 +11,4 @@ packages/core/llms.txt
 packages/core/LICENSE
 packages/core/skills/
 packages/core/docs/
+dist-docker

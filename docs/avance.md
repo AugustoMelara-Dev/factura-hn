@@ -31,12 +31,17 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | 70bfd5b |
 | Postgres: RLS real y migraciones por versión | 9646887 |
 | Correcciones de la revisión independiente de la matriz | 511aafd |
+| Ajustes aprobados: DEC-013, DEC-018, DEC-019; consulta al SAR | c70529e |
+
+## Hecho (Fase 2)
+
+| Paso | Commit |
+|---|---|
+| API: esquema `api_*` con RLS, llaves, emisión idempotente, webhooks, Docker, pruebas de punta a punta | (este commit) |
 
 ## Sigue
 
-1. Fase 2 (API): Hono + OpenAPI + Postgres con RLS, modos alojado y local, llaves con roles, idempotencia,
-   límites, webhooks firmados, exportación y libro, pruebas de punta a punta. Especificación original de
-   endpoints: `docs/api.md`.
+1. Revisión independiente de la Fase 2 (matriz y seguridad de la API) y correcciones.
 2. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
 3. Al cerrar cada fase: resumen con conteo de pruebas y decisiones [REVISAR] de `docs/decisiones.md`.
 
