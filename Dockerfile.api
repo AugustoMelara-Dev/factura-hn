@@ -1,0 +1,16 @@
+# API de factura-hn. Construcción en dos etapas: la imagen final es Node + un solo archivo, sin node_modules.
+FROM node:22-alpine AS construccion
+WORKDIR /src
+RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile --filter @factura-hn/api... \
+ && pnpm --filter @factura-hn/api build:docker
+
+FROM node:22-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=construccion /src/packages/api/dist-docker/ ./
+USER node
+EXPOSE 8787
+HEALTHCHECK --interval=5s --timeout=3s --retries=20 CMD wget -qO- http://127.0.0.1:8787/salud || exit 1
+CMD ["node", "servidor.cjs"]

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AlmacenFiscalMemoria,
+  emitir,
+  registrarAutorizacion,
   calcularDocumento,
   enteroALetras,
   ErrorValidacion,
@@ -35,13 +38,13 @@ const AUT: AutorizacionCAI = {
 };
 
 const EMISOR = {
-  rtn: '0801-1999-123456',
+  rtn: '9999-0000-000001',
   razonSocial: 'Comercial Ejemplo S. de R.L.',
   nombreComercial: 'Pulpería La Bendición',
-  direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
-  direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-  telefono: '2444-0000',
-  correo: 'ventas@ejemplo.hn',
+  direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo',
+  direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+  telefono: '0000-0001',
+  correo: 'ventas@ejemplo.example',
 };
 
 const base = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
@@ -79,8 +82,8 @@ describe('numeración', () => {
 
 describe('identificación', () => {
   it('RTN y CAI', () => {
-    expect(esRTNValido('0801-1999-123456')).toBe(true);
-    expect(esRTNValido('0801199912345')).toBe(false);
+    expect(esRTNValido('9999-0000-000001')).toBe(true);
+    expect(esRTNValido('9999000000001')).toBe(false);
     expect(esCAIValido(AUT.cai)).toBe(true);
     expect(esCAIValido('a1b2c3-d4e5f6-a1b2c3-d4e5f6-a1b2c3-d4')).toBe(true);
     expect(esCAIValido('XYZ')).toBe(false);
@@ -174,7 +177,7 @@ describe('validación', () => {
   it('consumidor final sobre el umbral requiere identificación', () => {
     const grande = base({ lineas: [{ descripcion: 'Laptop', cantidad: 1, precioUnitario: 20000 }] });
     expect(validarEntrada(grande, AUT).errores.map((e) => e.codigo)).toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
-    const conId = { ...grande, cliente: { nombre: 'Juan Pérez', identificacion: { tipo: 'DNI' as const, numero: '0801199912345' } } };
+    const conId = { ...grande, cliente: { nombre: 'Juan Pérez', identificacion: { tipo: 'DNI' as const, numero: '9999000000001' } } };
     expect(validarEntrada(conId, AUT).ok).toBe(true);
   });
   it('RTN de cliente inválido', () => {
@@ -193,7 +196,7 @@ describe('validación', () => {
   it('notas solo en lempiras', () => {
     const autND = { ...AUT, tipoDocumento: '07' as const };
     const v = validarEntrada(
-      base({ tipoDocumento: '07', moneda: 'USD', tipoCambio: 24.7, cliente: { nombre: 'X', rtn: '08019005123456' },
+      base({ tipoDocumento: '07', moneda: 'USD', tipoCambio: 24.7, cliente: { nombre: 'X', rtn: '99990000000002' },
         referencia: { cai: AUT.cai, numero: '000-001-01-00000001', fecha: '2026-11-01' }, motivo: 'Flete' }),
       autND,
     );
@@ -207,10 +210,20 @@ describe('validación', () => {
     expect(validarEntrada(base(), { ...AUT, cai: 'RARO-123' }, { caiEstricto: true }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     expect(validarEntrada(base(), AUT, { caiEstricto: true }).ok).toBe(true);
   });
-  it('B-09: un CAI con espacios internos o signos es error aun sin caiEstricto', () => {
-    for (const cai of ['A1B2 C3-D4', 'A1B2C3--D4', '-A1B2', 'A1B2C3_D4', 'A1B2C3-D4.']) {
+  it('B-09 / DEC-013: un carácter distinto de letra, dígito o guion en medio es error aun sin caiEstricto', () => {
+    for (const cai of ['A1B2 C3-D4', 'A1B2C3_D4', 'A1B2C3-D4.', 'A1B2C3/D4']) {
       expect(validarEntrada(base(), { ...AUT, cai }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     }
+    for (const cai of ['A1B2C3--D4', '-A1B2', 'a1b2c3-d4']) expect(validarEntrada(base(), { ...AUT, cai }).ok).toBe(true);
+  });
+  it('DEC-013: un CAI pegado con espacios alrededor se normaliza sin error', async () => {
+    const pegado = `  ${AUT.cai.toLowerCase()} \t\n`;
+    expect(validarEntrada(base(), { ...AUT, cai: pegado }).ok).toBe(true);
+    const almacen = new AlmacenFiscalMemoria();
+    const guardada = await registrarAutorizacion(almacen, { ...AUT, puntoEmision: '001', rangoFinal: 10, cai: pegado });
+    expect(guardada.cai).toBe(AUT.cai);
+    const doc = await emitir({ emisor: EMISOR, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1' }] }, { almacen, establecimiento: '000', puntoEmision: '001' });
+    expect(doc.cai).toBe(AUT.cai);
   });
   it('moneda extranjera exige tipo de cambio', () => {
     expect(validarEntrada(base({ moneda: 'USD' }), AUT).errores.map((e) => e.codigo)).toContain('TIPO_CAMBIO');
@@ -231,7 +244,7 @@ describe('construcción del documento', () => {
       totales: { total: 230, totalEnLetras: 'DOSCIENTOS TREINTA LEMPIRAS CON 00/100' },
       destinoEjemplares: 'Original: Cliente / Copia: Emisor',
     });
-    expect(doc.emisor.rtn).toBe('08011999123456');
+    expect(doc.emisor.rtn).toBe('99990000000001');
   });
 });
 
@@ -254,7 +267,7 @@ describe('estado de la autorización', () => {
 describe('render y reportes', () => {
   const doc = construirDocumento(
     base({
-      cliente: { nombre: 'Ferretería <Script> & Hijos', rtn: '08019005123456' },
+      cliente: { nombre: 'Ferretería <Script> & Hijos', rtn: '99990000000002' },
       lineas: [
         { codigo: 'A-1', descripcion: 'Clavos', cantidad: 2, precioUnitario: 50, descuento: 10 },
         { descripcion: 'Libro', cantidad: 1, precioUnitario: 300, isv: 'EXENTO' },
@@ -265,7 +278,7 @@ describe('render y reportes', () => {
   );
   it('HTML con campos obligatorios y escapado', () => {
     const html = renderizarHTML(doc);
-    for (const t of ['Factura', doc.numero, doc.cai, doc.rangoAutorizado, '30/06/2027', '0801-1999-123456', 'Importe exento', 'I.S.V. 15%', doc.totales.totalEnLetras, 'Original: Cliente / Copia: Emisor']) {
+    for (const t of ['Factura', doc.numero, doc.cai, doc.rangoAutorizado, '30/06/2027', '9999-0000-000001', 'Importe exento', 'I.S.V. 15%', doc.totales.totalEnLetras, 'Original: Cliente / Copia: Emisor']) {
       expect(html).toContain(t);
     }
     expect(html).toContain('Ferretería &lt;Script&gt; &amp; Hijos');
@@ -284,7 +297,7 @@ describe('render y reportes', () => {
     const nc = construirDocumento(
       base({
         tipoDocumento: '06',
-        cliente: { nombre: 'Ferretería', rtn: '08019005123456' },
+        cliente: { nombre: 'Ferretería', rtn: '99990000000002' },
         referencia: { cai: AUT.cai, numero: doc.numero, fecha: '2026-11-18' },
         motivo: 'Devolución de clavos',
         lineas: [{ descripcion: 'Clavos', cantidad: 1, precioUnitario: 50 }],

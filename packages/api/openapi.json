@@ -1,0 +1,3234 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "factura-hn API",
+    "version": "0.2.0",
+    "description": "Facturación SAR Honduras (Acuerdo 481-2017). Montos como texto decimal. Fechas en America/Tegucigalpa.\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
+  },
+  "components": {
+    "securitySchemes": {
+      "llave": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Llave de API `fhn_<prefijo>_<secreto>`. Rol `caja`: emite y consulta. Rol `admin`: todo."
+      }
+    },
+    "schemas": {
+      "EmisorGuardado": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Emisor"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ]
+      },
+      "Emisor": {
+        "type": "object",
+        "properties": {
+          "rtn": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "razonSocial": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "nombreComercial": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "direccionCasaMatriz": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "direccionEstablecimiento": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "telefono": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "correo": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "direccionesEstablecimiento": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "required": [
+          "rtn",
+          "razonSocial",
+          "nombreComercial",
+          "direccionCasaMatriz",
+          "direccionEstablecimiento",
+          "telefono",
+          "correo"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string"
+              },
+              "mensaje": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "codigo",
+              "mensaje"
+            ]
+          },
+          "errores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            }
+          },
+          "advertencias": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            }
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Problema": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string"
+          },
+          "mensaje": {
+            "type": "string"
+          },
+          "campo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "mensaje"
+        ]
+      },
+      "EmisorCambios": {
+        "type": "object",
+        "properties": {
+          "rtn": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "razonSocial": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "nombreComercial": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "direccionCasaMatriz": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "direccionEstablecimiento": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "telefono": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "correo": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "direccionesEstablecimiento": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        }
+      },
+      "Autorizacion": {
+        "type": "object",
+        "properties": {
+          "cai": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "tipoDocumento": {
+            "type": "string",
+            "enum": [
+              "01",
+              "06",
+              "07"
+            ]
+          },
+          "establecimiento": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          },
+          "puntoEmision": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          },
+          "rangoInicial": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rangoFinal": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fechaLimiteEmision": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "example": "2026-11-18"
+          },
+          "fechaAutorizacion": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "example": "2026-11-18"
+          },
+          "ultimoEmitidoAntes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "cai",
+          "tipoDocumento",
+          "establecimiento",
+          "puntoEmision",
+          "rangoInicial",
+          "rangoFinal",
+          "fechaLimiteEmision"
+        ]
+      },
+      "EstadoAutorizacion": {
+        "type": "object",
+        "properties": {
+          "autorizacion": {
+            "$ref": "#/components/schemas/Autorizacion"
+          },
+          "vigente": {
+            "type": "boolean"
+          },
+          "diasRestantes": {
+            "type": "integer"
+          },
+          "correlativosRestantes": {
+            "type": "integer"
+          },
+          "siguienteCorrelativo": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "porcentajeUsado": {
+            "type": "number"
+          },
+          "alertas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            }
+          }
+        },
+        "required": [
+          "autorizacion",
+          "vigente",
+          "diasRestantes",
+          "correlativosRestantes",
+          "siguienteCorrelativo",
+          "porcentajeUsado",
+          "alertas"
+        ]
+      },
+      "RespuestaDocumento": {
+        "type": "object",
+        "properties": {
+          "documento": {
+            "$ref": "#/components/schemas/DocumentoFiscal"
+          }
+        },
+        "required": [
+          "documento"
+        ]
+      },
+      "DocumentoFiscal": {
+        "type": "object",
+        "properties": {
+          "tipoDocumento": {
+            "type": "string",
+            "enum": [
+              "01",
+              "06",
+              "07"
+            ]
+          },
+          "nombreDocumento": {
+            "type": "string"
+          },
+          "numero": {
+            "type": "string"
+          },
+          "correlativo": {
+            "type": "integer"
+          },
+          "cai": {
+            "type": "string"
+          },
+          "rangoAutorizado": {
+            "type": "string"
+          },
+          "fechaLimiteEmision": {
+            "type": "string"
+          },
+          "fechaEmision": {
+            "type": "string"
+          },
+          "horaEmision": {
+            "type": "string"
+          },
+          "emisor": {
+            "type": "object",
+            "properties": {
+              "rtn": {
+                "type": "string"
+              },
+              "razonSocial": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "rtn",
+              "razonSocial"
+            ],
+            "additionalProperties": {}
+          },
+          "cliente": {
+            "type": "object",
+            "properties": {
+              "nombreImpreso": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "nombreImpreso"
+            ],
+            "additionalProperties": {}
+          },
+          "moneda": {
+            "type": "string",
+            "enum": [
+              "HNL",
+              "USD"
+            ]
+          },
+          "tipoCambio": {
+            "type": "number"
+          },
+          "lineas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "codigo": {
+                  "type": "string"
+                },
+                "descripcion": {
+                  "type": "string"
+                },
+                "cantidad": {
+                  "type": "number"
+                },
+                "unidad": {
+                  "type": "string"
+                },
+                "precioUnitario": {
+                  "type": "number"
+                },
+                "isv": {
+                  "type": "string"
+                },
+                "descuento": {
+                  "type": "number"
+                },
+                "importe": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "descripcion",
+                "cantidad",
+                "precioUnitario",
+                "isv",
+                "descuento",
+                "importe"
+              ]
+            }
+          },
+          "totales": {
+            "type": "object",
+            "properties": {
+              "subtotal": {
+                "type": "number"
+              },
+              "isv15": {
+                "type": "number"
+              },
+              "isv18": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              },
+              "totalEnLetras": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "subtotal",
+              "isv15",
+              "isv18",
+              "total",
+              "totalEnLetras"
+            ],
+            "additionalProperties": {}
+          },
+          "referencia": {
+            "$ref": "#/components/schemas/Referencia"
+          },
+          "advertencias": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            }
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "EMITIDO",
+              "ANULADO"
+            ]
+          },
+          "anulacion": {
+            "type": "object",
+            "properties": {
+              "motivo": {
+                "type": "string"
+              },
+              "fecha": {
+                "type": "string"
+              },
+              "hora": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "motivo",
+              "fecha",
+              "hora"
+            ]
+          }
+        },
+        "required": [
+          "tipoDocumento",
+          "nombreDocumento",
+          "numero",
+          "correlativo",
+          "cai",
+          "rangoAutorizado",
+          "fechaLimiteEmision",
+          "fechaEmision",
+          "emisor",
+          "cliente",
+          "moneda",
+          "lineas",
+          "totales",
+          "advertencias",
+          "estado"
+        ],
+        "additionalProperties": {}
+      },
+      "Referencia": {
+        "type": "object",
+        "properties": {
+          "cai": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "numero": {
+            "type": "string",
+            "maxLength": 19
+          },
+          "fecha": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "example": "2026-11-18"
+          },
+          "moneda": {
+            "type": "string",
+            "enum": [
+              "HNL",
+              "USD"
+            ]
+          },
+          "tipoCambio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "example": "115.00",
+            "description": "Decimal como texto (recomendado) o número."
+          }
+        },
+        "required": [
+          "cai",
+          "numero",
+          "fecha"
+        ]
+      },
+      "SolicitudEmision": {
+        "type": "object",
+        "properties": {
+          "establecimiento": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          },
+          "puntoEmision": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          },
+          "documento": {
+            "$ref": "#/components/schemas/DocumentoEntrada"
+          },
+          "confirmarSaltoDeFecha": {
+            "type": "boolean"
+          },
+          "operador": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.",
+            "example": "María López"
+          },
+          "imprimirOperador": {
+            "type": "boolean",
+            "description": "Imprime el operador en el documento («Atendido por»). Requiere operador."
+          }
+        },
+        "required": [
+          "documento"
+        ]
+      },
+      "DocumentoEntrada": {
+        "type": "object",
+        "properties": {
+          "tipoDocumento": {
+            "type": "string",
+            "enum": [
+              "01",
+              "06",
+              "07"
+            ]
+          },
+          "cliente": {
+            "$ref": "#/components/schemas/Cliente"
+          },
+          "lineas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Linea"
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "fechaEmision": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "example": "2026-11-18"
+          },
+          "preciosIncluyenISV": {
+            "type": "boolean"
+          },
+          "exoneracion": {
+            "type": "object",
+            "properties": {
+              "ordenCompraExenta": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "constanciaRegistroExonerado": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "registroSAG": {
+                "type": "string",
+                "maxLength": 60
+              }
+            }
+          },
+          "moneda": {
+            "type": "string",
+            "enum": [
+              "HNL",
+              "USD"
+            ]
+          },
+          "tipoCambio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "example": "115.00",
+            "description": "Decimal como texto (recomendado) o número."
+          },
+          "referencia": {
+            "$ref": "#/components/schemas/Referencia"
+          },
+          "motivo": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "condicionPago": {
+            "type": "string",
+            "enum": [
+              "CONTADO",
+              "CREDITO"
+            ]
+          },
+          "observaciones": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "lineas"
+        ]
+      },
+      "Cliente": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "rtn": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "identificacion": {
+            "type": "object",
+            "properties": {
+              "tipo": {
+                "type": "string",
+                "enum": [
+                  "DNI",
+                  "RTN",
+                  "PASAPORTE",
+                  "CARNET_RESIDENTE",
+                  "OTRO"
+                ]
+              },
+              "numero": {
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "required": [
+              "tipo",
+              "numero"
+            ]
+          },
+          "direccion": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "Linea": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "descripcion": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "cantidad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "example": "115.00",
+            "description": "Decimal como texto (recomendado) o número."
+          },
+          "precioUnitario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "example": "115.00",
+            "description": "Decimal como texto (recomendado) o número."
+          },
+          "isv": {
+            "type": "string",
+            "enum": [
+              "ISV15",
+              "ISV18",
+              "GRAVADO0",
+              "EXENTO"
+            ]
+          },
+          "descuento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "example": "115.00",
+            "description": "Decimal como texto (recomendado) o número."
+          },
+          "unidad": {
+            "type": "string",
+            "maxLength": 20
+          }
+        },
+        "required": [
+          "descripcion",
+          "cantidad",
+          "precioUnitario"
+        ]
+      },
+      "Motivo": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "operador": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.",
+            "example": "María López"
+          }
+        },
+        "required": [
+          "motivo"
+        ]
+      },
+      "Llave": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id interno de la llave: identifica al actor en la bitácora."
+          },
+          "prefijo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "caja",
+              "admin"
+            ]
+          },
+          "establecimiento": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "puntoEmision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creada": {
+            "type": "string"
+          },
+          "revocada": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ultimoUso": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "prefijo",
+          "nombre",
+          "rol",
+          "establecimiento",
+          "puntoEmision",
+          "creada",
+          "revocada",
+          "ultimoUso"
+        ]
+      },
+      "LlaveNueva": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "caja",
+              "admin"
+            ]
+          },
+          "establecimiento": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          },
+          "puntoEmision": {
+            "type": "string",
+            "pattern": "^\\d{3}$"
+          }
+        },
+        "required": [
+          "nombre",
+          "rol"
+        ]
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "eventos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "activo": {
+            "type": "boolean"
+          },
+          "creado": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "eventos",
+          "activo",
+          "creado"
+        ]
+      },
+      "WebhookNuevo": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
+          },
+          "eventos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "documento.emitido",
+                "documento.anulado",
+                "autorizacion.por_vencer",
+                "autorizacion.agotada"
+              ]
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "url",
+          "eventos"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/salud": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Estado del servicio",
+        "responses": {
+          "200": {
+            "description": "En servicio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "modo": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "version",
+                    "modo"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/emisores": {
+      "post": {
+        "tags": [
+          "Emisor"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Registra los datos del obligado tributario (uno por tenant)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Emisor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmisorGuardado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Emisor"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "El emisor del tenant (lista de 0 o 1)",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emisores": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EmisorGuardado"
+                      }
+                    }
+                  },
+                  "required": [
+                    "emisores"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/emisores/{id}": {
+      "get": {
+        "tags": [
+          "Emisor"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Datos del emisor",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Emisor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmisorGuardado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Emisor"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmisorCambios"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmisorGuardado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/autorizaciones": {
+      "post": {
+        "tags": [
+          "Autorizaciones"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Registra una autorización del SAR (CAI, rango y fecha límite)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Autorizacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "autorizacion": {
+                      "$ref": "#/components/schemas/Autorizacion"
+                    }
+                  },
+                  "required": [
+                    "autorizacion"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Autorizaciones"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Autorizaciones registradas",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "autorizaciones": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Autorizacion"
+                      }
+                    }
+                  },
+                  "required": [
+                    "autorizaciones"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/autorizaciones/{cai}/estado": {
+      "get": {
+        "tags": [
+          "Autorizaciones"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Vigencia y rango restante de una autorización (Arts. 59 y 62)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "required": true,
+            "name": "cai",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EstadoAutorizacion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/documentos": {
+      "post": {
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Emite una factura, nota de crédito o nota de débito",
+        "description": "Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Clave única por venta (p. ej. un UUID generado por el POS)."
+            },
+            "required": true,
+            "description": "Clave única por venta (p. ej. un UUID generado por el POS).",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitudEmision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Emitido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDocumento"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Falta registrar el emisor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Documentos de un período",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "desde",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "hasta",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{3}-\\d{3}-\\d{2}$"
+            },
+            "required": false,
+            "name": "identificador",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documentos": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DocumentoFiscal"
+                      }
+                    }
+                  },
+                  "required": [
+                    "documentos"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/documentos/{archivo}": {
+      "get": {
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Un documento: JSON, o la representación impresa con .pdf, .html o .txt",
+        "description": "La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "000-001-01-00000001.pdf"
+            },
+            "required": true,
+            "name": "archivo",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "carta",
+                "ticket"
+              ]
+            },
+            "required": false,
+            "name": "formato",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 32,
+              "maximum": 120
+            },
+            "required": false,
+            "name": "ancho",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDocumento"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/documentos/{numero}/anular": {
+      "post": {
+        "tags": [
+          "Documentos"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Anula un documento (Art. 41): conserva número y contenido, cambia el estado",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{3}-\\d{3}-\\d{2}-\\d{8}$"
+            },
+            "required": true,
+            "name": "numero",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Motivo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDocumento"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{identificador}/corregir-fecha": {
+      "post": {
+        "tags": [
+          "Series"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{3}-\\d{3}-\\d{2}$",
+              "example": "000-001-01"
+            },
+            "required": true,
+            "name": "identificador",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Motivo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Anulados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "anulados": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DocumentoFiscal"
+                      }
+                    }
+                  },
+                  "required": [
+                    "anulados"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/series/{identificador}/no-utilizados": {
+      "get": {
+        "tags": [
+          "Series"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Números que hay que reportar al SAR como no utilizados (Art. 42)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{3}-\\d{3}-\\d{2}$",
+              "example": "000-001-01"
+            },
+            "required": true,
+            "name": "identificador",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rangos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rangos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "desde": {
+                            "type": "number"
+                          },
+                          "hasta": {
+                            "type": "number"
+                          },
+                          "cantidad": {
+                            "type": "number"
+                          },
+                          "fechaLimiteAviso": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "desde",
+                          "hasta",
+                          "cantidad",
+                          "fechaLimiteAviso"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "rangos"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/libro-ventas": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "desde",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "hasta",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ]
+            },
+            "required": false,
+            "name": "formato",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Libro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filas": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": {}
+                      }
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "properties": {},
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "filas",
+                    "resumen"
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/exportacion": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Archivo de texto de un período para el SAR (Art. 53 num. 5)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "desde",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-11-18"
+            },
+            "required": true,
+            "name": "hasta",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "jsonl",
+                "csv",
+                "txt"
+              ]
+            },
+            "required": false,
+            "name": "formato",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bitacora": {
+      "get": {
+        "tags": [
+          "Auditoría"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Bitácora fiscal (Art. 53 num. 2) y de la API",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "required": false,
+            "name": "limite",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bitácora",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fiscal": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": {}
+                      }
+                    },
+                    "api": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "fiscal",
+                    "api"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/llaves": {
+      "post": {
+        "tags": [
+          "Llaves"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Crea una llave (la llave completa se muestra solo esta vez)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlaveNueva"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Llave"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "llave": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "llave"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Llaves"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Llaves del tenant (sin secretos)",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "llaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Llave"
+                      }
+                    }
+                  },
+                  "required": [
+                    "llaves"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/llaves/{prefijo}": {
+      "delete": {
+        "tags": [
+          "Llaves"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Revoca una llave",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{12}$"
+            },
+            "required": true,
+            "name": "prefijo",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revocada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Llave"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Última llave admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookNuevo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Webhook"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "secreto": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "secreto"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Webhooks del tenant",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "webhooks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Webhook"
+                      }
+                    }
+                  },
+                  "required": [
+                    "webhooks"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}": {
+      "delete": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Desactiva un webhook",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Desactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

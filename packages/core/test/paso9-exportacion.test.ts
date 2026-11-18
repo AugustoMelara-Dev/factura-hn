@@ -15,8 +15,8 @@ import {
 } from '../src';
 
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'Pulpería La Esquina', nombreComercial: 'La Esquina',
-  direccionCasaMatriz: 'Tocoa', direccionEstablecimiento: 'Tocoa', telefono: '2444-0000', correo: 'p@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Pulpería La Esquina', nombreComercial: 'La Esquina',
+  direccionCasaMatriz: 'Ciudad Ejemplo', direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'p@ejemplo.example',
 };
 const aut = (tt: '01' | '06', cai: string) => ({
   cai, tipoDocumento: tt, establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-06-30',
@@ -29,7 +29,7 @@ beforeEach(async () => {
   almacen = new AlmacenFiscalMemoria();
   await registrarAutorizacion(almacen, aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
   await registrarAutorizacion(almacen, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));
-  const cliente = { nombre: 'Constructora "El Roble", S. de R.L. | Tocoa', rtn: '08019005123456' };
+  const cliente = { nombre: 'Constructora "El Roble", S. de R.L. | Ciudad Ejemplo', rtn: '99990000000002' };
   const f1 = await emitir({ emisor: EMISOR, cliente, lineas: [{ descripcion: 'Chicle', cantidad: 3, precioUnitario: '0.10', isv: 'EXENTO' }] }, { almacen, ...caja });
   const f2 = await emitir({ emisor: EMISOR, lineas: [{ descripcion: 'Soda', cantidad: 1, precioUnitario: '19.99' }] }, { almacen, ...caja });
   const nc = await emitir({
@@ -54,7 +54,7 @@ describe('B-10 · Art. 53 num. 5: archivos tipo texto', () => {
     const csv = exportarTexto(docs, { formato: 'csv' });
     expect(csv.startsWith('﻿numero,tipo,fecha,')).toBe(true);
     const [, f1, f2, nc] = csv.slice(1).trim().split('\n');
-    expect(f1).toContain('"Constructora ""El Roble"", S. de R.L. | Tocoa"');
+    expect(f1).toContain('"Constructora ""El Roble"", S. de R.L. | Ciudad Ejemplo"');
     expect(f1).toContain(',0.30,'); // 3 × 0.10, sin error de punto flotante
     expect(f1!.endsWith(',0.30,,')).toBe(true); // total, sin referencia ni anulación
     expect(f2).toContain(',ANULADO,');
@@ -68,7 +68,7 @@ describe('B-10 · Art. 53 num. 5: archivos tipo texto', () => {
     expect(lineas[0]).toBe('#factura-hn|v1|3');
     expect(lineas[1]!.split('|')).toHaveLength(21);
     for (const l of lineas.slice(2)) expect(l.split('|')).toHaveLength(21);
-    expect(lineas[2]).toContain('S. de R.L.   Tocoa');
+    expect(lineas[2]).toContain('S. de R.L.   Ciudad Ejemplo');
   });
 
   it('sin documentos: archivos válidos y vacíos', () => {

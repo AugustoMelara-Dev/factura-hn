@@ -2,7 +2,7 @@
  * Resúmenes para el libro de ventas y la declaración mensual del ISV.
  * Las notas de crédito restan y las notas de débito suman.
  */
-import { centavosATexto, deCentavos, redondearDecimal } from './dinero';
+import { centavosATexto, deCentavos, redondearDecimal, textoSeguroCSV } from './dinero';
 import type { DocumentoFiscal } from './tipos';
 
 export interface FilaLibroVentas {
@@ -75,7 +75,7 @@ export function libroVentasCSV(filas: FilaLibroVentas[]): string {
   };
   const m = (v: number) => centavosATexto(redondearDecimal(v, 2));
   const filasCsv = filas.map((f) =>
-    [f.fecha, f.tipoDocumento, f.numero, f.cai, f.clienteNombre, f.clienteRTN,
+    [f.fecha, f.tipoDocumento, f.numero, f.cai, textoSeguroCSV(f.clienteNombre), textoSeguroCSV(f.clienteRTN),
       m(f.importeExonerado), m(f.importeExento), m(f.importeGravado0), m(f.importeGravado15), m(f.importeGravado18),
       m(f.isv15), m(f.isv18), m(f.total), f.anulado ? 'SI' : 'NO'].map(q).join(','),
   );

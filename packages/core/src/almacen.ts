@@ -31,13 +31,15 @@ export interface EstadoSerie {
 
 export type TipoEventoAuditoria =
   | 'AUTORIZACION_REGISTRADA'
+  | 'DOCUMENTO_EMITIDO'
   | 'DOCUMENTO_ANULADO'
   | 'SALTO_DE_FECHA_CONFIRMADO'
   | 'FECHA_ADELANTADA_CORREGIDA';
 
 /**
  * Evento de la bitácora de auditoría. Se guarda en la misma transacción que la operación que lo origina y
- * nunca se modifica ni se borra. Las emisiones no generan evento: el documento mismo es el registro.
+ * nunca se modifica ni se borra. Cada emisión deja un DOCUMENTO_EMITIDO con quién la hizo (`actor` y
+ * `operador`); el contenido fiscal sigue estando en el documento.
  */
 export interface EventoAuditoria {
   tipo: TipoEventoAuditoria;
@@ -49,6 +51,8 @@ export interface EventoAuditoria {
   numero?: string;
   /** Quién hizo la operación (usuario, caja, llave de API), si el integrador lo indica. */
   actor?: string;
+  /** Persona que operó (p. ej. el cajero), si se indica. Complementa a `actor` cuando varias personas usan la misma caja o llave. */
+  operador?: string;
   detalle: Record<string, unknown>;
 }
 

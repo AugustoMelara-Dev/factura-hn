@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest';
+import { firmar } from '@factura-hn/api';
+import { verificarFirmaWebhook } from '../src';
+
+describe('verificarFirmaWebhook (Web Crypto)', () => {
+  const cuerpo = '{"id":"1","evento":"documento.emitido","datos":{"numero":"000-001-01-00000001"}}';
+  const t = 1_800_000_000;
+  const ahora = () => t * 1000;
+
+  it('acepta la firma que produce la API y rechaza cuerpo, secreto o tiempo alterados', async () => {
+    const cabecera = firmar('secreto-1', cuerpo, t);
+    expect(await verificarFirmaWebhook(cuerpo, cabecera, 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo.replace('01-', '02-'), cabecera, 'secreto-1', { ahora })).toBe(false);
+    expect(await verificarFirmaWebhook(cuerpo, cabecera, 'secreto-2', { ahora })).toBe(false);
+    expect(await verificarFirmaWebhook(cuerpo, cabecera, 'secreto-1', { ahora: () => (t + 301) * 1000 })).toBe(false);
+    expect(await verificarFirmaWebhook(cuerpo, cabecera.replace(`t=${t}`, `t=${t + 1}`), 'secreto-1', { ahora })).toBe(false);
+  });
+
+  it('cabeceras mal formadas o vacías: false sin lanzar', async () => {
+    for (const c of [undefined, null, '', 'v1=abc', `t=${t}`, `t=x,v1=${'0'.repeat(64)}`, `t=${t},v1=${'G'.repeat(64)}`]) {
+      expect(await verificarFirmaWebhook(cuerpo, c, 'secreto-1', { ahora })).toBe(false);
+    }
+    expect(await verificarFirmaWebhook(cuerpo, firmar('', cuerpo, t), '', { ahora })).toBe(false);
+  });
+});

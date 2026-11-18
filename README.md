@@ -39,15 +39,15 @@ await registrarAutorizacion(almacen, {
 const factura = await emitir(
   {
     emisor: {
-      rtn: '08011999123456',
+      rtn: '99990000000001',
       razonSocial: 'Inversiones Ejemplo S. de R.L.',
       nombreComercial: 'Pulpería La Bendición',
-      direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
-      direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-      telefono: '2444-0000',
-      correo: 'ventas@ejemplo.hn',
+      direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo',
+      direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+      telefono: '0000-0001',
+      correo: 'ventas@ejemplo.example',
     },
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' }, // u omítelo → CONSUMIDOR FINAL
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, // u omítelo → CONSUMIDOR FINAL
     preciosIncluyenISV: true,
     lineas: [
       { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
@@ -84,7 +84,7 @@ import { emitir } from 'factura-hn';
 const mixta = await emitir(
   {
     emisor,
-    cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' },
+    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
     lineas: [
       { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
       { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
@@ -103,9 +103,30 @@ mixta.totales.baseCreditoFiscal; // 100
 | `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
 | `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
 
+**Cliente exonerado con una OCE que no cubre todo:** la exoneración aplica al documento completo. Emite dos
+facturas, una con `exoneracion` y los artículos cubiertos por la Orden de Compra Exenta y otra normal con el
+resto.
+
+**Nota sobre una factura en dólares:** la nota se emite en lempiras. Escribe sus líneas en dólares y se
+convierten con el tipo de cambio de la factura original, que la nota imprime como referencia.
+
 ## Impleméntalo con IA en un prompt
 
-Copia esto en Claude Code, Cursor u OpenCode dentro de tu proyecto:
+En una línea, en Claude Code, Cursor u OpenCode dentro de tu proyecto:
+
+**SDK** (tu proyecto JS/TS emite con su propia base):
+
+```text
+Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+```
+
+**API** (cualquier lenguaje; la API de factura-hn emite):
+
+```text
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+```
+
+La versión detallada del prompt del SDK:
 
 ```text
 Instala la librería npm "factura-hn" y lee node_modules/factura-hn/AGENTS.md antes de escribir código.
@@ -189,6 +210,45 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 - `exportarTexto(docs, { formato: 'jsonl' | 'csv' | 'txt' })` · `leerExportacionJSONL(texto)`: archivos de texto para respaldo y traslado (Art. 53 num. 5)
 - `libroContable` en `emitir`, `anular` y `corregirFechaAdelantada`: asiento contable o de inventario dentro de la misma transacción (Art. 53 num. 1)
 
+## API REST
+
+Si tu POS no es JavaScript, o tienes varias cajas contra un servidor, usa la API (`packages/api`): Hono,
+OpenAPI 3.1 y PostgreSQL, instalada en el local del negocio (Art. 47) o alojada para varios negocios.
+
+```bash
+docker compose up --build    # API en http://127.0.0.1:8787/docs + Postgres, con datos de demostración (CAI ficticio)
+docker compose logs api      # llaves admin y caja (se muestran una sola vez)
+```
+
+Llaves con roles caja/admin, `Idempotency-Key` obligatoria en la emisión, PDF/HTML/TXT, libro de ventas,
+exportación (Art. 53 num. 5), bitácora y webhooks firmados. Detalle en [docs/api.md](docs/api.md).
+
+Desde TypeScript, el cliente tipado [`@factura-hn/cliente`](packages/cliente/README.md) se genera de la
+especificación OpenAPI e incluye `verificarFirmaWebhook` (Web Crypto: Node, edge y navegador).
+
+## Servidor MCP
+
+Para que un agente de IA (Claude Desktop, Claude Code, Cursor) emita, consulte y anule:
+[`@factura-hn/mcp`](packages/mcp/README.md), con las herramientas `emitir_factura`, `emitir_nota_credito`,
+`consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o con el SDK local
+sobre SQLite. Aún no está en npm: mientras tanto, `node packages/mcp/dist/cli.js` en lugar de `npx` (ver su
+README). No apruebes automáticamente `anular_documento` en tu cliente MCP.
+
+```json
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],
+  "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
+```
+
+## Ejemplos
+
+| Carpeta | Qué muestra |
+|---|---|
+| [`examples/basico`](examples/basico) | Emitir y guardar HTML y ticket con el SDK |
+| [`examples/pos-offline`](examples/pos-offline) | Mini POS fuera de línea: SDK + SQLite, sin duplicados y con cola de sincronización |
+| [`examples/express`](examples/express) | Express 5 con la API: factura por pedido y receptor de webhooks |
+| [`examples/nextjs`](examples/nextjs) | Next.js 16: server action y webhooks en un route handler |
+| [`examples/playground`](examples/playground) | El SDK en el navegador, sin backend |
+
 ## Reglas que tu sistema debe respetar
 
 1. **Emite solo con `emitir`.** Reserva el número, valida y guarda en una transacción; no armes la numeración
@@ -207,14 +267,15 @@ Monorepo con pnpm workspaces:
 | `packages/core` | `factura-hn` (el SDK, sin dependencias) | estable |
 | `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | sin publicar |
 | `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | sin publicar |
-| `packages/api` | `@factura-hn/api` | Fase 2 |
-| `packages/mcp` | `@factura-hn/mcp` | Fase 3 |
-| `examples/` | ejemplos | en crecimiento |
+| `packages/api` | `@factura-hn/api` (API REST + Docker) | sin publicar |
+| `packages/cliente` | `@factura-hn/cliente` (cliente tipado de la API, generado desde OpenAPI) | sin publicar |
+| `packages/mcp` | `@factura-hn/mcp` (servidor MCP: API o SDK local) | sin publicar |
+| `examples/` | básico, POS fuera de línea, Express, Next.js, playground | |
 
 ```bash
 pnpm install
 pnpm test         # vitest en todos los paquetes
-pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de @factura-hn/postgres
+pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de Postgres y de la API
 pnpm typecheck
 pnpm build        # ESM + CJS + tipos en packages/*/dist
 pnpm example      # genera factura-ejemplo.html y ticket-ejemplo.txt en examples/basico
@@ -227,9 +288,10 @@ La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y
 
 - [x] Exportaciones a tasa cero (Art. 12)
 - [x] Anulación (Art. 41)
-- [ ] Aviso de documentos no utilizados (Art. 42)
-- [ ] Generación de PDF sin navegador
-- [ ] API REST (alojada o instalada en el local del negocio) y servidor MCP
+- [x] Aviso de documentos no utilizados (Art. 42)
+- [x] Generación de PDF sin navegador
+- [x] API REST (alojada o instalada en el local del negocio)
+- [x] Cliente tipado y servidor MCP
 - [ ] Comprobante de Retención (05), Guía de Remisión (08) y Boleta de Compra (11)
 - [ ] Paquetes hermanos: Python y .NET
 - [ ] Módulo de factura electrónica (CAEE) cuando el SAR publique la documentación técnica (Arts. 54 y 58)

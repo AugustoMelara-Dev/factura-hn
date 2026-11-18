@@ -1,16 +1,38 @@
-# Servicios locales de desarrollo. La Fase 2 agrega la API.
-# Postgres solo escucha en 127.0.0.1 y confía en las conexiones locales: no hay contraseñas en el repo.
-# No uses esta configuración en producción.
+# factura-hn local: API + PostgreSQL en el establecimiento del negocio (Art. 47).
+#   docker compose up --build
+# Al primer arranque la API imprime las llaves (admin y caja) una sola vez: docker compose logs api
+# La API escucha solo en 127.0.0.1:8787. Postgres no publica su puerto: solo la API lo alcanza, por la red
+# interna de Compose (sin contraseñas en el repo). Para desarrollo y pruebas, docker-compose.dev.yml publica
+# la base en 127.0.0.1:54329. Para producción usa contraseñas y TLS (ver docs/api.md).
 services:
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: factura_hn
       POSTGRES_HOST_AUTH_METHOD: trust
-    ports:
-      - "127.0.0.1:54329:5432"
+    volumes:
+      - datos:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d factura_hn"]
       interval: 2s
       timeout: 3s
       retries: 30
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      DATABASE_URL: postgres://postgres@db:5432/factura_hn
+      FHN_MODO: local
+      # Tenant «demo» aparte, con CAI FICTICIO (sin validez fiscal). El tenant «local» del negocio queda limpio.
+      # Pon "0" en un negocio real para no crearlo.
+      FHN_DEMO: "1"
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  datos:

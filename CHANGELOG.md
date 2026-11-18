@@ -43,6 +43,34 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- **Operador en la bitácora (DEC-031).**
+  - `emitir`, `anular`, `corregirFechaAdelantada` y `registrarAutorizacion` aceptan `operador` (p. ej. el
+    cajero). Queda en `EventoAuditoria.operador`.
+  - Cada emisión deja un evento `DOCUMENTO_EMITIDO`.
+  - `DocumentoEntrada.operador` lo imprime como «Atendido por».
+  - En la API: campo `operador` o cabecera `X-Operador`, e `imprimirOperador`. El actor es ahora
+    `llave:<id> (<rol>: <nombre>)`, con el id interno de la llave (`GET /v1/llaves` lo devuelve). Esquema de la
+    API v3.
+  - El cliente acepta `operador`; el MCP acepta `FHN_OPERADOR` y el parámetro `operador`.
+
+- **`@factura-hn/api`** (privado, 0.2.0): API REST con Hono y OpenAPI 3.1 sobre Postgres. Modos local
+  (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
+  y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
+  `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
+- **`@factura-hn/cliente`** (0.2.0): cliente tipado de la API generado desde OpenAPI (`openapi-fetch`), con
+  `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, CAI, libro, exportación, `ErrorFacturaHN` y
+  `verificarFirmaWebhook` con Web Crypto (Node 20+, edge, navegador).
+- **`@factura-hn/mcp`** (0.2.0): servidor MCP con `emitir_factura`, `emitir_nota_credito`,
+  `consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o el SDK local sobre
+  SQLite (claves de idempotencia en la base, dentro de la transacción).
+- Ejemplos: POS fuera de línea (SQLite), Express 5, Next.js 16 (server action) y playground en el navegador.
+- AGENTS.md, llms.txt y la skill: prompts de una línea para el SDK y para la API, comprobados por prueba.
+- `textoSeguroCSV`: `libroVentasCSV` y `exportarTexto(…, { formato: 'csv' })` anteponen `'` al texto que
+  empieza con `= + - @` (inyección de fórmulas en hojas de cálculo).
+- Notas sobre facturas en moneda extranjera (DEC-018): se emiten en lempiras con el tipo de cambio del
+  original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
+- CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
+- `docs/consulta-sar.md`: consulta formal con las preguntas abiertas.
 - Revisión independiente de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
@@ -100,6 +128,11 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
 
 ### Cambiado
+
+- **MCP local solo con SQLite en archivo (DEC-040).** `BackendLocal` recibe `{ db, emisor, … }` en lugar de
+  `{ almacen, claves }`, y se elimina `clavesEnMemoria`. Una base en memoria se rechaza.
+- **La bitácora de la API ya no usa el prefijo de la llave como actor** (DEC-031): si filtrabas por
+  `llave:<prefijo>`, usa el id de `GET /v1/llaves`.
 
 - `pnpm` workspaces: el SDK vive en `packages/core`.
 

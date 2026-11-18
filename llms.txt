@@ -14,10 +14,17 @@ Montos: `number` o texto exacto (`'89.50'`); el cálculo es con enteros. Cobra `
 Fechas: la fecha de emisión la pone el reloj en America/Tegucigalpa; no se puede retrofechar.
 Errores: `ErrorValidacion` con `errores: {codigo, mensaje, campo}[]`.
 
+API REST (`@factura-hn/api`, Hono + OpenAPI 3.1 + Postgres, `docker compose up`): `POST /v1/documentos` con `Idempotency-Key` obligatoria; 422 trae `errores`. Cliente tipado: `crearCliente({ url, llave })` de `@factura-hn/cliente`, con `fhn.emitir(solicitud, { idempotencyKey })`, `fhn.descargar(numero, 'pdf')`, `verificarFirmaWebhook(cuerpo, cabecera, secreto)`.
+MCP (`@factura-hn/mcp`): herramientas emitir_factura, emitir_nota_credito, consultar_documento, anular_documento, estado_cai, libro_ventas; vía la API (FHN_API_URL + FHN_LLAVE) o SDK local (FHN_SQLITE + FHN_EMISOR).
+
+Prompt de una línea (SDK): Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+Prompt de una línea (API): Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+
 ## Docs
 
 - [README](README.md): instalación, ejemplo y API
-- [AGENTS.md](AGENTS.md): guía de integración para agentes de IA
+- [AGENTS.md](AGENTS.md): guía de integración para agentes de IA (SDK y API)
+- [API REST](docs/api.md): rutas, roles, idempotencia, webhooks y seguridad
 - [Persistencia](docs/persistencia.md): qué almacén usar y cómo escribir uno propio
 - [Normativa](docs/normativa.md): requisitos cubiertos, fuentes y alcance
 - [Skill de Claude](skills/facturacion-sar-hn/SKILL.md)

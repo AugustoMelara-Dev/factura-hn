@@ -57,11 +57,12 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
   if (!aut.cai || !aut.cai.trim()) {
     problemas.push({ codigo: 'CAI_REQUERIDO', mensaje: 'La autorización no tiene CAI.', campo: 'cai' });
   } else if (!PATRON_CAI_BASICO.test(normalizarCAI(aut.cai))) {
-    // B-09: sin fuente para el formato, por defecto solo se rechaza lo que no puede ser un código
-    // (espacios internos, signos), que suele ser un error de digitación.
+    // B-09 / DEC-013: sin fuente para el formato, por defecto solo se rechaza un carácter que no sea letra,
+    // dígito o guion (espacios internos, signos): suele ser un error de digitación. Los espacios del inicio y
+    // del final se recortan sin error.
     problemas.push({
       codigo: 'CAI_FORMATO',
-      mensaje: `El CAI "${aut.cai}" solo puede tener letras, dígitos y guiones entre grupos. Cópialo tal como viene en la resolución del SAR.`,
+      mensaje: `El CAI "${aut.cai}" solo puede tener letras, dígitos y guiones. Cópialo tal como viene en la resolución del SAR.`,
       campo: 'cai',
     });
   } else if (opciones.caiEstricto && !esCAIValido(aut.cai)) {

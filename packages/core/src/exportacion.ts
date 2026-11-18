@@ -13,7 +13,7 @@
  * documentados; cuando exista un formato oficial se agrega aquí.
  * Todos los importes se escriben desde centavos enteros, sin punto flotante.
  */
-import { centavosATexto, redondearDecimal } from './dinero';
+import { centavosATexto, redondearDecimal, textoSeguroCSV } from './dinero';
 import type { TransaccionFiscal } from './almacen';
 import type { DocumentoFiscal } from './tipos';
 
@@ -75,7 +75,8 @@ export function exportarTexto(docs: readonly DocumentoFiscal[], opciones: { form
       return ordenados.map((d) => JSON.stringify(d)).join('\n') + (ordenados.length ? '\n' : '');
     case 'csv': {
       const q = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-      const lineas = ordenados.map((d) => COLUMNAS.map((c) => q(fila(d)[c])).join(','));
+      const texto = new Set<string>(['clienteNombre', 'clienteRTN', 'motivoAnulacion', 'referencia']);
+      const lineas = ordenados.map((d) => COLUMNAS.map((c) => q(texto.has(c) ? textoSeguroCSV(fila(d)[c]) : fila(d)[c])).join(','));
       return '﻿' + [COLUMNAS.join(','), ...lineas].join('\n') + '\n';
     }
     case 'txt': {

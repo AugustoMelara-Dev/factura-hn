@@ -1,0 +1,6 @@
+**/node_modules
+**/dist
+**/dist-docker
+.git
+referencias
+*.log

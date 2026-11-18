@@ -31,19 +31,37 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | 70bfd5b |
 | Postgres: RLS real y migraciones por versión | 9646887 |
 | Correcciones de la revisión independiente de la matriz | 511aafd |
+| Ajustes aprobados: DEC-013, DEC-018, DEC-019; consulta al SAR | c70529e |
+
+## Hecho (Fase 2)
+
+| Paso | Commit |
+|---|---|
+| API: esquema `api_*` con RLS, llaves, emisión idempotente, webhooks, Docker, pruebas de punta a punta | 3899538 |
+| Correcciones de la revisión de seguridad (DEC-035) | 009ea03 |
+
+## Hecho (Fase 3)
+
+| Paso | Commit |
+|---|---|
+| `@factura-hn/cliente` y `@factura-hn/mcp` | 711d11d, 008eefc |
+| POS fuera de línea (SQLite) | d651333 |
+| `verificarFirmaWebhook` en el cliente; ejemplo Express 5 | aa043f1 |
+| Ejemplo Next.js 16 | 5f01838 |
+| Playground en el navegador | 512fb88 |
+| Prompts SDK/API en README, AGENTS.md, llms.txt y skill, con prueba | f92d204 |
+| Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | 2587741 |
+| Pruebas de Postgres en su propia base | 97e2272 |
+| Correcciones de la revisión independiente de la Fase 3 (DEC-039) | 148960a |
+| Operador en la bitácora (DEC-031 aprobada con cambios); MCP solo SQLite en archivo y `server-only` (DEC-040) | (este commit) |
 
 ## Sigue
 
-1. Fase 2 (API): Hono + OpenAPI + Postgres con RLS, modos alojado y local, llaves con roles, idempotencia,
-   límites, webhooks firmados, exportación y libro, pruebas de punta a punta. Especificación original de
-   endpoints: `docs/api.md`.
-2. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
-3. Al cerrar cada fase: resumen con conteo de pruebas y decisiones [REVISAR] de `docs/decisiones.md`.
+1. Reporte al usuario: resumen, decisiones [REVISAR] y cómo levantar todo localmente.
 
 ## Cómo correr
 
 ```bash
-pnpm install && pnpm test && pnpm typecheck
-docker compose up -d --wait db   # solo el contenedor de factura-hn
-FHN_PG_URL=postgres://postgres@127.0.0.1:54329/factura_hn pnpm --filter @factura-hn/postgres test
+pnpm install && pnpm test && pnpm test:ejemplos && pnpm typecheck
+pnpm test:pg      # levanta el Postgres de factura-hn (con docker-compose.dev.yml) y corre lo que lo usa
 ```

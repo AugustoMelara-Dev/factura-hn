@@ -4,9 +4,9 @@ import { AlmacenFiscalMemoria, anular, buscarDocumento, emitir, registrarAutoriz
 import { aWinAnsi, lineasPDF, renderizarPDF } from '../src';
 
 const EMISOR = {
-  rtn: '08011999123456', razonSocial: 'Ferretería Muñoz S. de R.L.', nombreComercial: 'Ferretería Muñoz',
-  direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón', direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
-  telefono: '2444-0000', correo: 'ventas@munoz.hn',
+  rtn: '99990000000001', razonSocial: 'Ferretería Muñoz S. de R.L.', nombreComercial: 'Ferretería Muñoz',
+  direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo', direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+  telefono: '0000-0001', correo: 'ventas@ejemplo.example',
 };
 const reloj = () => new Date('2026-11-18T16:30:00Z');
 let almacen: AlmacenFiscalMemoria;
@@ -20,7 +20,7 @@ beforeEach(async () => {
   }, { reloj });
   factura = await emitir({
     emisor: EMISOR,
-    cliente: { nombre: 'Constructora Peña 🏗️', rtn: '08019005123456' },
+    cliente: { nombre: 'Constructora Peña 🏗️', rtn: '99990000000002' },
     lineas: [
       { descripcion: 'Clavos 2" (caja)', cantidad: 2, precioUnitario: '150.00' },
       { descripcion: 'Cemento ≈ 42.5 kg', cantidad: 1, precioUnitario: '245.50' },
@@ -31,7 +31,7 @@ beforeEach(async () => {
 describe('contenido (Arts. 10 y 11)', () => {
   it('lleva los datos fiscales del documento, con acentos y eñes', () => {
     const texto = lineasPDF(factura).join('\n');
-    for (const dato of ['Ferretería Muñoz S. de R.L.', 'RTN: 0801-1999-123456', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01',
+    for (const dato of ['Ferretería Muñoz S. de R.L.', 'RTN: 9999-0000-000001', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01',
       '000-001-01-00000001', 'Fecha límite de emisión', 'Rango:', factura.totales.totalEnLetras, factura.destinoEjemplares]) {
       expect(texto).toContain(dato);
     }

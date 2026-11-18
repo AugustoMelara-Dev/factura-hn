@@ -2,8 +2,8 @@
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
 import { congelar } from './inmutable';
-import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, validarLineas } from './calculo';
-import { centavosATexto, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
+import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, validarLineas } from './calculo';
+import { centavosATexto, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
@@ -31,6 +31,50 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
     return tc > 0n ? tc : null;
   } catch (e) {
     if (e instanceof ErrorMonto) return null;
+    throw e;
+  }
+}
+
+/**
+ * DEC-018: una nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Si el documento original está en
+ * moneda extranjera, las líneas de la nota se escriben en esa moneda y aquí se convierten a lempiras con el
+ * tipo de cambio del original (precio a 4 decimales, descuento a 2, redondeo del Art. 9 de la Ley del ISV).
+ * Si las líneas no se pueden leer, se devuelven sin convertir para que la validación reporte el error.
+ */
+export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoEntrada; problemas: Problema[] } {
+  const r = entrada.referencia;
+  const tipo = entrada.tipoDocumento ?? '01';
+  if ((tipo !== '06' && tipo !== '07') || !r?.moneda || r.moneda === 'HNL') return { entrada, problemas: [] };
+  if (r.moneda !== 'USD') {
+    return { entrada, problemas: [{ codigo: 'REFERENCIA_MONEDA', mensaje: `Moneda del documento original desconocida: ${String(r.moneda)}.`, campo: 'referencia.moneda' }] };
+  }
+  const tc = leerTipoCambio(r.tipoCambio);
+  if (tc === null) {
+    return {
+      entrada,
+      problemas: [{
+        codigo: 'REFERENCIA_TIPO_CAMBIO',
+        mensaje: 'El documento original está en moneda extranjera: indica su tipo de cambio para convertir la nota a lempiras.',
+        campo: 'referencia.tipoCambio',
+      }],
+    };
+  }
+  try {
+    const lineas = entrada.lineas.map((l) => {
+      const precio = parsearDecimal(l.precioUnitario, ESCALA_PRECIO, 'precioUnitario');
+      const descuento = parsearDecimal(l.descuento ?? 0, 2, 'descuento');
+      return {
+        ...l,
+        precioUnitario: escaladoATexto(dividirRedondeando(precio * tc, ESCALA_TC), ESCALA_PRECIO),
+        ...(l.descuento !== undefined ? { descuento: escaladoATexto(dividirRedondeando(descuento * tc, ESCALA_TC), 2) } : {}),
+      };
+    });
+    return {
+      entrada: { ...entrada, lineas, referencia: { ...r, tipoCambio: Number(escaladoATexto(tc, 6)) } },
+      problemas: [],
+    };
+  } catch (e) {
+    if (e instanceof ErrorMonto) return { entrada, problemas: [] };
     throw e;
   }
 }
@@ -82,6 +126,18 @@ export class ErrorValidacion extends Error {
 }
 
 /**
+ * Nombre del operador (cajero) para la bitácora o la impresión. No es un requisito del Reglamento: solo se
+ * valida que sea texto legible y corto, para que no rompa la impresión ni la bitácora.
+ */
+export function problemaDeOperador(operador: unknown, campo = 'operador'): Problema | null {
+  if (operador === undefined) return null;
+  if (typeof operador !== 'string' || !operador.trim() || operador.trim().length > 80 || /[\u0000-\u001f\u007f]/.test(operador)) {
+    return { codigo: 'OPERADOR', mensaje: 'El operador debe ser un nombre de 1 a 80 caracteres, sin caracteres de control.', campo };
+  }
+  return null;
+}
+
+/**
  * Valida la entrada contra la autorización, sin asignar número.
  * Llama a esto antes de reservar un correlativo.
  */
@@ -91,12 +147,17 @@ export function validarEntrada(
   opciones: OpcionesDocumento = {},
 ): ResultadoValidacion {
   const problemas: Problema[] = [];
+  const conversion = notaEnLempiras(entrada);
+  problemas.push(...conversion.problemas);
+  entrada = conversion.entrada;
   const tipo = entrada.tipoDocumento ?? '01';
   const hoy = hoyHonduras(opciones);
   const fecha = entrada.fechaEmision ?? hoy;
 
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) problemas.push(problemaTipo);
+  const problemaOperador = problemaDeOperador(entrada.operador);
+  if (problemaOperador) problemas.push(problemaOperador);
 
   // Autorización
   problemas.push(...validarAutorizacion(autorizacion, { caiEstricto: opciones.caiEstricto ?? false }));
@@ -286,6 +347,7 @@ export function construirDocumento(
     });
   }
   if (errores.length) throw new ErrorValidacion(errores, advertencias);
+  entrada = notaEnLempiras(entrada).entrada;
 
   const tipo = entrada.tipoDocumento ?? '01';
   const moneda = entrada.moneda ?? 'HNL';
@@ -329,6 +391,7 @@ export function construirDocumento(
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
+  if (entrada.operador) doc.operador = entrada.operador.trim();
   // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
   return congelar(doc);
 }
