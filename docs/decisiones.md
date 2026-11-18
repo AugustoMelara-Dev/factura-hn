@@ -248,3 +248,27 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   - `FHN_MODO` falla cerrado.
   - Los CSV protegen el texto contra fórmulas (`textoSeguroCSV` en el núcleo). JSONL y TXT no cambian.
 - **Alternativa:** dejarlo documentado como riesgo.
+
+### DEC-036 · Cliente: tipos generados y verificación de webhooks con Web Crypto
+- **Contexto:** Fase 3, cliente tipado. Los receptores de webhooks suelen correr en edge (Next.js, Workers).
+- **Elegida:** `openapi-typescript` sobre `packages/api/openapi.json` (una prueba falla si los tipos quedan
+  viejos) y `openapi-fetch` como única dependencia. `verificarFirmaWebhook` del cliente es asíncrona (Web
+  Crypto, comparación en tiempo constante con `subtle.verify`); la de `@factura-hn/api` sigue síncrona. Una
+  prueba cruzada verifica con el cliente lo que firma la API. El cliente pide Node 20+.
+- **Alternativa:** que el cliente dependa de `@factura-hn/api` (trae pg y Hono) o duplicar con `node:crypto`.
+
+### DEC-037 · Servidor MCP: herramientas acotadas
+- **Contexto:** Fase 3. Un agente que factura debe poder hacer lo de la caja, no administrar.
+- **Elegida:** seis herramientas; `anular_documento` lleva `destructiveHint`. No hay herramientas para
+  registrar CAI, emisores, llaves ni webhooks. La nota de crédito toma la referencia (CAI, número, fecha) y el
+  cliente del documento original. Vía la API, el rol de la llave manda (con una de caja, anular da 403).
+  Con el SDK local, las claves de idempotencia van en `mcp_claves`, en la transacción de la emisión.
+- **Alternativa:** exponer toda la API como herramientas.
+
+### DEC-038 · Ejemplos: idempotencia de punta a punta
+- **Contexto:** los ejemplos se copian tal cual a proyectos reales.
+- **Elegida:** todos emiten con una clave estable por venta: id del pedido (Express), clave por formulario
+  (Next.js), clave del navegador guardada hasta tener respuesta (POS). El POS guarda la clave y su cola de
+  sincronización en la transacción de emisión (`alEmitir`/`alAnular`). Las llaves de API viven solo en el
+  servidor y los ejemplos usan llaves de caja.
+- **Alternativa:** ejemplos mínimos sin idempotencia.

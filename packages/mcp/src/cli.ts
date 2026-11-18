@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
-import { BackendApi, BackendLocal, type Backend } from './backend';
+import { BackendApi, BackendLocal, clavesSQLite, type Backend } from './backend';
 import { crearServidorMCP } from './servidor';
 
 function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
@@ -23,8 +23,10 @@ function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
   }
   if (env.FHN_SQLITE) {
     if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor).');
+    const db = new DatabaseSync(env.FHN_SQLITE);
     return new BackendLocal({
-      almacen: new AlmacenSQLite(new DatabaseSync(env.FHN_SQLITE)),
+      almacen: new AlmacenSQLite(db),
+      claves: clavesSQLite(db),
       emisor: JSON.parse(readFileSync(env.FHN_EMISOR, 'utf8')),
       establecimiento: env.FHN_ESTABLECIMIENTO ?? '000',
       puntoEmision: env.FHN_PUNTO ?? '001',

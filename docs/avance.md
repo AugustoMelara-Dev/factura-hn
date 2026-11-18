@@ -38,17 +38,28 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Paso | Commit |
 |---|---|
 | API: esquema `api_*` con RLS, llaves, emisión idempotente, webhooks, Docker, pruebas de punta a punta | 3899538 |
-| Correcciones de la revisión de seguridad (DEC-035) | (este commit) |
+| Correcciones de la revisión de seguridad (DEC-035) | 009ea03 |
+
+## Hecho (Fase 3)
+
+| Paso | Commit |
+|---|---|
+| `@factura-hn/cliente` y `@factura-hn/mcp` | 711d11d, 008eefc |
+| POS fuera de línea (SQLite) | d651333 |
+| `verificarFirmaWebhook` en el cliente; ejemplo Express 5 | aa043f1 |
+| Ejemplo Next.js 16 | 5f01838 |
+| Playground en el navegador | 512fb88 |
+| Prompts SDK/API en README, AGENTS.md, llms.txt y skill, con prueba | f92d204 |
+| Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | (este commit) |
 
 ## Sigue
 
-1. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
-3. Al cerrar cada fase: resumen con conteo de pruebas y decisiones [REVISAR] de `docs/decisiones.md`.
+1. Revisión independiente de la Fase 3 (matriz y seguridad) y correcciones.
+2. Reporte al usuario: resumen, decisiones [REVISAR] y cómo levantar todo localmente.
 
 ## Cómo correr
 
 ```bash
-pnpm install && pnpm test && pnpm typecheck
-docker compose up -d --wait db   # solo el contenedor de factura-hn
-FHN_PG_URL=postgres://postgres@127.0.0.1:54329/factura_hn pnpm --filter @factura-hn/postgres test
+pnpm install && pnpm test && pnpm test:ejemplos && pnpm typecheck
+pnpm test:pg      # levanta el Postgres de factura-hn (con docker-compose.dev.yml) y corre lo que lo usa
 ```

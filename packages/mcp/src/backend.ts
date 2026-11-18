@@ -75,9 +75,43 @@ const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): 
   };
 };
 
+/**
+ * Dónde se guardan las claves de idempotencia. `guardar` corre **dentro** de la transacción de emisión
+ * (`alEmitir`) y debe lanzar si la clave ya existe: así no hay documento sin clave ni clave sin documento, y
+ * de dos reintentos simultáneos solo uno emite.
+ */
+export interface RegistroClaves {
+  buscar(clave: string): string | null | Promise<string | null>;
+  guardar(clave: string, numero: string): void | Promise<void>;
+}
+
+/** Claves en memoria del proceso: se pierden al reiniciar. Solo para pruebas o sesiones cortas. */
+export function clavesEnMemoria(): RegistroClaves {
+  const m = new Map<string, string>();
+  return {
+    buscar: (c) => m.get(c) ?? null,
+    guardar: (c, n) => {
+      if (m.has(c)) throw new Error('Clave de idempotencia repetida.');
+      m.set(c, n);
+    },
+  };
+}
+
+/**
+ * Claves en la misma base SQLite que el almacén (tabla `mcp_claves`). Como la conexión es una sola, lo que
+ * se escribe en `alEmitir` queda en la transacción de la emisión. Sobreviven a reinicios del servidor MCP.
+ */
+export function clavesSQLite(db: { exec(sql: string): unknown; prepare(sql: string): { run(...p: unknown[]): unknown; get(...p: unknown[]): unknown } }): RegistroClaves {
+  db.exec('CREATE TABLE IF NOT EXISTS mcp_claves (clave TEXT PRIMARY KEY, numero TEXT NOT NULL)');
+  return {
+    buscar: (c) => (db.prepare('SELECT numero FROM mcp_claves WHERE clave = ?').get(c) as { numero: string } | undefined)?.numero ?? null,
+    guardar: (c, n) => void db.prepare('INSERT INTO mcp_claves (clave, numero) VALUES (?, ?)').run(c, n),
+  };
+}
+
 export class BackendLocal implements Backend {
   readonly nombre = 'sdk-local';
-  private readonly emisiones = new Map<string, string>();
+  private readonly claves: RegistroClaves;
   constructor(
     private readonly o: {
       almacen: AlmacenFiscal;
@@ -86,27 +120,33 @@ export class BackendLocal implements Backend {
       puntoEmision: string;
       reloj?: () => Date;
       actor?: string;
+      /** Por defecto en memoria; con SQLite usa `clavesSQLite(db)` para que sobrevivan a reinicios. */
+      claves?: RegistroClaves;
     },
-  ) {}
+  ) {
+    this.claves = o.claves ?? clavesEnMemoria();
+  }
 
   async emitir(entrada: EntradaSinEmisor, idempotencyKey: string): Promise<DocumentoFiscal> {
-    // Idempotencia en memoria del proceso: un reintento del agente en la misma sesión no emite dos veces.
-    const previo = this.emisiones.get(idempotencyKey);
-    if (previo) {
-      const doc = await this.consultar(previo);
-      if (doc) return doc;
-    }
+    const repetido = async () => {
+      const numero = await this.claves.buscar(idempotencyKey);
+      return numero ? this.consultar(numero) : null;
+    };
+    const previo = await repetido();
+    if (previo) return previo;
     try {
-      const doc = await emitir({ ...entrada, emisor: this.o.emisor } as DocumentoEntrada, {
+      return await emitir({ ...entrada, emisor: this.o.emisor } as DocumentoEntrada, {
         almacen: this.o.almacen,
         establecimiento: this.o.establecimiento,
         puntoEmision: this.o.puntoEmision,
         opciones: { reloj: this.o.reloj },
         actor: this.o.actor ?? 'mcp',
+        alEmitir: async (doc) => this.claves.guardar(idempotencyKey, doc.numero),
       });
-      this.emisiones.set(idempotencyKey, doc.numero);
-      return doc;
     } catch (e) {
+      // Otro intento con la misma clave ganó la carrera: esta emisión se revirtió y se devuelve aquella.
+      const ganador = await repetido();
+      if (ganador) return ganador;
       throw traducir(e);
     }
   }

@@ -37,5 +37,6 @@ que pueda anular.
 ```
 
 `emisor.json` lleva los datos del emisor (RTN, razón social, nombre comercial, direcciones, teléfono y
-correo). Las autorizaciones se registran antes con el SDK (`registrarAutorizacion`) o la API: el servidor MCP
+correo). Las claves de idempotencia se guardan en la misma base (tabla `mcp_claves`), en la transacción de
+cada emisión: un reintento del agente, aun después de reiniciar el servidor, devuelve la misma factura. Las autorizaciones se registran antes con el SDK (`registrarAutorizacion`) o la API: el servidor MCP
 no registra CAI. Requiere Node 22.5+ (`node:sqlite`).
