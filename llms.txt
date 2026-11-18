@@ -1,6 +1,6 @@
 # factura-hn
 
-> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/exento/exonerado con el redondeo del Art. 9 de la Ley del ISV, montos exactos (sin punto flotante), montos en letras, validación con códigos de error, emisión atómica sobre Postgres/SQLite, anulación (Art. 41), impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
+> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/0% (exportaciones)/exento/exonerado con el redondeo del Art. 9 de la Ley del ISV, montos exactos (sin punto flotante), montos en letras, validación con códigos de error, emisión atómica sobre Postgres/SQLite, anulación (Art. 41), impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
 
 Un solo camino:
 1. `await registrarAutorizacion(almacen, autorizacion)` una vez por resolución del SAR.
@@ -26,6 +26,7 @@ Errores: `ErrorValidacion` con `errores: {codigo, mensaje, campo}[]`.
 
 - AutorizacionCAI { cai, tipoDocumento, establecimiento, puntoEmision, rangoInicial, rangoFinal, fechaLimiteEmision }
 - DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones? }
-- LineaEntrada { codigo?, descripcion, cantidad, precioUnitario, isv?: 'ISV15'|'ISV18'|'EXENTO', descuento?, unidad? }
+- Emisor { rtn, razonSocial, nombreComercial, direccionCasaMatriz, direccionEstablecimiento, telefono, correo } (todos obligatorios)
+- LineaEntrada { codigo?, descripcion, cantidad, precioUnitario, isv?: 'ISV15'|'ISV18'|'GRAVADO0'|'EXENTO', descuento?, unidad? }
 - DocumentoFiscal { numero, correlativo, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, estado: 'EMITIDO'|'ANULADO', anulacion?, ... }
-- Totales { descuentos, subtotal, importeExonerado, importeExento, importeGravado15, importeGravado18, isv15, isv18, ajustePorRedondeo, total, totalEnLetras }
+- Totales { descuentos, subtotal, importeExonerado, importeExento, importeGravado0, importeGravado15, importeGravado18, baseCreditoFiscal, isv15, isv18, ajustePorRedondeo, total, totalEnLetras }

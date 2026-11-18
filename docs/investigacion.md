@@ -141,6 +141,12 @@ insegura · **B** = mejora o documentación.
 | B-06 anulación Art. 41 | cerrada | `packages/core/test/art41-anulacion.test.ts` |
 | B-04 varias autorizaciones por identificador | cerrada | batería `factura-hn/pruebas` en memoria, SQLite y Postgres |
 | B-18 emisión atómica | cerrada | misma batería (fallo dentro de la transacción, 50 emisiones concurrentes) |
+| B-01 gravado 0 % / exportaciones | cerrada | `packages/core/test/paso7-requisitos.test.ts` («B-01 …») |
+| B-02 base de crédito fiscal | cerrada | `paso7-requisitos.test.ts` («B-02 …») |
+| B-05 datos completos del emisor | cerrada | `paso7-requisitos.test.ts` («B-05 …», una prueba por campo) |
+| B-12 exonerado OCE + constancia o SAG/RUPNSA | cerrada | `paso7-requisitos.test.ts` («B-12 …») |
+| B-13 coherencia de notas | cerrada | `packages/core/test/b13-notas.test.ts` |
+| B-15 tipos no emitibles por sistema | cerrada | `paso7-requisitos.test.ts` («B-15 …») |
 | Reloj adelantado (revisión del 2026-11-18) | cerrada | contrato: «rechaza un salto de fecha sospechoso…», «procedimiento ante reloj adelantado…» |
 | Bitácora de auditoría | cerrada | contrato: «la bitácora registra autorizaciones y anulaciones…»; disparadores en SQLite y Postgres |
 

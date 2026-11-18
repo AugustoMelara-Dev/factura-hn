@@ -104,5 +104,7 @@ it('el ejemplo del README da los números que promete', async () => {
   expect(f.numero).toBe('000-001-01-00000001');
   expect(f.totales.total).toBe(455);
   expect(f.totales.totalEnLetras).toBe('CUATROCIENTOS CINCUENTA Y CINCO LEMPIRAS CON 00/100');
-  expect(f.advertencias).toEqual([]);
+  // Frijoles exentos + productos gravados a un cliente con RTN: aviso del Art. 11 num. 3.
+  expect(f.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
+  expect(f.totales.baseCreditoFiscal).toBe(f.totales.importeGravado15 + f.totales.importeGravado18);
 });

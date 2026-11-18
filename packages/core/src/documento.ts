@@ -3,10 +3,10 @@
  */
 import { congelar } from './inmutable';
 import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, validarLineas } from './calculo';
-import { escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
+import { centavosATexto, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
-import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, TIPOS_DOCUMENTO } from './numeracion';
+import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import type {
   AutorizacionCAI,
   DocumentoEntrada,
@@ -42,6 +42,38 @@ export function hoyHonduras(opciones: Pick<OpcionesDocumento, 'reloj'> = {}): st
 
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
+/**
+ * Documentos que un autoimpresor por sistema computarizado no puede emitir (B-15):
+ * - 09 Ticket: se emite «exclusivamente para consumidores finales a través de máquinas registradoras»
+ *   (Reglamento Art. 4 num. 43, C L.448-450; Art. 17).
+ * - 04 Recibo por Honorarios Profesionales y 10 Factura Prevalorada: «deben ser exclusivamente emitidos bajo
+ *   la modalidad de imprenta» (Art. 46).
+ * - 12 Constancia de Donación: excluida de la modalidad de autoimpresor (Art. 47, C L.2047-2080).
+ */
+export const TIPOS_NO_EMITIBLES_POR_SISTEMA: Readonly<Record<string, string>> = {
+  '04': 'el Recibo por Honorarios Profesionales se emite exclusivamente bajo la modalidad de imprenta (Art. 46)',
+  '09': 'el Ticket se emite exclusivamente por máquinas registradoras (Art. 4 num. 43)',
+  '10': 'la Factura Prevalorada se emite exclusivamente bajo la modalidad de imprenta (Art. 46)',
+  '12': 'la Constancia de Donación no se emite en la modalidad de autoimpresor (Art. 47)',
+};
+
+/** Comprobantes Fiscales (Reglamento Art. 6). Una Nota de Crédito solo se vincula a uno de ellos (Art. 4 num. 32). */
+export const COMPROBANTES_FISCALES: readonly string[] = ['01', '10', '09', '04', '11', '12'];
+
+/** Problema de tipo de documento, o null si el sistema puede emitirlo en esta versión. */
+export function problemaDeTipo(tipo: string): Problema | null {
+  const motivo = TIPOS_NO_EMITIBLES_POR_SISTEMA[tipo];
+  if (motivo) {
+    return { codigo: 'TIPO_NO_EMITIBLE', mensaje: `Un sistema computarizado no puede emitir el tipo ${tipo}: ${motivo}.`, campo: 'tipoDocumento' };
+  }
+  if (!SOPORTADOS.includes(tipo as TipoDocumentoSoportado)) {
+    return { codigo: 'TIPO_NO_SOPORTADO', mensaje: `Tipo de documento ${tipo} no soportado en esta versión (01, 06, 07).`, campo: 'tipoDocumento' };
+  }
+  return null;
+}
+
+const PATRON_CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 export class ErrorValidacion extends Error {
   constructor(public readonly errores: Problema[], public readonly advertencias: Problema[] = []) {
     super(`Documento inválido: ${errores.map((e) => `[${e.codigo}] ${e.mensaje}`).join(' ')}`);
@@ -63,9 +95,8 @@ export function validarEntrada(
   const hoy = hoyHonduras(opciones);
   const fecha = entrada.fechaEmision ?? hoy;
 
-  if (!SOPORTADOS.includes(tipo)) {
-    problemas.push({ codigo: 'TIPO_NO_SOPORTADO', mensaje: `Tipo de documento ${tipo} no soportado en esta versión (01, 06, 07).`, campo: 'tipoDocumento' });
-  }
+  const problemaTipo = problemaDeTipo(tipo);
+  if (problemaTipo) problemas.push(problemaTipo);
 
   // Autorización
   problemas.push(...validarAutorizacion(autorizacion, { caiEstricto: opciones.caiEstricto ?? false }));
@@ -103,8 +134,16 @@ export function validarEntrada(
   else {
     if (!e.rtn || !esRTNValido(e.rtn)) problemas.push({ codigo: 'EMISOR_RTN', mensaje: 'RTN del emisor inválido (14 dígitos).', campo: 'emisor.rtn' });
     if (!e.razonSocial?.trim()) problemas.push({ codigo: 'EMISOR_NOMBRE', mensaje: 'Falta el nombre o razón social del emisor.', campo: 'emisor.razonSocial' });
-    if (!e.direccionCasaMatriz?.trim()) problemas.push({ codigo: 'EMISOR_DIRECCION', mensaje: 'Falta la dirección de casa matriz.', campo: 'emisor.direccionCasaMatriz' });
-    if (!e.telefono && !e.correo) problemas.push({ codigo: 'AVISO_EMISOR_CONTACTO', mensaje: 'Se recomienda incluir teléfono y correo del emisor (Art. 10).', campo: 'emisor' });
+    // Art. 10 num. 1 (y Arts. 25 y 27 num. 1 para las notas): todos los datos de identificación del emisor.
+    if (!e.nombreComercial?.trim())
+      problemas.push({ codigo: 'EMISOR_NOMBRE_COMERCIAL', mensaje: 'Falta el nombre comercial del emisor (Art. 10 num. 1 c). Si no tiene uno distinto, repite la razón social.', campo: 'emisor.nombreComercial' });
+    if (!e.direccionCasaMatriz?.trim()) problemas.push({ codigo: 'EMISOR_DIRECCION', mensaje: 'Falta la dirección de casa matriz (Art. 10 num. 1 d).', campo: 'emisor.direccionCasaMatriz' });
+    if (!e.direccionEstablecimiento?.trim())
+      problemas.push({ codigo: 'EMISOR_DIRECCION_ESTABLECIMIENTO', mensaje: 'Falta la dirección del establecimiento donde está el punto de emisión (Art. 10 num. 1 d).', campo: 'emisor.direccionEstablecimiento' });
+    if (!e.telefono?.trim()) problemas.push({ codigo: 'EMISOR_TELEFONO', mensaje: 'Falta el número telefónico del emisor (Art. 10 num. 1 e).', campo: 'emisor.telefono' });
+    if (!e.correo?.trim()) problemas.push({ codigo: 'EMISOR_CORREO', mensaje: 'Falta el correo electrónico del emisor (Art. 10 num. 1 f).', campo: 'emisor.correo' });
+    else if (!PATRON_CORREO.test(e.correo.trim()))
+      problemas.push({ codigo: 'EMISOR_CORREO', mensaje: `El correo del emisor no parece válido: "${e.correo}".`, campo: 'emisor.correo' });
   }
 
   // Cliente
@@ -127,10 +166,15 @@ export function validarEntrada(
   // Exoneración
   if (entrada.exoneracion) {
     const x = entrada.exoneracion;
-    if (!x.ordenCompraExenta?.trim())
-      problemas.push({ codigo: 'EXONERACION_ORDEN', mensaje: 'Falta el número de Orden de Compra Exenta.', campo: 'exoneracion.ordenCompraExenta' });
-    if (!x.constanciaRegistroExonerado?.trim())
-      problemas.push({ codigo: 'EXONERACION_CONSTANCIA', mensaje: 'Falta el número de Constancia de Registro de Exonerados.', campo: 'exoneracion.constanciaRegistroExonerado' });
+    // Art. 11 num. 4: OCE y Constancia del Registro de Exonerados «o» el registro RUPNSA de la SAG, «según
+    // corresponda». Con el registro SAG basta; sin él, hacen falta los dos documentos.
+    if (!x.registroSAG?.trim()) {
+      const falta = ' (Art. 11 num. 4: Orden de Compra Exenta y Constancia, o el registro SAG/RUPNSA).';
+      if (!x.ordenCompraExenta?.trim())
+        problemas.push({ codigo: 'EXONERACION_ORDEN', mensaje: `Falta el número de Orden de Compra Exenta${falta}`, campo: 'exoneracion.ordenCompraExenta' });
+      if (!x.constanciaRegistroExonerado?.trim())
+        problemas.push({ codigo: 'EXONERACION_CONSTANCIA', mensaje: `Falta el número de Constancia de Registro de Exonerados${falta}`, campo: 'exoneracion.constanciaRegistroExonerado' });
+    }
     if (!c.rtn)
       problemas.push({ codigo: 'AVISO_EXONERADO_RTN', mensaje: 'Un adquirente exonerado normalmente se identifica con RTN.', campo: 'cliente.rtn' });
   }
@@ -150,6 +194,23 @@ export function validarEntrada(
       if (!r.cai?.trim()) problemas.push({ codigo: 'REFERENCIA_CAI', mensaje: 'Falta el CAI del documento referenciado.', campo: 'referencia.cai' });
       if (!r.numero || !esNumeroValido(r.numero)) problemas.push({ codigo: 'REFERENCIA_NUMERO', mensaje: 'Número del documento referenciado inválido.', campo: 'referencia.numero' });
       if (!r.fecha || !esFechaValida(r.fecha)) problemas.push({ codigo: 'REFERENCIA_FECHA', mensaje: 'Fecha del documento referenciado inválida.', campo: 'referencia.fecha' });
+      else if (esFechaValida(fecha) && r.fecha > fecha) {
+        // Arts. 26 num. 3 c y 28 num. 3 c: la nota consigna los datos de un documento ya emitido; la NC respalda
+        // ajustes «efectuados con posterioridad a la emisión del correspondiente Comprobante Fiscal» (Art. 4 num. 32).
+        problemas.push({ codigo: 'REFERENCIA_FECHA_POSTERIOR', mensaje: `El documento referenciado (${r.fecha}) no puede tener fecha posterior a la nota (${fecha}).`, campo: 'referencia.fecha' });
+      }
+      if (r.numero && esNumeroValido(r.numero) && tipo === '06') {
+        const tipoRef = parsearNumero(r.numero).tipoDocumento;
+        // Art. 4 num. 32: la Nota de Crédito está «vinculada a un Comprobante Fiscal» (los del Art. 6). La Nota de
+        // Débito admite «el Comprobante Fiscal o el documento» (Art. 28 num. 3 b), así que no se restringe.
+        if (!COMPROBANTES_FISCALES.includes(tipoRef)) {
+          problemas.push({
+            codigo: 'REFERENCIA_TIPO',
+            mensaje: `Una Nota de Crédito se aplica a un Comprobante Fiscal (Art. 6); el documento ${r.numero} es ${TIPOS_DOCUMENTO[tipoRef]}.`,
+            campo: 'referencia.numero',
+          });
+        }
+      }
     }
     if (!entrada.motivo?.trim()) problemas.push({ codigo: 'MOTIVO', mensaje: 'Las notas de crédito y débito requieren el motivo.', campo: 'motivo' });
     if (!c.nombre?.trim()) problemas.push({ codigo: 'CLIENTE_NOMBRE', mensaje: 'Las notas de crédito y débito requieren el nombre del adquirente.', campo: 'cliente.nombre' });
@@ -173,6 +234,17 @@ export function validarEntrada(
     const umbral = opciones.umbralIdentificacionConsumidorFinal ?? UMBRAL_CONSUMIDOR_FINAL;
     const umbral6 = parsearDecimal(umbral, 2, 'umbralIdentificacionConsumidorFinal') * ESCALA_TC;
     problemas.push(...advertenciasDeCalculo(totales));
+    // Art. 11 num. 3: si la factura mezcla ventas exentas (o exoneradas) y gravadas, para el crédito fiscal del
+    // comprador solo cuentan las gravadas. Se avisa cuando el comprador se identifica con RTN.
+    const noGravado = totales.importeExento + totales.importeExonerado;
+    if (c.rtn && noGravado > 0n && totales.baseCreditoFiscal > 0n) {
+      problemas.push({
+        codigo: 'AVISO_VENTA_MIXTA',
+        mensaje: 'Venta mixta: para el crédito fiscal del comprador solo cuenta lo gravado (Art. 11 num. 3), ' +
+          `L ${centavosATexto(totales.baseCreditoFiscal)} de base.`,
+        campo: 'lineas',
+      });
+    }
     const identificado = Boolean(c.rtn) || (Boolean(c.nombre?.trim()) && Boolean(c.identificacion?.numero?.trim()));
     if (totalLempiras6 > umbral6 && !identificado) {
       problemas.push({
@@ -197,10 +269,13 @@ export function construirDocumento(
   autorizacion: AutorizacionCAI,
   correlativo: number,
   opciones: OpcionesDocumento = {},
+  /** Problemas que el flujo de emisión detectó fuera de la entrada (p. ej. contra el almacén). */
+  adicionales: Problema[] = [],
 ): DocumentoFiscal {
   entrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(opciones) };
   const v = validarEntrada(entrada, autorizacion, opciones);
-  const errores = [...v.errores];
+  const errores = [...v.errores, ...adicionales.filter((p) => !esAdvertencia(p))];
+  const advertencias = [...v.advertencias, ...adicionales.filter(esAdvertencia)];
   if (!Number.isInteger(correlativo) || correlativo < autorizacion.rangoInicial || correlativo > autorizacion.rangoFinal) {
     errores.push({
       codigo: 'CORRELATIVO_FUERA_DE_RANGO',
@@ -208,7 +283,7 @@ export function construirDocumento(
       campo: 'correlativo',
     });
   }
-  if (errores.length) throw new ErrorValidacion(errores, v.advertencias);
+  if (errores.length) throw new ErrorValidacion(errores, advertencias);
 
   const tipo = entrada.tipoDocumento ?? '01';
   const moneda = entrada.moneda ?? 'HNL';
@@ -242,7 +317,7 @@ export function construirDocumento(
     lineas,
     totales,
     destinoEjemplares: DESTINO_EJEMPLARES,
-    advertencias: v.advertencias,
+    advertencias,
     estado: 'EMITIDO',
   };
   if (entrada.horaEmision) doc.horaEmision = entrada.horaEmision;

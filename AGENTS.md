@@ -77,15 +77,21 @@ const entrada: DocumentoEntrada = {
     descripcion: i.nombre,
     cantidad: i.cantidad,                   // texto exacto desde la base: '2' o '1.5'
     precioUnitario: i.precio,               // '89.50'
-    isv: i.producto.tratamientoISV,         // 'ISV15' | 'ISV18' | 'EXENTO', guardado en el producto
+    isv: i.producto.tratamientoISV,         // 'ISV15' | 'ISV18' | 'GRAVADO0' | 'EXENTO', guardado en el producto
     descuento: i.descuento ?? '0',          // monto, no porcentaje
   })),
   condicionPago: 'CONTADO',
 };
 ```
 
-Si el cliente presenta Orden de Compra Exenta, agrega
-`exoneracion: { ordenCompraExenta, constanciaRegistroExonerado, registroSAG? }`.
+Si el cliente es exonerado, agrega `exoneracion` con la Orden de Compra Exenta **y** la Constancia del
+Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4):
+`{ ordenCompraExenta, constanciaRegistroExonerado }` o `{ registroSAG }`.
+
+En exportaciones usa `isv: 'GRAVADO0'` (tasa cero, Art. 12); no es lo mismo que `EXENTO`.
+
+Los siete datos del emisor son obligatorios (Art. 10 num. 1): RTN, razón social, nombre comercial (repite la
+razón social si no tiene otro), direcciones de casa matriz y del establecimiento, teléfono y correo.
 
 ## Servicio de emisión (patrón)
 
@@ -203,7 +209,10 @@ Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
 | `SIN_DOCUMENTOS_ADELANTADOS` | No hay nada que corregir en esa serie |
 | `CONSUMIDOR_FINAL_IDENTIFICACION` | Pedir nombre + DNI/RTN (venta > L 10,000) |
 | `CLIENTE_RTN`, `EMISOR_RTN` | RTN debe tener 14 dígitos |
-| `REFERENCIA*`, `MOTIVO` | Completar los datos del documento original en notas 06/07 |
+| `REFERENCIA*`, `MOTIVO` | Completar o corregir los datos del documento original en notas 06/07 (debe existir, no estar anulado y tener el mismo CAI, fecha y RTN) |
+| `EMISOR_*` | Completar los datos del emisor en la configuración del negocio (Art. 10 num. 1) |
+| `EXONERACION_*` | Pedir OCE y constancia, o el registro SAG/RUPNSA |
+| `TIPO_NO_EMITIBLE` | Ese documento no se emite por sistema (Ticket 09, Honorarios 04, Prevalorada 10, Donación 12) |
 | `NOTA_CLIENTE_RTN`, `NOTA_MONEDA` | Las notas exigen RTN del adquirente y se emiten en lempiras |
 | `TIPO_CAMBIO` | Indicar tipo de cambio si la moneda no es HNL |
 | `YA_ANULADO` / `DOCUMENTO_NO_ENCONTRADO` | Al anular: el documento ya estaba anulado o el número no existe |

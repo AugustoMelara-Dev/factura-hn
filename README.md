@@ -1,7 +1,7 @@
 # factura-hn
 
 **Facturación SAR Honduras para JavaScript/TypeScript.** Numeración de 16 dígitos, control de CAI y rangos,
-cálculo de ISV 15% / 18% / exento / exonerado, montos en letras, validación según el Acuerdo 481-2017 e
+cálculo de ISV 15% / 18% / 0% / exento / exonerado, montos en letras, validación según el Acuerdo 481-2017 e
 impresión en hoja carta, ticket de 80 mm o texto para impresoras térmicas.
 
 Sin dependencias. Funciona en Node, Bun, Deno, el navegador y edge functions.
@@ -61,6 +61,7 @@ const factura = await emitir(
 factura.numero;                 // "000-001-01-00000001"
 factura.totales.total;          // 455
 factura.totales.totalEnLetras;  // "CUATROCIENTOS CINCUENTA Y CINCO LEMPIRAS CON 00/100"
+factura.advertencias;           // [AVISO_VENTA_MIXTA]: para el crédito fiscal solo cuenta lo gravado
 renderizarHTML(factura);        // HTML listo para imprimir o convertir a PDF
 ```
 
@@ -92,8 +93,8 @@ y un [`llms.txt`](llms.txt) con el resumen de la API.
 |---|---|
 | **Numeración** | `000-001-01-00000001`: formatear, parsear, validar y comprobar que pertenece al rango del CAI |
 | **CAI y rangos** | Bloquea emitir después de la fecha límite o fuera del rango; avisa cuando quedan pocos días o pocos números |
-| **ISV** | 15%, 18%, exento y exonerado; precios con o sin ISV; descuentos por línea; aritmética en centavos |
-| **Validación** | RTN, DNI, datos del emisor, consumidor final > L 10,000, adquirente exonerado, moneda extranjera, notas de crédito/débito. Errores con código, mensaje y campo |
+| **ISV** | 15%, 18%, gravado 0 % (exportaciones), exento y exonerado; base de crédito fiscal; precios con o sin ISV; descuentos por línea; aritmética en centavos |
+| **Validación** | RTN, DNI, datos completos del emisor, consumidor final > L 10,000, adquirente exonerado, moneda extranjera, coherencia de notas de crédito/débito con el original, tipos que un sistema no puede emitir. Errores con código, mensaje y campo |
 | **Documentos** | Factura (01), Nota de Crédito (06), Nota de Débito (07) — códigos vigentes tras el Acuerdo 609-2017 |
 | **Impresión** | HTML carta, HTML ticket 80 mm y texto plano de 32/42/48 columnas para térmicas |
 | **Persistencia** | Emisión atómica sobre Postgres, SQLite o memoria; sin huecos ni repetidos con varias cajas |
@@ -184,7 +185,7 @@ La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y
 
 ## Hoja de ruta
 
-- [ ] Exportaciones a tasa cero (Art. 12)
+- [x] Exportaciones a tasa cero (Art. 12)
 - [x] Anulación (Art. 41)
 - [ ] Aviso de documentos no utilizados (Art. 42)
 - [ ] Generación de PDF sin navegador

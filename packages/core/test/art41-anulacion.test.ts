@@ -23,7 +23,7 @@ const AUT: AutorizacionCAI = {
 const emitir = (): DocumentoFiscal =>
   construirDocumento(
     {
-      emisor: { rtn: '08011999123456', razonSocial: 'E', direccionCasaMatriz: 'D', telefono: '1', correo: 'a@b.hn' },
+      emisor: { rtn: '08011999123456', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@b.hn' },
       lineas: [{ descripcion: 'Arroz', cantidad: 1, precioUnitario: '100' }],
     },
     AUT,

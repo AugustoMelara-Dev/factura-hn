@@ -25,23 +25,37 @@ export type CodigoTipoDocumento =
 /** Documentos que esta versión sabe construir, calcular y renderizar. */
 export type TipoDocumentoSoportado = '01' | '06' | '07';
 
-/** Tratamiento fiscal de una línea. */
-export type TratamientoISV = 'ISV15' | 'ISV18' | 'EXENTO';
+/**
+ * Tratamiento fiscal de una línea.
+ * - `GRAVADO0`: gravado con alícuota cero, p. ej. exportaciones (Reglamento Art. 12: «extender la Factura con
+ *   tasa cero»). Se discrimina aparte de lo exento y lo exonerado (Art. 11 num. 1 g y num. 2 e).
+ */
+export type TratamientoISV = 'ISV15' | 'ISV18' | 'GRAVADO0' | 'EXENTO';
 
 export type Moneda = 'HNL' | 'USD';
 
+/**
+ * Datos de identificación del emisor. Todos son obligatorios (Reglamento Art. 10 num. 1; Arts. 25 y 27
+ * num. 1 para las notas).
+ */
 export interface Emisor {
-  /** RTN de 14 dígitos (con o sin guiones). */
+  /** RTN de 14 dígitos (con o sin guiones). Art. 10 num. 1 a. */
   rtn: string;
-  /** Nombre o razón social. */
+  /**
+   * Nombres y apellidos, o razón o denominación social. Art. 10 num. 1 b: el comerciante individual puede
+   * usar aquí el nombre comercial registrado en el RTN.
+   */
   razonSocial: string;
-  nombreComercial?: string;
-  /** Dirección de casa matriz. */
+  /** Nombre comercial. Art. 10 num. 1 c. Si no tiene uno distinto, repite la razón social. */
+  nombreComercial: string;
+  /** Dirección de la casa matriz. Art. 10 num. 1 d. */
   direccionCasaMatriz: string;
-  /** Dirección del establecimiento / punto de emisión, si es distinto de casa matriz. */
-  direccionEstablecimiento?: string;
-  telefono?: string;
-  correo?: string;
+  /** Dirección del establecimiento donde está el punto de emisión (puede ser la de casa matriz). Art. 10 num. 1 d. */
+  direccionEstablecimiento: string;
+  /** Número telefónico. Art. 10 num. 1 e. */
+  telefono: string;
+  /** Correo electrónico registrado en el contrato de adhesión. Art. 10 num. 1 f. */
+  correo: string;
 }
 
 /**
@@ -76,13 +90,18 @@ export interface Cliente {
   direccion?: string;
 }
 
-/** Datos del adquirente exonerado (Art. 10, numeral 8). */
+/**
+ * Datos del adquirente exonerado (Reglamento Art. 10 num. 8 y Art. 11 num. 4). Hay dos caminos, «según
+ * corresponda» (Art. 11 num. 4):
+ * - Orden de Compra Exenta **y** Constancia del Registro de Exonerados; **o**
+ * - el número del Registro Único de Personas Naturales del Sector Agroindustrial (RUPNSA, registro de la SAG).
+ */
 export interface Exoneracion {
-  /** Número de la Orden de Compra Exenta. */
-  ordenCompraExenta: string;
-  /** Número de Constancia de Registro de Exonerados. */
-  constanciaRegistroExonerado: string;
-  /** Número de registro de la SAG, cuando aplique. */
+  /** Número correlativo de la Orden de Compra Exenta. */
+  ordenCompraExenta?: string;
+  /** Número correlativo de la Constancia del Registro de Exonerados. */
+  constanciaRegistroExonerado?: string;
+  /** Número identificativo del registro de la SAG / RUPNSA (sector agroindustrial). */
   registroSAG?: string;
 }
 
@@ -168,8 +187,15 @@ export interface Totales {
   subtotal: number;
   importeExonerado: number;
   importeExento: number;
+  /** Gravado con alícuota cero (exportaciones, Art. 12). */
+  importeGravado0: number;
   importeGravado15: number;
   importeGravado18: number;
+  /**
+   * Base que respalda crédito fiscal: solo lo gravado al 15 % y al 18 % (Reglamento Art. 11 num. 3: «se
+   * reconocerán únicamente las ventas gravadas»). Lo gravado al 0 % no genera ISV que acreditar.
+   */
+  baseCreditoFiscal: number;
   isv15: number;
   isv18: number;
   total: number;

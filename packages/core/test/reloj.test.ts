@@ -22,7 +22,7 @@ const AUT: AutorizacionCAI = {
 };
 const entrada = (fechaEmision?: string) => ({
   ...(fechaEmision ? { fechaEmision } : {}),
-  emisor: { rtn: '08011999123456', razonSocial: 'E', direccionCasaMatriz: 'D', telefono: '1', correo: 'a@b.hn' },
+  emisor: { rtn: '08011999123456', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@b.hn' },
   lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10' }],
 });
 // 23:30 del 18 de noviembre en Honduras = 05:30 UTC del 19.

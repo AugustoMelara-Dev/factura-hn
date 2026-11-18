@@ -22,6 +22,7 @@ import {
   type DocumentoEntrada,
 } from '../src';
 import { construirDocumento } from '../src/documento';
+import { anularDocumento } from '../src/anulacion';
 
 const AUT: AutorizacionCAI = {
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
@@ -38,6 +39,7 @@ const EMISOR = {
   razonSocial: 'Comercial Ejemplo S. de R.L.',
   nombreComercial: 'Pulpería La Bendición',
   direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
+  direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
   telefono: '2444-0000',
   correo: 'ventas@ejemplo.hn',
 };
@@ -283,7 +285,7 @@ describe('render y reportes', () => {
       autNC,
       1,
     );
-    const filas = [filaLibroVentas(doc), filaLibroVentas(nc), filaLibroVentas(doc, { anulado: true })];
+    const filas = [filaLibroVentas(doc), filaLibroVentas(nc), filaLibroVentas(anularDocumento(doc, { motivo: 'x' }))];
     const r = resumenVentas(filas);
     expect(r.documentos).toBe(3);
     expect(r.importeGravado15).toBe(90 - 50);

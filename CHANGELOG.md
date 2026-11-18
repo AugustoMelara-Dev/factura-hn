@@ -27,7 +27,25 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **Documentos inmutables.** `emitir` y `anular` devuelven el documento congelado en
   profundidad (`Object.freeze`) y con `estado: 'EMITIDO'`. Si tu código modificaba el documento, copia antes.
 
+- **Datos del emisor obligatorios (B-05, Art. 10 num. 1).** `nombreComercial`, `direccionEstablecimiento`,
+  `telefono` y `correo` pasan a ser obligatorios en `Emisor` (errores `EMISOR_*`). Desaparece el aviso
+  `AVISO_EMISOR_CONTACTO`.
+- **Exoneración (B-12, Art. 11 num. 4).** Los tres campos de `Exoneracion` son opcionales: se exige OCE y
+  constancia, o solo `registroSAG` (RUPNSA).
+- `filaLibroVentas(doc)` ya no recibe `{ anulado }`: el estado sale del documento. El CSV del libro agrega la
+  columna «Gravado 0%».
+- `TIPO_NO_EMITIBLE` (en lugar de `TIPO_NO_SOPORTADO`) para 04, 09, 10 y 12, también al registrar la
+  autorización (B-15, Arts. 4 num. 43, 46 y 47).
+
 ### Agregado
+
+- **Gravado 0 % (B-01, Arts. 11 y 12):** `isv: 'GRAVADO0'` y `totales.importeGravado0`, discriminado en
+  render y libro.
+- **Crédito fiscal (B-02, Art. 11 num. 3):** `totales.baseCreditoFiscal` y el aviso `AVISO_VENTA_MIXTA` cuando
+  el comprador tiene RTN.
+- **Coherencia de notas (B-13):** la NC solo sobre Comprobantes Fiscales (Art. 6) y nunca con fecha anterior
+  al original. Dentro de `emitir`, contra el almacén: el original debe existir, no estar ANULADO y coincidir en
+  CAI, fecha y RTN (`REFERENCIA_*`). Si pertenece a otra autorización, `AVISO_REFERENCIA_NO_VERIFICADA`.
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.

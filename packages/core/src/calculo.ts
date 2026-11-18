@@ -17,7 +17,7 @@ import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATe
 import { centavosEnLetras } from './letras';
 import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, TratamientoISV } from './tipos';
 
-export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO'>, number> = {
+export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, number> = {
   ISV15: 15,
   ISV18: 18,
 };
@@ -99,7 +99,7 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
     const campo = `lineas[${i}]`;
     if (!l.descripcion || !l.descripcion.trim())
       problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: falta la descripción.`, campo });
-    if (l.isv !== undefined && !['ISV15', 'ISV18', 'EXENTO'].includes(l.isv))
+    if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
     leerLinea(l, i, problemas);
   });
@@ -138,6 +138,9 @@ export interface TotalesCentavos {
   importeExento: bigint;
   importeGravado15: bigint;
   importeGravado18: bigint;
+  importeGravado0: bigint;
+  /** gravado 15 % + gravado 18 % (Art. 11 num. 3). */
+  baseCreditoFiscal: bigint;
   isv15: bigint;
   isv18: bigint;
   total: bigint;
@@ -153,7 +156,7 @@ export function calcularCentavos(
   if (problemas.length) throw new ErrorCalculo(problemas);
 
   const incluye = opciones.preciosIncluyenISV ?? false;
-  const grupos: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, EXENTO: 0n };
+  const grupos: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, GRAVADO0: 0n, EXENTO: 0n };
   let descuentos = 0n;
 
   const calculadas = lineas.map((entrada, i) => {
@@ -181,13 +184,16 @@ export function calcularCentavos(
     ajuste = (g15?.ajuste ?? 0n) + (g18?.ajuste ?? 0n);
   }
   const exento = grupos.EXENTO;
-  const subtotal = exonerado + exento + gravado15 + gravado18;
+  // Alícuota cero (Art. 12): gravado, sin ISV; se discrimina aparte (Art. 11 num. 1 g).
+  const gravado0 = grupos.GRAVADO0;
+  const subtotal = exonerado + exento + gravado0 + gravado15 + gravado18;
   const total = subtotal + isv15 + isv18;
   return {
     lineas: calculadas,
     totales: {
       descuentos, subtotal, importeExonerado: exonerado, importeExento: exento,
-      importeGravado15: gravado15, importeGravado18: gravado18, isv15, isv18, total,
+      importeGravado15: gravado15, importeGravado18: gravado18, importeGravado0: gravado0,
+      baseCreditoFiscal: gravado15 + gravado18, isv15, isv18, total,
       ajustePorRedondeo: ajuste,
     },
   };
@@ -217,8 +223,10 @@ export function calcularDocumento(
     subtotal: deCentavos(t.subtotal),
     importeExonerado: deCentavos(t.importeExonerado),
     importeExento: deCentavos(t.importeExento),
+    importeGravado0: deCentavos(t.importeGravado0),
     importeGravado15: deCentavos(t.importeGravado15),
     importeGravado18: deCentavos(t.importeGravado18),
+    baseCreditoFiscal: deCentavos(t.baseCreditoFiscal),
     isv15: deCentavos(t.isv15),
     isv18: deCentavos(t.isv18),
     total: deCentavos(t.total),
@@ -246,7 +254,7 @@ export function advertenciasDeCalculo(t: TotalesCentavos): Problema[] {
  */
 export function sugerirPrecioSinAjuste(
   precio: Monto,
-  opciones: { isv?: Exclude<TratamientoISV, 'EXENTO'>; cantidad?: Monto } = {},
+  opciones: { isv?: Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>; cantidad?: Monto } = {},
 ): { requiereAjuste: boolean; anterior: number; siguiente: number } {
   const tasa = TASAS_ISV[opciones.isv ?? 'ISV15'];
   const p = parsearDecimal(precio, 2, 'El precio');

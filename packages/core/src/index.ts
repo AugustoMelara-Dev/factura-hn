@@ -71,6 +71,9 @@ export {
 export type { OpcionesCalculo, TotalesCentavos } from './calculo';
 export {
   validarEntrada,
+  problemaDeTipo,
+  TIPOS_NO_EMITIBLES_POR_SISTEMA,
+  COMPROBANTES_FISCALES,
   ErrorValidacion,
   hoyHonduras,
   UMBRAL_CONSUMIDOR_FINAL,

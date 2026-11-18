@@ -18,7 +18,7 @@ export interface OpcionesRender {
 }
 
 
-const ETIQUETA_ISV: Record<TratamientoISV, string> = { ISV15: 'G', ISV18: 'G18', EXENTO: 'E' };
+const ETIQUETA_ISV: Record<TratamientoISV, string> = { ISV15: 'G', ISV18: 'G18', GRAVADO0: 'G0', EXENTO: 'E' };
 
 /** Precio unitario con 2 decimales, o hasta 4 si los trae (Art. 11 num. 1 lit. f: valor unitario). */
 function formatearPrecio(precio: number): string {
@@ -48,6 +48,8 @@ function filasTotales(doc: DocumentoFiscal): Array<[string, number, boolean?]> {
     ['Sub-total', t.subtotal],
     ['Importe exonerado', t.importeExonerado],
     ['Importe exento', t.importeExento],
+    // Art. 11 num. 1 g: «gravados con alícuota cero, cuando corresponda».
+    ...(t.importeGravado0 > 0 ? [['Importe gravado 0%', t.importeGravado0] as [string, number]] : []),
     ['Importe gravado 15%', t.importeGravado15],
     ['Importe gravado 18%', t.importeGravado18],
     ['I.S.V. 15%', t.isv15],
@@ -99,9 +101,9 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
 
   const exo = doc.exoneracion
     ? `<section class="bloque"><h3>Datos del adquirente exonerado</h3>
-        <div>N° Orden de Compra Exenta: <b>${esc(doc.exoneracion.ordenCompraExenta)}</b></div>
-        <div>N° Constancia de Registro de Exonerados: <b>${esc(doc.exoneracion.constanciaRegistroExonerado)}</b></div>
-        <div>N° Registro SAG: <b>${esc(doc.exoneracion.registroSAG ?? '—')}</b></div>
+        <div>N° Orden de Compra Exenta: <b>${esc(doc.exoneracion.ordenCompraExenta ?? '—')}</b></div>
+        <div>N° Constancia de Registro de Exonerados: <b>${esc(doc.exoneracion.constanciaRegistroExonerado ?? '—')}</b></div>
+        <div>N° Registro SAG / RUPNSA: <b>${esc(doc.exoneracion.registroSAG ?? '—')}</b></div>
       </section>`
     : '';
 

@@ -12,9 +12,10 @@ import {
   type TipoEventoAuditoria,
   type TransaccionFiscal,
 } from './almacen';
-import { construirDocumento, ErrorValidacion, hoyHonduras } from './documento';
+import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeTipo } from './documento';
+import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
-import { TIPOS_DOCUMENTO } from './numeracion';
+import { esNumeroValido, formatearNumero, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import type { AutorizacionCAI, DocumentoEntrada, DocumentoFiscal, OpcionesDocumento, Problema } from './tipos';
 
 function error(codigo: string, mensaje: string, campo?: string): ErrorValidacion {
@@ -45,6 +46,9 @@ function evento(
  */
 export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI): Problema[] {
   const problemas = validarAutorizacion(nueva).filter((p) => !esAdvertencia(p));
+  // B-15: no se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
+  const tipo = problemaDeTipo(nueva.tipoDocumento);
+  if (tipo?.codigo === 'TIPO_NO_EMITIBLE') problemas.push(tipo);
   const id = identificadorDe(nueva);
   for (const a of existentes) {
     if (identificadorDe(a) !== id) continue;
@@ -160,6 +164,8 @@ export interface OpcionesEmision {
  */
 export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision): Promise<DocumentoFiscal> {
   const tipo = entrada.tipoDocumento ?? '01';
+  const problemaTipo = problemaDeTipo(tipo);
+  if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
   const id = identificadorDe({ establecimiento: config.establecimiento, puntoEmision: config.puntoEmision, tipoDocumento: tipo });
   // Un solo instante para toda la emisión: validación, elección de autorización y documento usan la misma fecha.
   const ahora = (config.opciones?.reloj ?? (() => new Date()))();
@@ -203,7 +209,8 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     }
     const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
-    const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones);
+    const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
+    const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     await tx.guardarDocumento(doc);
     if (config.alEmitir) await config.alEmitir(doc, tx);
     return doc;
@@ -328,6 +335,50 @@ export async function corregirFechaAdelantada(
 /** La bitácora de auditoría, en orden de registro. */
 export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
   return almacen.transaccion((tx) => tx.eventos(filtro));
+}
+
+/**
+ * Coherencia de una nota 06/07 con el documento que modifica, contra lo guardado en el almacén (B-13).
+ *
+ * - Si el original está en el almacén: no puede estar ANULADO (Art. 41: un anulado no respalda operación
+ *   que ajustar) y su CAI, fecha y RTN del adquirente deben coincidir con los de la nota (Arts. 26 y 28
+ *   num. 1-3: la nota identifica al adquirente y los datos del comprobante al que se aplica).
+ * - Si no está pero su número cae en una autorización registrada aquí, el documento no existe: error.
+ * - Si pertenece a otra autorización (p. ej. un talonario de imprenta), no se puede verificar: aviso.
+ */
+async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<Problema[]> {
+  const r = entrada.referencia;
+  if (!r?.numero || !esNumeroValido(r.numero)) return []; // validarEntrada ya lo reporta
+  const partes = parsearNumero(r.numero);
+  const numero = formatearNumero(partes);
+  const original = await tx.buscarDocumento(numero);
+  const problemas: Problema[] = [];
+  if (!original) {
+    const auts = await tx.autorizaciones(identificadorDeNumero(numero));
+    if (auts.some((a) => partes.correlativo >= a.rangoInicial && partes.correlativo <= a.rangoFinal)) {
+      problemas.push({ codigo: 'REFERENCIA_NO_EXISTE', mensaje: `El documento ${numero} no existe: su número pertenece a una autorización de este sistema, pero no se ha emitido.`, campo: 'referencia.numero' });
+    } else {
+      problemas.push({ codigo: 'AVISO_REFERENCIA_NO_VERIFICADA', mensaje: `El documento ${numero} no está en este sistema; verifica sus datos a mano.`, campo: 'referencia.numero' });
+    }
+    return problemas;
+  }
+  if (original.estado === 'ANULADO') {
+    problemas.push({ codigo: 'REFERENCIA_ANULADA', mensaje: `El documento ${numero} está ANULADO (Art. 41); no se le puede aplicar una nota.`, campo: 'referencia.numero' });
+  }
+  if (r.cai && normalizarCAI(r.cai) !== original.cai) {
+    problemas.push({ codigo: 'REFERENCIA_CAI_NO_COINCIDE', mensaje: `El CAI de la referencia no es el del documento ${numero} (${original.cai}).`, campo: 'referencia.cai' });
+  }
+  if (r.fecha && r.fecha !== original.fechaEmision) {
+    problemas.push({ codigo: 'REFERENCIA_FECHA_NO_COINCIDE', mensaje: `La fecha de la referencia (${r.fecha}) no es la del documento ${numero} (${original.fechaEmision}).`, campo: 'referencia.fecha' });
+  }
+  const rtnNota = entrada.cliente?.rtn ? limpiarIdentificador(entrada.cliente.rtn) : '';
+  if (original.cliente.rtn && rtnNota && rtnNota !== original.cliente.rtn) {
+    problemas.push({ codigo: 'REFERENCIA_RTN_NO_COINCIDE', mensaje: `El RTN del adquirente no es el del documento ${numero} (${original.cliente.rtn}).`, campo: 'cliente.rtn' });
+  }
+  if (!original.cliente.rtn) {
+    problemas.push({ codigo: 'AVISO_ORIGINAL_SIN_RTN', mensaje: `El documento ${numero} se emitió sin RTN del adquirente; verifica que la nota corresponde al mismo cliente.`, campo: 'cliente.rtn' });
+  }
+  return problemas;
 }
 
 /** Busca un documento guardado y lo devuelve inmutable. */
