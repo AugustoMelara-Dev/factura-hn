@@ -135,6 +135,8 @@ Monorepo con pnpm workspaces:
 | Carpeta | Paquete | Estado |
 |---|---|---|
 | `packages/core` | `factura-hn` (el SDK, sin dependencias) | estable |
+| `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | sin publicar |
+| `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | sin publicar |
 | `packages/api` | `@factura-hn/api` | Fase 2 |
 | `packages/mcp` | `@factura-hn/mcp` | Fase 3 |
 | `examples/` | ejemplos | en crecimiento |
@@ -142,6 +144,7 @@ Monorepo con pnpm workspaces:
 ```bash
 pnpm install
 pnpm test         # vitest en todos los paquetes
+pnpm test:pg      # levanta Postgres con docker compose y corre las pruebas de @factura-hn/postgres
 pnpm typecheck
 pnpm build        # ESM + CJS + tipos en packages/*/dist
 pnpm example      # genera factura-ejemplo.html y ticket-ejemplo.txt en examples/basico

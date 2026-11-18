@@ -131,6 +131,17 @@ insegura · **B** = mejora o documentación.
 | **B-15** | B | Hoja de ruta con documentos que un sistema no puede emitir (09 Ticket, 04 Honorarios) | Corregir el README. Los tipos emitibles por sistema son 01, 05, 06, 07, 08 y 11 | Prueba de que `validarEntrada` rechaza 04, 09, 10 y 12 citando los Arts. 4.43, 46 y 47 |
 | **B-16** | B | Papel térmico (Art. 38) | Aviso en la documentación del render de ticket | — |
 
+### Avance de la Fase 1
+
+| Brecha | Estado | Pruebas |
+|---|---|---|
+| B-17 dinero exacto | cerrada | `packages/core/test/sin-flotante.test.ts` |
+| B-03 redondeo Art. 9 (D-01) | cerrada | `packages/core/test/art9-redondeo.test.ts` |
+| B-08 reloj, sin retrofechar | cerrada | `packages/core/test/reloj.test.ts` |
+| B-06 anulación Art. 41 | cerrada | `packages/core/test/art41-anulacion.test.ts` |
+| B-04 varias autorizaciones por identificador | cerrada | batería `factura-hn/pruebas` en memoria, SQLite y Postgres |
+| B-18 emisión atómica | cerrada | misma batería (fallo dentro de la transacción, 50 emisiones concurrentes) |
+
 ### Decisiones aprobadas (2026-11-18)
 
 - **D-01 (B-03)**: `isv = redondeoArt9(base × tasa)` siempre. Con precio con ISV incluido, si no existe una
