@@ -7,6 +7,7 @@
  * - Lo emitido y lo anulado entra a una cola de salida (`pos_salida`), también en la transacción, para
  *   enviarlo a la contabilidad o a la oficina central cuando vuelva la conexión (`sincronizar`).
  */
+import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   anular,
@@ -31,6 +32,8 @@ export interface BaseSQLite {
 
 export interface OpcionesPOS {
   db: BaseSQLite;
+  /** Puerto en el que escucha: solo se aceptan solicitudes dirigidas a 127.0.0.1 o localhost en ese puerto. */
+  puerto?: number;
   emisor: Emisor;
   establecimiento: string;
   puntoEmision: string;
@@ -44,10 +47,15 @@ export interface Venta {
 
 const CLAVE = /^[A-Za-z0-9-]{8,64}$/;
 
+/** Huella de la venta: la misma clave con otra venta es un conflicto, no un reintento. */
+const huellaDe = (v: Venta) => createHash('sha256').update(JSON.stringify({ cliente: v.cliente ?? null, lineas: v.lineas })).digest('hex');
+
+class ErrorSolicitud extends Error {}
+
 export function crearPOS(o: OpcionesPOS) {
   const almacen = new AlmacenSQLite(o.db);
   o.db.exec(`
-    CREATE TABLE IF NOT EXISTS pos_ventas (clave TEXT PRIMARY KEY, numero TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS pos_ventas (clave TEXT PRIMARY KEY, numero TEXT NOT NULL, huella TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS pos_salida (
       id INTEGER PRIMARY KEY AUTOINCREMENT, evento TEXT NOT NULL, numero TEXT NOT NULL, enviado INTEGER NOT NULL DEFAULT 0
     );`);
@@ -62,15 +70,21 @@ export function crearPOS(o: OpcionesPOS) {
   /** Emite una factura. Con una clave ya usada devuelve el documento de entonces (`repetida: true`). */
   async function vender(clave: string, venta: Venta): Promise<{ documento: DocumentoFiscal; repetida: boolean }> {
     if (!CLAVE.test(clave)) throw new ErrorValidacion([{ codigo: 'CLAVE_VENTA', mensaje: 'Clave de venta inválida (8 a 64 letras, dígitos o guiones).', campo: 'clave' }]);
-    const previa = o.db.prepare('SELECT numero FROM pos_ventas WHERE clave = ?').get(clave) as { numero: string } | undefined;
-    if (previa) return { documento: (await documento(previa.numero))!, repetida: true };
+    const huella = huellaDe(venta);
+    const previa = o.db.prepare('SELECT numero, huella FROM pos_ventas WHERE clave = ?').get(clave) as { numero: string; huella: string } | undefined;
+    if (previa) {
+      if (previa.huella !== huella) {
+        throw new ErrorValidacion([{ codigo: 'CLAVE_VENTA_USADA', mensaje: 'Esa clave ya se usó con otra venta: recarga la página para empezar una venta nueva.', campo: 'clave' }]);
+      }
+      return { documento: (await documento(previa.numero))!, repetida: true };
+    }
     // La conexión de SQLite es una sola: lo que se ejecuta en `alEmitir` queda dentro de la transacción.
     const doc = await emitir(
       { emisor: o.emisor, cliente: venta.cliente, preciosIncluyenISV: true, lineas: venta.lineas },
       {
         ...config,
         alEmitir: async (d) => {
-          o.db.prepare('INSERT INTO pos_ventas (clave, numero) VALUES (?, ?)').run(clave, d.numero);
+          o.db.prepare('INSERT INTO pos_ventas (clave, numero, huella) VALUES (?, ?, ?)').run(clave, d.numero, huella);
           encolar('documento.emitido', d.numero);
         },
       },
@@ -101,7 +115,19 @@ export function crearPOS(o: OpcionesPOS) {
    * Envía lo pendiente de la cola, en orden. Para en el primer fallo (sin conexión): lo demás queda para la
    * próxima vuelta. Devuelve cuántos se enviaron. El destino debe tolerar repetidos (usa `id`).
    */
+  let sincronizando = false;
   async function sincronizar(enviar: (aviso: { id: number; evento: string; documento: DocumentoFiscal }) => Promise<void>): Promise<number> {
+    // Una vuelta a la vez: si la anterior sigue enviando, esta no hace nada.
+    if (sincronizando) return 0;
+    sincronizando = true;
+    try {
+      return await sincronizarUnaVez(enviar);
+    } finally {
+      sincronizando = false;
+    }
+  }
+
+  async function sincronizarUnaVez(enviar: (aviso: { id: number; evento: string; documento: DocumentoFiscal }) => Promise<void>): Promise<number> {
     const pendientes = o.db.prepare('SELECT id, evento, numero FROM pos_salida WHERE enviado = 0 ORDER BY id').all() as { id: number; evento: string; numero: string }[];
     let n = 0;
     for (const p of pendientes) {
@@ -125,6 +151,15 @@ export function crearPOS(o: OpcionesPOS) {
       res.end(typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo));
     };
     try {
+      // Solo la caja de este equipo. Otra página abierta en el navegador no puede emitir ni anular:
+      // - Host fijo: un nombre de otro sitio que resuelva a 127.0.0.1 (DNS rebinding) no pasa.
+      // - Origin, si viene, debe ser este mismo POS.
+      // - Los POST exigen application/json, que obliga al navegador a una verificación previa (CORS) que no se concede.
+      const anfitriones = o.puerto ? [`127.0.0.1:${o.puerto}`, `localhost:${o.puerto}`] : null;
+      if (anfitriones && !anfitriones.includes(req.headers.host ?? '')) return responder(421, { error: 'Anfitrión no permitido.' });
+      const origen = req.headers.origin;
+      if (origen && (!anfitriones || !anfitriones.some((a) => origen === `http://${a}`))) return responder(403, { error: 'Origen no permitido.' });
+      if (req.method === 'POST' && !/^application\/json(;|$)/i.test(req.headers['content-type'] ?? '')) return responder(415, { error: 'Se espera application/json.' });
       const url = new URL(req.url ?? '/', 'http://pos');
       const m = /^\/api\/documentos\/(\d{3}-\d{3}-\d{2}-\d{8})(\.txt|\/anular)?$/.exec(url.pathname);
       if (req.method === 'GET' && url.pathname === '/') {
@@ -149,7 +184,7 @@ export function crearPOS(o: OpcionesPOS) {
       return responder(404, { error: 'Ruta no encontrada.' });
     } catch (e) {
       if (e instanceof ErrorValidacion) return responder(422, { error: 'La venta no cumple las reglas fiscales.', errores: e.errores });
-      if (e instanceof SyntaxError || (e as Error).message === 'CUERPO_GRANDE') return responder(400, { error: 'Solicitud inválida.' });
+      if (e instanceof SyntaxError || e instanceof ErrorSolicitud) return responder(400, { error: 'Solicitud inválida.' });
       console.error(e);
       return responder(500, { error: 'Error interno.' });
     }
@@ -162,7 +197,7 @@ async function leerJSON(req: IncomingMessage): Promise<unknown> {
   let cuerpo = '';
   for await (const parte of req) {
     cuerpo += parte;
-    if (cuerpo.length > 100_000) throw new Error('CUERPO_GRANDE');
+    if (cuerpo.length > 100_000) throw new ErrorSolicitud('Cuerpo demasiado grande.');
   }
   return JSON.parse(cuerpo || '{}');
 }

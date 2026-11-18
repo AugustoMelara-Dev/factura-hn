@@ -17,13 +17,18 @@ const fhnSinUso = crearCliente({ url: 'http://127.0.0.1:9', llave: 'x' });
 describe('receptor de webhooks', () => {
   it('acepta firmas válidas una sola vez por aviso y rechaza las falsas', async () => {
     const recibidos: AvisoWebhook[] = [];
-    const tienda = crearTienda({ fhn: fhnSinUso, buscarPedido: async () => null, secretoWebhook: 's3creto', alRecibirAviso: async (a) => void recibidos.push(a) });
+    const tienda = crearTienda({
+      fhn: fhnSinUso, buscarPedido: async () => null, guardarFactura: async () => undefined, secretoWebhook: 's3creto',
+      // Lento a propósito: dos entregas simultáneas del mismo aviso deben procesarse una sola vez.
+      alRecibirAviso: async (a) => { await new Promise((r) => setTimeout(r, 50)); recibidos.push(a); },
+    });
     const { base, cerrar } = await escuchar(tienda);
     try {
       const cuerpo = JSON.stringify({ id: '77', evento: 'documento.anulado', creado: new Date().toISOString(), datos: { numero: '000-001-01-00000001' } });
       const enviar = (firma: string, c = cuerpo) => fetch(`${base}/webhooks/factura-hn`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-facturahn-firma': firma }, body: c });
       const t = Math.floor(Date.now() / 1000);
-      expect((await enviar(firmar('s3creto', cuerpo, t))).status).toBe(204);
+      const dos = await Promise.all([enviar(firmar('s3creto', cuerpo, t)), enviar(firmar('s3creto', cuerpo, t))]);
+      expect(dos.map((r) => r.status)).toEqual([204, 204]);
       expect((await enviar(firmar('s3creto', cuerpo, t))).status).toBe(204);
       expect(recibidos).toHaveLength(1);
       expect((await enviar(firmar('otro', cuerpo, t))).status).toBe(400);
@@ -57,6 +62,7 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
     const tienda = crearTienda({
       fhn: crearCliente({ url: 'http://api', llave: (data as { llave: string }).llave, fetch: fetchApi }),
       buscarPedido: async (id) => pedidos[id] ?? null,
+      guardarFactura: async (id, numero) => void (pedidos[id]!.numeroFactura = numero),
       secretoWebhook: 'x',
     });
     const { base, cerrar } = await escuchar(tienda);
@@ -74,7 +80,9 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
       expect(malo.status).toBe(422);
       expect((await malo.json()).errores.length).toBeGreaterThan(0);
       expect((await fetch(`${base}/pedidos/9/factura`, { method: 'POST' })).status).toBe(404);
-      expect((await fetch(`${base}/facturas/..%2F..%2Fetc.pdf`)).status).toBe(404);
+      // Sin factura emitida o pedido ajeno: 404. No hay ruta por número de factura.
+      expect((await fetch(`${base}/pedidos/2/factura.pdf`)).status).toBe(404);
+      expect((await fetch(`${base}/facturas/000-001-01-00000001.pdf`)).status).toBe(404);
     } finally {
       cerrar();
     }

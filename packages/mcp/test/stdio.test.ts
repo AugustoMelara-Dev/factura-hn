@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
@@ -14,6 +15,19 @@ import { AlmacenSQLite } from '@factura-hn/sqlite';
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 describe('factura-hn-mcp por stdio', () => {
+  it('el ejecutable compilado (dist/cli.js) arranca en modo API y en modo SQLite', async () => {
+    const paquete = fileURLToPath(new URL('..', import.meta.url));
+    const raiz = fileURLToPath(new URL('../../../', import.meta.url));
+    execFileSync(process.execPath, [join(raiz, 'node_modules', 'tsup', 'dist', 'cli-default.js'), 'src/index.ts', 'src/cli.ts', '--format', 'esm', '--target', 'node22', '--clean'], { cwd: paquete, stdio: 'pipe' });
+    const cli = join(paquete, 'dist', 'cli.js');
+    for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(mkdtempSync(join(tmpdir(), 'fhn-dist-')), 'f.db'), FHN_EMISOR: join(paquete, 'package.json') }]) {
+      const cliente = new Client({ name: 'prueba', version: '1.0.0' });
+      await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
+      expect((await cliente.listTools()).tools).toHaveLength(6);
+      await cliente.close();
+    }
+  }, 120_000);
+
   it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'fhn-mcp-'));
     const db = join(dir, 'factura.db');
@@ -40,7 +54,7 @@ describe('factura-hn-mcp por stdio', () => {
     const cliente = new Client({ name: 'prueba', version: '1.0.0' });
     await cliente.connect(transporte);
     try {
-      const r = (await cliente.callTool({ name: 'emitir_factura', arguments: { lineas: [{ descripcion: 'Café', cantidad: 1, precioUnitario: '50.00' }] } })) as { content: { text: string }[] };
+      const r = (await cliente.callTool({ name: 'emitir_factura', arguments: { lineas: [{ descripcion: 'Café', cantidad: 1, precioUnitario: '50.00' }], idempotencyKey: 'stdio-venta-1' } })) as { content: { text: string }[] };
       expect(r.content[0]!.text).toMatch(/^Emitida: Factura 000-001-01-00000001/);
     } finally {
       await cliente.close();

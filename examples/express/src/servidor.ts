@@ -17,6 +17,7 @@ const pedidos = new Map<string, Pedido>([
 const app = crearTienda({
   fhn: crearCliente({ url: env.FHN_API_URL ?? 'http://127.0.0.1:8787', llave: env.FHN_LLAVE }),
   buscarPedido: async (id) => pedidos.get(id) ?? null,
+  guardarFactura: async (id, numero) => void (pedidos.get(id)!.numeroFactura = numero),
   secretoWebhook: env.FHN_SECRETO_WEBHOOK ?? '',
   alRecibirAviso: async (a) => console.log('Aviso', a.evento, JSON.stringify(a.datos)),
 });

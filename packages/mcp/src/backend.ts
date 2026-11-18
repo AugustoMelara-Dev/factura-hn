@@ -21,7 +21,20 @@ import {
   type Emisor,
   type Problema,
 } from 'factura-hn';
+import { createHash } from 'node:crypto';
 import { crearCliente, ErrorFacturaHN, type ClienteFacturaHN } from '@factura-hn/cliente';
+
+/** JSON con las claves ordenadas: la misma entrada da siempre el mismo texto. */
+function jsonEstable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(jsonEstable).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().filter((k) => (v as Record<string, unknown>)[k] !== undefined).map((k) => `${JSON.stringify(k)}:${jsonEstable((v as Record<string, unknown>)[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/** Huella del contenido de una solicitud: la misma clave con otro contenido es un conflicto, no un reintento. */
+export const huellaDe = (entrada: unknown) => createHash('sha256').update(jsonEstable(entrada)).digest('hex');
 
 /** Lo que la herramienta envía: el documento sin emisor (el emisor es el del negocio configurado). */
 export type EntradaSinEmisor = Omit<DocumentoEntrada, 'emisor'>;
@@ -81,19 +94,22 @@ const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): 
  * de dos reintentos simultáneos solo uno emite.
  */
 export interface RegistroClaves {
-  buscar(clave: string): string | null | Promise<string | null>;
-  guardar(clave: string, numero: string): void | Promise<void>;
+  buscar(clave: string): { numero: string; huella: string } | null | Promise<{ numero: string; huella: string } | null>;
+  guardar(clave: string, numero: string, huella: string): void | Promise<void>;
+  /** Solo para registros fuera de la base: borra una clave cuyo documento no llegó a confirmarse. */
+  olvidar?(clave: string): void;
 }
 
 /** Claves en memoria del proceso: se pierden al reiniciar. Solo para pruebas o sesiones cortas. */
 export function clavesEnMemoria(): RegistroClaves {
-  const m = new Map<string, string>();
+  const m = new Map<string, { numero: string; huella: string }>();
   return {
     buscar: (c) => m.get(c) ?? null,
-    guardar: (c, n) => {
+    guardar: (c, numero, huella) => {
       if (m.has(c)) throw new Error('Clave de idempotencia repetida.');
-      m.set(c, n);
+      m.set(c, { numero, huella });
     },
+    olvidar: (c) => void m.delete(c),
   };
 }
 
@@ -102,10 +118,10 @@ export function clavesEnMemoria(): RegistroClaves {
  * se escribe en `alEmitir` queda en la transacción de la emisión. Sobreviven a reinicios del servidor MCP.
  */
 export function clavesSQLite(db: { exec(sql: string): unknown; prepare(sql: string): { run(...p: unknown[]): unknown; get(...p: unknown[]): unknown } }): RegistroClaves {
-  db.exec('CREATE TABLE IF NOT EXISTS mcp_claves (clave TEXT PRIMARY KEY, numero TEXT NOT NULL)');
+  db.exec('CREATE TABLE IF NOT EXISTS mcp_claves (clave TEXT PRIMARY KEY, numero TEXT NOT NULL, huella TEXT NOT NULL)');
   return {
-    buscar: (c) => (db.prepare('SELECT numero FROM mcp_claves WHERE clave = ?').get(c) as { numero: string } | undefined)?.numero ?? null,
-    guardar: (c, n) => void db.prepare('INSERT INTO mcp_claves (clave, numero) VALUES (?, ?)').run(c, n),
+    buscar: (c) => (db.prepare('SELECT numero, huella FROM mcp_claves WHERE clave = ?').get(c) as { numero: string; huella: string } | undefined) ?? null,
+    guardar: (c, n, h) => void db.prepare('INSERT INTO mcp_claves (clave, numero, huella) VALUES (?, ?, ?)').run(c, n, h),
   };
 }
 
@@ -128,9 +144,18 @@ export class BackendLocal implements Backend {
   }
 
   async emitir(entrada: EntradaSinEmisor, idempotencyKey: string): Promise<DocumentoFiscal> {
+    const huella = huellaDe(entrada);
     const repetido = async () => {
-      const numero = await this.claves.buscar(idempotencyKey);
-      return numero ? this.consultar(numero) : null;
+      const r = await this.claves.buscar(idempotencyKey);
+      if (!r) return null;
+      if (r.huella !== huella) {
+        const m = 'Esta clave de idempotencia ya se usó con otra venta. Usa una clave nueva para una venta nueva.';
+        throw new ErrorBackend('IDEMPOTENCIA_CONFLICTO', m, [{ codigo: 'IDEMPOTENCIA_CONFLICTO', mensaje: m }]);
+      }
+      const doc = await this.consultar(r.numero);
+      // Clave sin documento (la transacción no se confirmó): en memoria se olvida y se puede reintentar.
+      if (!doc) this.claves.olvidar?.(idempotencyKey);
+      return doc;
     };
     const previo = await repetido();
     if (previo) return previo;
@@ -141,7 +166,7 @@ export class BackendLocal implements Backend {
         puntoEmision: this.o.puntoEmision,
         opciones: { reloj: this.o.reloj },
         actor: this.o.actor ?? 'mcp',
-        alEmitir: async (doc) => this.claves.guardar(idempotencyKey, doc.numero),
+        alEmitir: async (doc) => this.claves.guardar(idempotencyKey, doc.numero, huella),
       });
     } catch (e) {
       // Otro intento con la misma clave ganó la carrera: esta emisión se revirtió y se devuelve aquella.
@@ -214,6 +239,13 @@ export class BackendApi implements Backend {
     }
   }
   async estadoCAI() {
+    try {
+      return await this.estadoCAISinTraducir();
+    } catch (e) {
+      throw traducir(e);
+    }
+  }
+  private async estadoCAISinTraducir(): Promise<EstadoCAI[]> {
     const auts = await this.c.autorizaciones();
     return Promise.all(
       auts.map(async (a) => {
@@ -226,8 +258,12 @@ export class BackendApi implements Backend {
       }),
     );
   }
-  libroVentas(desde: string, hasta: string) {
-    return this.c.libroVentas(desde, hasta);
+  async libroVentas(desde: string, hasta: string) {
+    try {
+      return await this.c.libroVentas(desde, hasta);
+    } catch (e) {
+      throw traducir(e);
+    }
   }
 }
 

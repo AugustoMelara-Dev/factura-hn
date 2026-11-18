@@ -29,7 +29,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "AGENTS.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -39,7 +40,8 @@
     "generar": "openapi-typescript ../api/openapi.json -o src/esquema.ts",
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../AGENTS.md', 'AGENTS.md')\""
   },
   "dependencies": {
     "openapi-fetch": "0.17.0"

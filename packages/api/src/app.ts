@@ -793,9 +793,16 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     info: {
       title: 'factura-hn API',
       version: VERSION_API,
-      description:
-        'Facturación SAR Honduras (Acuerdo 481-2017). Errores fiscales: 422 con `errores` (código, mensaje, campo). ' +
-        'Montos como texto decimal. Fechas en America/Tegucigalpa.',
+      description: [
+        'Facturación SAR Honduras (Acuerdo 481-2017). Montos como texto decimal. Fechas en America/Tegucigalpa.',
+        '',
+        'Reglas para integrar (también en AGENTS.md, sección «Con la API REST»):',
+        '1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.',
+        '2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.',
+        '3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.',
+        '4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.',
+        '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
+      ].join('\n'),
     },
   });
   app.get('/docs', swaggerUI({ url: '/openapi.json' }));

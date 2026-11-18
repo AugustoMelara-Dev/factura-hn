@@ -41,6 +41,19 @@ describe('playground (código fuente)', () => {
   });
 });
 
+describe('playground (página)', () => {
+  it('index.html está en el repositorio, carga el paquete y muestra el documento en un iframe sin permisos', () => {
+    const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+    expect(html).toContain('<script src="playground.global.js"></script>');
+    expect(html).toMatch(/<iframe id="vista" sandbox=""/);
+    const ignorado = execFileSync('git', ['check-ignore', '--no-index', '-v', 'examples/playground/public/index.html'], {
+      cwd: fileURLToPath(new URL('../../..', import.meta.url)), encoding: 'utf8',
+    }).trim();
+    // La única regla que lo toca es la excepción `!…` (si lo ignorara, el clon no tendría página).
+    expect(ignorado).toMatch(/:!examples\/playground\/public\/index\.html\t/);
+  });
+});
+
 describe('playground (paquete para el navegador)', () => {
   it('el archivo compilado corre sin APIs de Node y emite', async () => {
     const raiz = fileURLToPath(new URL('..', import.meta.url));

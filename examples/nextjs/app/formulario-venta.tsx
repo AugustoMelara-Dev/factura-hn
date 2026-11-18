@@ -6,10 +6,10 @@ import type { EstadoVenta } from '../lib/ventas';
 
 export function FormularioVenta({ clave }: { clave: string }) {
   const [estado, accion, pendiente] = useActionState<EstadoVenta, FormData>(emitirVenta, { tipo: 'inicial' });
-  // Tras una venta emitida, el formulario se limpia y toma una clave nueva.
-  const claveActual = estado.tipo === 'emitida' ? estado.siguienteClave : clave;
+  // La clave del próximo envío la decide el servidor: nueva tras emitir, la misma tras un error fiscal.
+  const claveActual = estado.tipo === 'inicial' ? clave : estado.clave;
   return (
-    <form action={accion} key={claveActual}>
+    <form action={accion}>
       <input type="hidden" name="clave" value={claveActual} />
       <label>
         Cliente (opcional)
@@ -25,7 +25,7 @@ export function FormularioVenta({ clave }: { clave: string }) {
       </label>
       <label>
         Cantidad
-        <input name="cantidad" type="number" min="0.0001" step="any" defaultValue="1" required />
+        <input name="cantidad" inputMode="decimal" defaultValue="1" required />
       </label>
       <label>
         Precio con ISV
@@ -36,7 +36,7 @@ export function FormularioVenta({ clave }: { clave: string }) {
         {estado.tipo === 'emitida' && (
           <p>
             Emitida {estado.numero} por L {estado.total.toFixed(2)}
-            {estado.repetida ? ' (ya estaba emitida)' : ''} · <a href={`/facturas/${estado.numero}`}>PDF</a>
+            {estado.repetida ? ' (ya estaba emitida)' : ''} · <a href={estado.pdf}>PDF</a>
           </p>
         )}
         {estado.tipo === 'error' && (

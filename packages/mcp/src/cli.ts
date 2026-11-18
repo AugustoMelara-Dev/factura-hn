@@ -10,7 +10,7 @@
  * con el SDK o la API: el servidor MCP no registra CAI.
  */
 import { readFileSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 import { BackendApi, BackendLocal, clavesSQLite, type Backend } from './backend';
@@ -23,6 +23,8 @@ function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
   }
   if (env.FHN_SQLITE) {
     if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor).');
+    // node:sqlite se carga solo aquí: el modo API funciona en cualquier Node, y el empaquetador no lo reescribe.
+    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
     const db = new DatabaseSync(env.FHN_SQLITE);
     return new BackendLocal({
       almacen: new AlmacenSQLite(db),

@@ -35,7 +35,7 @@ export const PAGINA = `<!doctype html>
       <input id="rtn" inputmode="numeric" autocomplete="off" maxlength="14">
       <div class="fila">
         <div><label for="desc">Descripción</label><input id="desc" required></div>
-        <div><label for="cant">Cantidad</label><input id="cant" type="number" min="0.0001" step="any" value="1" required></div>
+        <div><label for="cant">Cantidad</label><input id="cant" inputmode="decimal" value="1" required></div>
         <div><label for="precio">Precio con ISV</label><input id="precio" inputmode="decimal" required placeholder="0.00"></div>
       </div>
       <button id="cobrar" type="submit">Cobrar y emitir factura</button>
@@ -82,7 +82,7 @@ export const PAGINA = `<!doctype html>
     const cliente = {};
     if ($('cliente').value.trim()) cliente.nombre = $('cliente').value.trim();
     if ($('rtn').value.trim()) cliente.rtn = $('rtn').value.trim();
-    const cuerpo = { clave, cliente, lineas: [{ descripcion: $('desc').value, cantidad: Number($('cant').value), precioUnitario: $('precio').value.trim() }] };
+    const cuerpo = { clave, cliente, lineas: [{ descripcion: $('desc').value, cantidad: $('cant').value.trim(), precioUnitario: $('precio').value.trim() }] };
     try {
       const r = await fetch('/api/ventas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
       const d = await r.json();

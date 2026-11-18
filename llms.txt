@@ -18,7 +18,7 @@ API REST (`@factura-hn/api`, Hono + OpenAPI 3.1 + Postgres, `docker compose up`)
 MCP (`@factura-hn/mcp`): herramientas emitir_factura, emitir_nota_credito, consultar_documento, anular_documento, estado_cai, libro_ventas; vía la API (FHN_API_URL + FHN_LLAVE) o SDK local (FHN_SQLITE + FHN_EMISOR).
 
 Prompt de una línea (SDK): Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
-Prompt de una línea (API): Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+Prompt de una línea (API): Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
 
 ## Docs
 

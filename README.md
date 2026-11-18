@@ -123,7 +123,7 @@ Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md com
 **API** (cualquier lenguaje; la API de factura-hn emite):
 
 ```text
-Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
 ```
 
 La versión detallada del prompt del SDK:
@@ -231,7 +231,8 @@ especificación OpenAPI e incluye `verificarFirmaWebhook` (Web Crypto: Node, edg
 Para que un agente de IA (Claude Desktop, Claude Code, Cursor) emita, consulte y anule:
 [`@factura-hn/mcp`](packages/mcp/README.md), con las herramientas `emitir_factura`, `emitir_nota_credito`,
 `consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o con el SDK local
-sobre SQLite.
+sobre SQLite. Aún no está en npm: mientras tanto, `node packages/mcp/dist/cli.js` en lugar de `npx` (ver su
+README). No apruebes automáticamente `anular_documento` en tu cliente MCP.
 
 ```json
 { "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],

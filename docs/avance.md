@@ -50,12 +50,13 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Ejemplo Next.js 16 | 5f01838 |
 | Playground en el navegador | 512fb88 |
 | Prompts SDK/API en README, AGENTS.md, llms.txt y skill, con prueba | f92d204 |
-| Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | (este commit) |
+| Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | 2587741 |
+| Pruebas de Postgres en su propia base | 97e2272 |
+| Correcciones de la revisión independiente de la Fase 3 (DEC-039) | (este commit) |
 
 ## Sigue
 
-1. Revisión independiente de la Fase 3 (matriz y seguridad) y correcciones.
-2. Reporte al usuario: resumen, decisiones [REVISAR] y cómo levantar todo localmente.
+1. Reporte al usuario: resumen, decisiones [REVISAR] y cómo levantar todo localmente.
 
 ## Cómo correr
 

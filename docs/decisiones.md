@@ -272,3 +272,18 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   sincronización en la transacción de emisión (`alEmitir`/`alAnular`). Las llaves de API viven solo en el
   servidor y los ejemplos usan llaves de caja.
 - **Alternativa:** ejemplos mínimos sin idempotencia.
+
+### DEC-039 · Revisión de la Fase 3: cambios
+- **Contexto:** revisión independiente (1 crítico, 3 altos, 5 medios, 6 bajos).
+- **Elegida:**
+  - El ejecutable del MCP carga `node:sqlite` solo en el modo SQLite; una prueba arranca el `dist`.
+  - La clave de idempotencia es obligatoria en las herramientas de emisión del MCP.
+  - En el MCP local y en el POS, la clave guarda la huella del contenido: la misma clave con otra venta es un
+    conflicto, como en la API.
+  - El texto de los documentos llega al agente delimitado y marcado como datos.
+  - El POS rechaza otros `Host`, otros `Origin` y POST que no sean JSON (CSRF y DNS rebinding).
+  - Next.js conserva la clave sin usar tras un error y firma los enlaces al PDF. Express sirve el PDF por pedido.
+  - El prompt de la API apunta a lo que existe: `AGENTS.md` dentro de `@factura-hn/cliente` y las reglas en
+    la descripción de `/openapi.json`.
+  - Las pruebas de Postgres usan la base `factura_hn_pruebas`.
+- **Alternativa:** dejar los ejemplos sin estas defensas y advertirlo en sus README.

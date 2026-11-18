@@ -3,7 +3,7 @@
   "info": {
     "title": "factura-hn API",
     "version": "0.2.0",
-    "description": "Facturación SAR Honduras (Acuerdo 481-2017). Errores fiscales: 422 con `errores` (código, mensaje, campo). Montos como texto decimal. Fechas en America/Tegucigalpa."
+    "description": "Facturación SAR Honduras (Acuerdo 481-2017). Montos como texto decimal. Fechas en America/Tegucigalpa.\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
   },
   "components": {
     "securitySchemes": {

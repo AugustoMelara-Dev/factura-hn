@@ -124,7 +124,7 @@ it('el ejemplo del README da los números que promete', async () => {
 
 const DOCS_AGENTES = ['README.md', 'AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md'];
 const PROMPT_SDK = 'Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.';
-const PROMPT_API = 'Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.';
+const PROMPT_API = 'Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.';
 
 describe('documentación para agentes', () => {
   it('los cuatro documentos traen los mismos prompts de una línea (SDK y API)', () => {
@@ -158,6 +158,18 @@ describe('documentación para agentes', () => {
     }
     expect([...new Set(faltan)]).toEqual([]);
   }, 60_000);
+
+  it('lo que el prompt de la API manda a leer existe donde dice', () => {
+    // node_modules/@factura-hn/cliente/AGENTS.md: el cliente publica AGENTS.md (lo copia al empaquetar).
+    const cliente = JSON.parse(readFileSync(join(RAIZ, 'packages', 'cliente', 'package.json'), 'utf8')) as { files: string[]; scripts: Record<string, string> };
+    expect(cliente.files).toContain('AGENTS.md');
+    expect(cliente.scripts.prepack).toContain('../../AGENTS.md');
+    expect(readFileSync(join(RAIZ, 'AGENTS.md'), 'utf8')).toContain('## Con la API REST');
+    // FHN_API_URL/openapi.json: su descripción trae las reglas.
+    const openapi = JSON.parse(readFileSync(join(RAIZ, 'packages', 'api', 'openapi.json'), 'utf8')) as { info: { description: string } };
+    expect(openapi.info.description).toContain('Idempotency-Key estable por venta');
+    expect(openapi.info.description).toContain('X-FacturaHN-Firma');
+  });
 
   it('las herramientas MCP que se listan son las que el servidor registra', () => {
     const servidor = readFileSync(join(RAIZ, 'packages', 'mcp', 'src', 'servidor.ts'), 'utf8');

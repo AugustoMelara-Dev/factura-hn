@@ -13,9 +13,9 @@ const EMISOR = {
 };
 const reloj = () => new Date('2026-11-18T15:00:00Z');
 
-async function posListo(rangoFinal = 50) {
+async function posListo(rangoFinal = 50, puerto?: number) {
   const db = new DatabaseSync(':memory:');
-  const pos = crearPOS({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj });
+  const pos = crearPOS({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj, puerto });
   await registrarAutorizacion(pos.almacen, {
     cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
     rangoInicial: 1, rangoFinal, fechaLimiteEmision: '2027-10-31',
@@ -35,6 +35,10 @@ describe('POS fuera de línea', () => {
     const otra = await pos.vender('venta-0002', venta);
     expect(otra.documento.numero).toBe('000-001-01-00000002');
     expect((await pos.vender('venta-0001', venta)).repetida).toBe(true);
+    // La misma clave con otra venta no devuelve el ticket de la primera: es un error.
+    await expect(pos.vender('venta-0001', { lineas: [{ descripcion: 'Té', cantidad: '1', precioUnitario: '30.00' }] })).rejects.toMatchObject({
+      errores: [expect.objectContaining({ codigo: 'CLAVE_VENTA_USADA' })],
+    });
   });
 
   it('una venta inválida no consume número ni deja la clave usada', async () => {
@@ -72,10 +76,13 @@ describe('POS fuera de línea', () => {
   });
 
   it('por HTTP: página, venta, ticket, 422 con los errores y rutas desconocidas', async () => {
-    const { pos } = await posListo();
+    let pos!: Awaited<ReturnType<typeof posListo>>['pos'];
     const srv = createServer((req, res) => void pos.manejador(req, res));
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
-    const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const puerto = (srv.address() as { port: number }).port;
+    ({ pos } = await posListo(50, puerto));
+    const base = `http://127.0.0.1:${puerto}`;
+    const json = { 'content-type': 'application/json' };
     try {
       const pagina = await fetch(base);
       expect(pagina.headers.get('content-security-policy')).toContain("default-src 'self'");
@@ -90,11 +97,23 @@ describe('POS fuera de línea', () => {
       expect(malo.status).toBe(422);
       expect((await malo.json()).errores.length).toBeGreaterThan(0);
       expect((await post({ clave: 'no válida', ...venta })).status).toBe(422);
-      expect((await fetch(`${base}/api/ventas`, { method: 'POST', body: '{' })).status).toBe(400);
+      expect((await fetch(`${base}/api/ventas`, { method: 'POST', headers: json, body: '{' })).status).toBe(400);
       expect(await (await fetch(`${base}/api/documentos/000-001-01-00000001.txt`)).text()).toContain('CAI');
       expect((await fetch(`${base}/api/documentos/000-001-01-00000099`)).status).toBe(404);
       expect((await fetch(`${base}/../etc/passwd`)).status).toBe(404);
-      const anulado = await fetch(`${base}/api/documentos/000-001-01-00000001/anular`, { method: 'POST', body: JSON.stringify({ motivo: 'Prueba' }) });
+      // Otra página del navegador (CSRF): sin JSON, con otro Origin o por otro nombre de anfitrión, no pasa.
+      const anularUrl = `${base}/api/documentos/000-001-01-00000001/anular`;
+      const cuerpoAnular = JSON.stringify({ motivo: 'Prueba' });
+      expect((await fetch(anularUrl, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: cuerpoAnular })).status).toBe(415);
+      expect((await fetch(anularUrl, { method: 'POST', headers: { ...json, origin: 'https://sitio-malo.example' }, body: cuerpoAnular })).status).toBe(403);
+      const http = await import('node:http');
+      const rebinding = await new Promise<number>((r) => {
+        const q = http.request(anularUrl, { method: 'POST', headers: { ...json, host: `malo.example:${puerto}` } }, (s) => r(s.statusCode ?? 0));
+        q.end(cuerpoAnular);
+      });
+      expect(rebinding).toBe(421);
+      expect((await pos.documento('000-001-01-00000001'))!.estado).toBe('EMITIDO');
+      const anulado = await fetch(anularUrl, { method: 'POST', headers: { ...json, origin: base }, body: cuerpoAnular });
       expect((await anulado.json()).estado).toBe('ANULADO');
     } finally {
       srv.close();

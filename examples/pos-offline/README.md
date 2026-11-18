@@ -1,7 +1,7 @@
 # Mini POS fuera de línea (SDK + SQLite)
 
 La caja emite facturas sin internet: el SDK y la base (`node:sqlite`) viven en el mismo equipo. Requiere
-Node 22.5 o más nuevo.
+Node 22.13 o más nuevo.
 
 ```bash
 pnpm install
@@ -22,5 +22,8 @@ Qué muestra (`src/pos.ts`):
 - **Estado del CAI** con las alertas de vencimiento y de fin de rango (Arts. 59 y 62).
 - **Anulación** (Art. 41): `POST /api/documentos/{numero}/anular`.
 
-El servidor escucha solo en 127.0.0.1 y no tiene usuarios: es la caja de un solo equipo. Para varias cajas
+El servidor escucha solo en 127.0.0.1 y no tiene usuarios: es la caja de un solo equipo. Para que otra
+página abierta en el navegador no pueda emitir ni anular, acepta solo `Host` 127.0.0.1/localhost con su
+puerto, `Origin` propio y POST con `application/json`. Una clave reutilizada con otra venta da
+`CLAVE_VENTA_USADA` (no devuelve el ticket anterior). Para varias cajas
 en red usa la API (`docs/api.md`).

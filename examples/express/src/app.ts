@@ -3,7 +3,8 @@
  *
  * - `POST /pedidos/:id/factura` emite la factura del pedido. La clave de idempotencia es el id del pedido:
  *   si la respuesta se pierde y se reintenta, la API devuelve la misma factura en lugar de emitir otra.
- * - `GET /facturas/:numero.pdf` entrega la representación impresa (Art. 38).
+ * - `GET /pedidos/:id/factura.pdf` entrega la representación impresa (Art. 38) del pedido, no de un número
+ *   cualquiera: los números son consecutivos y servirlos por número dejaría bajar las facturas de todos.
  * - `POST /webhooks/factura-hn` recibe los avisos firmados (emitido, anulado, CAI por vencer o agotado).
  *
  * La llave de API vive solo en el servidor.
@@ -13,26 +14,32 @@ import { ErrorFacturaHN, verificarFirmaWebhook, type AvisoWebhook, type crearCli
 
 export interface Pedido {
   id: string;
+  /** Número de la factura, cuando ya se emitió. */
+  numeroFactura?: string;
   cliente?: { nombre?: string; rtn?: string };
   articulos: { descripcion: string; cantidad: number; precioConISV: string }[];
 }
 
 export interface OpcionesTienda {
   fhn: ReturnType<typeof crearCliente>;
-  /** Busca el pedido en tu base. Los precios vienen de ahí, no del navegador. */
+  /**
+   * Busca el pedido en tu base. Los precios vienen de ahí, no del navegador. En tu tienda, devuelve null
+   * también si el pedido no es del usuario de la sesión.
+   */
   buscarPedido: (id: string) => Promise<Pedido | null>;
+  /** Guarda en el pedido el número de su factura. */
+  guardarFactura: (pedidoId: string, numero: string) => Promise<void>;
   secretoWebhook: string;
   /** Qué hacer con cada aviso (ya verificado y sin repetidos). */
   alRecibirAviso?: (aviso: AvisoWebhook) => Promise<void>;
 }
 
-const NUMERO = /^\d{3}-\d{3}-\d{2}-\d{8}$/;
-
 export function crearTienda(o: OpcionesTienda): Express {
   const app = express();
   app.disable('x-powered-by');
-  // En producción guarda los ids procesados en tu base (con índice único), no en memoria.
-  const avisosVistos = new Set<string>();
+  // En producción guarda los ids procesados en tu base (con índice único), no en memoria. Se guarda la
+  // promesa, no solo el id: una entrega repetida que llega mientras la primera se procesa espera a esa.
+  const avisos = new Map<string, Promise<void>>();
 
   app.post('/pedidos/:id/factura', async (req, res) => {
     const pedido = await o.buscarPedido(String(req.params.id));
@@ -47,14 +54,15 @@ export function crearTienda(o: OpcionesTienda): Express {
       },
       { idempotencyKey: `pedido-${pedido.id}` },
     );
-    res.status(repetida ? 200 : 201).json({ numero: documento.numero, total: documento.totales.total, pdf: `/facturas/${documento.numero}.pdf` });
+    await o.guardarFactura(pedido.id, documento.numero);
+    res.status(repetida ? 200 : 201).json({ numero: documento.numero, total: documento.totales.total, pdf: `/pedidos/${pedido.id}/factura.pdf` });
   });
 
-  app.get('/facturas/:archivo', async (req, res) => {
-    const numero = String(req.params.archivo).replace(/\.pdf$/, '');
-    if (!NUMERO.test(numero)) return void res.status(404).end();
-    const pdf = await o.fhn.descargar(numero, 'pdf');
-    res.type('application/pdf').send(Buffer.from(pdf));
+  app.get('/pedidos/:id/factura.pdf', async (req, res) => {
+    const pedido = await o.buscarPedido(String(req.params.id));
+    if (!pedido?.numeroFactura) return void res.status(404).end();
+    const pdf = await o.fhn.descargar(pedido.numeroFactura, 'pdf');
+    res.type('application/pdf').set('cache-control', 'private, no-store').send(Buffer.from(pdf));
   });
 
   // Cuerpo crudo: la firma se calcula sobre los bytes recibidos, no sobre el JSON ya parseado.
@@ -62,10 +70,14 @@ export function crearTienda(o: OpcionesTienda): Express {
     const cuerpo = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
     if (!(await verificarFirmaWebhook(cuerpo, req.get('x-facturahn-firma'), o.secretoWebhook))) return void res.status(400).end();
     const aviso = JSON.parse(cuerpo) as AvisoWebhook;
-    if (!avisosVistos.has(aviso.id)) {
-      await o.alRecibirAviso?.(aviso);
-      avisosVistos.add(aviso.id);
+    let proceso = avisos.get(aviso.id);
+    if (!proceso) {
+      proceso = Promise.resolve(o.alRecibirAviso?.(aviso));
+      avisos.set(aviso.id, proceso);
+      // Si falla, se olvida: la API reintenta y se vuelve a procesar.
+      proceso.catch(() => avisos.delete(aviso.id));
     }
+    await proceso;
     // 2xx para que no se reintente; si `alRecibirAviso` lanza, Express responde 500 y llega de nuevo.
     res.status(204).end();
   });

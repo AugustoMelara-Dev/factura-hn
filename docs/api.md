@@ -28,6 +28,10 @@ Si perdiste una llave: `docker compose exec api node cli.cjs llave crear local -
 Para desarrollo, `docker-compose.dev.yml` publica Postgres en 127.0.0.1:54329 (sin contraseña: no lo uses en
 el equipo de un negocio).
 
+Clientes: en TypeScript, `@factura-hn/cliente` (tipos generados de esta especificación, con
+`verificarFirmaWebhook`); para agentes de IA, el servidor MCP `@factura-hn/mcp` (vía esta API, con una llave de
+caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README.md`.
+
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
 `packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`).
 

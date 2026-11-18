@@ -30,5 +30,6 @@ describe('claves de idempotencia en SQLite', () => {
     const rs = await Promise.all(Array.from({ length: 5 }, () => b.emitir(venta, 'clave-2')));
     expect(new Set(rs.map((d) => d.numero))).toEqual(new Set(['000-001-01-00000002']));
     expect((db.prepare('SELECT count(*) AS n FROM fhn_documentos').get() as { n: number }).n).toBe(2);
+    await expect(nuevo().emitir({ lineas: [{ descripcion: 'otra', cantidad: 1, precioUnitario: '1.00' }] }, 'clave-1')).rejects.toMatchObject({ codigo: 'IDEMPOTENCIA_CONFLICTO' });
   });
 });

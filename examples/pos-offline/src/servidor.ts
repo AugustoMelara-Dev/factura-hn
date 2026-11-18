@@ -23,7 +23,8 @@ const EMISOR_DEMO: Emisor = {
 };
 
 const emisor: Emisor = env.POS_EMISOR ? JSON.parse(readFileSync(env.POS_EMISOR, 'utf8')) : EMISOR_DEMO;
-const pos = crearPOS({ db: new DatabaseSync(env.POS_DB ?? 'pos.db'), emisor, establecimiento: env.POS_ESTABLECIMIENTO ?? '000', puntoEmision: env.POS_PUNTO ?? '001' });
+const puerto = Number(env.PUERTO ?? 3000);
+const pos = crearPOS({ db: new DatabaseSync(env.POS_DB ?? 'pos.db'), emisor, establecimiento: env.POS_ESTABLECIMIENTO ?? '000', puntoEmision: env.POS_PUNTO ?? '001', puerto });
 
 if (env.POS_DEMO === '1' && !(await pos.estado()).autorizacion) {
   const limite = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10);
@@ -34,7 +35,6 @@ if (env.POS_DEMO === '1' && !(await pos.estado()).autorizacion) {
   console.log('DEMO: CAI ficticio registrado. Los documentos no tienen validez fiscal.');
 }
 
-const puerto = Number(env.PUERTO ?? 3000);
 createServer((req, res) => void pos.manejador(req, res)).listen(puerto, '127.0.0.1', () => console.log(`Caja en http://127.0.0.1:${puerto}`));
 
 if (env.POS_SINCRONIZAR_URL) {

@@ -5,7 +5,7 @@
   "description": "Mini POS fuera de línea: SDK + SQLite (node:sqlite) en el equipo de la caja.",
   "type": "module",
   "engines": {
-    "node": ">=22.5"
+    "node": ">=22.13"
   },
   "scripts": {
     "start": "tsx src/servidor.ts",
