@@ -18,7 +18,6 @@ import {
   emitir,
   ErrorValidacion,
   estadoAutorizacion,
-  eventosAuditoria,
   exportarTexto,
   fechaHonduras,
   filaLibroVentas,
@@ -104,6 +103,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const reloj = cfg.reloj ?? (() => new Date());
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
+  const ultimoUso = new Map<string, number>();
 
   const app = new OpenAPIHono<Env>({
     defaultHook: (r, c) => {
@@ -132,7 +132,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.onError((e, c) => {
     if (e instanceof ErrorApi) {
       if (e.estado === 429 && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
-      return c.json<CuerpoError>({ error: { codigo: e.codigo, mensaje: e.message } }, e.estado);
+      const { reintentarEn: _r, ...extra } = e.extra;
+      return c.json<CuerpoError>({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, e.estado);
     }
     if (e instanceof ErrorValidacion) {
       const noEncontrado = e.errores.some((p) => p.codigo === 'DOCUMENTO_NO_ENCONTRADO');
@@ -150,10 +151,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // Autenticación: Authorization: Bearer fhn_<prefijo>_<secreto>
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? '';
-    const llave = /^Bearer (\S+)$/.exec(auth)?.[1] ?? '';
+    const llave = /^bearer +(\S+)$/i.exec(auth.trim())?.[1] ?? '';
     const prefijo = prefijoDe(llave);
     const noValida = new ErrorApi(401, 'NO_AUTENTICADO', 'Falta la llave de API o no es válida.');
     if (!prefijo) throw noValida;
+    // El límite va antes de consultar la base: también frena a quien prueba secretos con un prefijo conocido.
+    const espera = limitador.tomar(prefijo);
+    if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
     const fila = await base.transaccion(async (t) => {
       const r = await comoTransaccionPostgres(t).consulta<{
         tenant: string; hash: Buffer; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; limite_mensual: number | null;
@@ -161,8 +165,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return r.rows[0];
     });
     if (!fila || !coincide(llave, fila.hash)) throw noValida;
-    const espera = limitador.tomar(prefijo);
-    if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
+    // Último uso: solo con el secreto correcto y a lo sumo una vez por minuto por llave.
+    const ahoraMs = Date.now();
+    if ((ultimoUso.get(prefijo) ?? 0) < ahoraMs - 60_000) {
+      ultimoUso.set(prefijo, ahoraMs);
+      if (ultimoUso.size > 10_000) ultimoUso.delete(ultimoUso.keys().next().value!);
+      await base.transaccion((t) => comoTransaccionPostgres(t).consulta('SELECT fhn_api_marcar_uso($1, $2)', [prefijo, fila.hash]));
+    }
     c.set('sesion', {
       tenant: fila.tenant,
       rol: fila.rol,
@@ -229,11 +238,25 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       problemasEmisor(e);
       const id = await enTenant(c, async (tx) => {
         const r = await tx.consulta<{ id: string }>('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2) ON CONFLICT (tenant) DO NOTHING RETURNING id', [tx.tenant, JSON.stringify(e)]);
-        if (!r.rows[0]) throw new ErrorApi(409, 'EMISOR_EXISTE', 'Este tenant ya tiene emisor: usa PATCH /v1/emisores/{id}.');
+        if (!r.rows[0]) {
+          const actual = await leerEmisor(tx);
+          throw new ErrorApi(409, 'EMISOR_EXISTE', `Este tenant ya tiene emisor (id ${actual?.id}): usa PATCH /v1/emisores/${actual?.id}.`, { id: actual?.id });
+        }
         await bitacora(tx, actor(c), 'emisor.creado', { rtn: e.rtn });
         return r.rows[0].id;
       });
       return c.json({ id, ...e }, 201);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'get', path: '/v1/emisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
+      responses: { 200: json(z.object({ emisores: z.array(S.EmisorGuardado) }), 'Lista'), ...respuestasError },
+    }),
+    async (c) => {
+      const e = await enTenant(c, leerEmisor);
+      return c.json({ emisores: e ? [{ id: e.id, ...e.datos }] : [] }, 200);
     },
   );
 
@@ -448,7 +471,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/documentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período',
-      request: { query: S.Periodo.extend({ identificador: z.string().regex(IDENTIFICADOR).optional() }) },
+      request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional() }) },
       responses: { 200: json(z.object({ documentos: z.array(S.DocumentoFiscal) }), 'Lista'), ...respuestasError },
     }),
     async (c) => {
@@ -566,7 +589,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/libro-ventas', tags: ['Reportes'], security: seguridad,
       summary: 'Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)',
-      request: { query: S.Periodo.extend({ formato: z.enum(['json', 'csv']).optional() }) },
+      request: { query: S.periodo({ formato: z.enum(['json', 'csv']).optional() }) },
       responses: {
         200: { description: 'Libro', content: { 'application/json': { schema: z.object({ filas: z.array(z.looseObject({})), resumen: z.looseObject({}) }) }, 'text/csv': { schema: z.string() } } },
         ...respuestasError,
@@ -590,7 +613,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/exportacion', tags: ['Reportes'], security: seguridad,
       summary: 'Archivo de texto de un período para el SAR (Art. 53 num. 5)',
-      request: { query: S.Periodo.extend({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
+      request: { query: S.periodo({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
       responses: { 200: { description: 'Archivo', content: { 'text/plain': { schema: z.string() } } }, ...respuestasError },
     }),
     async (c) => {
@@ -617,7 +640,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     async (c) => {
       exigirAdmin(c);
       const limite = c.req.valid('query').limite ?? 200;
-      const fiscal = (await eventosAuditoria(almacenDe(c))).slice(-limite);
+      const fiscal = await enTenant(c, async (tx) =>
+        (await tx.consulta<{ datos: unknown }>('SELECT datos FROM fhn_eventos WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite])).rows.map((f) => f.datos).reverse(),
+      );
       const api = await enTenant(c, async (tx) =>
         (await tx.consulta(
           'SELECT id, instante, actor, accion, detalle FROM api_bitacora WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite],
@@ -643,8 +668,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     async (c) => {
       exigirAdmin(c);
       const b = c.req.valid('json');
-      if (Boolean(b.establecimiento) !== Boolean(b.puntoEmision)) {
-        throw new ErrorApi(400, 'CAJA_INCOMPLETA', 'Para atar la llave a una caja indica establecimiento y puntoEmision.');
+      if (Boolean(b.establecimiento) !== Boolean(b.puntoEmision) || (b.rol === 'caja' && !b.establecimiento)) {
+        throw new ErrorApi(400, 'CAJA_INCOMPLETA', 'Una llave de caja se ata a un establecimiento y punto de emisión: indica ambos.');
       }
       const { llave, prefijo, hash } = generarLlave();
       const fila = await enTenant(c, async (tx) => {

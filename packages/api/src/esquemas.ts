@@ -30,7 +30,7 @@ export const Emisor = z
     telefono: Texto(40),
     correo: Texto(254),
     /** Dirección de cada establecimiento distinto de la casa matriz, por código. */
-    direccionesEstablecimiento: z.record(z.string().regex(/^\d{3}$/), Texto()).optional(),
+    direccionesEstablecimiento: z.record(z.string().regex(/^\d{3}$/), z.string().trim().min(1).max(300)).optional(),
   })
   .openapi('Emisor');
 export const EmisorGuardado = Emisor.extend({ id: z.string().uuid() }).openapi('EmisorGuardado');
@@ -156,7 +156,12 @@ export const EstadoAutorizacion = z
 
 export const Motivo = z.object({ motivo: z.string().min(1).max(500) }).openapi('Motivo');
 
-export const Periodo = z.object({ desde: Fecha, hasta: Fecha });
+/** Período de consulta: como máximo un año, para no cargar todo el historial en una solicitud. */
+export const periodo = <T extends z.ZodRawShape>(extra: T) => z
+  .object({ desde: Fecha, hasta: Fecha, ...extra })
+  .refine((p) => fechas(p).desde <= fechas(p).hasta, { message: 'desde debe ser anterior o igual a hasta.', path: ['desde'] })
+  .refine((p) => (Date.parse(fechas(p).hasta) - Date.parse(fechas(p).desde)) / 86_400_000 <= 366, { message: 'El período no puede pasar de 366 días.', path: ['hasta'] });
+const fechas = (p: unknown) => p as { desde: string; hasta: string };
 
 export const LlaveNueva = z
   .object({

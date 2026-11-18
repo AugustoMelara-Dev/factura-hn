@@ -21,6 +21,7 @@ export {
   dividirRedondeando,
   centavosATexto,
   escaladoATexto,
+  textoSeguroCSV,
   ErrorMonto,
 } from './dinero';
 export type { Monto } from './dinero';

@@ -37,12 +37,12 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 | Paso | Commit |
 |---|---|
-| API: esquema `api_*` con RLS, llaves, emisión idempotente, webhooks, Docker, pruebas de punta a punta | (este commit) |
+| API: esquema `api_*` con RLS, llaves, emisión idempotente, webhooks, Docker, pruebas de punta a punta | 3899538 |
+| Correcciones de la revisión de seguridad (DEC-035) | (este commit) |
 
 ## Sigue
 
-1. Revisión independiente de la Fase 2 (matriz y seguridad de la API) y correcciones.
-2. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
+1. Fase 3: cliente tipado, MCP, ejemplos (Next.js, Express, POS offline), playground, prompts de una línea.
 3. Al cerrar cada fase: resumen con conteo de pruebas y decisiones [REVISAR] de `docs/decisiones.md`.
 
 ## Cómo correr

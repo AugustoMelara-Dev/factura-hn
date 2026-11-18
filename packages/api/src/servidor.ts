@@ -17,7 +17,10 @@ import { CofreSecretos, despacharWebhooks } from './webhooks';
 export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ cerrar: () => Promise<void> }> {
   const url = env.DATABASE_URL;
   if (!url) throw new Error('Falta DATABASE_URL.');
-  const modo = env.FHN_MODO === 'alojado' ? 'alojado' : 'local';
+  // Falla cerrado: un valor mal escrito no debe arrancar en modo local (webhooks a la red interna).
+  const modoTexto = env.FHN_MODO ?? 'local';
+  if (modoTexto !== 'local' && modoTexto !== 'alojado') throw new Error(`FHN_MODO debe ser "local" o "alojado" (no "${modoTexto}").`);
+  const modo = modoTexto;
   const rol = env.FHN_ROL ?? ROL_POR_DEFECTO;
   if (modo === 'alojado' && !env.FHN_CLAVE_CIFRADO) throw new Error('El modo alojado requiere FHN_CLAVE_CIFRADO (32 bytes en base64).');
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
@@ -26,14 +29,18 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   await migrarApi(pool, rol);
   if (modo === 'local') {
     const r = await iniciarLocal(pool, { demo: env.FHN_DEMO === '1', rol });
+    // Única vez que se muestran: no se guardan en claro en ningún lado. Bórralas del log después de copiarlas.
     if (r.llaveAdmin) {
-      // Única vez que se muestran: no se guardan en claro en ningún lado.
-      console.log('\n=== factura-hn: instalación nueva ===');
+      console.log('\n=== factura-hn: instalación nueva (tenant «local») ===');
       console.log(`Llave admin: ${r.llaveAdmin}`);
-      if (r.llaveCaja) console.log(`Llave caja 000-001 (demo): ${r.llaveCaja}`);
-      if (env.FHN_DEMO === '1') console.log('DEMO: el CAI es ficticio. Los documentos no tienen validez fiscal.');
-      console.log('Guárdalas ahora: no se vuelven a mostrar.\n');
+      console.log('Con ella registra el emisor (POST /v1/emisores) y el CAI de tu resolución (POST /v1/autorizaciones).');
     }
+    if (r.demo) {
+      console.log('\n=== Demostración (tenant «demo», CAI FICTICIO: sin validez fiscal) ===');
+      console.log(`Llave admin demo: ${r.demo.llaveAdmin}`);
+      console.log(`Llave caja demo 000-001: ${r.demo.llaveCaja}`);
+    }
+    if (r.llaveAdmin || r.demo) console.log('Guárdalas ahora: no se vuelven a mostrar.\n');
   }
 
   const app = crearApp({ pool, modo, rol, cofre });

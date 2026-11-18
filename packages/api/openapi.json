@@ -68,6 +68,7 @@
             "type": "object",
             "additionalProperties": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 300
             }
           }
@@ -170,6 +171,7 @@
             "type": "object",
             "additionalProperties": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 300
             }
           }
@@ -1002,6 +1004,90 @@
           },
           "409": {
             "description": "Ya existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Emisor"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "El emisor del tenant (lista de 0 o 1)",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "emisores": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EmisorGuardado"
+                      }
+                    }
+                  },
+                  "required": [
+                    "emisores"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
             "content": {
               "application/json": {
                 "schema": {

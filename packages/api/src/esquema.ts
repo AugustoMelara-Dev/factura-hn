@@ -12,7 +12,7 @@
 import type pg from 'pg';
 import { AlmacenPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 1;
+export const VERSION_ESQUEMA_API = 2;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -116,22 +116,30 @@ DO $do$ BEGIN
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
 RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer)
-LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I AS $$
-  UPDATE api_llaves l SET ultimo_uso = now()
-    FROM api_tenants t
-   WHERE l.prefijo = p_prefijo AND l.revocada IS NULL AND t.tenant = l.tenant AND t.activo
-  RETURNING l.tenant, l.hash, l.rol, l.establecimiento, l.punto_emision, t.limite_mensual
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+  SELECT l.tenant, l.hash, l.rol, l.establecimiento, l.punto_emision, t.limite_mensual
+    FROM api_llaves l JOIN api_tenants t ON t.tenant = l.tenant
+   WHERE l.prefijo = p_prefijo AND l.revocada IS NULL AND t.activo
+$$$f$, current_schema());
+
+-- Solo después de comprobar el secreto (la API lo llama a lo sumo una vez por minuto y llave).
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_marcar_uso(p_prefijo text, p_hash bytea)
+RETURNS void
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+  UPDATE api_llaves SET ultimo_uso = now() WHERE prefijo = p_prefijo AND hash = p_hash AND revocada IS NULL
 $$$f$, current_schema());
 
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_tenants_con_pendientes()
 RETURNS SETOF text
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
   SELECT DISTINCT tenant FROM api_entregas WHERE estado = 'PENDIENTE' AND proximo <= now()
 $$$f$, current_schema());
 END $do$;
 REVOKE ALL ON FUNCTION fhn_api_autenticar(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_tenants_con_pendientes() FROM PUBLIC;
+REVOKE ALL ON FUNCTION fhn_api_marcar_uso(text, bytea) FROM PUBLIC;
 `;
 
 const ROL = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -152,12 +160,13 @@ GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_ent
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
 GRANT SELECT, INSERT ON api_bitacora TO ${rol};
 GRANT USAGE ON SEQUENCE api_entregas_id_seq, api_bitacora_id_seq TO ${rol};
-GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_tenants_con_pendientes() TO ${rol};`;
+GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea) TO ${rol};`;
 }
 
 /**
  * Crea o actualiza las tablas fiscales y las de la API, con RLS y el rol de la aplicación. Una vez por
- * versión (tabla `fhn_migraciones`), protegida con un candado para varias réplicas.
+ * versión (tabla `fhn_migraciones`), protegida con un candado para varias réplicas. Todo el SQL es
+ * idempotente: una versión nueva lo vuelve a aplicar completo.
  */
 export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO): Promise<void> {
   await new AlmacenPostgres(pool).migrar({ rls: { rol } });

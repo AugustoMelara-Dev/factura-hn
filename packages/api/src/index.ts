@@ -14,7 +14,7 @@ export { migrarApi, ESQUEMA_API, ROL_POR_DEFECTO, VERSION_ESQUEMA_API } from './
 export { ErrorApi, LimitadorSolicitudes } from './errores';
 export { generarLlave, prefijoDe } from './llaves';
 export type { RolLlave } from './llaves';
-export { crearTenant, crearLlaveOperador, iniciarLocal, TENANT_LOCAL, CAI_DEMO } from './operador';
+export { crearTenant, crearLlaveOperador, iniciarLocal, TENANT_LOCAL, TENANT_DEMO, CAI_DEMO } from './operador';
 export {
   CofreSecretos,
   despacharWebhooks,

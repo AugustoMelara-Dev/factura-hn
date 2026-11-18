@@ -3,7 +3,7 @@
  * No hay registro público de tenants: en el modo alojado los crea quien opera el servicio.
  */
 import type pg from 'pg';
-import { registrarAutorizacion, type AutorizacionCAI } from 'factura-hn';
+import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenPostgres } from '@factura-hn/postgres';
 import { generarLlave, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
@@ -77,23 +77,34 @@ export const EMISOR_DEMO = {
   correo: 'demo@ejemplo.hn',
 };
 
+export const TENANT_DEMO = 'demo';
+
 /**
  * Modo local (Art. 47): un solo negocio en su establecimiento. Crea el tenant `local` y su llave admin si
- * no existen. Con `demo`, además registra el emisor y un CAI ficticio y crea una llave de caja.
+ * no existen. Con `demo`, crea **además** un tenant aparte, `demo`, con el emisor y un CAI ficticios y una
+ * llave de caja: el tenant `local` del negocio queda limpio para su RTN y sus CAI reales.
+ * Devuelve solo las llaves creadas en esta llamada (se muestran una vez).
  */
 export async function iniciarLocal(
   pool: pg.Pool,
   o: { demo?: boolean; rol?: string; hoy?: Date } = {},
-): Promise<{ llaveAdmin?: string; llaveCaja?: string }> {
-  if (await existeTenant(pool, TENANT_LOCAL)) return {};
-  const { llaveAdmin } = await crearTenant(pool, { tenant: TENANT_LOCAL, nombre: 'Instalación local' });
-  if (!o.demo) return { llaveAdmin };
-  await enTenant(pool, TENANT_LOCAL, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_LOCAL, JSON.stringify(EMISOR_DEMO)]));
+): Promise<{ llaveAdmin?: string; demo?: { llaveAdmin: string; llaveCaja: string } }> {
+  const r: { llaveAdmin?: string; demo?: { llaveAdmin: string; llaveCaja: string } } = {};
+  if (!(await existeTenant(pool, TENANT_LOCAL))) {
+    r.llaveAdmin = (await crearTenant(pool, { tenant: TENANT_LOCAL, nombre: 'Instalación local' })).llaveAdmin;
+  }
+  if (o.demo && !(await existeTenant(pool, TENANT_DEMO))) r.demo = await crearDemo(pool, o);
+  return r;
+}
+
+async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {
+  const { llaveAdmin } = await crearTenant(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
+  await enTenant(pool, TENANT_DEMO, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_DEMO, JSON.stringify(EMISOR_DEMO)]));
   const hoy = o.hoy ?? new Date();
   const limite = new Date(hoy.getTime() + 180 * 86_400_000).toISOString().slice(0, 10);
-  const almacen = new AlmacenPostgres(pool, { tenant: TENANT_LOCAL, rol: o.rol ?? ROL_POR_DEFECTO });
+  const almacen = new AlmacenPostgres(pool, { tenant: TENANT_DEMO, rol: o.rol ?? ROL_POR_DEFECTO });
   for (const tipoDocumento of ['01', '06', '07'] as const) {
-    const aut: AutorizacionCAI = {
+    await registrarAutorizacion(almacen, {
       cai: `${CAI_DEMO.slice(0, -2)}${tipoDocumento}`,
       tipoDocumento,
       establecimiento: '000',
@@ -101,9 +112,8 @@ export async function iniciarLocal(
       rangoInicial: 1,
       rangoFinal: 5000,
       fechaLimiteEmision: limite,
-    };
-    await registrarAutorizacion(almacen, aut, { actor: 'operador:demo' });
+    }, { actor: 'operador:demo' });
   }
-  const llaveCaja = await crearLlaveOperador(pool, { tenant: TENANT_LOCAL, rol: 'caja', nombre: 'Caja 1 (demo)', establecimiento: '000', puntoEmision: '001' });
+  const llaveCaja = await crearLlaveOperador(pool, { tenant: TENANT_DEMO, rol: 'caja', nombre: 'Caja 1 (demo)', establecimiento: '000', puntoEmision: '001' });
   return { llaveAdmin, llaveCaja };
 }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CofreSecretos,
+  esIPPrivada,
   despacharWebhooks,
   esperaReintento,
   firmar,
@@ -54,6 +55,11 @@ describe('destinos de webhooks (SSRF)', () => {
     ]) {
       expect(problemaDeURL(url, false), url).not.toBeNull();
     }
+    for (const ip of ['[64:ff9b::a9fe:a9fe]', '[::a9fe:a9fe]', '[fec0::1]', '198.18.0.1', '[2002:7f00:1::]', '[::ffff:7f00:1]', '[2001:db8::1]', '192.0.0.8']) {
+      expect(problemaDeURL(`https://${ip}/x`, false), ip).not.toBeNull();
+    }
+    expect(esIPPrivada('2606:4700:4700::1111')).toBe(false);
+    expect(esIPPrivada('8.8.8.8')).toBe(false);
     expect(problemaDeURL('https://hooks.ejemplo.hn/factura', false)).toBeNull();
     expect(problemaDeURL('https://8.8.8.8/x', false)).toBeNull();
   });
@@ -135,6 +141,53 @@ describe.skipIf(!URL_PG)('entregas', () => {
     const r = await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
     expect(r.status).toBe(422);
     expect((await r.json()).errores[0].codigo).toBe('RANGO_AGOTADO');
+  });
+
+  it('un webhook desactivado no recibe lo que tenía pendiente', async () => {
+    const { admin, tenant } = await tenantListo();
+    const pool = await poolPrueba();
+    const destino = `http://127.0.0.1:9/hook-${tenant}`;
+    const { id } = (await (await admin('POST', '/v1/webhooks', { url: destino, eventos: ['documento.emitido'] })).json()) as { id: string };
+    await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+    await admin('DELETE', `/v1/webhooks/${id}`);
+    let llamadas = 0;
+    const fetchFalso = (async (url: string) => {
+      if (url === destino) llamadas++;
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+    await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, fetch: fetchFalso });
+    expect(llamadas).toBe(0);
+    const e = await pool.query('SELECT estado, ultimo_error FROM api_entregas WHERE tenant = $1', [tenant]);
+    expect(e.rows).toEqual([{ estado: 'FALLIDA', ultimo_error: 'Webhook desactivado' }]);
+  });
+
+  it('entrega real por HTTP (sin fetch inyectado) a un receptor local, con firma verificable', async () => {
+    const http = await import('node:http');
+    let resolver!: (v: { cuerpo: string; firma: string }) => void;
+    const recibido = new Promise<{ cuerpo: string; firma: string }>((r) => (resolver = r));
+    const srv = http.createServer((req, res) => {
+      let cuerpo = '';
+      req.on('data', (d) => (cuerpo += d));
+      req.on('end', () => {
+        res.end('ok');
+        resolver({ cuerpo, firma: String(req.headers['x-facturahn-firma']) });
+      });
+    });
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    try {
+      const puerto = (srv.address() as { port: number }).port;
+      const { admin, tenant } = await tenantListo();
+      const pool = await poolPrueba();
+      const { secreto } = (await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto}/hook`, eventos: ['documento.emitido'] })).json()) as { secreto: string };
+      await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+      await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true });
+      const { cuerpo, firma } = await recibido;
+      expect(verificarFirmaWebhook(cuerpo, firma, secreto)).toBe(true);
+      const e = await pool.query('SELECT estado, ultimo_codigo FROM api_entregas WHERE tenant = $1', [tenant]);
+      expect(e.rows).toEqual([{ estado: 'ENTREGADA', ultimo_codigo: 200 }]);
+    } finally {
+      srv.close();
+    }
   });
 
   it('modo alojado: rechaza registrar un webhook hacia la red interna', async () => {

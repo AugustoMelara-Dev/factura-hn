@@ -6,7 +6,7 @@ const correr = (cmd, args, env = {}) => {
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
 
-correr('docker', ['compose', 'up', '-d', '--wait', 'db']);
+correr('docker', ['compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.dev.yml', 'up', '-d', '--wait', 'db']);
 correr('pnpm', ['--filter', '@factura-hn/postgres', '--filter', '@factura-hn/api', 'test'], {
   FHN_PG_URL: process.env.FHN_PG_URL ?? 'postgres://postgres@127.0.0.1:54329/factura_hn',
 });

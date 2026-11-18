@@ -54,6 +54,15 @@ function potencia10(n: number): bigint {
 }
 
 /**
+ * Texto libre (nombres, motivos) para una celda de CSV: si empieza con `= + - @`, tabulador o retorno, se
+ * antepone `'` para que una hoja de cálculo no lo ejecute como fórmula (inyección de CSV). Solo para texto,
+ * nunca para montos (un monto negativo empieza con `-`).
+ */
+export function textoSeguroCSV(s: string): string {
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
+/**
  * Divide redondeando a entero, mitad lejos de cero: la regla del Art. 9 de la Ley del ISV
  * (≥ 0.005 sube, < 0.005 baja) aplicada en la unidad que corresponda.
  */

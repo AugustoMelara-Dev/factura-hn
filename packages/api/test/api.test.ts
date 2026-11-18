@@ -303,3 +303,69 @@ conBase('documentación', () => {
     expect(await json(await c('GET', '/salud'))).toMatchObject({ ok: true, modo: 'local' });
   });
 });
+
+conBase('correcciones de la revisión de seguridad', () => {
+  it('intentos con un prefijo conocido y secreto falso: 429 antes de tocar la base y sin marcar último uso', async () => {
+    const { llaveAdmin, pool, tenant } = await tenantListo();
+    const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 } });
+    const falsa = `${llaveAdmin.slice(0, 17)}${'A'.repeat(43)}`;
+    const uso = async () => (await pool.query('SELECT ultimo_uso FROM api_llaves WHERE tenant = $1', [tenant])).rows[0].ultimo_uso;
+    const antes = await uso();
+    const rs = await Promise.all(Array.from({ length: 6 }, () => cliente(app, falsa)('GET', '/v1/autorizaciones')));
+    expect(rs.map((r) => r.status).sort()).toEqual([401, 401, 429, 429, 429, 429]);
+    // El secreto falso no actualiza el último uso de la llave verdadera.
+    expect(await uso()).toEqual(antes);
+  });
+
+  it('el esquema Bearer no distingue mayúsculas', async () => {
+    const { app, llaveAdmin } = await tenantListo();
+    const r = await app.request('/v1/autorizaciones', { headers: { authorization: `bearer ${llaveAdmin}` } });
+    expect(r.status).toBe(200);
+  });
+
+  it('GET /v1/emisores da el id; un segundo POST responde 409 con el id', async () => {
+    const { admin, emisorId } = await tenantListo();
+    expect((await json(await admin('GET', '/v1/emisores'))).emisores.map((e: any) => e.id)).toEqual([emisorId]);
+    const r = await admin('POST', '/v1/emisores', { rtn: '08011999123456', razonSocial: 'x', nombreComercial: 'x', direccionCasaMatriz: 'x', direccionEstablecimiento: 'x', telefono: '1', correo: 'a@b.hn' });
+    expect(r.status).toBe(409);
+    expect((await json(r)).id).toBe(emisorId);
+  });
+
+  it('una llave de caja siempre queda atada a un punto de emisión', async () => {
+    const { admin } = await tenantListo();
+    const r = await admin('POST', '/v1/llaves', { nombre: 'caja suelta', rol: 'caja' });
+    expect(r.status).toBe(400);
+    expect((await json(r)).error.codigo).toBe('CAJA_INCOMPLETA');
+  });
+
+  it('períodos de más de 366 días o invertidos y direcciones vacías se rechazan', async () => {
+    const { admin, emisorId } = await tenantListo();
+    expect((await admin('GET', '/v1/libro-ventas?desde=2020-01-01&hasta=2026-12-31')).status).toBe(400);
+    expect((await admin('GET', '/v1/documentos?desde=2026-12-31&hasta=2026-01-01')).status).toBe(400);
+    expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { direccionesEstablecimiento: { '002': '  ' } })).status).toBe(400);
+  });
+
+  it('el CSV del libro de ventas no ejecuta fórmulas del nombre del cliente', async () => {
+    const { admin } = await tenantListo();
+    const cuerpo = venta('1.00', { documento: { cliente: { nombre: '=HYPERLINK("http://x")' }, lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '1.00' }] } });
+    const d = (await json(await emitir(admin, cuerpo))).documento;
+    const csv = await (await admin('GET', `/v1/libro-ventas?desde=${d.fechaEmision}&hasta=${d.fechaEmision}&formato=csv`)).text();
+    expect(csv).toContain(`"'=HYPERLINK(""http://x"")"`);
+  });
+});
+
+conBase('modo local', () => {
+  it('la demostración va en su propio tenant; el tenant local queda limpio', async () => {
+    const pool = await poolPrueba();
+    const { iniciarLocal, TENANT_DEMO, TENANT_LOCAL } = await import('../src/operador');
+    const yaHabia = (await pool.query('SELECT tenant FROM api_tenants WHERE tenant = ANY($1)', [[TENANT_LOCAL, TENANT_DEMO]])).rows.map((f) => f.tenant);
+    const r = await iniciarLocal(pool, { demo: true, rol: ROL });
+    expect(Boolean(r.llaveAdmin)).toBe(!yaHabia.includes(TENANT_LOCAL));
+    expect(Boolean(r.demo)).toBe(!yaHabia.includes(TENANT_DEMO));
+    expect(await iniciarLocal(pool, { demo: true, rol: ROL })).toEqual({});
+    const auts = await pool.query('SELECT tenant, count(*)::int AS n FROM fhn_autorizaciones WHERE tenant = ANY($1) GROUP BY tenant', [[TENANT_LOCAL, TENANT_DEMO]]);
+    // Si esta llamada creó el tenant local, no le puso datos de demostración.
+    if (r.llaveAdmin) expect(auts.rows.find((f) => f.tenant === TENANT_LOCAL)).toBeUndefined();
+    expect(auts.rows.find((f) => f.tenant === TENANT_DEMO)?.n).toBe(3);
+  });
+});

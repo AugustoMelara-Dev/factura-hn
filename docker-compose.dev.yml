@@ -1,0 +1,8 @@
+# Solo para desarrollo y pruebas: publica Postgres en 127.0.0.1:54329 (sin contraseña, como superusuario).
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+# Cualquier proceso de este equipo puede entrar a la base y saltarse RLS y los disparadores: no lo uses en el
+# equipo de un negocio.
+services:
+  db:
+    ports:
+      - "127.0.0.1:54329:5432"

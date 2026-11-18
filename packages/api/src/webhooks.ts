@@ -10,7 +10,9 @@
  * - `X-FacturaHN-Firma`: `t=<segundos unix>,v1=<hex de HMAC-SHA256(secreto, "<t>.<cuerpo>")>`
  */
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
+import { lookup as dnsLookup } from 'node:dns';
+import http from 'node:http';
+import https from 'node:https';
 import { isIP } from 'node:net';
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, type TransaccionPostgres } from '@factura-hn/postgres';
@@ -89,18 +91,47 @@ export class CofreSecretos {
 
 // --- Destinos (SSRF) ------------------------------------------------------------------------------------
 
-function esIPPrivada(ip: string): boolean {
+/** Expande una IPv6 a 8 grupos de 16 bits (admite `::` y una IPv4 al final). */
+function gruposIPv6(ip: string): number[] | null {
+  let x = ip.toLowerCase().split('%')[0]!;
+  const v4 = /(\d+\.\d+\.\d+\.\d+)$/.exec(x);
+  if (v4) {
+    const o = v4[1]!.split('.').map(Number);
+    x = x.slice(0, -v4[1]!.length) + `${((o[0]! << 8) | o[1]!).toString(16)}:${((o[2]! << 8) | o[3]!).toString(16)}`;
+  }
+  const [izq, der] = x.split('::') as [string, string | undefined];
+  const a = izq ? izq.split(':') : [];
+  const b = der !== undefined && der ? der.split(':') : [];
+  const relleno = der === undefined ? 0 : 8 - a.length - b.length;
+  const g = [...a, ...Array(relleno).fill('0'), ...b].map((h) => parseInt(h, 16));
+  return g.length === 8 && g.every((n) => Number.isInteger(n) && n >= 0 && n <= 0xffff) ? g : null;
+}
+
+/**
+ * true si la IP no es unicast pública: privadas, loopback, enlace local, CGNAT, pruebas (198.18/15),
+ * multicast, reservadas, y en IPv6 además ULA, site-local, NAT64, 6to4, Teredo, documentación y las que
+ * llevan una IPv4 adentro (::ffff:, ::a.b.c.d). Ante la duda, se bloquea.
+ */
+export function esIPPrivada(ip: string): boolean {
   const v = isIP(ip);
   if (v === 4) {
     const [a, b] = ip.split('.').map(Number) as [number, number];
     return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+      (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 100 && b >= 64 && b <= 127) ||
+      (a === 198 && (b === 18 || b === 19)) || a >= 224;
   }
   if (v === 6) {
-    const x = ip.toLowerCase();
-    if (x.startsWith('::ffff:')) return esIPPrivada(x.slice(7));
-    return x === '::' || x === '::1' || x.startsWith('fc') || x.startsWith('fd') || x.startsWith('fe8') ||
-      x.startsWith('fe9') || x.startsWith('fea') || x.startsWith('feb') || x.startsWith('ff');
+    const g = gruposIPv6(ip);
+    if (!g) return true;
+    const ceros5 = g.slice(0, 5).every((n) => n === 0);
+    if (ceros5 && (g[5] === 0xffff || g[5] === 0)) {
+      if (g[5] === 0 && g[6] === 0 && (g[7] === 0 || g[7] === 1)) return true; // :: y ::1
+      return esIPPrivada(`${g[6]! >> 8}.${g[6]! & 255}.${g[7]! >> 8}.${g[7]! & 255}`);
+    }
+    const p = g[0]!;
+    return (p & 0xfe00) === 0xfc00 || (p & 0xffc0) === 0xfe80 || (p & 0xffc0) === 0xfec0 || (p & 0xff00) === 0xff00 ||
+      (p === 0x64 && g[1] === 0xff9b) || p === 0x2002 || (p === 0x2001 && (g[1] === 0 || g[1] === 0xdb8)) ||
+      (p === 0x100 && g[1] === 0 && g[2] === 0 && g[3] === 0) || (p & 0xe000) !== 0x2000;
   }
   return true;
 }
@@ -127,18 +158,42 @@ export function problemaDeURL(url: string, permitirRedInterna: boolean): string 
   return null;
 }
 
-/** Al entregar se resuelve el nombre otra vez: un DNS que apunta a la red interna se rechaza. */
-async function destinoPermitido(url: string, permitirRedInterna: boolean): Promise<string | null> {
-  const p = problemaDeURL(url, permitirRedInterna);
-  if (p || permitirRedInterna) return p;
-  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
-  if (isIP(host)) return null;
-  try {
-    const ips = await lookup(host, { all: true });
-    return ips.some((d) => esIPPrivada(d.address)) ? 'El nombre resuelve a una dirección interna.' : null;
-  } catch {
-    return 'No se pudo resolver el nombre del destino.';
-  }
+/**
+ * `lookup` para la conexión: resuelve el nombre y rechaza si alguna dirección es interna. La conexión usa la
+ * misma dirección que se validó, así que un DNS que cambia de respuesta (rebinding) no la puede desviar.
+ */
+function lookupSeguro(host: string, opciones: object, cb: (e: Error | null, dir: string | { address: string; family: number }[], fam?: number) => void) {
+  dnsLookup(host, { ...opciones, all: true }, (e, dirs) => {
+    if (e) return cb(e, '', 0);
+    const lista = dirs as { address: string; family: number }[];
+    if (!lista.length || lista.some((d) => esIPPrivada(d.address))) return cb(new Error('El nombre resuelve a una dirección interna.'), '', 0);
+    if ((opciones as { all?: boolean }).all) return cb(null, lista);
+    cb(null, lista[0]!.address, lista[0]!.family);
+  });
+}
+
+/** POST sin seguir redirecciones; en modo alojado, conectando solo a direcciones públicas validadas. */
+function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: string, tiempoMaximo: number, permitirRedInterna: boolean): Promise<number> {
+  return new Promise((resolver, rechazar) => {
+    const u = new URL(url);
+    const mod = u.protocol === 'https:' ? https : http;
+    const req = mod.request(
+      u,
+      {
+        method: 'POST',
+        headers: { ...cabeceras, 'content-length': Buffer.byteLength(cuerpo) },
+        timeout: tiempoMaximo,
+        ...(permitirRedInterna ? {} : { lookup: lookupSeguro as never }),
+      },
+      (res) => {
+        res.resume();
+        resolver(res.statusCode ?? 0);
+      },
+    );
+    req.on('timeout', () => req.destroy(Object.assign(new Error('Tiempo agotado'), { name: 'TimeoutError' })));
+    req.on('error', rechazar);
+    req.end(cuerpo);
+  });
 }
 
 // --- Encolar ----------------------------------------------------------------------------------------------
@@ -166,76 +221,104 @@ export interface OpcionesDespacho {
   rol: string;
   cofre: CofreSecretos;
   permitirRedInterna: boolean;
+  /** Solo para pruebas: reemplaza el envío HTTP (sin la protección de direcciones al conectar). */
   fetch?: typeof fetch;
   /** Milisegundos por entrega. */
   tiempoMaximo?: number;
   lote?: number;
+  /** Entregas simultáneas por tenant. */
+  paralelas?: number;
   ahora?: () => Date;
 }
 
+interface Reclamada { id: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string }
+
 /**
- * Entrega los avisos pendientes cuyo momento llegó. Varias réplicas pueden correrlo a la vez: cada
- * entrega se toma con `FOR UPDATE SKIP LOCKED`. Devuelve cuántas entregas intentó.
+ * Entrega los avisos pendientes cuyo momento llegó. Cada entrega se **reclama** en una transacción corta
+ * (`FOR UPDATE SKIP LOCKED` y `proximo` adelantado como arrendamiento), el HTTP corre fuera de la
+ * transacción y el resultado se registra después: un receptor lento no retiene conexiones ni candados, y
+ * los tenants se atienden en paralelo. Varias réplicas pueden correrlo a la vez. Devuelve cuántas intentó.
  */
 export async function despacharWebhooks(o: OpcionesDespacho): Promise<number> {
   const base = new AlmacenPostgres(o.pool, { rol: o.rol });
+  const ahora = o.ahora ?? (() => new Date());
   const tenants = await base.transaccion(async (tx) =>
     (await comoTransaccionPostgres(tx).consulta<{ t: string }>('SELECT fhn_api_tenants_con_pendientes() AS t')).rows.map((f) => f.t),
   );
-  let intentadas = 0;
-  for (const tenant of tenants) {
-    intentadas += await base.paraTenant(tenant).transaccion(async (t) => {
-      const tx = comoTransaccionPostgres(t);
-      const r = await tx.consulta<{ id: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string }>(
-        `SELECT e.id, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
-           FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
-          WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now()
-          ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
-        [tenant, o.lote ?? 20],
-      );
-      for (const e of r.rows) {
-        const resultado = await entregar(o, e);
-        const intentos = e.intentos + 1;
-        const estado = resultado.ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
-        const proximo = new Date((o.ahora ?? (() => new Date()))().getTime() + esperaReintento(intentos));
+  const porTenant = await Promise.all(
+    tenants.map(async (tenant) => {
+      const almacen = base.paraTenant(tenant);
+      const reclamadas = await almacen.transaccion(async (t) => {
+        const tx = comoTransaccionPostgres(t);
+        // Lo pendiente de un webhook desactivado ya no se entrega.
         await tx.consulta(
-          'UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6 WHERE id = $1',
-          [e.id, estado, intentos, proximo, resultado.codigo, resultado.error],
+          `UPDATE api_entregas e SET estado = 'FALLIDA', ultimo_error = 'Webhook desactivado'
+             FROM api_webhooks w WHERE w.id = e.webhook_id AND e.tenant = $1 AND e.estado = 'PENDIENTE' AND NOT w.activo`,
+          [tenant],
         );
+        const r = await tx.consulta<Reclamada>(
+          `SELECT e.id, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
+             FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
+            WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
+            ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
+          [tenant, o.lote ?? 20],
+        );
+        if (r.rows.length) {
+          await tx.consulta("UPDATE api_entregas SET proximo = now() + interval '5 minutes' WHERE id = ANY($1::bigint[])", [r.rows.map((e) => e.id)]);
+        }
+        return r.rows;
+      });
+      const resultados: { e: Reclamada; ok: boolean; codigo: number | null; error: string | null }[] = [];
+      const cola = [...reclamadas];
+      await Promise.all(
+        Array.from({ length: Math.min(o.paralelas ?? 4, cola.length) }, async () => {
+          for (let e = cola.shift(); e; e = cola.shift()) resultados.push({ e, ...(await entregar(o, e)) });
+        }),
+      );
+      if (resultados.length) {
+        await almacen.transaccion(async (t) => {
+          const tx = comoTransaccionPostgres(t);
+          for (const { e, ok, codigo, error } of resultados) {
+            const intentos = e.intentos + 1;
+            const estado = ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
+            await tx.consulta(
+              'UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6 WHERE id = $1',
+              [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error],
+            );
+          }
+        });
       }
-      return r.rows.length;
-    });
-  }
-  return intentadas;
+      return resultados.length;
+    }),
+  );
+  return porTenant.reduce((a, b) => a + b, 0);
 }
 
-async function entregar(
-  o: OpcionesDespacho,
-  e: { id: string; evento: string; cuerpo: unknown; url: string; secreto: string },
-): Promise<{ ok: boolean; codigo: number | null; error: string | null }> {
-  const problema = await destinoPermitido(e.url, o.permitirRedInterna);
+async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolean; codigo: number | null; error: string | null }> {
+  const problema = problemaDeURL(e.url, o.permitirRedInterna);
   if (problema) return { ok: false, codigo: null, error: problema };
   const cuerpo = JSON.stringify({ id: e.id, ...(e.cuerpo as object) });
   const t = Math.floor((o.ahora ?? (() => new Date()))().getTime() / 1000);
+  const cabeceras = {
+    'content-type': 'application/json',
+    'user-agent': 'factura-hn-webhooks/0.2',
+    'x-facturahn-evento': e.evento,
+    'x-facturahn-entrega': e.id,
+    'x-facturahn-firma': firmar(o.cofre.leer(e.secreto), cuerpo, t),
+  };
+  const tiempo = o.tiempoMaximo ?? 10_000;
   try {
-    const resp = await (o.fetch ?? fetch)(e.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'user-agent': 'factura-hn-webhooks/0.2',
-        'x-facturahn-evento': e.evento,
-        'x-facturahn-entrega': e.id,
-        'x-facturahn-firma': firmar(o.cofre.leer(e.secreto), cuerpo, t),
-      },
-      body: cuerpo,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(o.tiempoMaximo ?? 10_000),
-    });
-    await resp.body?.cancel().catch(() => undefined);
-    return resp.status >= 200 && resp.status < 300
-      ? { ok: true, codigo: resp.status, error: null }
-      : { ok: false, codigo: resp.status, error: `HTTP ${resp.status}` };
+    let estado: number;
+    if (o.fetch) {
+      const resp = await o.fetch(e.url, { method: 'POST', headers: cabeceras, body: cuerpo, redirect: 'manual', signal: AbortSignal.timeout(tiempo) });
+      await resp.body?.cancel().catch(() => undefined);
+      estado = resp.status;
+    } else {
+      estado = await enviarHttp(e.url, cabeceras, cuerpo, tiempo, o.permitirRedInterna);
+    }
+    return estado >= 200 && estado < 300 ? { ok: true, codigo: estado, error: null } : { ok: false, codigo: estado, error: `HTTP ${estado}` };
   } catch (err) {
-    return { ok: false, codigo: null, error: (err as Error).name === 'TimeoutError' ? 'Tiempo agotado' : 'Error de red' };
+    const m = (err as Error).message;
+    return { ok: false, codigo: null, error: (err as Error).name === 'TimeoutError' ? 'Tiempo agotado' : /interna/.test(m) ? m : 'Error de red' };
   }
 }

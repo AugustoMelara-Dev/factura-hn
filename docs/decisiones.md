@@ -228,9 +228,23 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   resuelve otra vez al entregar; sin redirecciones. Local: http y red del negocio permitidos.
 - **Alternativa:** lista blanca de dominios por tenant.
 
-### DEC-034 · Modo local con tenant `local` y datos de demostración marcados
-- **Contexto:** Art. 47 y la recomendación de P-02: instalación en el establecimiento.
-- **Elegida:** el mismo código con `FHN_MODO=local`; al primer arranque crea el tenant y la llave admin y las
-  imprime una vez. `FHN_DEMO=1` carga un CAI ficticio (`DEMO00-NO-VALIDO-…`) y un emisor «NEGOCIO DE
-  DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)».
+### DEC-034 · Modo local con tenant `local` y la demostración en un tenant aparte
+- **Contexto:** Art. 47 y la recomendación de P-02: instalación en el establecimiento. La revisión mostró que
+  poner la demostración en el mismo tenant dejaba inservible la instalación para el RTN y los CAI reales.
+- **Elegida:** el mismo código con `FHN_MODO=local`; al primer arranque crea el tenant `local` (vacío) y su
+  llave admin. `FHN_DEMO=1` crea además el tenant `demo` con un CAI ficticio (`DEMO00-NO-VALIDO-…`) y un
+  emisor «NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)».
 - **Alternativa:** una imagen distinta para cada modo.
+
+### DEC-035 · Revisión de seguridad de la Fase 2: cambios de diseño
+- **Contexto:** revisión independiente (sin hallazgos críticos ni altos; siete medios).
+- **Elegida:**
+  - Autenticación: la función de búsqueda ya no escribe. El último uso se marca solo con el secreto correcto, a
+    lo sumo una vez por minuto. El límite por llave se aplica antes de consultar la base.
+  - Webhooks: la entrega se reclama en una transacción corta y el HTTP corre fuera, en paralelo por tenant. La
+    conexión usa la IP validada y los rangos bloqueados cubren IPv6 completo.
+  - Las llaves de caja siempre van atadas a un punto de emisión.
+  - Postgres no publica su puerto en el `docker-compose.yml` (sí en `docker-compose.dev.yml`).
+  - `FHN_MODO` falla cerrado.
+  - Los CSV protegen el texto contra fórmulas (`textoSeguroCSV` en el núcleo). JSONL y TXT no cambian.
+- **Alternativa:** dejarlo documentado como riesgo.

@@ -13,13 +13,20 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 ## Levantarla en tu máquina
 
 ```bash
-docker compose up --build        # API en http://127.0.0.1:8787 y Postgres en 127.0.0.1:54329
-docker compose logs api          # llaves admin y caja: se muestran una sola vez, al primer arranque
+docker compose up --build        # API en http://127.0.0.1:8787 (Postgres solo en la red interna de Compose)
+docker compose logs api          # llaves: se muestran una sola vez, al primer arranque
 ```
 
-`docker-compose.yml` arranca con `FHN_DEMO=1`: emisor de demostración y **CAI ficticio**
-(`DEMO00-NO-VALIDO-…`), que no sirve para facturar. En un negocio real quita esa línea, registra el emisor
-y el CAI de tu resolución con la llave admin.
+Al primer arranque se crean dos tenants:
+
+- `local`: el de tu negocio, vacío. Con su llave admin registra el emisor (`POST /v1/emisores`) y el CAI de tu
+  resolución (`POST /v1/autorizaciones`), y crea las llaves de caja (`POST /v1/llaves`).
+- `demo` (por `FHN_DEMO=1`): emisor «NEGOCIO DE DEMOSTRACIÓN» y **CAI ficticio** (`DEMO00-NO-VALIDO-…`), sin
+  validez fiscal, con una llave de caja 000-001 lista para probar. Pon `FHN_DEMO: "0"` para no crearlo.
+
+Si perdiste una llave: `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"`.
+Para desarrollo, `docker-compose.dev.yml` publica Postgres en 127.0.0.1:54329 (sin contraseña: no lo uses en
+el equipo de un negocio).
 
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
 `packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`).
@@ -65,15 +72,16 @@ listados y en la bitácora; la base guarda solo el SHA-256 de la llave completa.
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
 
-Una llave de caja puede atarse a un establecimiento y punto de emisión: emite solo ahí (otro punto da 403).
-No se puede revocar la única llave admin activa (409).
+Una llave de caja siempre está atada a un establecimiento y punto de emisión: emite solo ahí (otro punto da
+403). Una llave admin puede emitir en cualquier punto. No se puede revocar la única llave admin activa (409).
+El esquema `Bearer` no distingue mayúsculas.
 
 ## Recursos
 
 | Método y ruta | Rol | |
 |---|---|---|
 | `GET /salud`, `GET /openapi.json`, `GET /docs` | — | |
-| `POST /v1/emisores` · `GET/PATCH /v1/emisores/{id}` | admin · caja/admin | Un emisor por tenant; el RTN no cambia; los cambios afectan solo a documentos futuros |
+| `POST /v1/emisores` · `GET /v1/emisores` · `GET/PATCH /v1/emisores/{id}` | admin · caja · caja/admin | Un emisor por tenant (el 409 trae su `id`); el RTN no cambia; los cambios afectan solo a documentos futuros |
 | `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo) |
 | `GET /v1/autorizaciones/{cai}/estado` | caja | Vigencia, restantes y alertas (Arts. 59 y 62) |
 | `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria |
@@ -87,6 +95,8 @@ No se puede revocar la única llave admin activa (409).
 | `GET /v1/bitacora` | admin | Bitácora fiscal (núcleo) y de la API |
 | `POST/GET /v1/llaves` · `DELETE /v1/llaves/{prefijo}` | admin | La llave completa se muestra solo al crearla |
 | `POST/GET /v1/webhooks` · `DELETE /v1/webhooks/{id}` | admin | El secreto se muestra solo al crearlo |
+
+Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
 Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, campo }] }`.
 400 forma inválida · 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB ·
@@ -102,13 +112,16 @@ Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, ca
 **Idempotencia.** Reintentar con la misma clave y el mismo cuerpo devuelve el mismo documento con
 `Idempotency-Replayed: true`. Con otro cuerpo: 422 `IDEMPOTENCIA_CONFLICTO`. Si dos reintentos llegan a la
 vez, uno emite y el otro espera, se revierte y devuelve el mismo documento. Una solicitud rechazada (422) no
-guarda la clave: corregida, puede reintentarse con la misma.
+guarda la clave: corregida, puede reintentarse con la misma. La respuesta repetida es la de la emisión: si el
+documento se anuló después, consulta `GET /v1/documentos/{numero}` para ver su estado actual.
 
 ## Webhooks
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
 y un despachador los entrega cada 5 s: hasta 8 intentos con espera creciente (30 s, 1 min, 2 min, … 6 h).
+Cada entrega se reclama en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant: un
+receptor lento no frena a los demás. Lo pendiente de un webhook desactivado no se entrega.
 
 ```ts
 import { verificarFirmaWebhook } from '@factura-hn/api';
@@ -133,9 +146,20 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.
 - HTML de los documentos con `Content-Security-Policy: default-src 'none'` y texto escapado.
-- Límite de solicitudes por llave (20/s, ráfaga 40, en memoria por réplica) y de documentos por mes por
-  tenant (en la base).
+- Límite de solicitudes por llave (20/s, ráfaga 40, en memoria por réplica), aplicado **antes** de consultar
+  la base, y de documentos por mes por tenant (en la base). El último uso de una llave se registra solo con el
+  secreto correcto.
+- Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
+  IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.
+- `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca.
+- CSV (libro de ventas y exportación): el texto que empieza con `= + - @` lleva un apóstrofo delante para que
+  una hoja de cálculo no lo ejecute como fórmula.
 - Errores internos sin detalles para el cliente.
+
+**Pendientes conocidos:** las claves de idempotencia no caducan; el `docker-compose.yml` conecta la API como
+superusuario de Postgres (en producción usa un rol LOGIN que no sea dueño de las tablas); las llaves del
+primer arranque quedan en `docker compose logs` (cópialas y rota el log); el id de entrega viene de una
+secuencia global.
 
 **Producción:** Postgres con contraseña y TLS, `FHN_CLAVE_CIFRADO`, la API detrás de un proxy con HTTPS. El
 `docker-compose.yml` del repositorio es para probar en tu máquina (Postgres sin contraseña en 127.0.0.1).

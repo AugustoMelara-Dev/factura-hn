@@ -113,15 +113,24 @@ conBase('RLS: un tenant no ve ni toca los datos de otro', () => {
     }
   });
 
-  it('la función de autenticación no expone más que la llave pedida', async () => {
+  it('la función de autenticación devuelve solo la llave pedida, nada de las revocadas, y sin tenant no se ve ninguna llave', async () => {
+    const a = await tenantListo();
+    const caja = await (await a.admin('POST', '/v1/llaves', { nombre: 'c', rol: 'caja', establecimiento: '000', puntoEmision: '001' })).json();
+    await a.admin('DELETE', `/v1/llaves/${caja.prefijo}`);
     const pool = await poolPrueba();
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
       await c.query(`SET LOCAL ROLE ${ROL}`);
-      const r = await c.query("SELECT * FROM fhn_api_autenticar('%')");
-      expect(r.rowCount).toBe(0);
+      const prefijo = a.llaveAdmin.split('_')[1];
+      const r = await c.query('SELECT tenant FROM fhn_api_autenticar($1)', [prefijo]);
+      expect(r.rows).toEqual([{ tenant: a.tenant }]);
+      expect((await c.query('SELECT * FROM fhn_api_autenticar($1)', [caja.prefijo])).rowCount).toBe(0);
+      expect((await c.query("SELECT * FROM fhn_api_autenticar('%')")).rowCount).toBe(0);
       await expect(c.query('SELECT * FROM api_llaves')).resolves.toMatchObject({ rowCount: 0 });
+      await c.query('SAVEPOINT s');
+      await expect(c.query('UPDATE api_llaves SET ultimo_uso = now()')).rejects.toThrow(/permission denied/);
+      await c.query('ROLLBACK TO SAVEPOINT s');
     } finally {
       await c.query('ROLLBACK');
       c.release();
