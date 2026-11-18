@@ -5,7 +5,6 @@ import { congelar } from './inmutable';
 import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, validarLineas } from './calculo';
 import { escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
-import type { AlmacenCorrelativos } from './correlativos';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, TIPOS_DOCUMENTO } from './numeracion';
 import type {
@@ -255,20 +254,4 @@ export function construirDocumento(
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
   // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
   return congelar(doc);
-}
-
-/**
- * Flujo completo: valida, reserva el siguiente correlativo y construye el documento.
- * El correlativo solo se reserva si la validación pasa, para no dejar huecos en la numeración.
- */
-export async function crearDocumento(
-  entrada: DocumentoEntrada,
-  config: { autorizacion: AutorizacionCAI; almacen: AlmacenCorrelativos; opciones?: OpcionesDocumento },
-): Promise<DocumentoFiscal> {
-  // Fijar la fecha una sola vez para que validación y documento usen la misma.
-  const e: DocumentoEntrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(config.opciones) };
-  const v = validarEntrada(e, config.autorizacion, config.opciones);
-  if (!v.ok) throw new ErrorValidacion(v.errores, v.advertencias);
-  const correlativo = await config.almacen.siguiente(config.autorizacion);
-  return construirDocumento(e, config.autorizacion, correlativo, config.opciones);
 }

@@ -2,14 +2,15 @@
 
 ## 0.2.0 — sin publicar
 
-> `AlmacenCorrelativos`, `AlmacenMemoria` y `crearDocumento` siguen funcionando pero quedan **obsoletos**:
-> llevan el correlativo por CAI y no guardan el documento en la misma transacción. Usa `AlmacenFiscal` y
-> `emitir`. Se quitarán en 1.0.0.
-
 Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles
 van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0.0.
 
 ### Cambios incompatibles
+
+- **Un solo camino para emitir y anular.** Se eliminan `crearDocumento`, `AlmacenCorrelativos`,
+  `AlmacenMemoria` y `RangoAgotadoError` (llevaban el correlativo por CAI y no guardaban el documento en la
+  misma transacción). `construirDocumento` y `anularDocumento` dejan de exportarse. Usa
+  `registrarAutorizacion`, `emitir` y `anular` sobre un `AlmacenFiscal`. La 0.1.0 no se publicó en npm.
 
 - **Dinero sin punto flotante (B-17).** Cantidad, precio unitario, descuento, tipo de cambio y umbral aceptan
   `number | string` (se recomienda texto: `"19.99"`). Un `number` se lee por su texto decimal exacto. Si trae
@@ -23,7 +24,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **No se puede retrofechar (B-08).** La fecha de emisión la pone el reloj (`opciones.reloj`, por defecto
   `() => new Date()`) en America/Tegucigalpa. Una `fechaEmision` distinta de hoy en Honduras es el error
   `FECHA_EMISION_NO_ES_HOY` (Reglamento Arts. 14 y 43).
-- **Documentos inmutables.** `construirDocumento`/`crearDocumento` devuelven el documento congelado en
+- **Documentos inmutables.** `emitir` y `anular` devuelven el documento congelado en
   profundidad (`Object.freeze`) y con `estado: 'EMITIDO'`. Si tu código modificaba el documento, copia antes.
 
 ### Agregado
@@ -39,7 +40,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   de la transacción para el asiento contable (Art. 53). `AlmacenFiscalMemoria` incluido.
 - **`factura-hn/pruebas`:** `ejecutarContratoAlmacen({ describe, it }, config)`, la batería de contrato que
   debe pasar cualquier adaptador, con 50 emisiones concurrentes desde 5 cajas.
-- **Anulación (B-06, Art. 41):** `anularDocumento(doc, { motivo })` devuelve un documento nuevo con
+- **Anulación (B-06, Art. 41):** `anular(numero, { almacen, motivo })` guarda un documento nuevo con
   `estado: 'ANULADO'` y `anulacion { motivo, fecha, hora }`; el número se conserva. El HTML y el texto imprimen
   la leyenda «ANULADA». `filaLibroVentas` toma el estado del documento. `estaAnulado`, `LEYENDA_ANULADA`,
   `congelar`.

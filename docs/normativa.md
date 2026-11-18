@@ -22,7 +22,7 @@
 | Número de 16 dígitos `NNN-NNN-NN-NNNNNNNN` (establecimiento, punto de emisión, tipo, correlativo) | `formatearNumero`, `parsearNumero` |
 | Códigos de tipo de documento vigentes (01, 04–12; reforma del Acuerdo 609-2017: 06 Nota de Crédito, 07 Nota de Débito) | `TIPOS_DOCUMENTO` |
 | CAI, rango autorizado y fecha límite de emisión impresos | `DocumentoFiscal.cai/rangoAutorizado/fechaLimiteEmision`, render |
-| No emitir después de la fecha límite ni fuera del rango | `validarEntrada` (`AUTORIZACION_VENCIDA`), `construirDocumento` (`CORRELATIVO_FUERA_DE_RANGO`), `RangoAgotadoError` |
+| No emitir después de la fecha límite ni fuera del rango | `emitir` (`AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `CORRELATIVO_FUERA_DE_RANGO`) |
 | Autorización por punto de emisión y tipo de documento, vigencia máx. 1 año | `AutorizacionCAI`, `estadoAutorizacion` |
 | Datos del emisor: RTN, razón social, nombre comercial, direcciones, teléfono, correo | `Emisor`, render |
 | Destino de ejemplares (original cliente / copia emisor) | `DESTINO_EJEMPLARES` |

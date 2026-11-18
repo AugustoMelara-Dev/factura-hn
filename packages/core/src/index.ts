@@ -2,8 +2,12 @@
  * factura-hn — Facturación SAR Honduras (Acuerdo 481-2017).
  *
  * Flujo típico:
- *   const doc = await crearDocumento(entrada, { autorizacion, almacen });
+ *   await registrarAutorizacion(almacen, autorizacion);          // una vez por resolución del SAR
+ *   const doc = await emitir(entrada, { almacen, establecimiento, puntoEmision });
  *   const html = renderizarHTML(doc);
+ *   await anular(doc.numero, { almacen, motivo });                // Art. 41
+ *
+ * Solo hay un camino para emitir y uno para anular: `emitir` y `anular` sobre un `AlmacenFiscal`.
  */
 export * from './tipos';
 export {
@@ -50,8 +54,6 @@ export {
   esFechaValida,
 } from './autorizacion';
 export type { EstadoAutorizacion } from './autorizacion';
-export { AlmacenMemoria, RangoAgotadoError } from './correlativos';
-export type { AlmacenCorrelativos } from './correlativos';
 export {
   calcularDocumento,
   calcularCentavos,
@@ -68,8 +70,6 @@ export {
 export type { OpcionesCalculo, TotalesCentavos } from './calculo';
 export {
   validarEntrada,
-  construirDocumento,
-  crearDocumento,
   ErrorValidacion,
   hoyHonduras,
   UMBRAL_CONSUMIDOR_FINAL,
@@ -88,8 +88,7 @@ export {
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
-export { anularDocumento, estaAnulado, LEYENDA_ANULADA } from './anulacion';
-export type { OpcionesAnulacion } from './anulacion';
+export { estaAnulado, LEYENDA_ANULADA } from './anulacion';
 export { congelar } from './inmutable';
 export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';

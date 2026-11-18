@@ -1,25 +1,31 @@
 # factura-hn
 
-> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/exento/exonerado, montos en letras, validación con códigos de error, impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
+> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/exento/exonerado con el redondeo del Art. 9 de la Ley del ISV, montos exactos (sin punto flotante), montos en letras, validación con códigos de error, emisión atómica sobre Postgres/SQLite, anulación (Art. 41), impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
 
-Uso principal: `const doc = await crearDocumento(entrada, { autorizacion, almacen })` y luego `renderizarHTML(doc)`.
-Documentos soportados: 01 Factura, 06 Nota de Crédito, 07 Nota de Débito (tabla vigente tras el Acuerdo 609-2017; la tabla original de 2017 con 07/08 ya no aplica).
-Montos en lempiras como number; internamente se calcula en centavos. El ISV se calcula por grupo de tasa.
-Errores: `ErrorValidacion` (propiedad `errores: {codigo, mensaje, campo}[]`) y `RangoAgotadoError`.
-El correlativo se reserva solo si la validación pasa. En producción implementa `AlmacenCorrelativos` atómico sobre tu BD.
+Un solo camino:
+1. `await registrarAutorizacion(almacen, autorizacion)` una vez por resolución del SAR.
+2. `const doc = await emitir(entrada, { almacen, establecimiento, puntoEmision })` en cada venta: bloquea la serie, elige la autorización vigente, valida, construye y guarda en una transacción. Si falla, no consume número.
+3. `renderizarHTML(doc)` / `renderizarTexto(doc)`.
+4. `await anular(numero, { almacen, motivo })` si hay que anular (nunca borrar).
+
+Almacenes: `AlmacenPostgres` (@factura-hn/postgres), `AlmacenSQLite` (@factura-hn/sqlite), `AlmacenFiscalMemoria` (solo pruebas). Para otra base, implementa `AlmacenFiscal` y corre `ejecutarContratoAlmacen` de `factura-hn/pruebas`.
+Documentos que se pueden emitir: 01 Factura, 06 Nota de Crédito, 07 Nota de Débito (tabla vigente tras el Acuerdo 609-2017).
+Montos: `number` o texto exacto (`'89.50'`); el cálculo es con enteros. Cobra `totales.total` (con precios con ISV incluido puede quedar 1 centavo abajo, `totales.ajustePorRedondeo`).
+Fechas: la fecha de emisión la pone el reloj en America/Tegucigalpa; no se puede retrofechar.
+Errores: `ErrorValidacion` con `errores: {codigo, mensaje, campo}[]`.
 
 ## Docs
 
 - [README](README.md): instalación, ejemplo y API
 - [AGENTS.md](AGENTS.md): guía de integración para agentes de IA
-- [Persistencia](docs/persistencia.md): SQL para PostgreSQL/Supabase, MySQL y SQLite
+- [Persistencia](docs/persistencia.md): qué almacén usar y cómo escribir uno propio
 - [Normativa](docs/normativa.md): requisitos cubiertos, fuentes y alcance
 - [Skill de Claude](skills/facturacion-sar-hn/SKILL.md)
 
 ## Tipos clave
 
 - AutorizacionCAI { cai, tipoDocumento, establecimiento, puntoEmision, rangoInicial, rangoFinal, fechaLimiteEmision }
-- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, fechaEmision?, horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones? }
+- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones? }
 - LineaEntrada { codigo?, descripcion, cantidad, precioUnitario, isv?: 'ISV15'|'ISV18'|'EXENTO', descuento?, unidad? }
-- DocumentoFiscal { numero, correlativo, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, ... }
-- Totales { descuentos, subtotal, importeExonerado, importeExento, importeGravado15, importeGravado18, isv15, isv18, total, totalEnLetras }
+- DocumentoFiscal { numero, correlativo, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, estado: 'EMITIDO'|'ANULADO', anulacion?, ... }
+- Totales { descuentos, subtotal, importeExonerado, importeExento, importeGravado15, importeGravado18, isv15, isv18, ajustePorRedondeo, total, totalEnLetras }

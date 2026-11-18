@@ -4,10 +4,10 @@
  */
 import { writeFileSync } from 'node:fs';
 import {
-  AlmacenMemoria,
-  crearDocumento,
+  AlmacenFiscalMemoria,
+  emitir,
   estadoAutorizacion,
-  horaHonduras,
+  registrarAutorizacion,
   renderizarHTML,
   renderizarTexto,
   type AutorizacionCAI,
@@ -24,30 +24,32 @@ const autorizacion: AutorizacionCAI = {
   fechaLimiteEmision: '2027-06-30',
 };
 
-const almacen = new AlmacenMemoria({ [autorizacion.cai]: 1247 }); // ya se emitieron 1,247
+// En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
+const almacen = new AlmacenFiscalMemoria();
+await registrarAutorizacion(almacen, autorizacion);
 
-const doc = await crearDocumento(
+const doc = await emitir(
   {
     emisor: {
       rtn: '08011999123456',
       razonSocial: 'Inversiones Ejemplo S. de R.L.',
       nombreComercial: 'Pulpería La Bendición',
       direccionCasaMatriz: 'Barrio El Centro, frente al parque, Tocoa, Colón',
+      direccionEstablecimiento: 'Barrio El Centro, frente al parque, Tocoa, Colón',
       telefono: '+504 2444-0000',
       correo: 'ventas@ejemplo.hn',
     },
     cliente: { nombre: 'Ferretería Hermanos Pérez', rtn: '08019005123456' },
-    horaEmision: horaHonduras(),
     preciosIncluyenISV: true,
     condicionPago: 'CONTADO',
     lineas: [
-      { codigo: '7501', descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: 89.5 },
-      { codigo: '7502', descripcion: 'Aceite vegetal 750 ml', cantidad: 1, precioUnitario: 72, descuento: 5 },
-      { codigo: '8801', descripcion: 'Cerveza lata 355 ml', cantidad: 6, precioUnitario: 32, isv: 'ISV18' },
-      { codigo: '9901', descripcion: 'Frijoles rojos (lb)', cantidad: 3, precioUnitario: 28, isv: 'EXENTO' },
+      { codigo: '7501', descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
+      { codigo: '7502', descripcion: 'Aceite vegetal 750 ml', cantidad: 1, precioUnitario: '72.00', descuento: '5.00' },
+      { codigo: '8801', descripcion: 'Cerveza lata 355 ml', cantidad: 6, precioUnitario: '32.00', isv: 'ISV18' },
+      { codigo: '9901', descripcion: 'Frijoles rojos (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
     ],
   },
-  { autorizacion, almacen },
+  { almacen, establecimiento: '000', puntoEmision: '001' },
 );
 
 console.log(doc.numero, doc.totales);

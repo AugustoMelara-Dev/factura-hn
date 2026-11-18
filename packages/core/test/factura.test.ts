@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AlmacenMemoria,
-  RangoAgotadoError,
   calcularDocumento,
-  construirDocumento,
-  crearDocumento,
   enteroALetras,
   ErrorValidacion,
   esCAIValido,
@@ -25,6 +21,7 @@ import {
   type AutorizacionCAI,
   type DocumentoEntrada,
 } from '../src';
+import { construirDocumento } from '../src/documento';
 
 const AUT: AutorizacionCAI = {
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
@@ -211,19 +208,7 @@ describe('validación', () => {
   });
 });
 
-describe('creación con correlativos', () => {
-  it('asigna correlativos consecutivos y se detiene al agotar el rango', async () => {
-    const almacen = new AlmacenMemoria();
-    const nums: string[] = [];
-    for (let i = 0; i < 3; i++) nums.push((await crearDocumento(base(), { autorizacion: AUT, almacen })).numero);
-    expect(nums).toEqual(['000-001-01-00000001', '000-001-01-00000002', '000-001-01-00000003']);
-    await expect(crearDocumento(base(), { autorizacion: AUT, almacen })).rejects.toBeInstanceOf(RangoAgotadoError);
-  });
-  it('no consume correlativo si la validación falla', async () => {
-    const almacen = new AlmacenMemoria();
-    await expect(crearDocumento(base({ lineas: [] }), { autorizacion: AUT, almacen })).rejects.toBeInstanceOf(ErrorValidacion);
-    expect(almacen.ultimo(AUT.cai)).toBeNull();
-  });
+describe('construcción del documento', () => {
   it('construirDocumento rechaza correlativo fuera de rango', () => {
     expect(() => construirDocumento(base(), AUT, 4)).toThrow(ErrorValidacion);
   });

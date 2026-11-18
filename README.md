@@ -19,9 +19,13 @@ npm install factura-hn
 ## En 30 segundos
 
 ```ts
-import { AlmacenMemoria, crearDocumento, renderizarHTML } from 'factura-hn';
+import { AlmacenFiscalMemoria, emitir, registrarAutorizacion, renderizarHTML } from 'factura-hn';
 
-const autorizacion = {
+// En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
+const almacen = new AlmacenFiscalMemoria();
+
+// Una vez por resolución del SAR: el CAI, su rango y su fecha límite.
+await registrarAutorizacion(almacen, {
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', // de tu resolución del SAR
   tipoDocumento: '01',                          // 01 = Factura
   establecimiento: '000',
@@ -29,27 +33,29 @@ const autorizacion = {
   rangoInicial: 1,
   rangoFinal: 5000,
   fechaLimiteEmision: '2027-06-30',
-} as const;
+});
 
-const factura = await crearDocumento(
+// En cada venta: valida, toma el siguiente número y guarda el documento, todo en una transacción.
+const factura = await emitir(
   {
     emisor: {
       rtn: '08011999123456',
       razonSocial: 'Inversiones Ejemplo S. de R.L.',
       nombreComercial: 'Pulpería La Bendición',
       direccionCasaMatriz: 'Barrio El Centro, Tocoa, Colón',
+      direccionEstablecimiento: 'Barrio El Centro, Tocoa, Colón',
       telefono: '2444-0000',
       correo: 'ventas@ejemplo.hn',
     },
     cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' }, // u omítelo → CONSUMIDOR FINAL
     preciosIncluyenISV: true,
     lineas: [
-      { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: 89.5 },
-      { descripcion: 'Cerveza lata', cantidad: 6, precioUnitario: 32, isv: 'ISV18' },
-      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: 28, isv: 'EXENTO' },
+      { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
+      { descripcion: 'Cerveza lata', cantidad: 6, precioUnitario: '32.00', isv: 'ISV18' },
+      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
     ],
   },
-  { autorizacion, almacen: new AlmacenMemoria() }, // en producción: tu base de datos
+  { almacen, establecimiento: '000', puntoEmision: '001' },
 );
 
 factura.numero;                 // "000-001-01-00000001"
@@ -58,6 +64,9 @@ factura.totales.totalEnLetras;  // "CUATROCIENTOS CINCUENTA Y CINCO LEMPIRAS CON
 renderizarHTML(factura);        // HTML listo para imprimir o convertir a PDF
 ```
 
+Los montos se pasan como texto (`'89.50'`) o número; el cálculo es exacto, sin punto flotante. La fecha de
+emisión la pone el reloj en hora de Honduras; no se puede retrofechar.
+
 ## Impleméntalo con IA en un prompt
 
 Copia esto en Claude Code, Cursor u OpenCode dentro de tu proyecto:
@@ -65,12 +74,12 @@ Copia esto en Claude Code, Cursor u OpenCode dentro de tu proyecto:
 ```text
 Instala la librería npm "factura-hn" y lee node_modules/factura-hn/AGENTS.md antes de escribir código.
 Integra la facturación SAR Honduras en este proyecto:
-1. Tablas para autorizaciones CAI y documentos fiscales (sigue docs/persistencia.md de la librería
-   para la base de datos que usa este proyecto).
-2. Un AlmacenCorrelativos atómico sobre esa base de datos.
-3. Un endpoint/servicio "emitir factura" que reciba el carrito actual y use crearDocumento.
+1. Un AlmacenFiscal: @factura-hn/postgres o @factura-hn/sqlite si el proyecto usa esas bases; si usa otra,
+   implementa la interfaz y hazla pasar la batería de factura-hn/pruebas (docs/persistencia.md).
+2. Una pantalla para registrar autorizaciones CAI con registrarAutorizacion.
+3. Un servicio "emitir factura" en el servidor que reciba el carrito y llame a emitir.
 4. Impresión con renderizarHTML (carta y ticket) y una pantalla de estado del CAI con estadoAutorizacion.
-5. Anulación (marcar como anulado, nunca borrar) y Nota de Crédito (06) que referencie la factura.
+5. Anulación con anular (nunca borrar) y Nota de Crédito (06) que referencie la factura.
 No inventes reglas fiscales: usa las validaciones de la librería y muestra al usuario sus mensajes de error.
 ```
 
@@ -87,44 +96,60 @@ y un [`llms.txt`](llms.txt) con el resumen de la API.
 | **Validación** | RTN, DNI, datos del emisor, consumidor final > L 10,000, adquirente exonerado, moneda extranjera, notas de crédito/débito. Errores con código, mensaje y campo |
 | **Documentos** | Factura (01), Nota de Crédito (06), Nota de Débito (07) — códigos vigentes tras el Acuerdo 609-2017 |
 | **Impresión** | HTML carta, HTML ticket 80 mm y texto plano de 32/42/48 columnas para térmicas |
+| **Persistencia** | Emisión atómica sobre Postgres, SQLite o memoria; sin huecos ni repetidos con varias cajas |
 | **Reportes** | Libro de ventas en CSV y resumen por tasa para la declaración mensual |
 
 ## API
 
-### Flujo principal
+Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre un `AlmacenFiscal`.
 
-- `crearDocumento(entrada, { autorizacion, almacen, opciones? })` → `Promise<DocumentoFiscal>`
-  Valida, reserva el correlativo (solo si la validación pasa) y construye el documento.
-- `validarEntrada(entrada, autorizacion, opciones?)` → `{ ok, errores, advertencias }`
-  Úsala para mostrar errores en el formulario antes de cobrar.
-- `construirDocumento(entrada, autorizacion, correlativo, opciones?)` → `DocumentoFiscal`
-  Versión pura si tú manejas los correlativos.
+### Emisión
+
+- `registrarAutorizacion(almacen, autorizacion)` → guarda un CAI. Rechaza rangos solapados y CAI repetidos
+  del mismo punto de emisión y tipo. Un punto puede acumular varias autorizaciones; la numeración continúa
+  de una a la siguiente.
+- `emitir(entrada, { almacen, establecimiento, puntoEmision, opciones?, alEmitir? })` → `Promise<DocumentoFiscal>`.
+  Bloquea la serie, elige la autorización vigente, valida, construye y guarda en una transacción. Si algo
+  falla, el número no se consume. `alEmitir(doc, tx)` corre dentro de la misma transacción (asiento contable,
+  inventario).
+- `anular(numero, { almacen, motivo })` → guarda el documento con `estado: 'ANULADO'` y la leyenda ANULADA
+  (Art. 41). El número sigue consumido.
+- `buscarDocumento(almacen, numero)` · `validarEntrada(entrada, autorizacion, opciones?)` (para mostrar
+  errores en el formulario antes de cobrar) · `calcularDocumento(lineas, opciones?)` (total exacto para la
+  caja antes de emitir).
+
+### Almacenes
+
+- `AlmacenFiscal` (interfaz) · `AlmacenFiscalMemoria` (pruebas y demos)
+- `@factura-hn/postgres` (`AlmacenPostgres`) · `@factura-hn/sqlite` (`AlmacenSQLite`)
+- `factura-hn/pruebas`: `ejecutarContratoAlmacen` para validar tu propio adaptador
 
 ### Autorizaciones
 
 - `estadoAutorizacion(autorizacion, ultimoCorrelativo, { hoy?, diasAviso?, porcentajeAviso? })`
   → `{ vigente, diasRestantes, correlativosRestantes, siguienteCorrelativo, porcentajeUsado, alertas }`
 - `validarAutorizacion(autorizacion)`
-- `AlmacenCorrelativos` (interfaz) · `AlmacenMemoria` (solo pruebas) · `RangoAgotadoError`
 
 ### Cálculo y utilidades
 
-- `calcularDocumento(lineas, { preciosIncluyenISV?, exonerado?, moneda? })`
+- `calcularDocumento(lineas, { preciosIncluyenISV?, exonerado?, moneda? })` · `sugerirPrecioSinAjuste`
 - `montoEnLetras(monto, moneda?)` · `formatearMonto` · `formatearMoneda`
 - `formatearNumero` · `parsearNumero` · `esNumeroValido` · `formatearRango` · `perteneceAAutorizacion`
 - `esRTNValido` · `esDNIValido` · `esCAIValido` · `formatearRTN` · `formatearDNI`
-- `fechaHonduras()` · `horaHonduras()` (zona America/Tegucigalpa)
+- `hoyHonduras()` · `fechaHonduras()` · `horaHonduras()` (zona America/Tegucigalpa)
 
 ### Impresión y reportes
 
 - `renderizarHTML(doc, { formato: 'carta' | 'ticket', logo?, leyenda? })`
 - `renderizarTexto(doc, { ancho: 42 })`
-- `filaLibroVentas(doc, { anulado? })` · `resumenVentas(filas)` · `libroVentasCSV(filas)`
+- `filaLibroVentas(doc)` · `resumenVentas(filas)` · `libroVentasCSV(filas)`
 
 ## Reglas que tu sistema debe respetar
 
-1. **Nunca reutilices ni saltes un correlativo.** Si una venta falla después de recibir número, guárdala como anulada.
-2. **Reserva el número de forma atómica** en tu base de datos ([docs/persistencia.md](docs/persistencia.md)).
+1. **Emite solo con `emitir`.** Reserva el número, valida y guarda en una transacción; no armes la numeración
+   por tu cuenta.
+2. **Nunca borres ni reutilices un número.** Si algo falla después de emitir (por ejemplo, la impresión),
+   anula el documento con `anular`.
 3. **No edites una factura emitida.** Corrige con Nota de Crédito (06) o Nota de Débito (07).
 4. **Cada caja o dispositivo offline usa su propio punto de emisión y CAI.**
 
@@ -156,7 +181,8 @@ La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y
 ## Hoja de ruta
 
 - [ ] Exportaciones a tasa cero (Art. 12)
-- [ ] Anulación (Art. 41) y aviso de documentos no utilizados (Art. 42)
+- [x] Anulación (Art. 41)
+- [ ] Aviso de documentos no utilizados (Art. 42)
 - [ ] Generación de PDF sin navegador
 - [ ] API REST (alojada o instalada en el local del negocio) y servidor MCP
 - [ ] Comprobante de Retención (05), Guía de Remisión (08) y Boleta de Compra (11)

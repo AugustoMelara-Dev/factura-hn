@@ -4,8 +4,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  anularDocumento,
-  construirDocumento,
   ErrorValidacion,
   estaAnulado,
   filaLibroVentas,
@@ -15,6 +13,8 @@ import {
   type AutorizacionCAI,
   type DocumentoFiscal,
 } from '../src';
+import { construirDocumento } from '../src/documento';
+import { anularDocumento } from '../src/anulacion';
 
 const AUT: AutorizacionCAI = {
   cai: 'X1', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',

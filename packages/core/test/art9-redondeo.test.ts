@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import {
   baseDesdePrecioConISV,
   calcularDocumento,
-  construirDocumento,
   impuestoArt9,
   renderizarHTML,
   sugerirPrecioSinAjuste,
   validarEntrada,
   type AutorizacionCAI,
 } from '../src';
+import { construirDocumento } from '../src/documento';
 
 describe('regla del Art. 9', () => {
   it('fracción menor de 0.005 baja, igual o mayor sube', () => {

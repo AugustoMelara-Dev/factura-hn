@@ -6,14 +6,15 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  AlmacenMemoria,
-  construirDocumento,
-  crearDocumento,
+  AlmacenFiscalMemoria,
+  emitir,
+  registrarAutorizacion,
   estadoAutorizacion,
   hoyHonduras,
   validarEntrada,
   type AutorizacionCAI,
 } from '../src';
+import { construirDocumento } from '../src/documento';
 
 const AUT: AutorizacionCAI = {
   cai: 'X1', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
@@ -39,12 +40,10 @@ describe('reloj de Honduras', () => {
     expect(estadoAutorizacion(AUT, null, { hoy: hoyHonduras({ reloj: nocheEnHonduras }) }).vigente).toBe(true);
   });
 
-  it('crearDocumento usa el reloj de las opciones', async () => {
-    const doc = await crearDocumento(entrada(), {
-      autorizacion: AUT,
-      almacen: new AlmacenMemoria(),
-      opciones: { reloj: nocheEnHonduras },
-    });
+  it('emitir usa el reloj de las opciones', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, AUT);
+    const doc = await emitir(entrada(), { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj: nocheEnHonduras } });
     expect(doc.fechaEmision).toBe('2026-11-18');
   });
 });
