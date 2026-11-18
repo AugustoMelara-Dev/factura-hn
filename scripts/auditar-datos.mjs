@@ -12,7 +12,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const archivos = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+const archivos = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const OMITIR = new Set(['pnpm-lock.yaml', 'LICENSE', 'scripts/auditar-datos.mjs']);
 const BINARIO = /\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|db|sqlite)$/i;
 
