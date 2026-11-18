@@ -14,11 +14,12 @@
   header { padding: 16px; border-bottom: 1px solid var(--borde); }
   header h1 { margin: 0; font-size: 18px; }
   header p { margin: 4px 0 0; color: var(--tenue); font-size: 13px; }
-  main { display: grid; gap: 16px; padding: 16px; grid-template-columns: 1fr; max-width: 1280px; margin: 0 auto; }
+  main { display: grid; gap: 16px; padding: 16px; grid-template-columns: minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
   @media (min-width: 980px) { main { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
   section { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 14px; min-width: 0; }
   h2 { font-size: 14px; margin: 0 0 8px; }
   textarea { width: 100%; min-height: 360px; resize: vertical; font: 13px/1.4 ui-monospace, monospace; padding: 10px; border: 1px solid var(--borde); border-radius: 6px; background: transparent; color: inherit; }
+  select { max-width: 100%; min-width: 0; }
   select, button { font: inherit; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--borde); background: transparent; color: inherit; }
   button.primario { background: var(--acento); color: #fff; border-color: var(--acento); }
   .barra { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
