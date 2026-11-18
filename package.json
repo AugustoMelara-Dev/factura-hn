@@ -14,7 +14,10 @@
     "typecheck": "pnpm -r typecheck",
     "test:pg": "node scripts/test-pg.mjs",
     "verificar:dist": "pnpm build && node scripts/verificar-dist.mjs",
-    "example": "pnpm --filter factura-hn build && pnpm --filter ./examples/basico start"
+    "example": "pnpm --filter factura-hn build && pnpm --filter ./examples/basico start",
+    "test:ejemplos": "pnpm -r --filter \"./examples/*\" test",
+    "playground": "pnpm --filter @factura-hn/ejemplo-playground build",
+    "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

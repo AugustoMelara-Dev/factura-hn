@@ -3,6 +3,27 @@
 Instrucciones para agentes de IA (Claude, Cursor, OpenCode, Codex…) que integran facturación SAR Honduras.
 Léelo completo antes de escribir código.
 
+Hay dos caminos. Elige uno con el usuario si el proyecto no lo deja claro:
+
+- **SDK**: el proyecto es JS/TS y emite contra su propia base (Postgres, SQLite u otra). Todo este documento
+  salvo «Con la API REST».
+- **API**: el proyecto es de otro lenguaje, o varias cajas emiten contra un servidor de factura-hn ya
+  instalado. Ve a «Con la API REST».
+
+Prompts de una línea:
+
+**SDK** (tu proyecto JS/TS emite con su propia base):
+
+```text
+Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+```
+
+**API** (cualquier lenguaje; la API de factura-hn emite):
+
+```text
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+```
+
 ## Principios no negociables
 
 1. **No inventes reglas fiscales.** Usa `validarEntrada` y `emitir`, y muestra al usuario los mensajes de
@@ -210,6 +231,52 @@ Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
 - Una validación fallida no consume correlativo.
 - Emitir con autorización vencida o agotada muestra el error al usuario.
 - El total impreso coincide con lo cobrado en caja.
+
+## Con la API REST
+
+La API aplica las mismas reglas que el SDK; tu código solo arma la solicitud y muestra el resultado.
+Referencia completa: `docs/api.md`.
+
+1. La llave va **solo en el servidor** (variables de entorno). Usa una llave de **caja**, atada a su punto de
+   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks.
+2. **`Idempotency-Key` estable por venta** (el id del pedido o de la venta, nunca un valor nuevo por intento):
+   si la respuesta se pierde y reintentas, recibes la misma factura.
+3. **422 = reglas fiscales.** Muestra `errores[].mensaje` tal cual. Una solicitud rechazada no consume número
+   ni la clave: corrígela y reintenta con la misma.
+4. Guarda el `numero` y reimprime desde la API (`.pdf`, `.html`, `.txt`): no recalcules.
+5. Webhooks: verifica la firma sobre el cuerpo **crudo**, descarta repetidos por `id` y responde 2xx solo
+   cuando ya procesaste el aviso.
+
+<!-- declaraciones:
+declare const req: { texto: string; firma: string | null };
+-->
+```ts
+import { crearCliente, ErrorFacturaHN, verificarFirmaWebhook, type DocumentoEntrada } from '@factura-hn/cliente';
+
+const fhn = crearCliente({ url: process.env.FHN_API_URL!, llave: process.env.FHN_LLAVE! });
+
+export async function facturarPedido(pedido: { id: string; lineas: DocumentoEntrada['lineas'] }) {
+  try {
+    const { documento } = await fhn.emitir(
+      { documento: { preciosIncluyenISV: true, lineas: pedido.lineas } },
+      { idempotencyKey: `pedido-${pedido.id}` },
+    );
+    return { ok: true as const, numero: documento.numero, total: documento.totales.total };
+  } catch (e) {
+    if (e instanceof ErrorFacturaHN && e.estado === 422) return { ok: false as const, errores: e.errores.map((x) => x.mensaje) };
+    throw e;
+  }
+}
+
+// Receptor de webhooks: `req.texto` es el cuerpo tal como llegó, antes de JSON.parse.
+export async function recibirAviso() {
+  if (!(await verificarFirmaWebhook(req.texto, req.firma, process.env.FHN_SECRETO_WEBHOOK!))) return 400;
+  const aviso = JSON.parse(req.texto) as { id: string; evento: string };
+  return aviso.id ? 204 : 400;
+}
+```
+
+Si el agente debe operar la facturación (no integrarla), usa el servidor MCP `@factura-hn/mcp`.
 
 ## Referencia rápida de errores
 

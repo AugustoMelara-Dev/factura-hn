@@ -5,7 +5,22 @@ description: Integra facturación SAR Honduras (CAI, rangos, ISV 15%/18%, numera
 
 # Facturación SAR Honduras con factura-hn
 
-## Pasos
+Dos caminos: el **SDK** (proyecto JS/TS con su propia base) o la **API REST** (otro lenguaje, o un servidor
+de factura-hn ya instalado). Si no está claro, pregunta al usuario cuál.
+
+**SDK** (tu proyecto JS/TS emite con su propia base):
+
+```text
+Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+```
+
+**API** (cualquier lenguaje; la API de factura-hn emite):
+
+```text
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+```
+
+## Pasos con el SDK
 
 1. Instala la librería: `npm install factura-hn` (o el gestor del proyecto) y el almacén que corresponda:
    `@factura-hn/postgres` (con `pg`) o `@factura-hn/sqlite` (con `better-sqlite3` o `node:sqlite`).
@@ -22,6 +37,16 @@ description: Integra facturación SAR Honduras (CAI, rangos, ISV 15%/18%, numera
    y Nota de Crédito (06).
 9. Muestra `estadoAutorizacion(...).alertas` en la UI del POS.
 10. Escribe pruebas: validación sin consumo de número, CAI vencido o agotado, total en caja igual al impreso.
+
+## Pasos con la API
+
+1. Instala `@factura-hn/cliente` (en JS/TS) o genera un cliente desde `/openapi.json` de la API.
+2. Lee la sección «Con la API REST» de `node_modules/factura-hn/AGENTS.md` y `docs/api.md`.
+3. Emite en el servidor con `crearCliente({ url, llave })` y `fhn.emitir(solicitud, { idempotencyKey })`, con
+   una clave estable por venta y una llave de caja que nunca llegue al navegador.
+4. Muestra los errores del 422 tal cual; guarda el número y reimprime con `fhn.descargar(numero, 'pdf')`.
+5. Si registras webhooks, verifica la firma con `verificarFirmaWebhook(cuerpo, cabecera, secreto)` sobre el
+   cuerpo crudo y descarta repetidos por `id`.
 
 ## Reglas
 

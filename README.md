@@ -112,7 +112,21 @@ convierten con el tipo de cambio de la factura original, que la nota imprime com
 
 ## Impleméntalo con IA en un prompt
 
-Copia esto en Claude Code, Cursor u OpenCode dentro de tu proyecto:
+En una línea, en Claude Code, Cursor u OpenCode dentro de tu proyecto:
+
+**SDK** (tu proyecto JS/TS emite con su propia base):
+
+```text
+Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
+```
+
+**API** (cualquier lenguaje; la API de factura-hn emite):
+
+```text
+Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE) con el cliente tipado "@factura-hn/cliente", siguiendo la sección «Con la API REST» de node_modules/factura-hn/AGENTS.md: emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
+```
+
+La versión detallada del prompt del SDK:
 
 ```text
 Instala la librería npm "factura-hn" y lee node_modules/factura-hn/AGENTS.md antes de escribir código.
@@ -209,6 +223,31 @@ docker compose logs api      # llaves admin y caja (se muestran una sola vez)
 Llaves con roles caja/admin, `Idempotency-Key` obligatoria en la emisión, PDF/HTML/TXT, libro de ventas,
 exportación (Art. 53 num. 5), bitácora y webhooks firmados. Detalle en [docs/api.md](docs/api.md).
 
+Desde TypeScript, el cliente tipado [`@factura-hn/cliente`](packages/cliente/README.md) se genera de la
+especificación OpenAPI e incluye `verificarFirmaWebhook` (Web Crypto: Node, edge y navegador).
+
+## Servidor MCP
+
+Para que un agente de IA (Claude Desktop, Claude Code, Cursor) emita, consulte y anule:
+[`@factura-hn/mcp`](packages/mcp/README.md), con las herramientas `emitir_factura`, `emitir_nota_credito`,
+`consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o con el SDK local
+sobre SQLite.
+
+```json
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],
+  "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
+```
+
+## Ejemplos
+
+| Carpeta | Qué muestra |
+|---|---|
+| [`examples/basico`](examples/basico) | Emitir y guardar HTML y ticket con el SDK |
+| [`examples/pos-offline`](examples/pos-offline) | Mini POS fuera de línea: SDK + SQLite, sin duplicados y con cola de sincronización |
+| [`examples/express`](examples/express) | Express 5 con la API: factura por pedido y receptor de webhooks |
+| [`examples/nextjs`](examples/nextjs) | Next.js 16: server action y webhooks en un route handler |
+| [`examples/playground`](examples/playground) | El SDK en el navegador, sin backend |
+
 ## Reglas que tu sistema debe respetar
 
 1. **Emite solo con `emitir`.** Reserva el número, valida y guarda en una transacción; no armes la numeración
@@ -228,8 +267,9 @@ Monorepo con pnpm workspaces:
 | `packages/sqlite` | `@factura-hn/sqlite` (almacén SQLite: POS fuera de línea, instalación local) | sin publicar |
 | `packages/postgres` | `@factura-hn/postgres` (almacén PostgreSQL: API, varias cajas) | sin publicar |
 | `packages/api` | `@factura-hn/api` (API REST + Docker) | sin publicar |
-| `packages/mcp` | `@factura-hn/mcp` | Fase 3 |
-| `examples/` | ejemplos | en crecimiento |
+| `packages/cliente` | `@factura-hn/cliente` (cliente tipado de la API, generado desde OpenAPI) | sin publicar |
+| `packages/mcp` | `@factura-hn/mcp` (servidor MCP: API o SDK local) | sin publicar |
+| `examples/` | básico, POS fuera de línea, Express, Next.js, playground | |
 
 ```bash
 pnpm install
@@ -250,7 +290,7 @@ La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y
 - [x] Aviso de documentos no utilizados (Art. 42)
 - [x] Generación de PDF sin navegador
 - [x] API REST (alojada o instalada en el local del negocio)
-- [ ] Servidor MCP
+- [x] Cliente tipado y servidor MCP
 - [ ] Comprobante de Retención (05), Guía de Remisión (08) y Boleta de Compra (11)
 - [ ] Paquetes hermanos: Python y .NET
 - [ ] Módulo de factura electrónica (CAEE) cuando el SAR publique la documentación técnica (Arts. 54 y 58)
