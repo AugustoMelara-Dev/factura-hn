@@ -15,7 +15,14 @@
  */
 import { identificadorDe, type AlmacenFiscal } from '../almacen';
 import { ErrorValidacion } from '../documento';
-import { anular, buscarDocumento, emitir, registrarAutorizacion } from '../emision';
+import {
+  anular,
+  buscarDocumento,
+  corregirFechaAdelantada,
+  emitir,
+  eventosAuditoria,
+  registrarAutorizacion,
+} from '../emision';
 import type { AutorizacionCAI, DocumentoEntrada } from '../tipos';
 
 export interface FuncionesDePrueba {
@@ -190,6 +197,66 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       await emitir(D.entrada(), { almacen: a, ...base });
       const ayer = { reloj: () => new Date('2026-11-17T12:00:00-06:00') };
       igual(await codigoDeError(() => emitir(D.entrada(), { almacen: a, ...base, opciones: ayer })), 'FECHA_ANTERIOR_AL_ULTIMO', 'cronología');
+    }));
+
+    const enDias = (dias: number) => ({ reloj: () => new Date(Date.parse('2026-11-18T12:00:00-06:00') + dias * 86_400_000) });
+
+    t.it('rechaza un salto de fecha sospechoso; con confirmación emite y queda en la bitácora', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100));
+      await emitir(D.entrada(), { almacen: a, ...base });
+      // Reloj adelantado a 2027-03-01: dentro de la vigencia del CAI, pero 103 días después.
+      const adelantado = { ...base, opciones: enDias(103) };
+      igual(await codigoDeError(() => emitir(D.entrada(), { almacen: a, ...adelantado })), 'RELOJ_ADELANTADO_SOSPECHOSO', 'salto sin confirmar');
+      igual(await buscarDocumento(a, '000-001-01-00000002'), null, 'el rechazo no consume número');
+      // 7 días exactos no es sospechoso; el límite es configurable.
+      igual((await emitir(D.entrada(), { almacen: a, ...base, opciones: enDias(7) })).correlativo, 2, '7 días se aceptan');
+      igual(await codigoDeError(() => emitir(D.entrada(), { almacen: a, ...base, opciones: enDias(10), saltoMaximoDias: 2 })), 'RELOJ_ADELANTADO_SOSPECHOSO', 'límite configurable');
+      const doc = await emitir(D.entrada(), { almacen: a, ...base, opciones: enDias(40), confirmarSaltoDeFecha: true, actor: 'cajera-1' });
+      igual(doc.fechaEmision, '2026-12-28', 'emitido con la fecha confirmada');
+      const eventos = await eventosAuditoria(a, { tipo: 'SALTO_DE_FECHA_CONFIRMADO' });
+      igual(eventos.map((e) => [e.identificador, e.actor, e.detalle['dias']]), [['000-001-01', 'cajera-1', 33]], 'evento del salto');
+    }));
+
+    t.it('procedimiento ante reloj adelantado: anular con corregirFechaAdelantada desbloquea la serie sin borrar nada (Arts. 41 y 43)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100));
+      await emitir(D.entrada(), { almacen: a, ...base });
+      // La caja tenía el reloj 3 días adelantado (no llega al umbral) y emitió dos documentos «del 21».
+      const malos = [
+        await emitir(D.entrada(), { almacen: a, ...base, opciones: enDias(3) }),
+        await emitir(D.entrada(), { almacen: a, ...base, opciones: enDias(3) }),
+      ];
+      // Con el reloj corregido, la serie queda trabada hasta el 21.
+      igual(await codigoDeError(() => emitir(D.entrada(), { almacen: a, ...base })), 'FECHA_ANTERIOR_AL_ULTIMO', 'serie trabada');
+      const anulados = await corregirFechaAdelantada(a, { identificador: '000-001-01', motivo: 'Reloj de la caja 1 adelantado', reloj: D.reloj, actor: 'supervisor' });
+      igual(anulados.map((d) => [d.numero, d.estado, d.fechaEmision]), malos.map((d) => [d.numero, 'ANULADO', '2026-11-21']), 'anulados con su fecha original');
+      // Nada se borró ni se editó: los números siguen ahí, con contenido y motivo.
+      for (const d of malos) {
+        const guardado = await buscarDocumento(a, d.numero);
+        igual([guardado?.estado, guardado?.totales, guardado?.fechaEmision], ['ANULADO', d.totales, d.fechaEmision], `conservado ${d.numero}`);
+        if (!/reloj adelantado/.test(guardado?.anulacion?.motivo ?? '')) throw new Error(`motivo sin constancia: ${guardado?.anulacion?.motivo}`);
+      }
+      // La serie vuelve a emitir hoy y continúa la numeración (no reutiliza los anulados).
+      const nuevo = await emitir(D.entrada(), { almacen: a, ...base });
+      igual([nuevo.correlativo, nuevo.fechaEmision], [4, '2026-11-18'], 'serie desbloqueada');
+      const eventos = await eventosAuditoria(a, { identificador: '000-001-01' });
+      igual(eventos.map((e) => e.tipo), ['AUTORIZACION_REGISTRADA', 'DOCUMENTO_ANULADO', 'DOCUMENTO_ANULADO', 'FECHA_ADELANTADA_CORREGIDA'], 'bitácora');
+      igual(eventos[3]!.detalle['numeros'], malos.map((d) => d.numero), 'resumen de la corrección');
+      igual(eventos[3]!.actor, 'supervisor', 'actor');
+      igual(await codigoDeError(() => corregirFechaAdelantada(a, { identificador: '000-001-01', motivo: 'x', reloj: D.reloj })), 'SIN_DOCUMENTOS_ADELANTADOS', 'nada que corregir');
+    }));
+
+    t.it('la bitácora registra autorizaciones y anulaciones, y un fallo no deja eventos', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100), { reloj: D.reloj, actor: 'admin' });
+      await codigoDeError(() => registrarAutorizacion(a, D.autorizacion('CAI-B', 50, 60)));
+      const doc = await emitir(D.entrada(), { almacen: a, ...base });
+      await anular(doc.numero, { almacen: a, motivo: 'Error en la cantidad', reloj: D.reloj, actor: 'cajera-1' });
+      const eventos = await eventosAuditoria(a);
+      igual(eventos.map((e) => [e.tipo, e.actor, e.numero ?? null]), [
+        ['AUTORIZACION_REGISTRADA', 'admin', null],
+        ['DOCUMENTO_ANULADO', 'cajera-1', doc.numero],
+      ], 'eventos');
+      igual([eventos[0]!.instante, eventos[0]!.fecha], ['2026-11-18T18:00:00.000Z', '2026-11-18'], 'instante y fecha de Honduras');
+      igual(eventos[1]!.detalle['motivo'], 'Error en la cantidad', 'motivo');
     }));
 
     t.it('lista documentos por fecha e identificador, en orden de número', conAlmacen(async (a) => {

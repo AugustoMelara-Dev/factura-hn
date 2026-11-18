@@ -143,6 +143,37 @@ const nota = await emitir({
 }, { almacen, establecimiento: '000', puntoEmision: '001' });   // usa la autorización del tipo 06
 ```
 
+## Reloj del dispositivo
+
+La fecha de emisión la pone el reloj en hora de Honduras. Dos errores protegen el orden cronológico del
+archivo (Art. 43):
+
+- `RELOJ_ADELANTADO_SOSPECHOSO`: la fecha está más de 7 días después de la última emisión de la serie.
+  Muestra el mensaje y ofrece dos botones: «Corregir el reloj» y «La fecha es correcta», que reintenta con
+  `confirmarSaltoDeFecha: true` (queda en la bitácora).
+- `FECHA_ANTERIOR_AL_ULTIMO`: el último documento válido tiene una fecha posterior a hoy. O el reloj de
+  este dispositivo está atrasado (corrígelo), o se emitió antes con el reloj adelantado. En ese caso, un
+  supervisor corre el procedimiento de corrección:
+
+<!-- declaraciones:
+import type { AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
+```ts
+import { corregirFechaAdelantada, eventosAuditoria } from 'factura-hn';
+
+// Con el reloj ya corregido: anula los documentos de la serie con fecha futura (no borra ni edita nada)
+// y deja el evento en la bitácora. Después la caja vuelve a emitir con la fecha real.
+const anulados = await corregirFechaAdelantada(almacen, {
+  identificador: '000-001-01',
+  motivo: 'Reloj de la caja 1 adelantado tres días',
+  actor: 'supervisor@negocio',
+});
+const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' });
+```
+
+Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
+
 ## UI recomendada
 
 - Pantalla de configuración: datos del emisor y alta de autorizaciones con `registrarAutorizacion`.
@@ -167,7 +198,9 @@ const nota = await emitir({
 | `AUTORIZACION_VENCIDA` / `RANGO_AGOTADO` | Pedir al usuario que registre un nuevo CAI |
 | `RANGO_SOLAPADO` / `AUTORIZACION_DUPLICADA` | Revisar los datos de la resolución: el rango ya está registrado |
 | `FECHA_EMISION_NO_ES_HOY` | No enviar `fechaEmision`: la pone el reloj |
-| `FECHA_ANTERIOR_AL_ULTIMO` | El reloj del dispositivo está atrasado: corregirlo |
+| `RELOJ_ADELANTADO_SOSPECHOSO` | Corregir el reloj o confirmar el salto (`confirmarSaltoDeFecha`) |
+| `FECHA_ANTERIOR_AL_ULTIMO` | Reloj atrasado: corregirlo. Documento previo con fecha futura: `corregirFechaAdelantada` |
+| `SIN_DOCUMENTOS_ADELANTADOS` | No hay nada que corregir en esa serie |
 | `CONSUMIDOR_FINAL_IDENTIFICACION` | Pedir nombre + DNI/RTN (venta > L 10,000) |
 | `CLIENTE_RTN`, `EMISOR_RTN` | RTN debe tener 14 dígitos |
 | `REFERENCIA*`, `MOTIVO` | Completar los datos del documento original en notas 06/07 |

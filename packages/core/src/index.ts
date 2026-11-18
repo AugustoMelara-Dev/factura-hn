@@ -52,6 +52,7 @@ export {
   fechaHonduras,
   horaHonduras,
   esFechaValida,
+  diasEntre,
 } from './autorizacion';
 export type { EstadoAutorizacion } from './autorizacion';
 export {
@@ -77,12 +78,23 @@ export {
   DESTINO_EJEMPLARES,
 } from './documento';
 export { AlmacenFiscalMemoria, identificadorDe, identificadorDeNumero } from './almacen';
-export type { AlmacenFiscal, TransaccionFiscal, EstadoSerie, FiltroDocumentos } from './almacen';
+export type {
+  AlmacenFiscal,
+  TransaccionFiscal,
+  EstadoSerie,
+  FiltroDocumentos,
+  EventoAuditoria,
+  FiltroEventos,
+  TipoEventoAuditoria,
+} from './almacen';
 export {
   emitir,
   anular,
   buscarDocumento,
   registrarAutorizacion,
+  corregirFechaAdelantada,
+  eventosAuditoria,
+  SALTO_MAXIMO_DIAS,
   validarNuevaAutorizacion,
   elegirAutorizacion,
   nombreDeIdentificador,

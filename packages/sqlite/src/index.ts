@@ -18,7 +18,16 @@
  * const almacen = new AlmacenSQLite(new Database('fiscal.db'));
  */
 import { identificadorDe, identificadorDeNumero } from 'factura-hn';
-import type { AlmacenFiscal, AutorizacionCAI, DocumentoFiscal, EstadoSerie, FiltroDocumentos, TransaccionFiscal } from 'factura-hn';
+import type {
+  AlmacenFiscal,
+  AutorizacionCAI,
+  DocumentoFiscal,
+  EstadoSerie,
+  EventoAuditoria,
+  FiltroDocumentos,
+  FiltroEventos,
+  TransaccionFiscal,
+} from 'factura-hn';
 
 export interface SentenciaSQLite {
   run(...parametros: unknown[]): unknown;
@@ -68,6 +77,16 @@ CREATE TABLE IF NOT EXISTS fhn_documentos (
   UNIQUE (identificador, correlativo)
 );
 CREATE INDEX IF NOT EXISTS fhn_documentos_fecha ON fhn_documentos (fecha_emision, numero);
+-- Bitácora de auditoría: solo inserción.
+CREATE TABLE IF NOT EXISTS fhn_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT NOT NULL,
+  identificador TEXT,
+  numero TEXT,
+  instante TEXT NOT NULL,
+  datos TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fhn_eventos_identificador ON fhn_eventos (identificador, id);
 
 -- Reglamento Art. 41: los documentos no se borran; uno emitido solo puede pasar a ANULADO.
 CREATE TRIGGER IF NOT EXISTS fhn_documentos_sin_borrar BEFORE DELETE ON fhn_documentos
@@ -77,10 +96,18 @@ WHEN NOT (OLD.estado = 'EMITIDO' AND NEW.estado = 'ANULADO' AND NEW.numero = OLD
   AND NEW.identificador = OLD.identificador AND NEW.correlativo = OLD.correlativo
   AND NEW.fecha_emision = OLD.fecha_emision)
 BEGIN SELECT RAISE(ABORT, 'factura-hn: un documento emitido solo puede anularse (Art. 41)'); END;
--- Un número consumido no se reutiliza: la serie solo avanza.
-CREATE TRIGGER IF NOT EXISTS fhn_series_solo_avanza BEFORE UPDATE ON fhn_series
-WHEN OLD.ultimo IS NOT NULL AND (NEW.ultimo IS NULL OR NEW.ultimo <= OLD.ultimo)
+-- Un número consumido no se reutiliza: la serie nunca retrocede (la unicidad de fhn_documentos impide
+-- repetir). ultima_fecha sí puede bajar al anular un documento con fecha errónea.
+DROP TRIGGER IF EXISTS fhn_series_solo_avanza;
+CREATE TRIGGER fhn_series_solo_avanza BEFORE UPDATE ON fhn_series
+WHEN OLD.ultimo IS NOT NULL AND (NEW.ultimo IS NULL OR NEW.ultimo < OLD.ultimo)
 BEGIN SELECT RAISE(ABORT, 'factura-hn: la serie de correlativos no retrocede'); END;
+CREATE TRIGGER IF NOT EXISTS fhn_series_sin_borrar BEFORE DELETE ON fhn_series
+BEGIN SELECT RAISE(ABORT, 'factura-hn: las series no se borran'); END;
+CREATE TRIGGER IF NOT EXISTS fhn_eventos_sin_borrar BEFORE DELETE ON fhn_eventos
+BEGIN SELECT RAISE(ABORT, 'factura-hn: la bitácora no se modifica'); END;
+CREATE TRIGGER IF NOT EXISTS fhn_eventos_sin_editar BEFORE UPDATE ON fhn_eventos
+BEGIN SELECT RAISE(ABORT, 'factura-hn: la bitácora no se modifica'); END;
 CREATE TRIGGER IF NOT EXISTS fhn_autorizaciones_sin_borrar BEFORE DELETE ON fhn_autorizaciones
 BEGIN SELECT RAISE(ABORT, 'factura-hn: las autorizaciones registradas no se borran'); END;
 `;
@@ -182,6 +209,12 @@ export class AlmacenSQLite implements AlmacenFiscal {
           .prepare('UPDATE fhn_documentos SET estado = ?, datos = ? WHERE numero = ?')
           .run(doc.estado, JSON.stringify(doc), doc.numero) as { changes: number | bigint };
         if (Number(r.changes) !== 1) throw new Error(`No existe el documento ${doc.numero}`);
+        // La referencia cronológica es el último documento válido (Art. 43).
+        db.prepare(
+          `UPDATE fhn_series SET ultima_fecha = (
+             SELECT max(fecha_emision) FROM fhn_documentos WHERE identificador = ? AND estado = 'EMITIDO')
+           WHERE identificador = ?`,
+        ).run(identificadorDeNumero(doc.numero), identificadorDeNumero(doc.numero));
       },
       async buscarDocumento(numero: string): Promise<DocumentoFiscal | null> {
         const fila = db.prepare('SELECT datos FROM fhn_documentos WHERE numero = ?').get(numero) as FilaDatos | undefined;
@@ -196,6 +229,19 @@ export class AlmacenSQLite implements AlmacenFiscal {
         const donde = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
         const filas = db.prepare(`SELECT datos FROM fhn_documentos ${donde} ORDER BY numero`).all(...parametros) as FilaDatos[];
         return filas.map((f) => JSON.parse(f.datos) as DocumentoFiscal);
+      },
+      async registrarEvento(e: EventoAuditoria): Promise<void> {
+        db.prepare('INSERT INTO fhn_eventos (tipo, identificador, numero, instante, datos) VALUES (?, ?, ?, ?, ?)')
+          .run(e.tipo, e.identificador ?? null, e.numero ?? null, e.instante, JSON.stringify(e));
+      },
+      async eventos(filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
+        const condiciones: string[] = [];
+        const parametros: string[] = [];
+        if (filtro.identificador) (condiciones.push('identificador = ?'), parametros.push(filtro.identificador));
+        if (filtro.tipo) (condiciones.push('tipo = ?'), parametros.push(filtro.tipo));
+        const donde = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+        const filas = db.prepare(`SELECT datos FROM fhn_eventos ${donde} ORDER BY id`).all(...parametros) as FilaDatos[];
+        return filas.map((f) => JSON.parse(f.datos) as EventoAuditoria);
       },
     };
   }

@@ -34,7 +34,8 @@ export function horaHonduras(fecha: Date = new Date()): string {
   }).format(fecha);
 }
 
-function diasEntre(desde: string, hasta: string): number {
+/** Días calendario de `desde` a `hasta` (fechas YYYY-MM-DD). */
+export function diasEntre(desde: string, hasta: string): number {
   const a = Date.parse(`${desde}T00:00:00Z`);
   const b = Date.parse(`${hasta}T00:00:00Z`);
   return Math.round((b - a) / 86_400_000);

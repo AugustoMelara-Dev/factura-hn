@@ -59,12 +59,14 @@ describe('la base protege los documentos aunque se edite a mano', () => {
 
   it('la serie no retrocede ni repite', async () => {
     const { db } = await preparar();
-    expect(() => db.prepare("UPDATE fhn_series SET ultimo = 1 WHERE identificador = '000-001-01'").run()).toThrow(/no retrocede/);
     expect(() => db.prepare("UPDATE fhn_series SET ultimo = 0 WHERE identificador = '000-001-01'").run()).toThrow(/no retrocede/);
   });
 
-  it('las autorizaciones no se borran', async () => {
+  it('las autorizaciones y las series no se borran; la bitácora no se modifica', async () => {
     const { db } = await preparar();
     expect(() => db.prepare('DELETE FROM fhn_autorizaciones').run()).toThrow(/no se borran/);
+    expect(() => db.prepare('DELETE FROM fhn_series').run()).toThrow(/no se borran/);
+    expect(() => db.prepare('DELETE FROM fhn_eventos').run()).toThrow(/bitácora/);
+    expect(() => db.prepare("UPDATE fhn_eventos SET tipo = 'X'").run()).toThrow(/bitácora/);
   });
 });

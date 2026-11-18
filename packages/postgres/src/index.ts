@@ -18,7 +18,16 @@
  * await almacen.migrar();
  */
 import { identificadorDe, identificadorDeNumero } from 'factura-hn';
-import type { AlmacenFiscal, AutorizacionCAI, DocumentoFiscal, EstadoSerie, FiltroDocumentos, TransaccionFiscal } from 'factura-hn';
+import type {
+  AlmacenFiscal,
+  AutorizacionCAI,
+  DocumentoFiscal,
+  EstadoSerie,
+  EventoAuditoria,
+  FiltroDocumentos,
+  FiltroEventos,
+  TransaccionFiscal,
+} from 'factura-hn';
 
 export interface ResultadoConsulta<F = Record<string, unknown>> {
   rows: F[];
@@ -74,6 +83,17 @@ CREATE TABLE IF NOT EXISTS fhn_documentos (
   UNIQUE (tenant, identificador, correlativo)
 );
 CREATE INDEX IF NOT EXISTS fhn_documentos_fecha ON fhn_documentos (tenant, fecha_emision, numero);
+-- Bitácora de auditoría: solo inserción.
+CREATE TABLE IF NOT EXISTS fhn_eventos (
+  id bigserial PRIMARY KEY,
+  tenant text NOT NULL,
+  tipo text NOT NULL,
+  identificador text,
+  numero text,
+  instante timestamptz NOT NULL,
+  datos json NOT NULL
+);
+CREATE INDEX IF NOT EXISTS fhn_eventos_identificador ON fhn_eventos (tenant, identificador, id);
 
 CREATE OR REPLACE FUNCTION fhn_no_borrar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -92,7 +112,9 @@ END $$;
 
 CREATE OR REPLACE FUNCTION fhn_serie_solo_avanza() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF OLD.ultimo IS NOT NULL AND (NEW.ultimo IS NULL OR NEW.ultimo <= OLD.ultimo) THEN
+  -- La serie nunca retrocede (la unicidad de fhn_documentos impide repetir); ultima_fecha sí puede bajar
+  -- al anular un documento con fecha errónea.
+  IF OLD.ultimo IS NOT NULL AND (NEW.ultimo IS NULL OR NEW.ultimo < OLD.ultimo) THEN
     RAISE EXCEPTION 'factura-hn: la serie de correlativos no retrocede';
   END IF;
   RETURN NEW;
@@ -104,6 +126,15 @@ DROP TRIGGER IF EXISTS fhn_autorizaciones_sin_borrar ON fhn_autorizaciones;
 CREATE TRIGGER fhn_autorizaciones_sin_borrar BEFORE DELETE ON fhn_autorizaciones FOR EACH ROW EXECUTE FUNCTION fhn_no_borrar();
 DROP TRIGGER IF EXISTS fhn_documentos_solo_anular ON fhn_documentos;
 CREATE TRIGGER fhn_documentos_solo_anular BEFORE UPDATE ON fhn_documentos FOR EACH ROW EXECUTE FUNCTION fhn_solo_anular();
+CREATE OR REPLACE FUNCTION fhn_bitacora_inmutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'factura-hn: la bitácora no se modifica';
+END $$;
+
+DROP TRIGGER IF EXISTS fhn_eventos_inmutables ON fhn_eventos;
+CREATE TRIGGER fhn_eventos_inmutables BEFORE UPDATE OR DELETE ON fhn_eventos FOR EACH ROW EXECUTE FUNCTION fhn_bitacora_inmutable();
+DROP TRIGGER IF EXISTS fhn_series_sin_borrar ON fhn_series;
+CREATE TRIGGER fhn_series_sin_borrar BEFORE DELETE ON fhn_series FOR EACH ROW EXECUTE FUNCTION fhn_no_borrar();
 DROP TRIGGER IF EXISTS fhn_series_solo_avanza ON fhn_series;
 CREATE TRIGGER fhn_series_solo_avanza BEFORE UPDATE ON fhn_series FOR EACH ROW EXECUTE FUNCTION fhn_serie_solo_avanza();
 `;
@@ -213,6 +244,13 @@ export class AlmacenPostgres implements AlmacenFiscal {
           doc.numero,
         ]);
         if (r.rowCount !== 1) throw new Error(`No existe el documento ${doc.numero}`);
+        // La referencia cronológica es el último documento válido (Art. 43).
+        await c.query(
+          `UPDATE fhn_series SET ultima_fecha = (
+             SELECT max(fecha_emision) FROM fhn_documentos WHERE tenant = $1 AND identificador = $2 AND estado = 'EMITIDO')
+           WHERE tenant = $1 AND identificador = $2`,
+          [t, identificadorDeNumero(doc.numero)],
+        );
       },
       async buscarDocumento(numero: string): Promise<DocumentoFiscal | null> {
         const r = await c.query<FilaDatos>('SELECT datos FROM fhn_documentos WHERE tenant = $1 AND numero = $2', [t, numero]);
@@ -230,6 +268,20 @@ export class AlmacenPostgres implements AlmacenFiscal {
         if (filtro.identificador) agregar('identificador = ?', filtro.identificador);
         const r = await c.query<FilaDatos>(`SELECT datos FROM fhn_documentos WHERE ${condiciones.join(' AND ')} ORDER BY numero`, parametros);
         return r.rows.map((f) => leer<DocumentoFiscal>(f.datos));
+      },
+      async registrarEvento(e: EventoAuditoria): Promise<void> {
+        await c.query(
+          'INSERT INTO fhn_eventos (tenant, tipo, identificador, numero, instante, datos) VALUES ($1, $2, $3, $4, $5, $6)',
+          [t, e.tipo, e.identificador ?? null, e.numero ?? null, e.instante, JSON.stringify(e)],
+        );
+      },
+      async eventos(filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
+        const condiciones = ['tenant = $1'];
+        const parametros: unknown[] = [t];
+        if (filtro.identificador) (parametros.push(filtro.identificador), condiciones.push(`identificador = $${parametros.length}`));
+        if (filtro.tipo) (parametros.push(filtro.tipo), condiciones.push(`tipo = $${parametros.length}`));
+        const r = await c.query<FilaDatos>(`SELECT datos FROM fhn_eventos WHERE ${condiciones.join(' AND ')} ORDER BY id`, parametros);
+        return r.rows.map((f) => leer<EventoAuditoria>(f.datos));
       },
     };
   }

@@ -2,8 +2,16 @@
  * Emisión y anulación atómicas sobre un `AlmacenFiscal` (docs/investigacion.md, B-04 y B-18).
  */
 import { anularDocumento } from './anulacion';
-import { esAdvertencia, esFechaValida, validarAutorizacion } from './autorizacion';
-import { identificadorDe, identificadorDeNumero, type AlmacenFiscal, type TransaccionFiscal } from './almacen';
+import { diasEntre, esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
+import {
+  identificadorDe,
+  identificadorDeNumero,
+  type AlmacenFiscal,
+  type EventoAuditoria,
+  type FiltroEventos,
+  type TipoEventoAuditoria,
+  type TransaccionFiscal,
+} from './almacen';
 import { construirDocumento, ErrorValidacion, hoyHonduras } from './documento';
 import { congelar } from './inmutable';
 import { TIPOS_DOCUMENTO } from './numeracion';
@@ -11,6 +19,23 @@ import type { AutorizacionCAI, DocumentoEntrada, DocumentoFiscal, OpcionesDocume
 
 function error(codigo: string, mensaje: string, campo?: string): ErrorValidacion {
   return new ErrorValidacion([{ codigo, mensaje, ...(campo ? { campo } : {}) }]);
+}
+
+/** Días máximos entre la última emisión de una serie y hoy antes de sospechar del reloj. */
+export const SALTO_MAXIMO_DIAS = 7;
+
+const relojDe = (reloj?: () => Date) => reloj ?? (() => new Date());
+
+function evento(
+  tipo: TipoEventoAuditoria,
+  ahora: Date,
+  datos: { identificador?: string; numero?: string; actor?: string | undefined; detalle: Record<string, unknown> },
+): EventoAuditoria {
+  const e: EventoAuditoria = { tipo, instante: ahora.toISOString(), fecha: fechaHonduras(ahora), detalle: datos.detalle };
+  if (datos.identificador) e.identificador = datos.identificador;
+  if (datos.numero) e.numero = datos.numero;
+  if (datos.actor) e.actor = datos.actor;
+  return e;
 }
 
 /**
@@ -37,7 +62,12 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
 }
 
 /** Registra una autorización del SAR (CAI + rango + fecha límite) validando que no se solape. */
-export async function registrarAutorizacion(almacen: AlmacenFiscal, autorizacion: AutorizacionCAI): Promise<AutorizacionCAI> {
+export async function registrarAutorizacion(
+  almacen: AlmacenFiscal,
+  autorizacion: AutorizacionCAI,
+  opciones: { reloj?: () => Date; actor?: string } = {},
+): Promise<AutorizacionCAI> {
+  const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
     const id = identificadorDe(autorizacion);
     await tx.bloquearSerie(id);
@@ -50,6 +80,18 @@ export async function registrarAutorizacion(almacen: AlmacenFiscal, autorizacion
       puntoEmision: String(autorizacion.puntoEmision).padStart(3, '0'),
     };
     await tx.guardarAutorizacion(normalizada);
+    await tx.registrarEvento(
+      evento('AUTORIZACION_REGISTRADA', ahora, {
+        identificador: id,
+        actor: opciones.actor,
+        detalle: {
+          cai: normalizada.cai,
+          rangoInicial: normalizada.rangoInicial,
+          rangoFinal: normalizada.rangoFinal,
+          fechaLimiteEmision: normalizada.fechaLimiteEmision,
+        },
+      }),
+    );
     return normalizada;
   });
 }
@@ -90,6 +132,18 @@ export interface OpcionesEmision {
   puntoEmision: string | number;
   opciones?: OpcionesDocumento;
   /**
+   * Días máximos desde la última emisión de la serie antes de rechazar por reloj sospechoso. Por defecto
+   * `SALTO_MAXIMO_DIAS` (7).
+   */
+  saltoMaximoDias?: number;
+  /**
+   * El operador verificó que la fecha del dispositivo es correcta (p. ej. el negocio estuvo cerrado) y
+   * acepta un salto mayor que `saltoMaximoDias`. Queda en la bitácora como SALTO_DE_FECHA_CONFIRMADO.
+   */
+  confirmarSaltoDeFecha?: boolean;
+  /** Quién emite (usuario, caja, llave de API), para la bitácora. */
+  actor?: string;
+  /**
    * Se ejecuta dentro de la transacción después de guardar el documento: aquí va el asiento contable o de
    * inventario (Art. 53 num. 1) o la bitácora de auditoría. Si lanza, se revierte todo y el número no se
    * consume.
@@ -113,9 +167,39 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
   const hoy = hoyHonduras(opciones);
   return config.almacen.transaccion(async (tx) => {
     const serie = await tx.bloquearSerie(id);
-    // Art. 43: custodia en orden cronológico. Si el reloj quedó antes del último documento, no se emite.
+    // Art. 43 (C L.1992-1996): los documentos se archivan «de forma ordenada, cronológica». Como el
+    // correlativo ordena el archivo, la fecha de un documento válido no puede ser anterior a la del último
+    // documento válido de la serie.
     if (serie.ultimaFecha && serie.ultimaFecha > hoy) {
-      throw error('FECHA_ANTERIOR_AL_ULTIMO', `El último documento de ${id} tiene fecha ${serie.ultimaFecha}, posterior a hoy (${hoy}). Revisa el reloj del sistema (Art. 43).`, 'fechaEmision');
+      throw error(
+        'FECHA_ANTERIOR_AL_ULTIMO',
+        `El último documento válido de ${id} tiene fecha ${serie.ultimaFecha}, posterior a hoy (${hoy}). ` +
+          'Si el reloj de este dispositivo está atrasado, corrígelo. Si aquel documento se emitió con el reloj ' +
+          'adelantado, anúlalo con corregirFechaAdelantada (Arts. 41 y 43).',
+        'fechaEmision',
+      );
+    }
+    // Prevención: un salto grande desde la última emisión suele ser un reloj adelantado. Emitir con esa
+    // fecha trabaría la serie hasta que llegue (regla anterior), así que se pide corregir o confirmar.
+    const salto = serie.ultimaFecha ? diasEntre(serie.ultimaFecha, hoy) : 0;
+    const maximo = config.saltoMaximoDias ?? SALTO_MAXIMO_DIAS;
+    if (salto > maximo) {
+      if (!config.confirmarSaltoDeFecha) {
+        throw error(
+          'RELOJ_ADELANTADO_SOSPECHOSO',
+          `La fecha de este dispositivo (${hoy}) está ${salto} días después de la última emisión de ${id} ` +
+            `(${serie.ultimaFecha}). Revisa el reloj del dispositivo. Si la fecha es correcta (por ejemplo, el ` +
+            'negocio estuvo cerrado), confirma el salto de fecha y vuelve a emitir.',
+          'fechaEmision',
+        );
+      }
+      await tx.registrarEvento(
+        evento('SALTO_DE_FECHA_CONFIRMADO', ahora, {
+          identificador: id,
+          actor: config.actor,
+          detalle: { ultimaFecha: serie.ultimaFecha, hoy, dias: salto, maximo },
+        }),
+      );
     }
     const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
@@ -136,18 +220,114 @@ export async function anular(
     almacen: AlmacenFiscal;
     motivo: string;
     reloj?: () => Date;
+    actor?: string;
     alAnular?: (doc: DocumentoFiscal, tx: TransaccionFiscal) => Promise<void>;
   },
 ): Promise<DocumentoFiscal> {
+  const ahora = relojDe(config.reloj)();
   return config.almacen.transaccion(async (tx) => {
     await tx.bloquearSerie(identificadorDeNumero(numero));
-    const doc = await tx.buscarDocumento(numero);
-    if (!doc) throw error('DOCUMENTO_NO_ENCONTRADO', `No existe el documento ${numero}.`, 'numero');
-    const anulado = anularDocumento(doc, { motivo: config.motivo, ...(config.reloj ? { reloj: config.reloj } : {}) });
-    await tx.guardarAnulacion(anulado);
+    const anulado = await anularEnTransaccion(tx, numero, config.motivo, ahora, config.actor);
     if (config.alAnular) await config.alAnular(anulado, tx);
     return anulado;
   });
+}
+
+async function anularEnTransaccion(
+  tx: TransaccionFiscal,
+  numero: string,
+  motivo: string,
+  ahora: Date,
+  actor: string | undefined,
+  detalle: Record<string, unknown> = {},
+): Promise<DocumentoFiscal> {
+  const doc = await tx.buscarDocumento(numero);
+  if (!doc) throw error('DOCUMENTO_NO_ENCONTRADO', `No existe el documento ${numero}.`, 'numero');
+  const anulado = anularDocumento(doc, { motivo, reloj: () => ahora });
+  await tx.guardarAnulacion(anulado);
+  await tx.registrarEvento(
+    evento('DOCUMENTO_ANULADO', ahora, {
+      identificador: identificadorDeNumero(numero),
+      numero,
+      actor,
+      detalle: { motivo: anulado.anulacion!.motivo, fechaEmision: doc.fechaEmision, total: doc.totales.total, ...detalle },
+    }),
+  );
+  return anulado;
+}
+
+/**
+ * Procedimiento para salir del bloqueo por reloj adelantado (Arts. 41 y 43), sin borrar ni editar nada.
+ *
+ * Si una caja emitió con el reloj adelantado, sus documentos llevan una fecha futura y la serie rechaza los
+ * documentos de hoy (`FECHA_ANTERIOR_AL_ULTIMO`). Con el reloj ya corregido, esta función, en una sola
+ * transacción:
+ * 1. bloquea la serie y busca los documentos EMITIDOS con fecha de emisión posterior a hoy;
+ * 2. los anula (Art. 41: emisión con errores; la fecha es un dato del documento), conservando número y
+ *    contenido, con un motivo que deja constancia de la fecha errónea;
+ * 3. registra en la bitácora un DOCUMENTO_ANULADO por cada uno y un FECHA_ADELANTADA_CORREGIDA con el resumen.
+ *
+ * Desde ahí la referencia cronológica de la serie es el último documento válido y se puede emitir con la
+ * fecha real. Si la venta fue real, emite un documento nuevo con la fecha correcta y recupera el original
+ * del documento anulado si es posible (Art. 41: resguardo de original y copia).
+ *
+ * @throws ErrorValidacion `SIN_DOCUMENTOS_ADELANTADOS` si no hay documentos con fecha futura.
+ */
+export async function corregirFechaAdelantada(
+  almacen: AlmacenFiscal,
+  config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string },
+): Promise<DocumentoFiscal[]> {
+  const motivo = config.motivo?.trim();
+  if (!motivo) {
+    throw error('ANULACION_MOTIVO', 'La corrección requiere un motivo (por ejemplo, qué pasó con el reloj).', 'motivo');
+  }
+  const ahora = relojDe(config.reloj)();
+  const hoy = fechaHonduras(ahora);
+  const id = config.identificador;
+  return almacen.transaccion(async (tx) => {
+    await tx.bloquearSerie(id);
+    const adelantados = (await tx.documentos({ identificador: id, desde: hoy })).filter(
+      (d) => d.estado === 'EMITIDO' && d.fechaEmision > hoy,
+    );
+    if (adelantados.length === 0) {
+      throw error(
+        'SIN_DOCUMENTOS_ADELANTADOS',
+        `${id} no tiene documentos emitidos con fecha posterior a hoy (${hoy}).`,
+        'identificador',
+      );
+    }
+    const anulados: DocumentoFiscal[] = [];
+    for (const d of adelantados) {
+      anulados.push(
+        await anularEnTransaccion(
+          tx,
+          d.numero,
+          `Fecha de emisión errónea (${d.fechaEmision}) por reloj adelantado; fecha real ${hoy}. ${motivo}`,
+          ahora,
+          config.actor,
+          { causa: 'FECHA_ADELANTADA' },
+        ),
+      );
+    }
+    await tx.registrarEvento(
+      evento('FECHA_ADELANTADA_CORREGIDA', ahora, {
+        identificador: id,
+        actor: config.actor,
+        detalle: {
+          hoy,
+          motivo,
+          numeros: adelantados.map((d) => d.numero),
+          fechasErroneas: adelantados.map((d) => d.fechaEmision),
+        },
+      }),
+    );
+    return anulados;
+  });
+}
+
+/** La bitácora de auditoría, en orden de registro. */
+export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
+  return almacen.transaccion((tx) => tx.eventos(filtro));
 }
 
 /** Busca un documento guardado y lo devuelve inmutable. */

@@ -114,6 +114,10 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
   inventario).
 - `anular(numero, { almacen, motivo })` → guarda el documento con `estado: 'ANULADO'` y la leyenda ANULADA
   (Art. 41). El número sigue consumido.
+- `corregirFechaAdelantada(almacen, { identificador, motivo })` → si una caja emitió con el reloj
+  adelantado, anula esos documentos y desbloquea la serie sin borrar ni editar nada (Arts. 41 y 43).
+- `eventosAuditoria(almacen, filtro?)` → bitácora de solo inserción: autorizaciones registradas, anulaciones,
+  saltos de fecha confirmados y correcciones de reloj.
 - `buscarDocumento(almacen, numero)` · `validarEntrada(entrada, autorizacion, opciones?)` (para mostrar
   errores en el formulario antes de cobrar) · `calcularDocumento(lineas, opciones?)` (total exacto para la
   caja antes de emitir).

@@ -46,8 +46,13 @@ interface TransaccionFiscal {
   guardarAnulacion(doc: DocumentoFiscal): Promise<void>;
   buscarDocumento(numero: string): Promise<DocumentoFiscal | null>;
   documentos(filtro?: FiltroDocumentos): Promise<DocumentoFiscal[]>;
+  registrarEvento(evento: EventoAuditoria): Promise<void>;     // bitácora: solo inserción
+  eventos(filtro?: FiltroEventos): Promise<EventoAuditoria[]>;  // en orden de registro
 }
 ```
+
+`EstadoSerie.ultimaFecha` es la fecha más reciente entre los documentos **EMITIDOS** de la serie; al anular,
+recalcúlala (así un documento anulado por fecha errónea deja de trabar la serie).
 
 Las validaciones (solapamiento de rangos, vigencia, cálculo) las hace el core; el almacén solo guarda y
 bloquea. Para el bloqueo, en MySQL o SQL Server usa `SELECT … FOR UPDATE` / `WITH (UPDLOCK, ROWLOCK)` sobre la
@@ -67,5 +72,5 @@ ejecutarContratoAlmacen({ describe, it }, {
 ```
 
 La batería verifica la numeración consecutiva, la continuidad entre autorizaciones, el salto de CAI vencidos,
-que un fallo no consuma número, la anulación, el orden cronológico y 50 emisiones concurrentes desde 5
-conexiones. Si quitas el bloqueo de la serie, la prueba de concurrencia falla.
+que un fallo no consuma número, la anulación, el orden cronológico, el procedimiento ante reloj adelantado, la
+bitácora y 50 emisiones concurrentes desde 5 conexiones. Si quitas el bloqueo de la serie, la prueba de concurrencia falla.

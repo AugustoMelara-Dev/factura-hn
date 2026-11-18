@@ -141,6 +141,58 @@ insegura · **B** = mejora o documentación.
 | B-06 anulación Art. 41 | cerrada | `packages/core/test/art41-anulacion.test.ts` |
 | B-04 varias autorizaciones por identificador | cerrada | batería `factura-hn/pruebas` en memoria, SQLite y Postgres |
 | B-18 emisión atómica | cerrada | misma batería (fallo dentro de la transacción, 50 emisiones concurrentes) |
+| Reloj adelantado (revisión del 2026-11-18) | cerrada | contrato: «rechaza un salto de fecha sospechoso…», «procedimiento ante reloj adelantado…» |
+| Bitácora de auditoría | cerrada | contrato: «la bitácora registra autorizaciones y anulaciones…»; disparadores en SQLite y Postgres |
+
+### Reloj del dispositivo y orden cronológico (Art. 43)
+
+**Qué dice la norma.** Reglamento Art. 43 (C L.1992-1996), «Custodia de la documentación»: «Los Obligados
+Tributarios tienen la obligación de mantener en archivo los Documentos Fiscales de forma ordenada,
+cronológica y por el plazo establecido en el Código Tributario y Leyes Especiales». El Art. 41 (C L.1943-1955)
+pide lo mismo para los anulados: resguardo «de forma cronológica y ordenada». El Art. 14 fija el momento de
+emisión: la fecha de la entrega o del pago, es decir, la fecha real de la operación.
+
+**Cómo lo aplica el SDK.** El correlativo ordena el archivo. Para que ese orden también sea cronológico, la
+fecha de un documento válido no puede ser anterior a la del último documento válido de su serie
+(`FECHA_ANTERIOR_AL_ULTIMO`). La norma no dice «bloquear la emisión»; es nuestra forma de que el archivo
+cumpla el Art. 43 sin depender de que alguien lo ordene después.
+
+**El problema.** Si una caja con el reloj adelantado (por ejemplo, a 2027-03-01) emite un documento, ese
+documento lleva una fecha que no es la de la operación (Art. 14) y la regla anterior traba la serie hasta
+que llegue esa fecha.
+
+**La solución, en dos partes.**
+
+1. *Prevención.* `emitir` rechaza con `RELOJ_ADELANTADO_SOSPECHOSO` cuando la fecha del dispositivo está más
+   de `saltoMaximoDias` (7 por defecto) después de la última emisión de la serie. El operador corrige el reloj
+   o, si la fecha es correcta (el negocio estuvo cerrado), confirma con `confirmarSaltoDeFecha`; la
+   confirmación queda en la bitácora (`SALTO_DE_FECHA_CONFIRMADO`). Una fecha posterior a la fecha límite del
+   CAI ya no se puede emitir (`AUTORIZACION_VENCIDA`, Art. 62), y el salto se evalúa antes, así que el mensaje
+   apunta al reloj. El umbral de 7 días es una decisión operativa, no una regla fiscal: no hay artículo que
+   lo fije.
+2. *Corrección.* Si ya se emitió con fecha futura (un salto menor que el umbral, o confirmado por error),
+   `corregirFechaAdelantada(almacen, { identificador, motivo })` anula en una transacción todos los
+   documentos EMITIDOS de la serie con fecha posterior a hoy y registra en la bitácora un
+   `DOCUMENTO_ANULADO` por cada uno y un `FECHA_ADELANTADA_CORREGIDA` con el resumen. Desde ahí, la
+   referencia cronológica es el último documento **válido** (`EstadoSerie.ultimaFecha` excluye los
+   anulados) y se emite con la fecha real.
+
+**Por qué respeta los Arts. 41 y 43.**
+
+- Nada se borra ni se edita. Los documentos con fecha errónea conservan número, contenido y fecha original;
+  solo pasan a ANULADO con la leyenda del Art. 41, que es el tratamiento que el Reglamento da a una «emisión
+  con errores». La fecha es un dato del documento, así que una fecha falsa es un error de emisión.
+- El archivo sigue ordenado por número, sin huecos: los anulados ocupan su lugar.
+- Los documentos válidos quedan en orden cronológico: ninguno tiene una fecha anterior a la de un válido
+  previo. Los anulados se resguardan en su lugar, con la fecha y el motivo de la anulación, como pide el Art. 41.
+- La bitácora (solo inserción, protegida con disparadores) deja la traza de quién corrigió, cuándo y qué
+  números se anularon, para la Administración Tributaria (Art. 43: «a disposición … cuando ésta lo requiera»).
+- Si la venta fue real, se emite un documento nuevo con la fecha correcta. El original del anulado se
+  recupera del cliente cuando es posible (Art. 41: resguardo de original y copia).
+
+**Lo que no cubre.** Un reloj **atrasado** en la primera emisión de una serie (por ejemplo, una batería CMOS
+que vuelve a 2000) no tiene referencia previa; la autorización no trae fecha de inicio que sirva de piso.
+Queda como pregunta abierta P-13.
 
 ### Decisiones aprobadas (2026-11-18)
 
@@ -251,6 +303,7 @@ La API se diseña para dos modos con el mismo código:
 | P-10 | ISV por línea o por grupo de tasa con el Art. 9 de la Ley del ISV. Totales con precio con ISV que no tienen base exacta (D-01) | B-03 |
 | P-11 | Texto oficial del Decreto 278-2013 Art. 16 y la lista vigente de bienes al 18 % (¿primera clase en boletos aéreos?) | B-14 |
 | P-12 | ¿Hay calendario o especificación técnica de la emisión electrónica (Arts. 57-58)? | Sección 4 |
+| P-13 | ¿Hay un piso de fecha válido para la primera emisión de una serie (p. ej. la fecha de la resolución que otorga el CAI)? Si la resolución trae fecha de emisión, el SDK podría rechazar fechas anteriores | Sección 2, «Reloj del dispositivo y orden cronológico» |
 
 ---
 

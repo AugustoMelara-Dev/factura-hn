@@ -66,7 +66,10 @@ conPostgres('Postgres', () => {
     await expect(pool.query('UPDATE fhn_documentos SET correlativo = 9 WHERE tenant = $1', [t])).rejects.toThrow(/solo puede anularse/);
     await pool.query("UPDATE fhn_documentos SET estado = 'ANULADO' WHERE tenant = $1 AND numero = $2", [t, doc.numero]);
     await expect(pool.query("UPDATE fhn_documentos SET estado = 'EMITIDO' WHERE tenant = $1", [t])).rejects.toThrow(/solo puede anularse/);
-    await expect(pool.query('UPDATE fhn_series SET ultimo = 1 WHERE tenant = $1', [t])).rejects.toThrow(/no retrocede/);
+    await expect(pool.query('UPDATE fhn_series SET ultimo = 0 WHERE tenant = $1', [t])).rejects.toThrow(/no retrocede/);
+    await expect(pool.query('DELETE FROM fhn_series WHERE tenant = $1', [t])).rejects.toThrow(/no se borran/);
+    await expect(pool.query('DELETE FROM fhn_eventos WHERE tenant = $1', [t])).rejects.toThrow(/bitácora/);
+    await expect(pool.query("UPDATE fhn_eventos SET tipo = 'X' WHERE tenant = $1", [t])).rejects.toThrow(/bitácora/);
   });
 
   it('cada transacción fija factura_hn.tenant (local a la transacción) para las políticas RLS', async () => {

@@ -19,10 +19,42 @@ import type { AutorizacionCAI, DocumentoFiscal } from './tipos';
 
 /** Estado de la serie de un identificador, leído con bloqueo exclusivo hasta el fin de la transacción. */
 export interface EstadoSerie {
-  /** Último correlativo consumido, o null si la serie no ha emitido nada. */
+  /** Último correlativo consumido (emitido o anulado), o null si la serie no ha emitido nada. */
   ultimo: number | null;
-  /** Fecha de emisión (YYYY-MM-DD) del último documento de la serie, o null. */
+  /**
+   * Fecha de emisión (YYYY-MM-DD) más reciente entre los documentos **EMITIDOS** (no anulados) de la serie,
+   * o null. Es la referencia del orden cronológico (Art. 43): un documento anulado por fecha errónea deja
+   * de contar (ver `corregirFechaAdelantada`).
+   */
   ultimaFecha: string | null;
+}
+
+export type TipoEventoAuditoria =
+  | 'AUTORIZACION_REGISTRADA'
+  | 'DOCUMENTO_ANULADO'
+  | 'SALTO_DE_FECHA_CONFIRMADO'
+  | 'FECHA_ADELANTADA_CORREGIDA';
+
+/**
+ * Evento de la bitácora de auditoría. Se guarda en la misma transacción que la operación que lo origina y
+ * nunca se modifica ni se borra. Las emisiones no generan evento: el documento mismo es el registro.
+ */
+export interface EventoAuditoria {
+  tipo: TipoEventoAuditoria;
+  /** Instante ISO 8601 (UTC) según el reloj de la operación. */
+  instante: string;
+  /** Fecha en Honduras (YYYY-MM-DD) del mismo instante. */
+  fecha: string;
+  identificador?: string;
+  numero?: string;
+  /** Quién hizo la operación (usuario, caja, llave de API), si el integrador lo indica. */
+  actor?: string;
+  detalle: Record<string, unknown>;
+}
+
+export interface FiltroEventos {
+  identificador?: string;
+  tipo?: TipoEventoAuditoria;
 }
 
 export interface FiltroDocumentos {
@@ -52,12 +84,19 @@ export interface TransaccionFiscal {
    * `doc.fechaEmision`. Debe lanzar si ya existe un documento con ese número.
    */
   guardarDocumento(doc: DocumentoFiscal): Promise<void>;
-  /** Reemplaza un documento EMITIDO por su forma ANULADA (Art. 41). Debe lanzar si el número no existe. */
+  /**
+   * Reemplaza un documento EMITIDO por su forma ANULADA (Art. 41) y recalcula `ultimaFecha` de la serie.
+   * Debe lanzar si el número no existe.
+   */
   guardarAnulacion(doc: DocumentoFiscal): Promise<void>;
   /** El documento con ese número (`NNN-NNN-NN-NNNNNNNN`), o null. */
   buscarDocumento(numero: string): Promise<DocumentoFiscal | null>;
   /** Documentos por fecha de emisión e identificador, en orden de número. */
   documentos(filtro?: FiltroDocumentos): Promise<DocumentoFiscal[]>;
+  /** Agrega un evento a la bitácora (solo inserción). */
+  registrarEvento(evento: EventoAuditoria): Promise<void>;
+  /** Eventos en el orden en que se registraron. */
+  eventos(filtro?: FiltroEventos): Promise<EventoAuditoria[]>;
 }
 
 export interface AlmacenFiscal {
@@ -88,6 +127,7 @@ export class AlmacenFiscalMemoria implements AlmacenFiscal {
     series: new Map<string, EstadoSerie>(),
     autorizaciones: [] as AutorizacionCAI[],
     documentos: new Map<string, DocumentoFiscal>(),
+    eventos: [] as EventoAuditoria[],
   };
   private cola: Promise<unknown> = Promise.resolve();
 
@@ -97,6 +137,7 @@ export class AlmacenFiscalMemoria implements AlmacenFiscal {
         series: new Map([...this.estado.series].map(([k, v]) => [k, { ...v }])),
         autorizaciones: [...this.estado.autorizaciones],
         documentos: new Map(this.estado.documentos),
+        eventos: [...this.estado.eventos],
       };
       try {
         return await fn(this.tx());
@@ -134,6 +175,12 @@ export class AlmacenFiscalMemoria implements AlmacenFiscal {
       async guardarAnulacion(doc) {
         if (!s().documentos.has(doc.numero)) throw new Error(`No existe el documento ${doc.numero}`);
         s().documentos.set(doc.numero, structuredClone(doc));
+        const id = identificadorDeNumero(doc.numero);
+        const fechas = [...s().documentos.values()]
+          .filter((d) => identificadorDeNumero(d.numero) === id && d.estado === 'EMITIDO')
+          .map((d) => d.fechaEmision)
+          .sort();
+        s().series.set(id, { ultimo: s().series.get(id)?.ultimo ?? doc.correlativo, ultimaFecha: fechas[fechas.length - 1] ?? null });
       },
       async buscarDocumento(numero) {
         const d = s().documentos.get(numero);
@@ -145,6 +192,14 @@ export class AlmacenFiscalMemoria implements AlmacenFiscal {
           .filter((d) => !filtro.identificador || identificadorDeNumero(d.numero) === filtro.identificador)
           .sort((a, b) => (a.numero < b.numero ? -1 : 1))
           .map((d) => structuredClone(d));
+      },
+      async registrarEvento(evento) {
+        s().eventos.push(structuredClone(evento));
+      },
+      async eventos(filtro = {}) {
+        return s().eventos
+          .filter((e) => (!filtro.identificador || e.identificador === filtro.identificador) && (!filtro.tipo || e.tipo === filtro.tipo))
+          .map((e) => structuredClone(e));
       },
     };
   }

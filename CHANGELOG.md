@@ -38,6 +38,13 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   `registrarAutorizacion` rechaza rangos solapados y CAI repetidos; `anular(numero, …)` guarda la forma ANULADA;
   `FECHA_ANTERIOR_AL_ULTIMO` si el reloj quedó antes del último documento (Art. 43). Gancho `alEmitir` dentro
   de la transacción para el asiento contable (Art. 53). `AlmacenFiscalMemoria` incluido.
+- **Reloj adelantado (Art. 43).** `emitir` rechaza con `RELOJ_ADELANTADO_SOSPECHOSO` una fecha más de
+  `saltoMaximoDias` (7) después de la última emisión de la serie, salvo `confirmarSaltoDeFecha`.
+  `corregirFechaAdelantada(almacen, { identificador, motivo })` anula los documentos con fecha futura y
+  desbloquea la serie sin borrar ni editar. `EstadoSerie.ultimaFecha` pasa a contar solo documentos EMITIDOS.
+- **Bitácora de auditoría.** `TransaccionFiscal.registrarEvento/eventos` y `eventosAuditoria(almacen)`:
+  autorizaciones registradas, anulaciones, saltos de fecha confirmados y correcciones de reloj. En SQLite y
+  Postgres, tabla `fhn_eventos` de solo inserción.
 - **`factura-hn/pruebas`:** `ejecutarContratoAlmacen({ describe, it }, config)`, la batería de contrato que
   debe pasar cualquier adaptador, con 50 emisiones concurrentes desde 5 cajas.
 - **Anulación (B-06, Art. 41):** `anular(numero, { almacen, motivo })` guarda un documento nuevo con
