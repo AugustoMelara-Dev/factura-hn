@@ -130,13 +130,25 @@ y un [`llms.txt`](llms.txt) con el resumen de la API.
 
 ## Desarrollo
 
+Monorepo con pnpm workspaces:
+
+| Carpeta | Paquete | Estado |
+|---|---|---|
+| `packages/core` | `factura-hn` (el SDK, sin dependencias) | estable |
+| `packages/api` | `@factura-hn/api` | Fase 2 |
+| `packages/mcp` | `@factura-hn/mcp` | Fase 3 |
+| `examples/` | ejemplos | en crecimiento |
+
 ```bash
-npm install
-npm test          # vitest
-npm run typecheck
-npm run build     # ESM + CJS + tipos en dist/
-npm run example   # genera factura-ejemplo.html y ticket-ejemplo.txt
+pnpm install
+pnpm test         # vitest en todos los paquetes
+pnpm typecheck
+pnpm build        # ESM + CJS + tipos en packages/*/dist
+pnpm example      # genera factura-ejemplo.html y ticket-ejemplo.txt en examples/basico
 ```
+
+La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y se copia a
+`packages/core` al empaquetar (`scripts/copiar-docs.mjs`).
 
 ## Hoja de ruta
 

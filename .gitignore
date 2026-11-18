@@ -5,3 +5,9 @@ dist
 !llms.txt
 .DS_Store
 referencias/
+packages/core/README.md
+packages/core/AGENTS.md
+packages/core/llms.txt
+packages/core/LICENSE
+packages/core/skills/
+packages/core/docs/

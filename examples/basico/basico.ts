@@ -1,6 +1,6 @@
 /**
  * Ejemplo: emitir una factura en un POS y guardarla como HTML y texto térmico.
- * Ejecuta: npx tsx examples/basico.ts
+ * Ejecuta: pnpm example (desde la raíz)
  */
 import { writeFileSync } from 'node:fs';
 import {
@@ -11,7 +11,7 @@ import {
   renderizarHTML,
   renderizarTexto,
   type AutorizacionCAI,
-} from '../src';
+} from 'factura-hn';
 
 // Datos de la resolución del SAR (estos son de ejemplo, NO son un CAI real).
 const autorizacion: AutorizacionCAI = {
