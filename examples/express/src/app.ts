@@ -29,6 +29,11 @@ export interface OpcionesTienda {
   buscarPedido: (id: string) => Promise<Pedido | null>;
   /** Guarda en el pedido el número de su factura. */
   guardarFactura: (pedidoId: string, numero: string) => Promise<void>;
+  /**
+   * Quién factura (DEC-031), p. ej. el usuario de la sesión que despacha el pedido. Queda en la bitácora de la
+   * API junto a la llave. Sin esta función, la bitácora solo tiene la llave.
+   */
+  operadorDe?: (req: Request) => string | undefined;
   secretoWebhook: string;
   /** Qué hacer con cada aviso (ya verificado y sin repetidos). */
   alRecibirAviso?: (aviso: AvisoWebhook) => Promise<void>;
@@ -44,8 +49,10 @@ export function crearTienda(o: OpcionesTienda): Express {
   app.post('/pedidos/:id/factura', async (req, res) => {
     const pedido = await o.buscarPedido(String(req.params.id));
     if (!pedido) return void res.status(404).json({ error: 'Pedido no encontrado.' });
+    const operador = o.operadorDe?.(req);
     const { documento, repetida } = await o.fhn.emitir(
       {
+        ...(operador && { operador }),
         documento: {
           cliente: pedido.cliente,
           preciosIncluyenISV: true,

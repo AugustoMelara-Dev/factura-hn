@@ -13,7 +13,7 @@ import {
   type TipoEventoAuditoria,
   type TransaccionFiscal,
 } from './almacen';
-import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeTipo } from './documento';
+import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeOperador, problemaDeTipo } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
 import { esNumeroValido, formatearNumero, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
@@ -31,13 +31,20 @@ const relojDe = (reloj?: () => Date) => reloj ?? (() => new Date());
 function evento(
   tipo: TipoEventoAuditoria,
   ahora: Date,
-  datos: { identificador?: string; numero?: string; actor?: string | undefined; detalle: Record<string, unknown> },
+  datos: { identificador?: string; numero?: string; actor?: string | undefined; operador?: string | undefined; detalle: Record<string, unknown> },
 ): EventoAuditoria {
   const e: EventoAuditoria = { tipo, instante: ahora.toISOString(), fecha: fechaHonduras(ahora), detalle: datos.detalle };
   if (datos.identificador) e.identificador = datos.identificador;
   if (datos.numero) e.numero = datos.numero;
   if (datos.actor) e.actor = datos.actor;
+  const operador = datos.operador?.trim();
+  if (operador) e.operador = operador;
   return e;
+}
+
+function exigirOperador(operador: string | undefined) {
+  const p = problemaDeOperador(operador);
+  if (p) throw new ErrorValidacion([p]);
 }
 
 /**
@@ -80,8 +87,9 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
 export async function registrarAutorizacion(
   almacen: AlmacenFiscal,
   autorizacion: AutorizacionCAI,
-  opciones: { reloj?: () => Date; actor?: string } = {},
+  opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
 ): Promise<AutorizacionCAI> {
+  exigirOperador(opciones.operador);
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
     const id = identificadorDe(autorizacion);
@@ -99,6 +107,7 @@ export async function registrarAutorizacion(
       evento('AUTORIZACION_REGISTRADA', ahora, {
         identificador: id,
         actor: opciones.actor,
+        operador: opciones.operador,
         detalle: {
           cai: normalizada.cai,
           rangoInicial: normalizada.rangoInicial,
@@ -162,6 +171,11 @@ export interface OpcionesEmision {
   /** Quién emite (usuario, caja, llave de API), para la bitácora. */
   actor?: string;
   /**
+   * Persona que opera (p. ej. el cajero), para la bitácora. Para imprimirlo en el documento usa
+   * `DocumentoEntrada.operador`.
+   */
+  operador?: string;
+  /**
    * Se ejecuta dentro de la transacción después de guardar el documento: aquí va el asiento contable o de
    * inventario (Art. 53 num. 1) o la bitácora de auditoría. Si lanza, se revierte todo y el número no se
    * consume.
@@ -182,6 +196,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
   const tipo = entrada.tipoDocumento ?? '01';
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
+  exigirOperador(config.operador);
   const id = identificadorDe({ establecimiento: config.establecimiento, puntoEmision: config.puntoEmision, tipoDocumento: tipo });
   // Un solo instante para toda la emisión: validación, elección de autorización y documento usan la misma fecha.
   const ahora = (config.opciones?.reloj ?? (() => new Date()))();
@@ -219,6 +234,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
         evento('SALTO_DE_FECHA_CONFIRMADO', ahora, {
           identificador: id,
           actor: config.actor,
+          operador: config.operador,
           detalle: { ultimaFecha: serie.ultimaFecha, hoy, dias: salto, maximo },
         }),
       );
@@ -229,6 +245,15 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
     const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     await tx.guardarDocumento(doc);
+    await tx.registrarEvento(
+      evento('DOCUMENTO_EMITIDO', ahora, {
+        identificador: id,
+        numero: doc.numero,
+        actor: config.actor,
+        operador: config.operador,
+        detalle: { tipoDocumento: doc.tipoDocumento, cai: doc.cai, total: doc.totales.total },
+      }),
+    );
     if (config.libroContable) await config.libroContable.registrarEmision(doc, tx);
     if (config.alEmitir) await config.alEmitir(doc, tx);
     return doc;
@@ -246,14 +271,17 @@ export async function anular(
     motivo: string;
     reloj?: () => Date;
     actor?: string;
+    /** Persona que opera (p. ej. el cajero), para la bitácora. */
+    operador?: string;
     alAnular?: (doc: DocumentoFiscal, tx: TransaccionFiscal) => Promise<void>;
     libroContable?: LibroContable;
   },
 ): Promise<DocumentoFiscal> {
+  exigirOperador(config.operador);
   const ahora = relojDe(config.reloj)();
   return config.almacen.transaccion(async (tx) => {
     await tx.bloquearSerie(identificadorDeNumero(numero));
-    const anulado = await anularEnTransaccion(tx, numero, config.motivo, ahora, config.actor);
+    const anulado = await anularEnTransaccion(tx, numero, config.motivo, ahora, config.actor, {}, config.operador);
     if (config.libroContable) await config.libroContable.registrarAnulacion(anulado, tx);
     if (config.alAnular) await config.alAnular(anulado, tx);
     return anulado;
@@ -267,6 +295,7 @@ async function anularEnTransaccion(
   ahora: Date,
   actor: string | undefined,
   detalle: Record<string, unknown> = {},
+  operador?: string,
 ): Promise<DocumentoFiscal> {
   const doc = await tx.buscarDocumento(numero);
   if (!doc) throw error('DOCUMENTO_NO_ENCONTRADO', `No existe el documento ${numero}.`, 'numero');
@@ -277,6 +306,7 @@ async function anularEnTransaccion(
       identificador: identificadorDeNumero(numero),
       numero,
       actor,
+      operador,
       detalle: { motivo: anulado.anulacion!.motivo, fechaEmision: doc.fechaEmision, total: doc.totales.total, ...detalle },
     }),
   );
@@ -302,8 +332,9 @@ async function anularEnTransaccion(
  */
 export async function corregirFechaAdelantada(
   almacen: AlmacenFiscal,
-  config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string; libroContable?: LibroContable },
+  config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string; operador?: string; libroContable?: LibroContable },
 ): Promise<DocumentoFiscal[]> {
+  exigirOperador(config.operador);
   const motivo = config.motivo?.trim();
   if (!motivo) {
     throw error('ANULACION_MOTIVO', 'La corrección requiere un motivo (por ejemplo, qué pasó con el reloj).', 'motivo');
@@ -332,6 +363,7 @@ export async function corregirFechaAdelantada(
         ahora,
         config.actor,
         { causa: 'FECHA_ADELANTADA' },
+        config.operador,
       );
       if (config.libroContable) await config.libroContable.registrarAnulacion(anulado, tx);
       anulados.push(anulado);
@@ -340,6 +372,7 @@ export async function corregirFechaAdelantada(
       evento('FECHA_ADELANTADA_CORREGIDA', ahora, {
         identificador: id,
         actor: config.actor,
+        operador: config.operador,
         detalle: {
           hoy,
           motivo,

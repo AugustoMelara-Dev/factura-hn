@@ -31,6 +31,12 @@ export interface OpcionesCliente {
   url: string;
   /** Llave de API `fhn_<prefijo>_<secreto>`. Nunca la pongas en código que llega al navegador. */
   llave: string;
+  /**
+   * Persona que opera con este cliente (p. ej. el cajero de la sesión). Se envía en la cabecera `X-Operador`
+   * de cada solicitud y queda en la bitácora junto a la llave (DEC-031). Para imprimirlo en el documento, usa
+   * `imprimirOperador: true` al emitir.
+   */
+  operador?: string;
   fetch?: typeof fetch;
 }
 
@@ -71,13 +77,16 @@ function exigir<T>(r: Resultado<T>): T {
 const enc = encodeURIComponent;
 
 export function crearCliente(o: OpcionesCliente) {
+  // Las cabeceras HTTP no admiten tildes: el operador va codificado y la API lo decodifica.
+  const cabeceras: Record<string, string> = { authorization: `Bearer ${o.llave}` };
+  if (o.operador !== undefined) cabeceras['x-operador'] = enc(o.operador);
   const api: Client<paths> = createClient<paths>({
     baseUrl: o.url.replace(/\/+$/, ''),
-    headers: { authorization: `Bearer ${o.llave}` },
+    headers: cabeceras,
     fetch: o.fetch,
   });
   const archivo = async (ruta: string, tipo: 'pdf' | 'html' | 'txt' | 'csv' | 'jsonl') => {
-    const resp = await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${ruta}`, { headers: { authorization: `Bearer ${o.llave}` } });
+    const resp = await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${ruta}`, { headers: cabeceras });
     if (!resp.ok) {
       const e = (await resp.json().catch(() => ({}))) as { error?: { codigo?: string; mensaje?: string } };
       throw new ErrorFacturaHN(resp.status, e.error?.codigo ?? `HTTP_${resp.status}`, e.error?.mensaje ?? resp.statusText);
@@ -109,8 +118,11 @@ export function crearCliente(o: OpcionesCliente) {
       const q = formato === 'pdf' && opciones.papel ? `?formato=${opciones.papel}` : '';
       return (await archivo(`/v1/documentos/${enc(numero)}.${formato}${q}`, formato)) as F extends 'pdf' ? Uint8Array : string;
     },
-    async anular(numero: string, motivo: string): Promise<DocumentoFiscal> {
-      return exigir(await api.POST('/v1/documentos/{numero}/anular', { params: { path: { numero } }, body: { motivo } })).documento;
+    /** Anula (solo llave admin). `operador` reemplaza, para esta anulación, al del cliente. */
+    async anular(numero: string, motivo: string, opciones: { operador?: string } = {}): Promise<DocumentoFiscal> {
+      const body = opciones.operador !== undefined ? { motivo, operador: opciones.operador } : { motivo };
+      const header = opciones.operador !== undefined ? { 'x-operador': enc(opciones.operador) } : undefined;
+      return exigir(await api.POST('/v1/documentos/{numero}/anular', { params: { path: { numero } }, body, ...(header ? { headers: header } : {}) })).documento;
     },
     async documentos(desde: string, hasta: string): Promise<DocumentoFiscal[]> {
       return exigir(await api.GET('/v1/documentos', { params: { query: { desde, hasta } } })).documentos;

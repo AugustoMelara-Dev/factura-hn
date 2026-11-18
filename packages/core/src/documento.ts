@@ -126,6 +126,18 @@ export class ErrorValidacion extends Error {
 }
 
 /**
+ * Nombre del operador (cajero) para la bitácora o la impresión. No es un requisito del Reglamento: solo se
+ * valida que sea texto legible y corto, para que no rompa la impresión ni la bitácora.
+ */
+export function problemaDeOperador(operador: unknown, campo = 'operador'): Problema | null {
+  if (operador === undefined) return null;
+  if (typeof operador !== 'string' || !operador.trim() || operador.trim().length > 80 || /[\u0000-\u001f\u007f]/.test(operador)) {
+    return { codigo: 'OPERADOR', mensaje: 'El operador debe ser un nombre de 1 a 80 caracteres, sin caracteres de control.', campo };
+  }
+  return null;
+}
+
+/**
  * Valida la entrada contra la autorización, sin asignar número.
  * Llama a esto antes de reservar un correlativo.
  */
@@ -144,6 +156,8 @@ export function validarEntrada(
 
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) problemas.push(problemaTipo);
+  const problemaOperador = problemaDeOperador(entrada.operador);
+  if (problemaOperador) problemas.push(problemaOperador);
 
   // Autorización
   problemas.push(...validarAutorizacion(autorizacion, { caiEstricto: opciones.caiEstricto ?? false }));
@@ -377,6 +391,7 @@ export function construirDocumento(
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
+  if (entrada.operador) doc.operador = entrada.operador.trim();
   // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
   return congelar(doc);
 }

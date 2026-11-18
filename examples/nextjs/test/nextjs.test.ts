@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp, crearTenant, firmar, migrarApi } from '@factura-hn/api';
@@ -6,6 +9,23 @@ import { crearCliente } from '@factura-hn/cliente';
 import { POST as webhook } from '../app/api/webhooks/factura-hn/route';
 import { firmaValida } from '../lib/enlaces';
 import { facturarVenta } from '../lib/ventas';
+
+describe('server-only', () => {
+  const raiz = fileURLToPath(new URL('..', import.meta.url));
+  const archivos = (dir: string): string[] =>
+    readdirSync(join(raiz, dir)).flatMap((f) => (statSync(join(raiz, dir, f)).isDirectory() ? archivos(join(dir, f)) : [join(dir, f)]));
+  it('lo que toca la llave o los secretos importa server-only, y ningún componente de cliente lo importa', () => {
+    for (const f of ['lib/fhn.ts', 'lib/ventas.ts', 'lib/enlaces.ts']) {
+      expect(readFileSync(join(raiz, f), 'utf8'), f).toMatch(/^import 'server-only';$/m);
+    }
+    const clientes = archivos('app').filter((f) => /\.tsx?$/.test(f) && /^'use client';/.test(readFileSync(join(raiz, f), 'utf8')));
+    expect(clientes.length).toBeGreaterThan(0);
+    for (const f of clientes) {
+      // Los tipos (`import type`) se borran al compilar; un import de valor de lib/ llevaría la llave al navegador.
+      expect(readFileSync(join(raiz, f), 'utf8'), f).not.toMatch(/^import (?!type )[^;]*from '\.\.?\/(\.\.\/)*lib\//m);
+    }
+  });
+});
 
 describe('route handler de webhooks', () => {
   it('204 con firma válida, 400 sin ella o con otro secreto', async () => {
@@ -69,5 +89,12 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
     expect(firmaValida('000-001-01-00000001', firma)).toBe(true);
     expect(firmaValida('000-001-01-00000002', firma)).toBe(false);
     expect(firmaValida('000-001-01-00000001', null)).toBe(false);
+
+    // DEC-031: quién atiende va a la bitácora; impreso solo si se marca.
+    const r4 = await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-cajero-1', operador: 'Rosa Mejía', imprimirOperador: 'on' }), nueva);
+    const numero4 = r4.tipo === 'emitida' ? r4.numero : '';
+    expect(await fhn.descargar(numero4, 'txt')).toContain('Atendido por: Rosa Mejía');
+    const bit = (await admin.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { fiscal: { numero?: string; operador?: string; actor: string }[] };
+    expect(bit.fiscal.find((e) => e.numero === numero4)).toMatchObject({ operador: 'Rosa Mejía', actor: expect.stringMatching(/\(caja: next\)$/) });
   });
 });

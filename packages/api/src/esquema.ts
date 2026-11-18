@@ -12,7 +12,7 @@
 import type pg from 'pg';
 import { AlmacenPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 2;
+export const VERSION_ESQUEMA_API = 3;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS api_llaves (
   ultimo_uso timestamptz
 );
 CREATE INDEX IF NOT EXISTS api_llaves_tenant ON api_llaves (tenant);
+-- v3 (DEC-031): id interno estable de la llave, el que identifica al actor en las bitácoras.
+ALTER TABLE api_llaves ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid();
+CREATE UNIQUE INDEX IF NOT EXISTS api_llaves_id ON api_llaves (id);
 
 CREATE TABLE IF NOT EXISTS api_emisores (
   tenant text PRIMARY KEY REFERENCES api_tenants(tenant),
@@ -103,6 +106,8 @@ CREATE TABLE IF NOT EXISTS api_bitacora (
   detalle jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS api_bitacora_tenant ON api_bitacora (tenant, id);
+-- v3 (DEC-031): persona que operó (p. ej. el cajero), si la solicitud la indica.
+ALTER TABLE api_bitacora ADD COLUMN IF NOT EXISTS operador text CHECK (operador IS NULL OR length(operador) BETWEEN 1 AND 80);
 
 CREATE OR REPLACE FUNCTION fhn_api_solo_insertar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -112,12 +117,14 @@ DROP TRIGGER IF EXISTS fhn_api_bitacora_inmutable ON api_bitacora;
 CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacora
   FOR EACH ROW EXECUTE FUNCTION fhn_api_solo_insertar();
 
+-- v3 cambia las columnas que devuelve (id y nombre de la llave): hay que reemplazarla.
+DROP FUNCTION IF EXISTS fhn_api_autenticar(text);
 DO $do$ BEGIN
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
-RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer)
+RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
-  SELECT l.tenant, l.hash, l.rol, l.establecimiento, l.punto_emision, t.limite_mensual
+  SELECT l.tenant, l.hash, l.rol, l.establecimiento, l.punto_emision, t.limite_mensual, l.id, l.nombre
     FROM api_llaves l JOIN api_tenants t ON t.tenant = l.tenant
    WHERE l.prefijo = p_prefijo AND l.revocada IS NULL AND t.activo
 $$$f$, current_schema());

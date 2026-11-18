@@ -29,6 +29,9 @@ export const PAGINA = `<!doctype html>
   <section>
     <h1>Nueva venta</h1>
     <form id="venta">
+      <label for="cajero">Cajero</label>
+      <input id="cajero" autocomplete="off" maxlength="80" placeholder="Quién cobra (queda en la bitácora)">
+      <label><input type="checkbox" id="imprimirCajero"> Imprimir «Atendido por» en el ticket</label>
       <label for="cliente">Cliente (opcional)</label>
       <input id="cliente" autocomplete="off" placeholder="Consumidor final">
       <label for="rtn">RTN del cliente (opcional)</label>
@@ -58,6 +61,8 @@ export const PAGINA = `<!doctype html>
   let clave = (() => { try { return localStorage.getItem('clave'); } catch { return null; } })() || nuevaClave();
 
   function mostrar(el, texto, clase) { el.className = clase || ''; el.textContent = texto; }
+  // El cajero se recuerda en este navegador para no escribirlo en cada venta.
+  try { $('cajero').value = localStorage.getItem('fhn-cajero') || ''; } catch {}
 
   async function cargarEstado() {
     try {
@@ -82,7 +87,11 @@ export const PAGINA = `<!doctype html>
     const cliente = {};
     if ($('cliente').value.trim()) cliente.nombre = $('cliente').value.trim();
     if ($('rtn').value.trim()) cliente.rtn = $('rtn').value.trim();
+    const cajero = $('cajero').value.trim();
+    try { localStorage.setItem('fhn-cajero', cajero); } catch {}
     const cuerpo = { clave, cliente, lineas: [{ descripcion: $('desc').value, cantidad: $('cant').value.trim(), precioUnitario: $('precio').value.trim() }] };
+    if (cajero) cuerpo.cajero = cajero;
+    if ($('imprimirCajero').checked) cuerpo.imprimirCajero = true;
     try {
       const r = await fetch('/api/ventas', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
       const d = await r.json();

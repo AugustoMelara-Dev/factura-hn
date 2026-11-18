@@ -52,7 +52,8 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Prompts SDK/API en README, AGENTS.md, llms.txt y skill, con prueba | f92d204 |
 | Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | 2587741 |
 | Pruebas de Postgres en su propia base | 97e2272 |
-| Correcciones de la revisión independiente de la Fase 3 (DEC-039) | (este commit) |
+| Correcciones de la revisión independiente de la Fase 3 (DEC-039) | 148960a |
+| Operador en la bitácora (DEC-031 aprobada con cambios); MCP solo SQLite en archivo y `server-only` (DEC-040) | (este commit) |
 
 ## Sigue
 

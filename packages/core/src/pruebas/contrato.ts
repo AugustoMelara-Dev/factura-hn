@@ -245,25 +245,26 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       // La serie vuelve a emitir hoy y continúa la numeración (no reutiliza los anulados).
       const nuevo = await emitir(D.entrada(), { almacen: a, ...base });
       igual([nuevo.correlativo, nuevo.fechaEmision], [4, '2026-11-18'], 'serie desbloqueada');
-      const eventos = await eventosAuditoria(a, { identificador: '000-001-01' });
+      const eventos = (await eventosAuditoria(a, { identificador: '000-001-01' })).filter((e) => e.tipo !== 'DOCUMENTO_EMITIDO');
       igual(eventos.map((e) => e.tipo), ['AUTORIZACION_REGISTRADA', 'DOCUMENTO_ANULADO', 'DOCUMENTO_ANULADO', 'FECHA_ADELANTADA_CORREGIDA'], 'bitácora');
       igual(eventos[3]!.detalle['numeros'], malos.map((d) => d.numero), 'resumen de la corrección');
       igual(eventos[3]!.actor, 'supervisor', 'actor');
       igual(await codigoDeError(() => corregirFechaAdelantada(a, { identificador: '000-001-01', motivo: 'x', reloj: D.reloj })), 'SIN_DOCUMENTOS_ADELANTADOS', 'nada que corregir');
     }));
 
-    t.it('la bitácora registra autorizaciones y anulaciones, y un fallo no deja eventos', conAlmacen(async (a) => {
+    t.it('la bitácora registra autorizaciones, emisiones y anulaciones (actor y operador), y un fallo no deja eventos', conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100), { reloj: D.reloj, actor: 'admin' });
       await codigoDeError(() => registrarAutorizacion(a, D.autorizacion('CAI-B', 50, 60)));
-      const doc = await emitir(D.entrada(), { almacen: a, ...base });
+      const doc = await emitir(D.entrada(), { almacen: a, ...base, actor: 'caja-1', operador: 'María' });
       await anular(doc.numero, { almacen: a, motivo: 'Error en la cantidad', reloj: D.reloj, actor: 'cajera-1' });
       const eventos = await eventosAuditoria(a);
-      igual(eventos.map((e) => [e.tipo, e.actor, e.numero ?? null]), [
-        ['AUTORIZACION_REGISTRADA', 'admin', null],
-        ['DOCUMENTO_ANULADO', 'cajera-1', doc.numero],
+      igual(eventos.map((e) => [e.tipo, e.actor, e.operador ?? null, e.numero ?? null]), [
+        ['AUTORIZACION_REGISTRADA', 'admin', null, null],
+        ['DOCUMENTO_EMITIDO', 'caja-1', 'María', doc.numero],
+        ['DOCUMENTO_ANULADO', 'cajera-1', null, doc.numero],
       ], 'eventos');
       igual([eventos[0]!.instante, eventos[0]!.fecha], ['2026-11-18T18:00:00.000Z', '2026-11-18'], 'instante y fecha de Honduras');
-      igual(eventos[1]!.detalle['motivo'], 'Error en la cantidad', 'motivo');
+      igual(eventos[2]!.detalle['motivo'], 'Error en la cantidad', 'motivo');
     }));
 
     t.it('lista documentos por fecha e identificador, en orden de número', conAlmacen(async (a) => {

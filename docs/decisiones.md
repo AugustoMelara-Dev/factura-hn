@@ -209,12 +209,26 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   emisiones del mismo tenant.
 - **Alternativa:** Redis para el límite por segundo; contador mensual aproximado.
 
-### DEC-031 · Bitácora: la llave identifica al actor · [REVISAR]
+### DEC-031 · Bitácora: actor = llave (id, rol, nombre) + operador opcional · [APROBADA 2026-11-18]
 - **Contexto:** Art. 53 num. 2 pide «controles de auditoría». La API sabe qué llave hizo cada operación, no qué
-  persona.
-- **Elegida:** `actor = llave:<prefijo>` en la bitácora fiscal y en la de la API. Se recomienda una llave por
-  caja o por persona (el nombre de la llave queda en `GET /v1/llaves`).
-- **Alternativa:** exigir un campo `usuario` en cada solicitud.
+  persona. El responsable aprobó la propuesta con cambios.
+- **Elegida:**
+  - `actor = "llave:<id> (<rol>: <nombre>)"` en la bitácora fiscal (`fhn_eventos`) y en la de la API
+    (`api_bitacora`). `<id>` es un id interno (uuid) de la llave, no su prefijo; el nombre y el rol son los
+    del momento de la operación.
+  - Cada solicitud puede indicar el `operador` (p. ej. el cajero): campo `operador` del cuerpo (emitir, anular,
+    corregir fecha) o cabecera `X-Operador`, codificada con `encodeURIComponent` si lleva tildes. Si llegan
+    ambos y no coinciden, 400 `OPERADOR_CONFLICTO`. Se valida (1 a 80 caracteres, sin caracteres de control:
+    `OPERADOR`).
+  - El operador se guarda en la bitácora. Se imprime en el documento («Atendido por») solo si se pide
+    (`imprimirOperador` en la API, `DocumentoEntrada.operador` en el SDK). No lo exige el Reglamento.
+  - Cada emisión deja además un evento `DOCUMENTO_EMITIDO` en la bitácora fiscal, con actor y operador.
+  - El operador solo forma parte de la huella de idempotencia si se imprime: el reintento de otro cajero con
+    la misma clave devuelve la misma factura.
+  - Cliente (`operador` en `crearCliente`, `anular(…, { operador })`), MCP (`FHN_OPERADOR` y parámetro
+    `operador` de las herramientas) y ejemplos (Next.js, Express, POS, playground) lo exponen.
+- **Alternativa:** exigir el operador en cada solicitud. Se descartó: una integración servidor a servidor (una
+  tienda en línea) no tiene cajero.
 
 ### DEC-032 · Avisos de autorización al emitir
 - **Contexto:** `autorizacion.por_vencer` y `autorizacion.agotada` necesitan un disparador.
@@ -287,3 +301,13 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
     la descripción de `/openapi.json`.
   - Las pruebas de Postgres usan la base `factura_hn_pruebas`.
 - **Alternativa:** dejar los ejemplos sin estas defensas y advertirlo en sus README.
+
+### DEC-040 · MCP local solo con SQLite en archivo; `server-only` en Next.js
+- **Contexto:** dos bajos pendientes de la revisión de la Fase 3.
+- **Elegida:**
+  - `BackendLocal` recibe la base SQLite y arma él mismo el almacén y las claves de idempotencia. Rechaza una
+    base en memoria, y el ejecutable rechaza `FHN_SQLITE=:memory:`. Se elimina `clavesEnMemoria`: una caja
+    que pierde sus documentos al reiniciar pierde números consumidos (Art. 41) y la clave de un reintento.
+  - En Next.js, los módulos con la llave o los secretos importan `server-only` (0.0.1). Una prueba lo verifica
+    y comprueba que ningún componente `'use client'` importe valores de `lib/`.
+- **Alternativa:** dejar el modo en memoria con una advertencia.

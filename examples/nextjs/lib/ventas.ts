@@ -1,3 +1,4 @@
+import 'server-only';
 import { ErrorFacturaHN, type crearCliente } from '@factura-hn/cliente';
 import { enlacePDF } from './enlaces';
 
@@ -26,9 +27,15 @@ export async function facturarVenta(
   if (!CLAVE.test(clave)) return { tipo: 'error', mensajes: ['Formulario vencido: vuelve a intentar.'], clave: nuevaClave() };
   const texto = (k: string) => String(datos.get(k) ?? '').trim();
   const cliente = { ...(texto('cliente') && { nombre: texto('cliente') }), ...(texto('rtn') && { rtn: texto('rtn') }) };
+  // DEC-031: quién atiende queda en la bitácora junto a la llave; se imprime solo si se marca. En tu aplicación,
+  // tómalo de la sesión del usuario, no de un campo editable.
+  const operador = texto('operador') || undefined;
+  const imprimirOperador = Boolean(operador) && datos.get('imprimirOperador') === 'on';
   try {
     const { documento, repetida } = await fhn.emitir(
       {
+        ...(operador && { operador }),
+        ...(imprimirOperador && { imprimirOperador }),
         documento: {
           cliente,
           preciosIncluyenISV: true,

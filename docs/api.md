@@ -68,7 +68,20 @@ No hay registro público de tenants: en el modo alojado los crea el operador.
 ## Autenticación y roles
 
 `Authorization: Bearer fhn_<prefijo>_<secreto>`. El prefijo (12 hexadecimales) identifica la llave en
-listados y en la bitácora; la base guarda solo el SHA-256 de la llave completa.
+listados y para revocarla; la base guarda solo el SHA-256 de la llave completa.
+
+### Quién hizo cada operación (DEC-031)
+
+En la bitácora (`GET /v1/bitacora`, fiscal y de la API), el `actor` es `llave:<id> (<rol>: <nombre>)`, con el
+id interno de la llave (`GET /v1/llaves`). Si varias personas usan la misma llave, indica el `operador` en
+cada solicitud:
+
+- en el cuerpo: `"operador": "María López"` (emitir, anular y corregir fecha), o
+- en la cabecera `X-Operador: Mar%C3%ADa%20L%C3%B3pez` (con `encodeURIComponent`: las cabeceras no admiten
+  tildes). Sirve para cualquier ruta que escribe, incluido el registro de CAI.
+
+Si llegan ambos y no coinciden: 400 `OPERADOR_CONFLICTO`. Con `"imprimirOperador": true` al emitir, el
+documento lleva «Atendido por: …». El operador no cambia la huella de idempotencia salvo que se imprima.
 
 | | `caja` | `admin` |
 |---|:-:|:-:|

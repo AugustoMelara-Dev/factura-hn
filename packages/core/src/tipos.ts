@@ -169,6 +169,12 @@ export interface DocumentoEntrada {
   motivo?: string;
   condicionPago?: 'CONTADO' | 'CREDITO';
   observaciones?: string;
+  /**
+   * Nombre de quien atendió (p. ej. el cajero), para imprimirlo en el documento como «Atendido por». Opcional:
+   * no lo exige el Reglamento. Queda en el documento y en todas sus copias. Para dejarlo solo en la bitácora usa
+   * `operador` en las opciones de `emitir`.
+   */
+  operador?: string;
 }
 
 export interface OpcionesDocumento {
@@ -252,6 +258,8 @@ export interface DocumentoFiscal {
   motivo?: string;
   condicionPago?: 'CONTADO' | 'CREDITO';
   observaciones?: string;
+  /** Quien atendió, si se pidió imprimirlo (`DocumentoEntrada.operador`). */
+  operador?: string;
   destinoEjemplares: string;
   advertencias: Problema[];
   /** EMITIDO al construirse; ANULADO solo mediante `anularDocumento` (Art. 41). */

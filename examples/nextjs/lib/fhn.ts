@@ -1,5 +1,6 @@
-// Solo en el servidor: la llave de API nunca debe llegar al navegador. Este archivo lo importan la server
-// action y los route handlers, nunca un componente 'use client'.
+// Solo en el servidor: la llave de API nunca debe llegar al navegador. `server-only` hace fallar el build si
+// un componente 'use client' importa este archivo (directa o indirectamente).
+import 'server-only';
 import { crearCliente } from '@factura-hn/cliente';
 
 let cliente: ReturnType<typeof crearCliente> | undefined;

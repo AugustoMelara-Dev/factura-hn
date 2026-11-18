@@ -17,6 +17,7 @@ import {
   corregirFechaAdelantada,
   emitir,
   ErrorValidacion,
+  problemaDeOperador,
   estadoAutorizacion,
   exportarTexto,
   fechaHonduras,
@@ -62,6 +63,10 @@ export interface Sesion {
   tenant: string;
   rol: RolLlave;
   prefijo: string;
+  /** Id interno de la llave (estable; no es parte del secreto). */
+  llaveId: string;
+  /** Nombre que el admin le dio a la llave (p. ej. «Caja 1»). */
+  llaveNombre: string;
   establecimiento: string | null;
   puntoEmision: string | null;
   limiteMensual: number | null;
@@ -161,6 +166,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const fila = await base.transaccion(async (t) => {
       const r = await comoTransaccionPostgres(t).consulta<{
         tenant: string; hash: Buffer; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; limite_mensual: number | null;
+        id: string; nombre: string;
       }>('SELECT * FROM fhn_api_autenticar($1)', [prefijo]);
       return r.rows[0];
     });
@@ -176,6 +182,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       tenant: fila.tenant,
       rol: fila.rol,
       prefijo,
+      llaveId: fila.id,
+      llaveNombre: fila.nombre,
       establecimiento: fila.establecimiento,
       puntoEmision: fila.punto_emision,
       limiteMensual: fila.limite_mensual,
@@ -185,15 +193,41 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   const sesion = (c: Context<Env>) => c.get('sesion');
   const almacenDe = (c: Context<Env>) => base.paraTenant(sesion(c).tenant);
-  const actor = (c: Context<Env>) => `llave:${sesion(c).prefijo}`;
+  // DEC-031: el actor es el id interno de la llave, con su rol y nombre al momento de la operación.
+  const actor = (c: Context<Env>) => {
+    const s = sesion(c);
+    return `llave:${s.llaveId} (${s.rol}: ${s.llaveNombre})`;
+  };
+  /**
+   * Operador (p. ej. el cajero) del cuerpo o de la cabecera X-Operador (codificada con encodeURIComponent si
+   * lleva caracteres fuera de ASCII). Si llegan ambos, deben coincidir. Lo valida el núcleo (`OPERADOR`, 422).
+   */
+  const operadorDe = (c: Context<Env>, delCuerpo: string | undefined): string | undefined => {
+    const cabecera = c.req.header('x-operador');
+    let deCabecera: string | undefined;
+    if (cabecera !== undefined) {
+      try {
+        deCabecera = decodeURIComponent(cabecera);
+      } catch {
+        throw new ErrorApi(400, 'OPERADOR_CABECERA', 'La cabecera X-Operador no es válida: codifícala con encodeURIComponent.');
+      }
+    }
+    if (deCabecera !== undefined && delCuerpo !== undefined && deCabecera.trim() !== delCuerpo.trim()) {
+      throw new ErrorApi(400, 'OPERADOR_CONFLICTO', 'El operador del cuerpo y el de la cabecera X-Operador no coinciden.');
+    }
+    const op = delCuerpo ?? deCabecera;
+    const p = problemaDeOperador(op);
+    if (p) throw new ErrorValidacion([p]);
+    return op?.trim();
+  };
   const exigirAdmin = (c: Context<Env>) => {
     if (sesion(c).rol !== 'admin') throw new ErrorApi(403, 'SOLO_ADMIN', 'Esta operación requiere una llave con rol admin.');
   };
   /** Una transacción del tenant de la sesión con acceso SQL a las tablas de la API. */
   const enTenant = <T>(c: Context<Env>, fn: (tx: TransaccionPostgres) => Promise<T>) =>
     almacenDe(c).transaccion((t) => fn(comoTransaccionPostgres(t)));
-  const bitacora = (tx: TransaccionPostgres, quien: string, accion: string, detalle: Record<string, unknown> = {}) =>
-    tx.consulta('INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, $2, $3, $4)', [tx.tenant, quien, accion, JSON.stringify(detalle)]);
+  const bitacora = (tx: TransaccionPostgres, quien: string, accion: string, detalle: Record<string, unknown> = {}, operador?: string) =>
+    tx.consulta('INSERT INTO api_bitacora (tenant, actor, accion, detalle, operador) VALUES ($1, $2, $3, $4, $5)', [tx.tenant, quien, accion, JSON.stringify(detalle), operador ?? null]);
   const libroWebhooks: LibroContable = {
     async registrarEmision() {},
     async registrarAnulacion(doc: DocumentoFiscal, tx: TransaccionFiscal) {
@@ -312,7 +346,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       exigirAdmin(c);
-      const a = await registrarAutorizacion(almacenDe(c), c.req.valid('json') as AutorizacionCAI, { reloj, actor: actor(c) });
+      const a = await registrarAutorizacion(almacenDe(c), c.req.valid('json') as AutorizacionCAI, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
       return c.json({ autorizacion: a as unknown as z.infer<typeof S.Autorizacion> }, 201);
     },
   );
@@ -390,7 +424,17 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (!establecimiento || !puntoEmision) {
         throw new ErrorApi(400, 'PUNTO_EMISION_REQUERIDO', 'Indica establecimiento y puntoEmision (o usa una llave atada a una caja).');
       }
-      const huella = createHash('sha256').update(jsonEstable({ ...cuerpo, establecimiento, puntoEmision })).digest('hex');
+      const { operador: _delCuerpo, imprimirOperador, ...solicitud } = cuerpo;
+      const operador = operadorDe(c, cuerpo.operador);
+      if (imprimirOperador && !operador) {
+        throw new ErrorApi(400, 'OPERADOR_REQUERIDO', 'imprimirOperador requiere un operador (campo operador o cabecera X-Operador).');
+      }
+      const documento = imprimirOperador ? { ...cuerpo.documento, operador } : cuerpo.documento;
+      // El operador solo cambia el documento si se imprime: un reintento de otro cajero con la misma clave no es
+      // otra venta.
+      const huella = createHash('sha256')
+        .update(jsonEstable({ ...solicitud, documento, establecimiento, puntoEmision }))
+        .digest('hex');
       const almacen = almacenDe(c);
 
       const repetir = (previa: { huella: string; codigo: number; respuesta: unknown }) => {
@@ -419,11 +463,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const CONFLICTO = Symbol('conflicto');
       let respuesta: { documento: DocumentoFiscal } | null = null;
       try {
-        await emitir({ ...cuerpo.documento, emisor: emisorDoc }, {
+        await emitir({ ...documento, emisor: emisorDoc }, {
           almacen,
           establecimiento,
           puntoEmision,
           actor: actor(c),
+          operador,
           confirmarSaltoDeFecha: cuerpo.confirmarSaltoDeFecha,
           opciones: { reloj },
           alEmitir: async (doc, t) => {
@@ -455,7 +500,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
                 : codigos.some((k) => k === 'AVISO_RANGO' || k === 'AVISO_VENCIMIENTO') ? 'autorizacion.por_vencer' : null;
               if (ev) await encolarEvento(tx, ev, `${ev}:${aut.cai}`, { autorizacion: aut, ...est }, instante);
             }
-            await bitacora(tx, actor(c), 'documento.emitido', { numero: doc.numero, total: doc.totales.total, idempotencia: clave });
+            await bitacora(tx, actor(c), 'documento.emitido', { numero: doc.numero, total: doc.totales.total, idempotencia: clave }, operador);
           },
         });
       } catch (e) {
@@ -537,11 +582,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       exigirAdmin(c);
+      const cuerpo = c.req.valid('json');
       const doc = await anular(c.req.valid('param').numero, {
         almacen: almacenDe(c),
-        motivo: c.req.valid('json').motivo,
+        motivo: cuerpo.motivo,
         reloj,
         actor: actor(c),
+        operador: operadorDe(c, cuerpo.operador),
         libroContable: libroWebhooks,
       });
       return c.json({ documento: doc as unknown as z.infer<typeof S.DocumentoFiscal> }, 200);
@@ -559,11 +606,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       exigirAdmin(c);
+      const cuerpo = c.req.valid('json');
       const anulados = await corregirFechaAdelantada(almacenDe(c), {
         identificador: c.req.valid('param').identificador,
-        motivo: c.req.valid('json').motivo,
+        motivo: cuerpo.motivo,
         reloj,
         actor: actor(c),
+        operador: operadorDe(c, cuerpo.operador),
         libroContable: libroWebhooks,
       });
       return c.json({ anulados: anulados as unknown as z.infer<typeof S.DocumentoFiscal>[] }, 200);
@@ -645,7 +694,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       );
       const api = await enTenant(c, async (tx) =>
         (await tx.consulta(
-          'SELECT id, instante, actor, accion, detalle FROM api_bitacora WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite],
+          'SELECT id, instante, actor, operador, accion, detalle FROM api_bitacora WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite],
         )).rows.reverse(),
       );
       return c.json({ fiscal, api } as never, 200);
@@ -653,9 +702,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   );
 
   // --- Llaves ----------------------------------------------------------------------------------------------
-  type FilaLlave = { prefijo: string; nombre: string; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; creada: Date; revocada: Date | null; ultimo_uso: Date | null };
+  type FilaLlave = { id: string; prefijo: string; nombre: string; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; creada: Date; revocada: Date | null; ultimo_uso: Date | null };
   const aLlave = (f: FilaLlave) => ({
-    prefijo: f.prefijo, nombre: f.nombre, rol: f.rol, establecimiento: f.establecimiento, puntoEmision: f.punto_emision,
+    id: f.id, prefijo: f.prefijo, nombre: f.nombre, rol: f.rol, establecimiento: f.establecimiento, puntoEmision: f.punto_emision,
     creada: f.creada.toISOString(), revocada: f.revocada?.toISOString() ?? null, ultimoUso: f.ultimo_uso?.toISOString() ?? null,
   });
   app.openapi(
@@ -675,7 +724,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const fila = await enTenant(c, async (tx) => {
         const r = await tx.consulta<FilaLlave>(
           `INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)
-           RETURNING prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso`,
+           RETURNING id, prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso`,
           [prefijo, tx.tenant, hash, b.rol, b.nombre, b.establecimiento ?? null, b.puntoEmision ?? null],
         );
         await bitacora(tx, actor(c), 'llave.creada', { prefijo, rol: b.rol, nombre: b.nombre });
@@ -693,7 +742,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     async (c) => {
       exigirAdmin(c);
       const filas = await enTenant(c, async (tx) =>
-        (await tx.consulta<FilaLlave>('SELECT prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso FROM api_llaves WHERE tenant = $1 ORDER BY creada', [tx.tenant])).rows,
+        (await tx.consulta<FilaLlave>('SELECT id, prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso FROM api_llaves WHERE tenant = $1 ORDER BY creada', [tx.tenant])).rows,
       );
       return c.json({ llaves: filas.map(aLlave) }, 200);
     },
@@ -716,7 +765,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           if ((admins.rowCount ?? 0) <= 1) throw new ErrorApi(409, 'ULTIMA_LLAVE_ADMIN', 'No se puede revocar la única llave admin activa.');
         }
         const r = await tx.consulta<FilaLlave>(
-          'UPDATE api_llaves SET revocada = now() WHERE tenant = $1 AND prefijo = $2 RETURNING prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso',
+          'UPDATE api_llaves SET revocada = now() WHERE tenant = $1 AND prefijo = $2 RETURNING id, prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso',
           [tx.tenant, prefijo],
         );
         await bitacora(tx, actor(c), 'llave.revocada', { prefijo });

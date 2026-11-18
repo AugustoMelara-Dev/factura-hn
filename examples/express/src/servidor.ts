@@ -19,6 +19,8 @@ const app = crearTienda({
   buscarPedido: async (id) => pedidos.get(id) ?? null,
   guardarFactura: async (id, numero) => void (pedidos.get(id)!.numeroFactura = numero),
   secretoWebhook: env.FHN_SECRETO_WEBHOOK ?? '',
+  // En tu tienda: el usuario de la sesión (p. ej. req.session.usuario.nombre).
+  operadorDe: () => 'Tienda en línea',
   alRecibirAviso: async (a) => console.log('Aviso', a.evento, JSON.stringify(a.datos)),
 });
 app.listen(Number(env.PUERTO ?? 3001), '127.0.0.1', () => console.log(`Tienda en http://127.0.0.1:${env.PUERTO ?? 3001}  ·  prueba: curl -X POST http://127.0.0.1:${env.PUERTO ?? 3001}/pedidos/1001/factura`));

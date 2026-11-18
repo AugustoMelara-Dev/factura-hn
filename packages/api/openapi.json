@@ -540,6 +540,17 @@
           },
           "confirmarSaltoDeFecha": {
             "type": "boolean"
+          },
+          "operador": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.",
+            "example": "María López"
+          },
+          "imprimirOperador": {
+            "type": "boolean",
+            "description": "Imprime el operador en el documento («Atendido por»). Requiere operador."
           }
         },
         "required": [
@@ -753,6 +764,13 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          },
+          "operador": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.",
+            "example": "María López"
           }
         },
         "required": [
@@ -762,6 +780,10 @@
       "Llave": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id interno de la llave: identifica al actor en la bitácora."
+          },
           "prefijo": {
             "type": "string"
           },
@@ -804,6 +826,7 @@
           }
         },
         "required": [
+          "id",
           "prefijo",
           "nombre",
           "rol",

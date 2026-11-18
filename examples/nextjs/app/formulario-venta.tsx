@@ -12,6 +12,13 @@ export function FormularioVenta({ clave }: { clave: string }) {
     <form action={accion}>
       <input type="hidden" name="clave" value={claveActual} />
       <label>
+        Atiende
+        <input name="operador" autoComplete="off" maxLength={80} placeholder="Nombre del cajero" />
+      </label>
+      <label>
+        <input type="checkbox" name="imprimirOperador" /> Imprimir «Atendido por» en la factura
+      </label>
+      <label>
         Cliente (opcional)
         <input name="cliente" autoComplete="off" />
       </label>

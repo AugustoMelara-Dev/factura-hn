@@ -80,6 +80,14 @@ export const DocumentoEntrada = z
   })
   .openapi('DocumentoEntrada');
 
+/** Persona que opera (p. ej. el cajero). Para la bitácora; se imprime solo si se pide. */
+const Operador = z.string().min(1).max(80).openapi({
+  description:
+    'Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede ' +
+    'enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.',
+  example: 'María López',
+});
+
 export const SolicitudEmision = z
   .object({
     /** Si la llave está atada a una caja, se usa la suya; si se indica otra, 403. */
@@ -88,6 +96,8 @@ export const SolicitudEmision = z
     documento: DocumentoEntrada,
     /** Solo admin (Art. 43): acepta un salto de fecha mayor que el permitido. */
     confirmarSaltoDeFecha: z.boolean().optional(),
+    operador: Operador.optional(),
+    imprimirOperador: z.boolean().optional().openapi({ description: 'Imprime el operador en el documento («Atendido por»). Requiere operador.' }),
   })
   .openapi('SolicitudEmision');
 
@@ -154,7 +164,7 @@ export const EstadoAutorizacion = z
   })
   .openapi('EstadoAutorizacion');
 
-export const Motivo = z.object({ motivo: z.string().min(1).max(500) }).openapi('Motivo');
+export const Motivo = z.object({ motivo: z.string().min(1).max(500), operador: Operador.optional() }).openapi('Motivo');
 
 /** Período de consulta: como máximo un año, para no cargar todo el historial en una solicitud. */
 export const periodo = <T extends z.ZodRawShape>(extra: T) => z
@@ -173,6 +183,7 @@ export const LlaveNueva = z
   .openapi('LlaveNueva');
 export const Llave = z
   .object({
+    id: z.string().openapi({ description: 'Id interno de la llave: identifica al actor en la bitácora.' }),
     prefijo: z.string(),
     nombre: z.string(),
     rol: z.enum(['caja', 'admin']),

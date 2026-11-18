@@ -26,6 +26,14 @@ describe('factura-hn-mcp por stdio', () => {
       expect((await cliente.listTools()).tools).toHaveLength(6);
       await cliente.close();
     }
+    // Modo local sin archivo: no arranca (no hay almacén en memoria).
+    let salida = '';
+    try {
+      execFileSync(process.execPath, [cli], { env: { ...process.env, FHN_SQLITE: ':memory:', FHN_EMISOR: join(paquete, 'package.json') }, stdio: 'pipe', encoding: 'utf8' });
+    } catch (e) {
+      salida = String((e as { stderr: string }).stderr);
+    }
+    expect(salida).toMatch(/debe ser un archivo/);
   }, 120_000);
 
   it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {

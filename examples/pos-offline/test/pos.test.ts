@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { registrarAutorizacion } from 'factura-hn';
+import { eventosAuditoria, registrarAutorizacion, renderizarTexto } from 'factura-hn';
 import { crearPOS } from '../src/pos';
 
 // node:sqlite se carga con require para que el empaquetador de las pruebas no intente resolverlo.
@@ -39,6 +39,24 @@ describe('POS fuera de línea', () => {
     await expect(pos.vender('venta-0001', { lineas: [{ descripcion: 'Té', cantidad: '1', precioUnitario: '30.00' }] })).rejects.toMatchObject({
       errores: [expect.objectContaining({ codigo: 'CLAVE_VENTA_USADA' })],
     });
+  });
+
+  it('DEC-031: el cajero queda en la bitácora y se imprime solo si se pide', async () => {
+    const { pos } = await posListo();
+    const a = await pos.vender('venta-cajero-1', { ...venta, cajero: 'Rosa' });
+    const b = await pos.vender('venta-cajero-2', { ...venta, cajero: 'Luis', imprimirCajero: true });
+    expect(a.documento.operador).toBeUndefined();
+    expect(renderizarTexto(b.documento)).toContain('Atendido por: Luis');
+    // Otro cajero que reintenta la venta a (sin imprimir) recibe la misma factura.
+    expect((await pos.vender('venta-cajero-1', { ...venta, cajero: 'Pedro' })).repetida).toBe(true);
+    await pos.anular(a.documento.numero, 'Prueba', 'Supervisora');
+    const ev = await eventosAuditoria(pos.almacen);
+    expect(ev.filter((e) => e.numero).map((e) => [e.tipo, e.actor, e.operador])).toEqual([
+      ['DOCUMENTO_EMITIDO', 'caja:000-001', 'Rosa'],
+      ['DOCUMENTO_EMITIDO', 'caja:000-001', 'Luis'],
+      ['DOCUMENTO_ANULADO', 'caja:000-001', 'Supervisora'],
+    ]);
+    await expect(pos.vender('venta-cajero-3', { ...venta, imprimirCajero: true })).rejects.toMatchObject({ errores: [expect.objectContaining({ codigo: 'CAJERO' })] });
   });
 
   it('una venta inválida no consume número ni deja la clave usada', async () => {

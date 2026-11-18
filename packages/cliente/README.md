@@ -19,6 +19,11 @@ try {
 }
 ```
 
+**Quién opera (DEC-031).** Si varias personas usan la misma llave, crea el cliente con el cajero de la sesión:
+`crearCliente({ url, llave, operador: 'María López' })`. Va en la cabecera `X-Operador` de cada solicitud y
+queda en la bitácora junto a la llave. Para imprimirlo en la factura, emite con `imprimirOperador: true`. Al
+anular: `fhn.anular(numero, motivo, { operador })`.
+
 `fhn.api` es el cliente de `openapi-fetch` con todas las rutas tipadas (`fhn.api.POST('/v1/llaves', …)`).
 La llave de API va solo en el servidor: nunca en código que llega al navegador.
 

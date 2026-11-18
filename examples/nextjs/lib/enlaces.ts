@@ -1,6 +1,7 @@
 // Enlaces firmados al PDF: los números son consecutivos, así que sin firma cualquiera podría recorrer
 // /facturas/000-001-01-00000001, …02, … y bajar las facturas (nombre, RTN y montos) de todos los clientes.
 // En tu aplicación, además, comprueba que el documento sea del usuario o del pedido de la sesión.
+import 'server-only';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 function secreto(): string {

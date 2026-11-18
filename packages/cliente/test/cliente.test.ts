@@ -33,11 +33,8 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     const tenant = `cli-${randomUUID().slice(0, 8)}`;
     const { llaveAdmin } = await crearTenant(pool, { tenant, nombre: tenant });
     const app = crearApp({ pool, modo: 'local' });
-    const fhn = crearCliente({
-      url: 'http://api.local/',
-      llave: llaveAdmin,
-      fetch: ((entrada: RequestInfo | URL, init?: RequestInit) => app.fetch(entrada instanceof Request ? entrada : new Request(entrada, init))) as typeof fetch,
-    });
+    const fetchApi = ((entrada: RequestInfo | URL, init?: RequestInit) => app.fetch(entrada instanceof Request ? entrada : new Request(entrada, init))) as typeof fetch;
+    const fhn = crearCliente({ url: 'http://api.local/', llave: llaveAdmin, fetch: fetchApi });
     await fhn.api.POST('/v1/emisores', {
       body: {
         rtn: '08011999123456', razonSocial: 'Ejemplo', nombreComercial: 'Ejemplo', direccionCasaMatriz: 'Tegucigalpa',
@@ -65,9 +62,19 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     expect(err.estado).toBe(422);
     expect(err.errores.length).toBeGreaterThan(0);
 
-    expect((await fhn.anular(a.documento.numero, 'Error de precio')).estado).toBe('ANULADO');
+    // DEC-031: el operador del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
+    const cajero = crearCliente({ url: 'http://api.local', llave: llaveAdmin, operador: 'José Núñez', fetch: fetchApi });
+    const conOperador = await cajero.emitir({ ...venta, imprimirOperador: true }, { idempotencyKey: 'venta-3' });
+    expect(conOperador.documento.operador).toBe('José Núñez');
+    expect(await cajero.descargar(conOperador.documento.numero, 'txt')).toContain('Atendido por: José Núñez');
+
+    expect((await cajero.anular(a.documento.numero, 'Error de precio', { operador: 'Supervisora Ana' })).estado).toBe('ANULADO');
+    const bit = (await fhn.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { fiscal: { tipo: string; numero?: string; operador?: string }[] };
+    expect(bit.fiscal.filter((e) => e.numero).map((e) => [e.tipo, e.operador ?? null])).toEqual([
+      ['DOCUMENTO_EMITIDO', null], ['DOCUMENTO_EMITIDO', 'José Núñez'], ['DOCUMENTO_ANULADO', 'Supervisora Ana'],
+    ]);
     const hoy = a.documento.fechaEmision;
-    expect((await fhn.libroVentas(hoy, hoy)).filas).toHaveLength(1);
+    expect((await fhn.libroVentas(hoy, hoy)).filas).toHaveLength(2);
     expect(await fhn.libroVentasCSV(hoy, hoy)).toContain(a.documento.numero);
     expect(await fhn.exportacion(hoy, hoy)).toContain(a.documento.numero);
     await expect(fhn.documento('000-001-01-00000099')).rejects.toMatchObject({ estado: 404, codigo: 'NO_ENCONTRADO' });

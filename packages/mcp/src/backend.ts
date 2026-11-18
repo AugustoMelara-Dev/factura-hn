@@ -23,6 +23,7 @@ import {
 } from 'factura-hn';
 import { createHash } from 'node:crypto';
 import { crearCliente, ErrorFacturaHN, type ClienteFacturaHN } from '@factura-hn/cliente';
+import { AlmacenSQLite, type BaseSQLite } from '@factura-hn/sqlite';
 
 /** JSON con las claves ordenadas: la misma entrada da siempre el mismo texto. */
 function jsonEstable(v: unknown): string {
@@ -51,11 +52,20 @@ export interface EstadoCAI {
   alertas: Problema[];
 }
 
+/**
+ * Persona que opera (DEC-031): queda en la bitácora; con `imprimir`, también en el documento («Atendido por»).
+ * Si la herramienta no lo indica, se usa el operador configurado del servidor (`FHN_OPERADOR`).
+ */
+export interface OpcionesOperador {
+  operador?: string;
+  imprimirOperador?: boolean;
+}
+
 export interface Backend {
   readonly nombre: string;
-  emitir(entrada: EntradaSinEmisor, idempotencyKey: string): Promise<DocumentoFiscal>;
+  emitir(entrada: EntradaSinEmisor, idempotencyKey: string, opciones?: OpcionesOperador): Promise<DocumentoFiscal>;
   consultar(numero: string): Promise<DocumentoFiscal | null>;
-  anular(numero: string, motivo: string): Promise<DocumentoFiscal>;
+  anular(numero: string, motivo: string, opciones?: { operador?: string }): Promise<DocumentoFiscal>;
   estadoCAI(): Promise<EstadoCAI[]>;
   libroVentas(desde: string, hasta: string): Promise<{ filas: unknown[]; resumen: unknown }>;
 }
@@ -96,21 +106,6 @@ const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): 
 export interface RegistroClaves {
   buscar(clave: string): { numero: string; huella: string } | null | Promise<{ numero: string; huella: string } | null>;
   guardar(clave: string, numero: string, huella: string): void | Promise<void>;
-  /** Solo para registros fuera de la base: borra una clave cuyo documento no llegó a confirmarse. */
-  olvidar?(clave: string): void;
-}
-
-/** Claves en memoria del proceso: se pierden al reiniciar. Solo para pruebas o sesiones cortas. */
-export function clavesEnMemoria(): RegistroClaves {
-  const m = new Map<string, { numero: string; huella: string }>();
-  return {
-    buscar: (c) => m.get(c) ?? null,
-    guardar: (c, numero, huella) => {
-      if (m.has(c)) throw new Error('Clave de idempotencia repetida.');
-      m.set(c, { numero, huella });
-    },
-    olvidar: (c) => void m.delete(c),
-  };
 }
 
 /**
@@ -125,25 +120,50 @@ export function clavesSQLite(db: { exec(sql: string): unknown; prepare(sql: stri
   };
 }
 
+/** Base SQLite abierta (`node:sqlite` o `better-sqlite3`). Para `node:sqlite`, `location()` es null en memoria. */
+export type BaseSQLiteMCP = BaseSQLite & { location?: () => string | null };
+
+/**
+ * Backend con el SDK sobre una base SQLite en archivo de este equipo. Documentos, bitácora y claves de
+ * idempotencia van en la misma base y la misma transacción. No hay modo en memoria: una caja que pierde sus
+ * documentos al reiniciar pierde números consumidos (Art. 41) y la clave de un reintento.
+ */
 export class BackendLocal implements Backend {
   readonly nombre = 'sdk-local';
   private readonly claves: RegistroClaves;
+  private readonly almacen: AlmacenFiscal;
   constructor(
     private readonly o: {
-      almacen: AlmacenFiscal;
+      db: BaseSQLiteMCP;
       emisor: Emisor;
       establecimiento: string;
       puntoEmision: string;
       reloj?: () => Date;
+      /** Quién opera el servidor MCP, para la bitácora. Por defecto `mcp`. */
       actor?: string;
-      /** Por defecto en memoria; con SQLite usa `clavesSQLite(db)` para que sobrevivan a reinicios. */
-      claves?: RegistroClaves;
+      /** Persona por defecto (DEC-031), p. ej. de `FHN_OPERADOR`. */
+      operador?: string;
     },
   ) {
-    this.claves = o.claves ?? clavesEnMemoria();
+    if (o.db.location?.() === null) {
+      throw new Error('El MCP local necesita una base SQLite en archivo (FHN_SQLITE=./factura.db), no en memoria.');
+    }
+    this.almacen = new AlmacenSQLite(o.db);
+    this.claves = clavesSQLite(o.db);
   }
 
-  async emitir(entrada: EntradaSinEmisor, idempotencyKey: string): Promise<DocumentoFiscal> {
+  /** El almacén fiscal de esta base (para registrar CAI o consultar con el SDK). */
+  get almacenFiscal(): AlmacenFiscal {
+    return this.almacen;
+  }
+
+  async emitir(entrada: EntradaSinEmisor, idempotencyKey: string, opciones: OpcionesOperador = {}): Promise<DocumentoFiscal> {
+    const operador = opciones.operador ?? this.o.operador;
+    if (opciones.imprimirOperador) {
+      if (!operador) throw new ErrorBackend('OPERADOR_REQUERIDO', 'Para imprimir el operador, indica quién atiende.', [{ codigo: 'OPERADOR_REQUERIDO', mensaje: 'Para imprimir el operador, indica quién atiende.', campo: 'operador' }]);
+      entrada = { ...entrada, operador };
+    }
+    // El operador solo cambia la venta si se imprime (ya está en `entrada`).
     const huella = huellaDe(entrada);
     const repetido = async () => {
       const r = await this.claves.buscar(idempotencyKey);
@@ -152,20 +172,18 @@ export class BackendLocal implements Backend {
         const m = 'Esta clave de idempotencia ya se usó con otra venta. Usa una clave nueva para una venta nueva.';
         throw new ErrorBackend('IDEMPOTENCIA_CONFLICTO', m, [{ codigo: 'IDEMPOTENCIA_CONFLICTO', mensaje: m }]);
       }
-      const doc = await this.consultar(r.numero);
-      // Clave sin documento (la transacción no se confirmó): en memoria se olvida y se puede reintentar.
-      if (!doc) this.claves.olvidar?.(idempotencyKey);
-      return doc;
+      return this.consultar(r.numero);
     };
     const previo = await repetido();
     if (previo) return previo;
     try {
       return await emitir({ ...entrada, emisor: this.o.emisor } as DocumentoEntrada, {
-        almacen: this.o.almacen,
+        almacen: this.almacen,
         establecimiento: this.o.establecimiento,
         puntoEmision: this.o.puntoEmision,
         opciones: { reloj: this.o.reloj },
         actor: this.o.actor ?? 'mcp',
+        operador,
         alEmitir: async (doc) => this.claves.guardar(idempotencyKey, doc.numero, huella),
       });
     } catch (e) {
@@ -176,18 +194,20 @@ export class BackendLocal implements Backend {
     }
   }
   consultar(numero: string) {
-    return buscarDocumento(this.o.almacen, numero);
+    return buscarDocumento(this.almacen, numero);
   }
-  async anular(numero: string, motivo: string) {
+  async anular(numero: string, motivo: string, opciones: { operador?: string } = {}) {
     try {
-      return await anular(numero, { almacen: this.o.almacen, motivo, reloj: this.o.reloj, actor: this.o.actor ?? 'mcp' });
+      return await anular(numero, {
+        almacen: this.almacen, motivo, reloj: this.o.reloj, actor: this.o.actor ?? 'mcp', operador: opciones.operador ?? this.o.operador,
+      });
     } catch (e) {
       throw traducir(e);
     }
   }
   async estadoCAI(): Promise<EstadoCAI[]> {
     const hoy = fechaHonduras((this.o.reloj ?? (() => new Date()))());
-    return this.o.almacen.transaccion(async (tx) => {
+    return this.almacen.transaccion(async (tx) => {
       const r: EstadoCAI[] = [];
       for (const tipoDocumento of ['01', '06', '07'] as const) {
         const id = identificadorDe({ establecimiento: this.o.establecimiento, puntoEmision: this.o.puntoEmision, tipoDocumento });
@@ -200,7 +220,7 @@ export class BackendLocal implements Backend {
     });
   }
   async libroVentas(desde: string, hasta: string) {
-    const docs = await this.o.almacen.transaccion((tx) => tx.documentos({ desde, hasta }));
+    const docs = await this.almacen.transaccion((tx) => tx.documentos({ desde, hasta }));
     const filas = docs.map(filaLibroVentas);
     return { filas, resumen: resumenVentas(filas) };
   }
@@ -209,15 +229,20 @@ export class BackendLocal implements Backend {
 export class BackendApi implements Backend {
   readonly nombre = 'api';
   private readonly c: ClienteFacturaHN;
-  constructor(o: { url: string; llave: string; establecimiento?: string; puntoEmision?: string; fetch?: typeof fetch }) {
+  /** `operador`: persona por defecto (DEC-031); va en la cabecera X-Operador de cada solicitud. */
+  constructor(o: { url: string; llave: string; establecimiento?: string; puntoEmision?: string; operador?: string; fetch?: typeof fetch }) {
     this.c = crearCliente(o);
     this.punto = { establecimiento: o.establecimiento, puntoEmision: o.puntoEmision };
   }
   private readonly punto: { establecimiento?: string; puntoEmision?: string };
 
-  async emitir(entrada: EntradaSinEmisor, idempotencyKey: string) {
+  async emitir(entrada: EntradaSinEmisor, idempotencyKey: string, opciones: OpcionesOperador = {}) {
     try {
-      const { documento } = await this.c.emitir({ ...this.punto, documento: entrada as never }, { idempotencyKey });
+      const extra = {
+        ...(opciones.operador !== undefined ? { operador: opciones.operador } : {}),
+        ...(opciones.imprimirOperador ? { imprimirOperador: true } : {}),
+      };
+      const { documento } = await this.c.emitir({ ...this.punto, ...extra, documento: entrada as never }, { idempotencyKey });
       return documento as unknown as DocumentoFiscal;
     } catch (e) {
       throw traducir(e);
@@ -231,9 +256,9 @@ export class BackendApi implements Backend {
       throw traducir(e);
     }
   }
-  async anular(numero: string, motivo: string) {
+  async anular(numero: string, motivo: string, opciones: { operador?: string } = {}) {
     try {
-      return (await this.c.anular(numero, motivo)) as unknown as DocumentoFiscal;
+      return (await this.c.anular(numero, motivo, opciones)) as unknown as DocumentoFiscal;
     } catch (e) {
       throw traducir(e);
     }

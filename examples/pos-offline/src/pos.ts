@@ -43,12 +43,20 @@ export interface OpcionesPOS {
 export interface Venta {
   cliente?: { nombre?: string; rtn?: string };
   lineas: LineaEntrada[];
+  /** Quién cobra (DEC-031): queda en la bitácora. */
+  cajero?: string;
+  /** Imprime «Atendido por» con el cajero en el ticket. */
+  imprimirCajero?: boolean;
 }
 
 const CLAVE = /^[A-Za-z0-9-]{8,64}$/;
 
 /** Huella de la venta: la misma clave con otra venta es un conflicto, no un reintento. */
-const huellaDe = (v: Venta) => createHash('sha256').update(JSON.stringify({ cliente: v.cliente ?? null, lineas: v.lineas })).digest('hex');
+// El cajero solo cambia la venta si se imprime: otro cajero que reintenta la misma venta no es otra venta.
+const huellaDe = (v: Venta) =>
+  createHash('sha256')
+    .update(JSON.stringify({ cliente: v.cliente ?? null, lineas: v.lineas, impreso: v.imprimirCajero ? (v.cajero ?? null) : null }))
+    .digest('hex');
 
 class ErrorSolicitud extends Error {}
 
@@ -79,10 +87,15 @@ export function crearPOS(o: OpcionesPOS) {
       return { documento: (await documento(previa.numero))!, repetida: true };
     }
     // La conexión de SQLite es una sola: lo que se ejecuta en `alEmitir` queda dentro de la transacción.
+    const cajero = venta.cajero?.trim() || undefined;
+    if (venta.imprimirCajero && !cajero) {
+      throw new ErrorValidacion([{ codigo: 'CAJERO', mensaje: 'Escribe el nombre del cajero para imprimirlo en el ticket.', campo: 'cajero' }]);
+    }
     const doc = await emitir(
-      { emisor: o.emisor, cliente: venta.cliente, preciosIncluyenISV: true, lineas: venta.lineas },
+      { emisor: o.emisor, cliente: venta.cliente, preciosIncluyenISV: true, lineas: venta.lineas, ...(venta.imprimirCajero && { operador: cajero }) },
       {
         ...config,
+        operador: cajero,
         alEmitir: async (d) => {
           o.db.prepare('INSERT INTO pos_ventas (clave, numero, huella) VALUES (?, ?, ?)').run(clave, d.numero, huella);
           encolar('documento.emitido', d.numero);
@@ -93,8 +106,10 @@ export function crearPOS(o: OpcionesPOS) {
   }
 
   /** Anulación (Art. 41): el documento conserva su número y queda marcado ANULADO. */
-  async function anularVenta(numero: string, motivo: string): Promise<DocumentoFiscal> {
-    return anular(numero, { almacen, motivo, reloj: o.reloj, actor, alAnular: async (d) => void encolar('documento.anulado', d.numero) });
+  async function anularVenta(numero: string, motivo: string, cajero?: string): Promise<DocumentoFiscal> {
+    return anular(numero, {
+      almacen, motivo, reloj: o.reloj, actor, operador: cajero?.trim() || undefined, alAnular: async (d) => void encolar('documento.anulado', d.numero),
+    });
   }
 
   /** Correlativos y vigencia de la autorización de facturas en uso, con las alertas (Arts. 59 y 62). */
@@ -178,8 +193,8 @@ export function crearPOS(o: OpcionesPOS) {
         return m[2] === '.txt' ? responder(200, renderizarTexto(d, { ancho: 42 }), 'text/plain; charset=utf-8') : responder(200, d);
       }
       if (m && m[2] === '/anular' && req.method === 'POST') {
-        const { motivo } = (await leerJSON(req)) as { motivo?: string };
-        return responder(200, await anularVenta(m[1]!, String(motivo ?? '')));
+        const { motivo, cajero } = (await leerJSON(req)) as { motivo?: string; cajero?: string };
+        return responder(200, await anularVenta(m[1]!, String(motivo ?? ''), typeof cajero === 'string' ? cajero : undefined));
       }
       return responder(404, { error: 'Ruta no encontrada.' });
     } catch (e) {

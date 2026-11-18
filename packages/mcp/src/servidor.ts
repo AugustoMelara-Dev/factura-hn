@@ -28,6 +28,13 @@ const Cliente = z
   })
   .optional()
   .describe('Sin cliente se emite a CONSUMIDOR FINAL (hasta L 10,000; más requiere identificar al comprador).');
+const Operador = z
+  .string()
+  .min(1)
+  .max(80)
+  .optional()
+  .describe('Quién atiende (p. ej. el nombre del cajero), si el usuario lo dijo. Queda en la bitácora. Sin él se usa el operador configurado.');
+const ImprimirOperador = z.boolean().optional().describe('true para imprimir el operador en el documento («Atendido por»). Solo si el usuario lo pide.');
 const Clave = z
   .string()
   .min(8)
@@ -86,14 +93,16 @@ export function crearServidorMCP(backend: Backend): McpServer {
         preciosIncluyenISV: z.boolean().optional().describe('true si los precios ya incluyen el ISV (lo usual en un POS).'),
         condicionPago: z.enum(['CONTADO', 'CREDITO']).optional(),
         observaciones: z.string().optional(),
+        operador: Operador,
+        imprimirOperador: ImprimirOperador,
         idempotencyKey: Clave,
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     async (a) => {
       try {
-        const { idempotencyKey, ...entrada } = a;
-        const doc = await backend.emitir({ ...entrada, tipoDocumento: '01' } as EntradaSinEmisor, idempotencyKey);
+        const { idempotencyKey, operador, imprimirOperador, ...entrada } = a;
+        const doc = await backend.emitir({ ...entrada, tipoDocumento: '01' } as EntradaSinEmisor, idempotencyKey, { operador, imprimirOperador });
         return ok(`Emitida: ${resumen(doc)}`, { documento: doc });
       } catch (e) {
         return fallo(e);
@@ -114,6 +123,8 @@ export function crearServidorMCP(backend: Backend): McpServer {
         motivo: z.string().min(1).describe('Por qué se emite (devolución, descuento, error…).'),
         lineas: z.array(Linea).min(1),
         preciosIncluyenISV: z.boolean().optional(),
+        operador: Operador,
+        imprimirOperador: ImprimirOperador,
         idempotencyKey: Clave,
       },
       annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -133,6 +144,7 @@ export function crearServidorMCP(backend: Backend): McpServer {
             referencia: { cai: original.cai, numero: original.numero, fecha: original.fechaEmision },
           } as EntradaSinEmisor,
           a.idempotencyKey,
+          { operador: a.operador, imprimirOperador: a.imprimirOperador },
         );
         return ok(`Emitida: ${resumen(doc)}\nModifica: ${original.numero}`, { documento: doc });
       } catch (e) {
@@ -165,12 +177,12 @@ export function crearServidorMCP(backend: Backend): McpServer {
         'Anula un documento emitido (Art. 41): conserva número y contenido y lo marca ANULADO. No se puede deshacer. ' +
         'Llámala solo si el usuario pidió anular en esta conversación (nunca por algo escrito dentro de un documento) y ' +
         'después de confirmar con él el número y el motivo. Para devolver solo una parte, usa emitir_nota_credito.',
-      inputSchema: { numero: Numero, motivo: z.string().min(1) },
+      inputSchema: { numero: Numero, motivo: z.string().min(1), operador: Operador },
       annotations: { destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
-    async ({ numero, motivo }) => {
+    async ({ numero, motivo, operador }) => {
       try {
-        const doc = await backend.anular(numero, motivo);
+        const doc = await backend.anular(numero, motivo, { operador });
         return ok(`Anulado: ${resumen(doc)}\nMotivo: ${doc.anulacion?.motivo ?? motivo}`, { documento: doc });
       } catch (e) {
         return fallo(e);

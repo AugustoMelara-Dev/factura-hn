@@ -8,27 +8,32 @@
  *   FHN_SQLITE=./factura.db FHN_EMISOR=./emisor.json FHN_ESTABLECIMIENTO=000 FHN_PUNTO=001 factura-hn-mcp
  * `emisor.json` tiene los datos del Emisor (RTN, razón social, …). Las autorizaciones se registran antes
  * con el SDK o la API: el servidor MCP no registra CAI.
+ * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora (DEC-031).
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { AlmacenSQLite } from '@factura-hn/sqlite';
-import { BackendApi, BackendLocal, clavesSQLite, type Backend } from './backend';
+import { BackendApi, BackendLocal, type Backend } from './backend';
 import { crearServidorMCP } from './servidor';
 
 function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
   if (env.FHN_API_URL) {
     if (!env.FHN_LLAVE) throw new Error('Falta FHN_LLAVE (llave de API).');
-    return new BackendApi({ url: env.FHN_API_URL, llave: env.FHN_LLAVE, establecimiento: env.FHN_ESTABLECIMIENTO, puntoEmision: env.FHN_PUNTO });
+    return new BackendApi({
+      url: env.FHN_API_URL, llave: env.FHN_LLAVE, establecimiento: env.FHN_ESTABLECIMIENTO, puntoEmision: env.FHN_PUNTO, operador: env.FHN_OPERADOR || undefined,
+    });
   }
   if (env.FHN_SQLITE) {
     if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor).');
+    if (env.FHN_SQLITE.trim() === ':memory:' || env.FHN_SQLITE.startsWith('file::memory:')) {
+      throw new Error('FHN_SQLITE debe ser un archivo (p. ej. ./factura.db): en memoria se perderían los documentos al cerrar.');
+    }
     // node:sqlite se carga solo aquí: el modo API funciona en cualquier Node, y el empaquetador no lo reescribe.
     const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
     const db = new DatabaseSync(env.FHN_SQLITE);
     return new BackendLocal({
-      almacen: new AlmacenSQLite(db),
-      claves: clavesSQLite(db),
+      db,
+      operador: env.FHN_OPERADOR || undefined,
       emisor: JSON.parse(readFileSync(env.FHN_EMISOR, 'utf8')),
       establecimiento: env.FHN_ESTABLECIMIENTO ?? '000',
       puntoEmision: env.FHN_PUNTO ?? '001',

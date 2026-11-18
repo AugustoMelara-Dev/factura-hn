@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtempSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
-import { AlmacenFiscalMemoria, registrarAutorizacion, type Emisor } from 'factura-hn';
+import { eventosAuditoria, registrarAutorizacion, type Emisor } from 'factura-hn';
 import { crearApp, crearTenant, migrarApi } from '@factura-hn/api';
 import { BackendApi, BackendLocal, crearServidorMCP, type Backend } from '../src';
+
+const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+const baseEnArchivo = () => new DatabaseSync(join(mkdtempSync(join(tmpdir(), 'fhn-mcp-')), 'factura.db'));
 
 const EMISOR: Emisor = {
   rtn: '08011999123456', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo',
@@ -81,12 +88,39 @@ async function recorrido(backend: Backend) {
   expect(forma.error).toBe(true);
 }
 
+async function backendLocal(operador?: string) {
+  const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', operador });
+  await registrarAutorizacion(backend.almacenFiscal, aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
+  await registrarAutorizacion(backend.almacenFiscal, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));
+  return backend;
+}
+
 describe('servidor MCP con el SDK local', () => {
   it('las seis herramientas: emitir, reintentar, NC, consultar, estado del CAI, anular y libro', async () => {
-    const almacen = new AlmacenFiscalMemoria();
-    await registrarAutorizacion(almacen, aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
-    await registrarAutorizacion(almacen, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));
-    await recorrido(new BackendLocal({ almacen, emisor: EMISOR, establecimiento: '000', puntoEmision: '001' }));
+    await recorrido(await backendLocal());
+  });
+
+  it('exige SQLite en archivo: una base en memoria se rechaza', () => {
+    expect(() => new BackendLocal({ db: new DatabaseSync(':memory:'), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' })).toThrow(/en archivo/);
+  });
+
+  it('DEC-031: el operador (configurado o de la herramienta) va a la bitácora y se imprime solo si se pide', async () => {
+    const backend = await backendLocal('Cajera Rosa');
+    const { llamar } = await conectar(backend);
+    const linea = [{ descripcion: 'Café', cantidad: '1', precioUnitario: '20.00' }];
+    const a = await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() });
+    const b = await llamar('emitir_factura', { lineas: linea, operador: 'Luis Ávila', imprimirOperador: true, idempotencyKey: randomUUID() });
+    expect((await llamar('consultar_documento', { numero: a.datos.documento.numero, formato: 'texto' })).texto).not.toContain('Atendido por');
+    expect((await llamar('consultar_documento', { numero: b.datos.documento.numero, formato: 'texto' })).texto).toContain('Atendido por: Luis Ávila');
+    await llamar('anular_documento', { numero: a.datos.documento.numero, motivo: 'Prueba' });
+    const ev = await eventosAuditoria(backend.almacenFiscal);
+    expect(ev.filter((e) => e.numero).map((e) => [e.tipo, e.actor, e.operador])).toEqual([
+      ['DOCUMENTO_EMITIDO', 'mcp', 'Cajera Rosa'],
+      ['DOCUMENTO_EMITIDO', 'mcp', 'Luis Ávila'],
+      ['DOCUMENTO_ANULADO', 'mcp', 'Cajera Rosa'],
+    ]);
+    const malo = await llamar('emitir_factura', { lineas: linea, operador: 'a\u0007b', idempotencyKey: randomUUID() });
+    expect([malo.error, malo.datos.errores[0].codigo]).toEqual([true, 'OPERADOR']);
   });
 });
 
@@ -111,11 +145,14 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
     // Con una llave de caja, el agente emite pero no anula (lo decide el rol de la llave en la API).
     const r = await admin('/v1/llaves', { nombre: 'agente', rol: 'caja', establecimiento: '000', puntoEmision: '001' });
     const { llave } = (await r.json()) as { llave: string };
-    const { llamar } = await conectar(new BackendApi({ url: 'http://api.local', llave, fetch: fetchApp }));
+    const { llamar } = await conectar(new BackendApi({ url: 'http://api.local', llave, operador: 'Agente de Rosa', fetch: fetchApp }));
     const f = await llamar('emitir_factura', { lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10.00' }], idempotencyKey: randomUUID() });
     expect(f.error).toBe(false);
     const an = await llamar('anular_documento', { numero: f.datos.documento.numero, motivo: 'agente' });
     expect(an.error).toBe(true);
     expect(an.datos.codigo).toBe('SOLO_ADMIN');
+    // DEC-031: el operador configurado llega a la bitácora de la API junto al id de la llave.
+    const bit = (await (await app.request('/v1/bitacora', { headers: { authorization: `Bearer ${llaveAdmin}` } })).json()) as { fiscal: { numero?: string; actor: string; operador?: string }[] };
+    expect(bit.fiscal.find((e) => e.numero === f.datos.documento.numero)).toMatchObject({ actor: expect.stringMatching(/^llave:[0-9a-f-]{36} \(caja: agente\)$/), operador: 'Agente de Rosa' });
   });
 });

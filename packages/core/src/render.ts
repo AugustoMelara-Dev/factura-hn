@@ -170,6 +170,7 @@ ${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anul
     <div><b>N° ${esc(doc.numero)}</b></div>
     <div>Fecha: ${fechaLegible(doc.fechaEmision)}${doc.horaEmision ? ' ' + esc(doc.horaEmision) : ''}</div>
     ${doc.condicionPago ? `<div>Condición: ${esc(doc.condicionPago)}</div>` : ''}
+    ${doc.operador ? `<div>Atendido por: ${esc(doc.operador)}</div>` : ''}
   </div>
 </header>
 
@@ -250,6 +251,7 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   izq(`Rango: ${doc.rangoAutorizado}`);
   izq(`Fecha límite de emisión: ${fechaLegible(doc.fechaLimiteEmision)}`);
   izq(`Fecha: ${fechaLegible(doc.fechaEmision)}${doc.horaEmision ? ' ' + doc.horaEmision : ''}`);
+  if (doc.operador) izq(`Atendido por: ${doc.operador}`);
   out.push(sep);
   izq(`Cliente: ${doc.cliente.nombreImpreso}`);
   const id = identificacionCliente(doc);

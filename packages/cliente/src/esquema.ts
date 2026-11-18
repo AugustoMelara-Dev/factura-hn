@@ -2086,6 +2086,13 @@ export interface components {
             puntoEmision?: string;
             documento: components["schemas"]["DocumentoEntrada"];
             confirmarSaltoDeFecha?: boolean;
+            /**
+             * @description Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.
+             * @example María López
+             */
+            operador?: string;
+            /** @description Imprime el operador en el documento («Atendido por»). Requiere operador. */
+            imprimirOperador?: boolean;
         };
         DocumentoEntrada: {
             /** @enum {string} */
@@ -2147,8 +2154,15 @@ export interface components {
         };
         Motivo: {
             motivo: string;
+            /**
+             * @description Persona que opera (p. ej. el nombre del cajero). Queda en la bitácora junto a la llave. También se puede enviar en la cabecera `X-Operador` (codificada con encodeURIComponent si lleva tildes); si llegan ambos, deben coincidir.
+             * @example María López
+             */
+            operador?: string;
         };
         Llave: {
+            /** @description Id interno de la llave: identifica al actor en la bitácora. */
+            id: string;
             prefijo: string;
             nombre: string;
             /** @enum {string} */

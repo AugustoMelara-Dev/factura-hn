@@ -37,7 +37,7 @@ const EMISOR = {
 export const EJEMPLOS: Record<string, { titulo: string; entrada: unknown }> = {
   simple: {
     titulo: 'Consumidor final',
-    entrada: { emisor: EMISOR, preciosIncluyenISV: true, lineas: [{ descripcion: 'Café 1 lb', cantidad: 2, precioUnitario: '120.00' }] },
+    entrada: { emisor: EMISOR, preciosIncluyenISV: true, operador: 'Cajera de prueba', lineas: [{ descripcion: 'Café 1 lb', cantidad: 2, precioUnitario: '120.00' }] },
   },
   rtn: {
     titulo: 'Cliente con RTN, exento y 18 %',

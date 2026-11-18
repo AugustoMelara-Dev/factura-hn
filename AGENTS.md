@@ -216,6 +216,28 @@ const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' }
 
 Si esas ventas fueron reales, emite documentos nuevos con la fecha correcta.
 
+## Quién opera (bitácora)
+
+Pasa `actor` (el usuario o la caja de tu sistema) y, si varias personas usan la misma caja, `operador` (quien
+cobra) a `emitir`, `anular` y `corregirFechaAdelantada`: quedan en la bitácora (`eventosAuditoria`). Para
+imprimir «Atendido por» en el documento, agrega `operador` a la `DocumentoEntrada`. Con la API: campo
+`operador` o cabecera `X-Operador`, e `imprimirOperador: true`.
+
+<!-- declaraciones:
+import type { AlmacenFiscal, DocumentoEntrada } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const entrada: DocumentoEntrada;
+declare const caja: { establecimiento: string; puntoEmision: string };
+declare const sesion: { id: string; nombre: string };
+-->
+```ts
+import { emitir } from 'factura-hn';
+
+await emitir({ ...entrada, operador: sesion.nombre /* solo si se imprime */ }, {
+  almacen, ...caja, actor: `usuario:${sesion.id}`, operador: sesion.nombre,
+});
+```
+
 ## UI recomendada
 
 - Pantalla de configuración: datos del emisor y alta de autorizaciones con `registrarAutorizacion`.

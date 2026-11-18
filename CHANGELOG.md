@@ -43,6 +43,16 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
+- **Operador en la bitácora (DEC-031).**
+  - `emitir`, `anular`, `corregirFechaAdelantada` y `registrarAutorizacion` aceptan `operador` (p. ej. el
+    cajero). Queda en `EventoAuditoria.operador`.
+  - Cada emisión deja un evento `DOCUMENTO_EMITIDO`.
+  - `DocumentoEntrada.operador` lo imprime como «Atendido por».
+  - En la API: campo `operador` o cabecera `X-Operador`, e `imprimirOperador`. El actor es ahora
+    `llave:<id> (<rol>: <nombre>)`, con el id interno de la llave (`GET /v1/llaves` lo devuelve). Esquema de la
+    API v3.
+  - El cliente acepta `operador`; el MCP acepta `FHN_OPERADOR` y el parámetro `operador`.
+
 - **`@factura-hn/api`** (privado, 0.2.0): API REST con Hono y OpenAPI 3.1 sobre Postgres. Modos local
   (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
   y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
@@ -118,6 +128,11 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
 
 ### Cambiado
+
+- **MCP local solo con SQLite en archivo (DEC-040).** `BackendLocal` recibe `{ db, emisor, … }` en lugar de
+  `{ almacen, claves }`, y se elimina `clavesEnMemoria`. Una base en memoria se rechaza.
+- **La bitácora de la API ya no usa el prefijo de la llave como actor** (DEC-031): si filtrabas por
+  `llave:<prefijo>`, usa el id de `GET /v1/llaves`.
 
 - `pnpm` workspaces: el SDK vive en `packages/core`.
 

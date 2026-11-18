@@ -40,6 +40,10 @@ y usa `"command": "node", "args": ["<ruta al repo>/packages/mcp/dist/cli.js"]` e
 Con una llave de caja, el agente emite y consulta pero no anula (403): usa una llave admin solo si quieres
 que pueda anular.
 
+En ambos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el agente: queda en la bitácora junto a
+la llave (DEC-031). Las herramientas de emitir y anular aceptan además `operador` (si el usuario dice quién
+atiende) e `imprimirOperador` para imprimir «Atendido por» en el documento.
+
 ### Vía el SDK local (SQLite en este equipo)
 
 ```json
@@ -53,4 +57,5 @@ que pueda anular.
 `emisor.json` lleva los datos del emisor (RTN, razón social, nombre comercial, direcciones, teléfono y
 correo). Las claves de idempotencia se guardan en la misma base (tabla `mcp_claves`), en la transacción de
 cada emisión: un reintento del agente, aun después de reiniciar el servidor, devuelve la misma factura. Las autorizaciones se registran antes con el SDK (`registrarAutorizacion`) o la API: el servidor MCP
-no registra CAI. El modo SQLite requiere Node 22.13+ (`node:sqlite` sin bandera); el modo API, Node 20+.
+no registra CAI. `FHN_SQLITE` debe ser un archivo: no hay modo en memoria (se perderían documentos y
+números consumidos). El modo SQLite requiere Node 22.13+ (`node:sqlite` sin bandera); el modo API, Node 20+.

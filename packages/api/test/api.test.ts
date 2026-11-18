@@ -119,8 +119,8 @@ conBase('flujo completo', () => {
     expect(estado).toMatchObject({ vigente: true, siguienteCorrelativo: 3, correlativosRestantes: 998 });
 
     const bit = await json(await admin('GET', '/v1/bitacora'));
-    expect(bit.fiscal.map((e: any) => e.tipo)).toEqual(['AUTORIZACION_REGISTRADA', 'AUTORIZACION_REGISTRADA', 'DOCUMENTO_ANULADO']);
-    expect(bit.fiscal[2].actor).toMatch(/^llave:[0-9a-f]{12}$/);
+    expect(bit.fiscal.map((e: any) => e.tipo)).toEqual(['AUTORIZACION_REGISTRADA', 'AUTORIZACION_REGISTRADA', 'DOCUMENTO_EMITIDO', 'DOCUMENTO_ANULADO', 'DOCUMENTO_EMITIDO']);
+    expect(bit.fiscal[3].actor).toMatch(/^llave:[0-9a-f-]{36} \(admin: admin inicial\)$/);
     expect(bit.api.map((e: any) => e.accion)).toEqual(['tenant.creado', 'emisor.creado', 'documento.emitido', 'documento.emitido', 'exportacion']);
 
     const emisor = await json(await admin('GET', `/v1/emisores/${emisorId}`));
