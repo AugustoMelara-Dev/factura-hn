@@ -24,7 +24,7 @@ const AUT: AutorizacionCAI = {
 };
 const reloj = () => new Date('2026-11-18T10:00:00-06:00');
 const entrada = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
-  emisor: { rtn: '08011999123456', razonSocial: 'Ejemplo S. de R.L.', nombreComercial: 'Ejemplo', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@ejemplo.hn' },
+  emisor: { rtn: '99990000000001', razonSocial: 'Ejemplo S. de R.L.', nombreComercial: 'Ejemplo', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'a@ejemplo.example' },
   lineas: [{ descripcion: 'Arroz', cantidad: '1', precioUnitario: '100.00' }],
   ...extra,
 });

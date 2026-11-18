@@ -8,13 +8,13 @@ export const URL_PG = process.env.FHN_PG_URL;
 export const ROL = 'fhn_app';
 
 export const EMISOR = {
-  rtn: '08011999123456',
+  rtn: '99990000000001',
   razonSocial: 'Ferretería Ejemplo S. de R.L.',
   nombreComercial: 'Ferretería Ejemplo',
   direccionCasaMatriz: 'Tegucigalpa, M.D.C.',
   direccionEstablecimiento: 'Tegucigalpa, M.D.C.',
-  telefono: '2222-0000',
-  correo: 'ventas@ejemplo.hn',
+  telefono: '0000-0003',
+  correo: 'ventas@ejemplo.example',
 };
 
 const hex = (n: number) => randomBytes(n).toString('hex').toUpperCase();

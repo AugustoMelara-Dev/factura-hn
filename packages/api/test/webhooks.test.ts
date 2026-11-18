@@ -50,7 +50,7 @@ describe('destinos de webhooks (SSRF)', () => {
   it('modo alojado: solo https y sin direcciones internas', () => {
     for (const url of [
       'http://ejemplo.hn/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.0.0.5/x', 'https://192.168.1.1/x',
-      'https://169.254.169.254/latest', 'https://[::1]/x', 'https://[fd00::1]/x', 'https://172.16.0.1/x', 'https://u:p@ejemplo.hn/x',
+      'https://169.254.169.254/latest', 'https://[::1]/x', 'https://[fd00::1]/x', 'https://172.16.0.1/x', 'https://u:p@ejemplo.example/x',
       'https://servicio.internal/x', 'ftp://ejemplo.hn', 'no-es-url',
     ]) {
       expect(problemaDeURL(url, false), url).not.toBeNull();

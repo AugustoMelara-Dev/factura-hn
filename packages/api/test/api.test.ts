@@ -80,7 +80,7 @@ conBase('flujo completo', () => {
     expect(r.status).toBe(201);
     const doc = (await json(r)).documento;
     expect(doc).toMatchObject({ numero: '000-001-01-00000001', estado: 'EMITIDO', totales: { total: 115, isv15: 15 } });
-    expect(doc.emisor.rtn).toBe('08011999123456');
+    expect(doc.emisor.rtn).toBe('99990000000001');
 
     const pdf = await admin('GET', `/v1/documentos/${doc.numero}.pdf?formato=ticket`);
     expect(pdf.headers.get('content-type')).toBe('application/pdf');
@@ -124,11 +124,11 @@ conBase('flujo completo', () => {
     expect(bit.api.map((e: any) => e.accion)).toEqual(['tenant.creado', 'emisor.creado', 'documento.emitido', 'documento.emitido', 'exportacion']);
 
     const emisor = await json(await admin('GET', `/v1/emisores/${emisorId}`));
-    expect(emisor.rtn).toBe('08011999123456');
-    expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { rtn: '08011999000001' })).status).toBe(422);
-    expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { telefono: '2222-1111' })).status).toBe(200);
+    expect(emisor.rtn).toBe('99990000000001');
+    expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { rtn: '99990000000003' })).status).toBe(422);
+    expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { telefono: '0000-0005' })).status).toBe(200);
     // El documento ya emitido no cambia (inmutable).
-    expect((await json(await admin('GET', `/v1/documentos/${doc.numero}`))).documento.emisor.telefono).toBe('2222-0000');
+    expect((await json(await admin('GET', `/v1/documentos/${doc.numero}`))).documento.emisor.telefono).toBe('0000-0003');
   });
 
   it('reglas fiscales: 422 con la lista de errores; forma inválida: 400; sin emisor: 409', async () => {
@@ -162,10 +162,10 @@ conBase('flujo completo', () => {
 
   it('NC sobre una factura del almacén y estado de la serie', async () => {
     const { admin } = await tenantListo();
-    const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '08019005123456' }, lineas: [{ descripcion: 'Martillo', cantidad: 2, precioUnitario: '100.00' }] } })))).documento;
+    const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '99990000000002' }, lineas: [{ descripcion: 'Martillo', cantidad: 2, precioUnitario: '100.00' }] } })))).documento;
     const nc = await emitir(admin, venta('100.00', {
       documento: {
-        tipoDocumento: '06', motivo: 'Devolución', cliente: { nombre: 'Cliente', rtn: '08019005123456' },
+        tipoDocumento: '06', motivo: 'Devolución', cliente: { nombre: 'Cliente', rtn: '99990000000002' },
         referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision },
         lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' }],
       },
@@ -326,7 +326,7 @@ conBase('correcciones de la revisión de seguridad', () => {
   it('GET /v1/emisores da el id; un segundo POST responde 409 con el id', async () => {
     const { admin, emisorId } = await tenantListo();
     expect((await json(await admin('GET', '/v1/emisores'))).emisores.map((e: any) => e.id)).toEqual([emisorId]);
-    const r = await admin('POST', '/v1/emisores', { rtn: '08011999123456', razonSocial: 'x', nombreComercial: 'x', direccionCasaMatriz: 'x', direccionEstablecimiento: 'x', telefono: '1', correo: 'a@b.hn' });
+    const r = await admin('POST', '/v1/emisores', { rtn: '99990000000001', razonSocial: 'x', nombreComercial: 'x', direccionCasaMatriz: 'x', direccionEstablecimiento: 'x', telefono: '1', correo: 'a@ejemplo.example' });
     expect(r.status).toBe(409);
     expect((await json(r)).id).toBe(emisorId);
   });

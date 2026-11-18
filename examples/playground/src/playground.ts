@@ -21,13 +21,13 @@ import {
 export const CAI_FICTICIO = 'DEMO00-NO-VALIDO-0000-0000-0000-';
 
 const EMISOR = {
-  rtn: '08011999000000',
+  rtn: '99990000000000',
   razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)',
   nombreComercial: 'Pulpería Demostración',
   direccionCasaMatriz: 'Barrio El Centro, Tegucigalpa, M.D.C.',
   direccionEstablecimiento: 'Barrio El Centro, Tegucigalpa, M.D.C.',
   telefono: '0000-0000',
-  correo: 'demo@ejemplo.hn',
+  correo: 'demo@ejemplo.example',
 };
 
 /**
@@ -43,7 +43,7 @@ export const EJEMPLOS: Record<string, { titulo: string; entrada: unknown }> = {
     titulo: 'Cliente con RTN, exento y 18 %',
     entrada: {
       emisor: EMISOR,
-      cliente: { nombre: 'Ferretería Pérez S. de R.L.', rtn: '08019005123456' },
+      cliente: { nombre: 'Ferretería Pérez S. de R.L.', rtn: '99990000000002' },
       lineas: [
         { descripcion: 'Cemento 42.5 kg', cantidad: 3, precioUnitario: '213.04', isv: 'ISV15' },
         { descripcion: 'Libro de texto', cantidad: 1, precioUnitario: '350.00', isv: 'EXENTO' },

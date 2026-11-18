@@ -68,13 +68,13 @@ export async function crearLlaveOperador(
  */
 export const CAI_DEMO = 'DEMO00-NO-VALIDO-0000-0000-0000-00';
 export const EMISOR_DEMO = {
-  rtn: '08011999000000',
+  rtn: '99990000000000',
   razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)',
   nombreComercial: 'Demo factura-hn',
   direccionCasaMatriz: 'Tegucigalpa, M.D.C.',
   direccionEstablecimiento: 'Tegucigalpa, M.D.C.',
-  telefono: '2200-0000',
-  correo: 'demo@ejemplo.hn',
+  telefono: '0000-0006',
+  correo: 'demo@ejemplo.example',
 };
 
 export const TENANT_DEMO = 'demo';

@@ -15,8 +15,8 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof
 const baseEnArchivo = () => new DatabaseSync(join(mkdtempSync(join(tmpdir(), 'fhn-mcp-')), 'factura.db'));
 
 const EMISOR: Emisor = {
-  rtn: '08011999123456', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo',
-  direccionCasaMatriz: 'Tocoa, Colón', direccionEstablecimiento: 'Tocoa, Colón', telefono: '2444-0000', correo: 'v@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo',
+  direccionCasaMatriz: 'Ciudad Ejemplo', direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
 };
 const aut = (tipoDocumento: '01' | '06', cai: string) => ({
   cai, tipoDocumento, establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
@@ -41,7 +41,7 @@ async function recorrido(backend: Backend) {
   expect(herramientas.find((t) => t.name === 'libro_ventas')!.annotations?.readOnlyHint).toBe(true);
 
   const clave = randomUUID();
-  const venta = { cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' }, preciosIncluyenISV: true, lineas: [{ descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' }], idempotencyKey: clave };
+  const venta = { cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, preciosIncluyenISV: true, lineas: [{ descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' }], idempotencyKey: clave };
   const f = await llamar('emitir_factura', venta);
   expect(f.error).toBe(false);
   expect(f.texto).toMatch(/^Emitida: Factura 000-001-01-00000001 \(EMITIDO\)/);

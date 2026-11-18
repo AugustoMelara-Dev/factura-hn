@@ -32,7 +32,7 @@ await registrarAutorizacion(almacen, {
   rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: '2099-12-31',
 });
 const doc = await emitir({
-  emisor: { rtn: '08011999123456', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '2444-0000', correo: 'x@x.hn' },
+  emisor: { rtn: '99990000000001', razonSocial: 'X', nombreComercial: 'X', direccionCasaMatriz: 'X', direccionEstablecimiento: 'X', telefono: '0000-0001', correo: 'x@ejemplo.example' },
   lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '100' }],
 }, { almacen, establecimiento: '000', puntoEmision: '001' });
 const { renderizarPDF } = await import(pathToFileURL(`${raiz}packages/pdf/dist/index.js`).href);

@@ -25,9 +25,9 @@ const AUT: AutorizacionCAI = {
   rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-06-30',
 };
 const EMISOR: Emisor = {
-  rtn: '08011999123456', razonSocial: 'Inversiones Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
-  direccionCasaMatriz: 'Barrio El Centro, Tocoa', direccionEstablecimiento: 'Barrio El Centro, Tocoa',
-  telefono: '2444-0000', correo: 'ventas@ejemplo.hn',
+  rtn: '99990000000001', razonSocial: 'Inversiones Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
+  direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo', direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
+  telefono: '0000-0001', correo: 'ventas@ejemplo.example',
 };
 const entrada = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
   emisor: EMISOR,
@@ -117,7 +117,7 @@ describe('B-02 · base de crédito fiscal en ventas mixtas (Art. 11 num. 3)', ()
   });
 
   it('aviso AVISO_VENTA_MIXTA si el comprador tiene RTN (crédito fiscal)', () => {
-    const v = validarEntrada(mixta({ nombre: 'Ferretería Pérez', rtn: '08019005123456' }), AUT);
+    const v = validarEntrada(mixta({ nombre: 'Ferretería Pérez', rtn: '99990000000002' }), AUT);
     expect(v.ok).toBe(true);
     expect(v.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
     expect(v.advertencias[0]!.mensaje).toContain('L 150.00');
@@ -125,12 +125,12 @@ describe('B-02 · base de crédito fiscal en ventas mixtas (Art. 11 num. 3)', ()
 
   it('sin aviso para consumidor final o si todo es gravado', () => {
     expect(avisos(mixta(undefined))).toEqual([]);
-    expect(avisos(entrada({ cliente: { nombre: 'Ferretería Pérez', rtn: '08019005123456' } }))).toEqual([]);
+    expect(avisos(entrada({ cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' } }))).toEqual([]);
   });
 });
 
 describe('B-12 · adquirente exonerado: OCE + constancia, o registro SAG/RUPNSA (Art. 11 num. 4)', () => {
-  const cliente = { nombre: 'Agroexportadora S.A.', rtn: '08019005123456' };
+  const cliente = { nombre: 'Agroexportadora S.A.', rtn: '99990000000002' };
   it('camino 1: Orden de Compra Exenta y Constancia', () => {
     expect(codigos(entrada({ cliente, exoneracion: { ordenCompraExenta: 'OCE-1', constanciaRegistroExonerado: 'CRE-1' } }))).toEqual([]);
   });
