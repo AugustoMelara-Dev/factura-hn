@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vulnerabilidad de seguridad
+    url: https://github.com/factura-hn/factura-hn/security/advisories/new
+    about: Repórtala en privado (no en un issue público).
+  - name: Documentación
+    url: https://factura-hn.github.io/factura-hn/
+    about: Guías del SDK, la API y el autoalojamiento.
