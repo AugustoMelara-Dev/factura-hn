@@ -98,3 +98,13 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   con negrita para tipo, número y ANULADA. Un solo lugar decide qué se imprime.
 - **Alternativa:** un diseño propio de carta con tablas (más vistoso, pero una tercera copia de las reglas
   de impresión).
+
+### DEC-015 · RLS con rol propio y FORCE; migraciones una vez por versión
+- **Contexto:** las políticas RLS no aplican al dueño de las tablas ni a superusuarios; una API que se
+  conecte así no estaría aislada. Además, reaplicar DDL en cada arranque bloquea tablas y causó un deadlock
+  con emisiones concurrentes.
+- **Elegida:** `migrar({ rls: { rol } })` crea un rol NOLOGIN sin BYPASSRLS, activa RLS **forzada** con una
+  política por `tenant = current_setting('factura_hn.tenant')` (sin tenant no se ve nada) y le da permisos
+  sin DELETE. `AlmacenPostgres({ rol })` hace `SET LOCAL ROLE` en cada transacción. El DDL se registra en
+  `fhn_migraciones` y solo corre una vez por versión.
+- **Alternativa:** filtrar solo en la aplicación (`WHERE tenant = $1`): un olvido expone datos de otro negocio.

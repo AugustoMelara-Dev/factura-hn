@@ -11,4 +11,6 @@ export default defineConfig({
       { find: /^factura-hn$/, replacement: core('index.ts') },
     ],
   },
+  // Todos los archivos comparten la misma base: uno a la vez.
+  test: { fileParallelism: false },
 });

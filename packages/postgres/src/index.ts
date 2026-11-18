@@ -7,9 +7,10 @@
  * - Todo o nada: si algo falla dentro de la transacción, `ROLLBACK` y el número no se consume.
  * - La base se protege sola con disparadores: los documentos no se borran, uno emitido solo pasa a
  *   ANULADO (Art. 41) y la serie nunca retrocede.
- * - Cada fila lleva `tenant`. Cada transacción fija `factura_hn.tenant` con `set_config(…, true)`; las
- *   políticas RLS de la API alojada (Fase 2) se apoyan en ese valor. En modo local (un solo negocio) el
- *   tenant por defecto es `''`.
+ * - Cada fila lleva `tenant`. Cada transacción fija `factura_hn.tenant` con `set_config(…, true)`. Con
+ *   `migrar({ rls: { rol } })` las tablas quedan con políticas RLS por tenant (FORCE) y, con la opción
+ *   `rol`, cada transacción corre como ese rol sin BYPASSRLS: un tenant no puede leer ni escribir filas de
+ *   otro aunque una consulta olvide el filtro. En modo local (un solo negocio) el tenant es `''`.
  *
  * @example
  * import pg from 'pg';
@@ -48,9 +49,68 @@ export interface PoolPostgres {
 export interface OpcionesAlmacenPostgres {
   /** Inquilino (negocio). Por defecto `''` (instalación de un solo negocio). */
   tenant?: string;
+  /**
+   * Rol con el que corre cada transacción (`SET LOCAL ROLE`), creado por `migrar({ rls: { rol } })`.
+   * Hace falta si la conexión es dueña de las tablas o superusuario: esos roles se saltan las políticas.
+   */
+  rol?: string;
 }
 
-export const VERSION_ESQUEMA_POSTGRES = 1;
+/** Transacción de `AlmacenPostgres`: además del contrato, da acceso SQL a la misma transacción y tenant. */
+export interface TransaccionPostgres extends TransaccionFiscal {
+  readonly tenant: string;
+  /** Consulta dentro de la transacción fiscal (mismo `BEGIN`, mismo tenant y rol). */
+  consulta<F = Record<string, unknown>>(texto: string, parametros?: unknown[]): Promise<ResultadoConsulta<F>>;
+}
+
+export function esTransaccionPostgres(tx: TransaccionFiscal): tx is TransaccionPostgres {
+  return typeof (tx as Partial<TransaccionPostgres>).consulta === 'function';
+}
+
+const PATRON_ROL = /^[a-z_][a-z0-9_]{0,62}$/;
+function rolValido(rol: string): string {
+  if (!PATRON_ROL.test(rol)) throw new Error(`Nombre de rol inválido: ${rol}`);
+  return rol;
+}
+
+/** Tablas del almacén fiscal; la API agrega las suyas con `politicasRLS`. */
+export const TABLAS_FISCALES = ['fhn_series', 'fhn_autorizaciones', 'fhn_documentos', 'fhn_eventos'] as const;
+
+/**
+ * SQL idempotente que crea el rol (NOLOGIN, sin BYPASSRLS) y activa RLS forzada en `tablas`, con una
+ * política por tenant: solo se ven y se escriben filas con `tenant = current_setting('factura_hn.tenant')`.
+ * Sin tenant fijado no se ve nada (por defecto, denegar).
+ */
+export function politicasRLS(rol: string, tablas: readonly string[]): string {
+  const r = rolValido(rol);
+  const partes = [
+    `DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${r}') THEN CREATE ROLE ${r} NOLOGIN NOBYPASSRLS; END IF;
+END $$;`,
+    `DO $$ BEGIN EXECUTE format('GRANT USAGE ON SCHEMA %I TO ${r}', current_schema()); END $$;`,
+    `GRANT ${r} TO CURRENT_USER;`,
+  ];
+  for (const t of tablas) {
+    if (!/^[a-z_][a-z0-9_]*$/.test(t)) throw new Error(`Nombre de tabla inválido: ${t}`);
+    partes.push(`ALTER TABLE ${t} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${t} FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS fhn_por_tenant ON ${t};
+CREATE POLICY fhn_por_tenant ON ${t}
+  USING (tenant = current_setting('factura_hn.tenant', true))
+  WITH CHECK (tenant = current_setting('factura_hn.tenant', true));`);
+  }
+  return partes.join('\n');
+}
+
+/** Permisos del rol sobre las tablas fiscales: sin DELETE; la bitácora solo admite INSERT y SELECT. */
+function permisosFiscales(rol: string): string {
+  const r = rolValido(rol);
+  return `GRANT SELECT, INSERT, UPDATE ON fhn_series, fhn_autorizaciones, fhn_documentos TO ${r};
+GRANT SELECT, INSERT ON fhn_eventos TO ${r};
+DO $$ BEGIN EXECUTE format('GRANT USAGE ON SEQUENCE %s TO ${r}', pg_get_serial_sequence('fhn_eventos', 'id')); END $$;`;
+}
+
+export const VERSION_ESQUEMA_POSTGRES = 2;
 
 /** Esquema idempotente; `migrar()` lo aplica con un candado consultivo para no chocar entre réplicas. */
 export const ESQUEMA_POSTGRES = `
@@ -151,21 +211,40 @@ const leer = <T>(v: unknown): T => (typeof v === 'string' ? JSON.parse(v) : v) a
 
 export class AlmacenPostgres implements AlmacenFiscal {
   private readonly tenant: string;
+  private readonly rol: string | null;
 
   constructor(
     private readonly pool: PoolPostgres,
     opciones: OpcionesAlmacenPostgres = {},
   ) {
     this.tenant = opciones.tenant ?? '';
+    this.rol = opciones.rol ? rolValido(opciones.rol) : null;
   }
 
-  /** Crea o actualiza las tablas, funciones y disparadores `fhn_*`. Seguro de llamar en cada arranque. */
-  async migrar(): Promise<void> {
+  /**
+   * Crea o actualiza las tablas, funciones y disparadores `fhn_*`. Seguro de llamar en cada arranque.
+   * Con `rls`, además crea el rol y las políticas por tenant (ver `politicasRLS`).
+   */
+  async migrar(opciones: { rls?: { rol: string } } = {}): Promise<void> {
     const c = await this.pool.connect();
     try {
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock($1)', [CANDADO_MIGRACION]);
-      await c.query(ESQUEMA_POSTGRES);
+      // El DDL toma candados exclusivos sobre las tablas: se aplica una sola vez por versión, para que el
+      // arranque de una réplica no choque con las emisiones de las demás.
+      await c.query('CREATE TABLE IF NOT EXISTS fhn_migraciones (clave text PRIMARY KEY, aplicada timestamptz NOT NULL DEFAULT now())');
+      const aplicar = async (clave: string, sql: string) => {
+        const r = await c.query('SELECT 1 FROM fhn_migraciones WHERE clave = $1', [clave]);
+        if (r.rowCount) return;
+        await c.query(sql);
+        await c.query('INSERT INTO fhn_migraciones (clave) VALUES ($1)', [clave]);
+      };
+      await aplicar(`esquema-v${VERSION_ESQUEMA_POSTGRES}`, ESQUEMA_POSTGRES);
+      if (opciones.rls) {
+        const rol = rolValido(opciones.rls.rol);
+        await aplicar(`rls-${rol}-v${VERSION_ESQUEMA_POSTGRES}`, `${politicasRLS(rol, TABLAS_FISCALES)}
+${permisosFiscales(rol)}`);
+      }
       await c.query('COMMIT');
       c.release();
     } catch (e) {
@@ -177,13 +256,14 @@ export class AlmacenPostgres implements AlmacenFiscal {
 
   /** Un almacén del mismo pool para otro inquilino. */
   paraTenant(tenant: string): AlmacenPostgres {
-    return new AlmacenPostgres(this.pool, { tenant });
+    return new AlmacenPostgres(this.pool, { tenant, rol: this.rol ?? undefined });
   }
 
   async transaccion<T>(fn: (tx: TransaccionFiscal) => Promise<T>): Promise<T> {
     const c = await this.pool.connect();
     try {
       await c.query('BEGIN');
+      if (this.rol) await c.query(`SET LOCAL ROLE ${this.rol}`);
       await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [this.tenant]);
       const resultado = await fn(this.tx(c));
       await c.query('COMMIT');
@@ -199,9 +279,11 @@ export class AlmacenPostgres implements AlmacenFiscal {
     }
   }
 
-  private tx(c: ClientePostgres): TransaccionFiscal {
+  private tx(c: ClientePostgres): TransaccionPostgres {
     const t = this.tenant;
     return {
+      tenant: t,
+      consulta: <F = Record<string, unknown>>(texto: string, parametros?: unknown[]) => c.query<F>(texto, parametros),
       async bloquearSerie(id: string): Promise<EstadoSerie> {
         await c.query('INSERT INTO fhn_series (tenant, identificador) VALUES ($1, $2) ON CONFLICT DO NOTHING', [t, id]);
         const r = await c.query<{ ultimo: number | null; ultima_fecha: string | null }>(
