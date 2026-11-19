@@ -314,11 +314,12 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 
 ### DEC-041 · Nombres del repositorio y de npm
 - **Contexto:** los manifiestos, los badges y el sitio necesitan la URL del repositorio antes de que exista.
-- **Elegida:** organización `factura-hn` en GitHub y npm, repositorio `factura-hn/factura-hn`, sitio en
-  `factura-hn.github.io/factura-hn`. El 18-11-2026 el nombre de la organización en GitHub y los seis nombres de
-  paquete en npm estaban libres (consulta de solo lectura). `docs/lanzamiento.md` trae el comando para
-  cambiarlos en todo el repositorio si se eligen otros.
-- **Alternativa:** publicar bajo la cuenta personal del responsable.
+- **Elegida (cambiada por el responsable el 19-11-2026):** repositorio en la cuenta personal,
+  `AugustoMelara-Dev/factura-hn`, con el sitio en `augustomelara-dev.github.io/factura-hn`. Los paquetes siguen en
+  la organización `factura-hn` de npm. El 18-11-2026 los seis nombres de paquete estaban libres en npm
+  (consulta de solo lectura). `docs/lanzamiento.md` trae el comando para cambiar la URL en todo el repositorio.
+- **Alternativa:** una organización `factura-hn` en GitHub (se descartó: no hace falta para empezar y puede
+  transferirse después; GitHub redirige las URLs antiguas).
 
 ### DEC-042 · Publicación y sitio apagados hasta que el responsable los active
 - **Contexto:** el CI no debe publicar en npm ni desplegar sin una decisión explícita.

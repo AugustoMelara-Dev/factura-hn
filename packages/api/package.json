@@ -48,7 +48,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "url": "git+https://github.com/AugustoMelara-Dev/factura-hn.git",
     "directory": "packages/api"
   }
 }
