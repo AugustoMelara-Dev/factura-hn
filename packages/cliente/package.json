@@ -1,7 +1,7 @@
 {
   "name": "@factura-hn/cliente",
   "version": "0.2.0",
-  "description": "Cliente tipado de la API REST de factura-hn, generado desde su OpenAPI. Funciona en Node, navegador, Deno y edge.",
+  "description": "Cliente tipado de la API REST de factura-hn, generado desde su OpenAPI. Funciona en Node, navegador, Deno y edge. Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
     "sar",

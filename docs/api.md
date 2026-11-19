@@ -8,7 +8,7 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
 > **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») está
-> pendiente de la consulta P-02 al SAR (`docs/consulta-sar.md`). Mientras tanto, la recomendación es el modo local.
+> pendiente de la consulta P-02 al SAR (`docs/consulta-sar.md`), que aún no se ha enviado. Mientras tanto, la recomendación es el modo local.
 
 ## Levantarla en tu máquina
 

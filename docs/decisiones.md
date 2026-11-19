@@ -50,7 +50,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** solo `emitir` y `anular` son públicos.
 - **Alternativa:** exportarlos como «avanzados».
 
-### DEC-008 · `ultimoEmitidoAntes` para migrar series existentes
+### DEC-008 · `ultimoEmitidoAntes` para migrar series existentes · [REVISAR]
 - **Contexto:** DEC-004 acepta notas sobre «emisiones anteriores a la migración», pero sin saber qué se emitió
   fuera del sistema no se distingue un original externo de un número que nunca existió, y la serie
   reutilizaría números ya emitidos.
@@ -64,21 +64,21 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** la fecha límite (lectura conservadora: el aviso nunca queda tarde).
 - **Alternativa:** el día siguiente a la fecha límite.
 
-### DEC-010 · Sin calendario de feriados en el SDK
+### DEC-010 · Sin calendario de feriados en el SDK · [REVISAR]
 - **Contexto:** el plazo del Art. 42 es en días hábiles; los feriados de Honduras cambian por decreto
   (feriados morazánicos que se trasladan).
 - **Elegida:** solo se descuentan sábados y domingos; el integrador pasa `feriados`. Sin ellos la fecha puede
   quedar después de la real, lo que está documentado en la opción.
 - **Alternativa:** una lista fija en el código (se desactualiza sin aviso).
 
-### DEC-011 · Formatos de exportación propios (jsonl, csv, txt)
+### DEC-011 · Formatos de exportación propios (jsonl, csv, txt) · [REVISAR]
 - **Contexto:** el Art. 53 num. 5 exige generar archivos de texto, pero en las fuentes revisadas no hay un
   formato oficial (P-14).
 - **Elegida:** tres formatos abiertos y versionados (`VERSION_EXPORTACION`); los anulados conservan sus
   importes y su estado, porque el archivo refleja lo emitido.
 - **Alternativa:** exportar los anulados en cero como el libro de ventas (perdería lo emitido).
 
-### DEC-012 · El libro contable corre dentro de la transacción fiscal
+### DEC-012 · El libro contable corre dentro de la transacción fiscal · [REVISAR]
 - **Contexto:** Art. 53 num. 1 pide integrar la facturación con la contabilidad o el inventario.
 - **Elegida:** `LibroContable` síncrono con la transacción: si falla, no hay documento. Para sistemas externos
   se recomienda una cola (outbox) en la misma base.
@@ -110,7 +110,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   `fhn_migraciones` y solo corre una vez por versión.
 - **Alternativa:** filtrar solo en la aplicación (`WHERE tenant = $1`): un olvido expone datos de otro negocio.
 
-### Reglas derivadas que señaló la revisión independiente (2026-11-18)
+### Reglas derivadas que señaló la revisión interna (2026-11-18)
 
 ### DEC-016 · La Nota de Débito puede referir cualquier documento · [APROBADA 2026-11-18]
 - **Contexto:** el Art. 4 num. 31 (C L.377-379) dice que la ND está «vinculada a un Comprobante Fiscal»; el
@@ -170,7 +170,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Elegida:** validar esas longitudes (`CLIENTE_RTN`, `EMISOR_RTN`, DNI).
 - **Alternativa:** aceptar cualquier secuencia de dígitos.
 
-### DEC-025 · Aviso de renovación: dos meses de calendario
+### DEC-025 · Aviso de renovación: dos meses de calendario · [REVISAR]
 - **Contexto:** Art. 59 (C L.2263-2265): «dentro de los dos (2) meses previos». 60 días avisaba 1 a 3 días tarde.
 - **Elegida:** avisar desde la misma fecha dos meses antes (último día del mes si no existe); `diasAviso` la
   reemplaza.
@@ -251,7 +251,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Alternativa:** una imagen distinta para cada modo.
 
 ### DEC-035 · Revisión de seguridad de la Fase 2: cambios de diseño
-- **Contexto:** revisión independiente (sin hallazgos críticos ni altos; siete medios).
+- **Contexto:** revisión interna (sin hallazgos críticos ni altos; siete medios).
 - **Elegida:**
   - Autenticación: la función de búsqueda ya no escribe. El último uso se marca solo con el secreto correcto, a
     lo sumo una vez por minuto. El límite por llave se aplica antes de consultar la base.
@@ -288,7 +288,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
 - **Alternativa:** ejemplos mínimos sin idempotencia.
 
 ### DEC-039 · Revisión de la Fase 3: cambios
-- **Contexto:** revisión independiente (1 crítico, 3 altos, 5 medios, 6 bajos).
+- **Contexto:** revisión interna (1 crítico, 3 altos, 5 medios, 6 bajos).
 - **Elegida:**
   - El ejecutable del MCP carga `node:sqlite` solo en el modo SQLite; una prueba arranca el `dist`.
   - La clave de idempotencia es obligatoria en las herramientas de emisión del MCP.
@@ -343,7 +343,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   `pnpm publish`): se descartó porque la documentación de npm sobre la publicación de confianza solo cubre el
   CLI de npm.
 
-### DEC-043 · Generador propio del sitio
+### DEC-043 · Generador propio del sitio (lo reemplazará DEC-049)
 - **Contexto:** el sitio debe salir de los mismos Markdown del repositorio, sin una segunda copia.
 - **Elegida:** `scripts/sitio.mjs` con `marked` (dependencia de desarrollo). Reescribe los enlaces a páginas
   del sitio o a GitHub, genera la referencia de la API desde `openapi.json`, incrusta el playground y falla si
@@ -357,3 +357,53 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   correos `@ejemplo.example` (RFC 2606), teléfonos `0000-000x` y «Ciudad Ejemplo». `pnpm auditar:datos` lo
   verifica en el CI y busca también rutas de máquina. Las convenciones están en `CONTRIBUTING.md`.
 - **Alternativa:** confiar en la revisión manual.
+
+## Plan v1 (aprobado por el responsable el 19-11-2026)
+
+Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-v1.md`.
+
+### DEC-045 · Marca sin «SAR» en el nombre y el titular · [APROBADA 2026-11-19]
+- **Contexto:** factura-hn no es un producto oficial. «SAR» en el nombre o el titular puede leerse como
+  afiliación; en las descripciones y las palabras clave, en cambio, es lo que la gente busca.
+- **Elegida:** el nombre y el titular no llevan «SAR» («Facturación para Honduras»). Las descripciones, las
+  `keywords`, el nombre de la skill (`facturacion-sar-hn`) y los prompts lo conservan. El README, el sitio y los
+  `package.json` dicen: «Proyecto independiente, no afiliado al SAR».
+- **Alternativa:** quitar «SAR» de todas partes (se pierde en las búsquedas).
+
+### DEC-046 · Leyenda de los documentos de prueba · [APROBADA 2026-11-19]
+- **Contexto:** los impresos hechos con el CAI de demostración parecen facturas reales (prueba de los primeros 5
+  minutos, `docs/analisis/primeros-5-minutos.md`).
+- **Elegida:** todo impreso de un documento de prueba lleva la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+  Es una decisión de producto, no una regla del Reglamento: ningún artículo la exige ni la regula. Se implementa
+  en la Etapa 1 del plan.
+- **Alternativa:** sin leyenda (un documento de prueba puede confundirse con uno válido).
+
+### DEC-047 · API: respuestas uniformes y paginación por defecto · [APROBADA 2026-11-19]
+- **Contexto:** la API mezclaba objetos sueltos (`POST /v1/emisores`, `/v1/llaves`, `/v1/webhooks`) con
+  objetos envueltos (`{documento}`, `{autorizacion}`), y ninguna lista estaba paginada: `GET /v1/documentos`
+  podía devolver 366 días en una sola respuesta. Añadir paginación después es un cambio incompatible (AIP-158).
+- **Elegida:** todo recurso va envuelto con su nombre (`{emisor}`, `{documento}`, `{llave, secreto}`…), lo que
+  deja lugar a metadatos como `advertencias`. Toda lista es `{<plural>, hayMas, siguiente}`. `GET /v1/documentos`
+  y `GET /v1/bitacora` se paginan con `limite` (100 por defecto, máximo 500) y `cursor` opaco; el resto de las
+  listas son acotadas y responden siempre `hayMas: false`. Los reportes (`libro-ventas`, `exportacion`,
+  `no-utilizados`) siguen completos por período. El cliente recorre las páginas por sí solo.
+- **Alternativa:** objetos sueltos como Stripe (sin lugar para metadatos), o paginación opcional (los clientes
+  asumirían la lista completa).
+
+### DEC-048 · Montos de salida como número en lempiras · [APROBADA 2026-11-19]
+- **Contexto:** se evaluó devolver los montos como texto o con un objeto paralelo en centavos.
+- **Elegida:** los montos de salida son números JSON en lempiras con a lo sumo 2 decimales. Se calculan con
+  aritmética entera en centavos y se convierten con la representación decimal más corta, así que
+  `Math.round(monto * 100)` recupera los centavos exactos. Sumar montos en coma flotante sí puede acumular error:
+  quien los sume debe pasarlos antes a centavos. Las entradas siguen aceptando texto decimal. Está documentado
+  en `docs/api.md` y en el OpenAPI.
+- **Alternativa:** montos como texto, u objeto en centavos (cambian el JSON ya guardado y duplican datos).
+
+### DEC-049 · Sitio con Astro Starlight · [APROBADA 2026-11-19]
+- **Contexto:** el sitio necesita buscador en español, modo oscuro, una página por guía y referencia generada
+  (`docs/analisis/sitio-web.md`).
+- **Elegida:** Astro Starlight, en un paquete privado del workspace, desplegado en GitHub Pages. Reemplaza a
+  DEC-043 cuando se implemente (Etapa 2). Conserva lo del generador propio: los mismos Markdown como fuente, la
+  reescritura de enlaces, el playground y la verificación de enlaces y anclas.
+- **Alternativa:** VitePress (interfaz y buscador sin español), Fumadocs (pierde sus ventajas en Pages) o
+  seguir con el generador propio (sin buscador).

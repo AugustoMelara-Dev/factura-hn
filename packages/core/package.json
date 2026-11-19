@@ -1,7 +1,7 @@
 {
   "name": "factura-hn",
   "version": "0.2.0",
-  "description": "Facturación SAR Honduras (Acuerdo 481-2017): numeración, control de CAI y rangos, cálculo de ISV 15%/18%, montos en letras, validación y render imprimible. Sin dependencias. Lista para usar con agentes de IA.",
+  "description": "Facturación SAR Honduras (Acuerdo 481-2017): numeración, control de CAI y rangos, cálculo de ISV 15%/18%, montos en letras, validación y render imprimible. Sin dependencias. Lista para usar con agentes de IA. Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
     "sar",

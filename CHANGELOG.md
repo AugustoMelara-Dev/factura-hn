@@ -71,7 +71,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
 - CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
 - `docs/consulta-sar.md`: consulta formal con las preguntas abiertas.
-- Revisión independiente de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
+- Revisión interna de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
   sale duplicado en notas.
@@ -126,8 +126,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   góndola que no requieren ajuste), `baseDesdePrecioConISV`.
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
-- Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública con procedencia firmada
-  (`provenance`) y `LICENSE` dentro de cada paquete. `@factura-hn/pdf` se publica junto con los demás.
+- Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública y `LICENSE` dentro de cada
+  paquete. La 0.2.0 se publica sin procedencia; las versiones que publique la CI la llevan firmada (DEC-042). `@factura-hn/pdf` se publica junto con los demás.
 - Guía rápida del SDK (`docs/guia-sdk.md`, con sus ejemplos compilados en las pruebas) y guía de
   autoalojamiento con Docker (`docs/autoalojamiento.md`).
 - Sitio de documentación en español para GitHub Pages (`pnpm sitio`): inicio, SDK, API con referencia generada

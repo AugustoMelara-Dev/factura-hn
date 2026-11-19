@@ -50,7 +50,7 @@ pnpm sitio && git commit -am "chore: datos del repositorio para el lanzamiento"
 ```bash
 gh auth login
 gh repo create AugustoMelara-Dev/factura-hn --public \
-  --description "Facturación SAR Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP" \
+  --description "Facturación SAR Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP. Proyecto independiente, no afiliado al SAR." \
   --homepage "https://augustomelara-dev.github.io/factura-hn/" \
   --source . --remote origin
 git push -u origin main

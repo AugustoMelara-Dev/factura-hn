@@ -30,7 +30,7 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | 11 @factura-hn/pdf | d0608e4 |
 | 12 build ESM+CJS, matriz con prueba por fila, 0.2.0 | 70bfd5b |
 | Postgres: RLS real y migraciones por versión | 9646887 |
-| Correcciones de la revisión independiente de la matriz | 511aafd |
+| Correcciones de la revisión interna de la matriz | 511aafd |
 | Ajustes aprobados: DEC-013, DEC-018, DEC-019; consulta al SAR | c70529e |
 
 ## Hecho (Fase 2)
@@ -52,13 +52,13 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 | Prompts SDK/API en README, AGENTS.md, llms.txt y skill, con prueba | f92d204 |
 | Claves de idempotencia del MCP en SQLite; DEC-036 a DEC-038 | 2587741 |
 | Pruebas de Postgres en su propia base | 97e2272 |
-| Correcciones de la revisión independiente de la Fase 3 (DEC-039) | 148960a |
+| Correcciones de la revisión interna de la Fase 3 (DEC-039) | 148960a |
 | Operador en la bitácora (DEC-031 aprobada con cambios); MCP solo SQLite en archivo y `server-only` (DEC-040) | d9d446c |
 | Datos de ejemplo ficticios y `auditar:datos` | 3884adb |
 
 ## Hecho (Fase 4, preparación del lanzamiento)
 
-- Paquetes listos para npm (procedencia, LICENSE, `verificar:dist`).
+- Paquetes listos para npm (LICENSE, `verificar:dist`; procedencia desde las versiones que publique la CI).
 - CI (Node 22 y 24, Postgres como servicio, imagen Docker).
 - Release con changesets y Pages, apagados por variable (DEC-041 a DEC-044).
 - Archivos de comunidad y plantillas.
