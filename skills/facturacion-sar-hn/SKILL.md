@@ -45,7 +45,7 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 3. Emite en el servidor con `crearCliente({ url, llave })` y `fhn.emitir(solicitud, { idempotencyKey })`, con
    una clave estable por venta y una llave de caja que nunca llegue al navegador.
 4. Muestra los errores del 422 tal cual; guarda el número y reimprime con `fhn.descargar(numero, 'pdf')`.
-5. Si registras webhooks, verifica la firma con `verificarFirmaWebhook(cuerpo, cabecera, secreto)` sobre el
+5. Si registras webhooks, verifica la firma con `await verificarFirmaWebhook(cuerpo, cabecera, secreto)` sobre el
    cuerpo crudo y descarta repetidos por `id`.
 
 ## Reglas

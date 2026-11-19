@@ -89,6 +89,6 @@ describe('anularDocumento (Art. 41)', () => {
     const anulado = anularDocumento(emitir(), { motivo: 'x' });
     const fila = filaLibroVentas(anulado);
     expect(fila).toMatchObject({ numero: '000-001-01-00000007', anulado: true, total: 0, isv15: 0 });
-    expect(libroVentasCSV([fila])).toContain(',SI\n');
+    expect(libroVentasCSV([fila])).toContain(',SI,HNL,,0.00\n');
   });
 });

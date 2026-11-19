@@ -14,3 +14,29 @@ export function crearPool(
   pool.on('error', (e) => registrar(`PostgreSQL cerró una conexión inactiva (${e.message}). Se abrirá otra en la siguiente consulta.`));
   return pool;
 }
+
+/** Errores de una base que aún no acepta conexiones (arrancando, reiniciándose o sin red todavía). */
+const NO_DISPONIBLE = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|the database system is (starting up|shutting down|in recovery mode)|Connection terminated/i;
+
+/**
+ * Espera a que la base acepte conexiones, con reintentos crecientes hasta `esperaMaxMs`. Al arrancar junto con
+ * Postgres (por ejemplo, tras reiniciar Docker o el equipo), la API espera en lugar de terminar y reiniciarse
+ * en bucle. Un error que no sea de disponibilidad (contraseña, base inexistente) se lanza de inmediato.
+ */
+export async function esperarBase(
+  pool: pg.Pool,
+  { esperaMaxMs = 60_000, registrar = (m: string) => console.error(m) }: { esperaMaxMs?: number; registrar?: (m: string) => void } = {},
+): Promise<void> {
+  const limite = Date.now() + esperaMaxMs;
+  for (let intento = 1, pausa = 250; ; intento++, pausa = Math.min(pausa * 2, 5_000)) {
+    try {
+      await pool.query('SELECT 1');
+      return;
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : String(e);
+      if (!NO_DISPONIBLE.test(mensaje) || Date.now() + pausa > limite) throw e;
+      if (intento === 1 || intento % 5 === 0) registrar(`Esperando a PostgreSQL (${mensaje})…`);
+      await new Promise((r) => setTimeout(r, pausa));
+    }
+  }
+}

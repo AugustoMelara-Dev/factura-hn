@@ -11,7 +11,7 @@ import { serve } from '@hono/node-server';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { iniciarLocal } from './operador';
-import { crearPool } from './pool';
+import { crearPool, esperarBase } from './pool';
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
 export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ cerrar: () => Promise<void> }> {
@@ -26,6 +26,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const pool = crearPool(url, Number(env.FHN_POOL ?? 20));
 
+  await esperarBase(pool);
   await migrarApi(pool, rol);
   if (modo === 'local') {
     const r = await iniciarLocal(pool, { demo: env.FHN_DEMO === '1', rol });
@@ -48,17 +49,11 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);
 
-  let ocupado = false;
-  const intervalo = setInterval(async () => {
-    if (ocupado) return;
-    ocupado = true;
-    try {
-      await despacharWebhooks({ pool, rol, cofre, permitirRedInterna: modo === 'local' });
-    } catch (e) {
-      console.error('Despacho de webhooks', e);
-    } finally {
-      ocupado = false;
-    }
+  // Cada 5 s, sin esperar a la pasada anterior: los tenants que siguen entregando se omiten (enCurso), así que
+  // un receptor lento solo retrasa los avisos de su propio tenant.
+  const enCurso = new Set<string>();
+  const intervalo = setInterval(() => {
+    despacharWebhooks({ pool, rol, cofre, permitirRedInterna: modo === 'local', enCurso }).catch((e) => console.error('Despacho de webhooks', e));
   }, 5000);
 
   return {

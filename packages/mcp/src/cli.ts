@@ -10,10 +10,10 @@
  * con el SDK o la API: el servidor MCP no registra CAI.
  * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora (DEC-031).
  */
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BackendApi, BackendLocal, type Backend } from './backend';
+import { leerEmisor } from './emisor';
 import { crearServidorMCP } from './servidor';
 
 function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
@@ -34,7 +34,7 @@ function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
     return new BackendLocal({
       db,
       operador: env.FHN_OPERADOR || undefined,
-      emisor: JSON.parse(readFileSync(env.FHN_EMISOR, 'utf8')),
+      emisor: leerEmisor(env.FHN_EMISOR),
       establecimiento: env.FHN_ESTABLECIMIENTO ?? '000',
       puntoEmision: env.FHN_PUNTO ?? '001',
     });

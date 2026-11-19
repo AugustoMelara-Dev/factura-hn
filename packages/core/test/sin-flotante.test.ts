@@ -97,7 +97,7 @@ describe('casos que un flotante resolvería mal', () => {
   it('el resumen y el CSV suman en centavos exactos', () => {
     const fila = (total: number): FilaLibroVentas => ({
       fecha: '2026-11-18', tipoDocumento: 'Factura', numero: '000-001-01-00000001', cai: 'X', clienteNombre: 'C',
-      clienteRTN: '', importeExonerado: 0, importeExento: total, importeGravado0: 0, importeGravado15: 0, importeGravado18: 0,
+      clienteRTN: '', moneda: 'HNL', tipoCambio: null, totalMonedaOriginal: total, importeExonerado: 0, importeExento: total, importeGravado0: 0, importeGravado15: 0, importeGravado18: 0,
       isv15: 0, isv18: 0, total, anulado: false,
     });
     const filas = Array.from({ length: 10 }, () => fila(0.1));

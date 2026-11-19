@@ -50,6 +50,17 @@ await registrarAutorizacion(almacen, {
   rangoFinal: 5000,
   fechaLimiteEmision: '2027-06-30', // la fecha límite de la resolución
 });
+
+// Si vas a emitir notas de crédito, registra también la autorización de la serie 06.
+await registrarAutorizacion(almacen, {
+  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06',
+  tipoDocumento: '06',
+  establecimiento: '000',
+  puntoEmision: '001',
+  rangoInicial: 1,
+  rangoFinal: 500,
+  fechaLimiteEmision: '2027-06-30',
+});
 ```
 
 Cada tipo de documento y cada punto de emisión tiene su propia autorización y su propia serie. Los datos
@@ -119,22 +130,45 @@ Reimprime siempre desde el documento guardado: es idéntico al original (Art. 38
 
 ## 6. Anula o corrige
 
-Un documento emitido no se borra ni se edita. Si tuvo un error, se anula (Art. 41) y el número sigue
-consumido. Para devolver o descontar parte de una venta, emite una Nota de Crédito.
+Un documento emitido no se borra ni se edita. Hay dos caminos, según el caso:
+
+- **El documento tuvo un error** (cantidad, cliente, precio): se anula (Art. 41) y se emite uno nuevo. El
+  número anulado sigue consumido.
+- **La venta fue correcta y luego hay una devolución o un descuento**: se emite una Nota de Crédito sobre el
+  documento, que debe estar vigente (no anulado) y tener el RTN del cliente (Art. 26 num. 1-2).
 
 <!-- declaraciones:
-import type { AlmacenFiscal, DocumentoFiscal, Emisor } from 'factura-hn';
+import type { AlmacenFiscal } from 'factura-hn';
 declare const almacen: AlmacenFiscal;
-declare const emisor: Emisor;
-declare const original: DocumentoFiscal;
 -->
 ```ts
-import { anular, emitir } from 'factura-hn';
+import { anular } from 'factura-hn';
 
+// Anular: la factura del paso 4 tenía un error en la cantidad.
 await anular('000-001-01-00000001', { almacen, motivo: 'Error en la cantidad', actor: 'supervisor' });
+```
 
-// Nota de Crédito (06): requiere su propia autorización registrada y el RTN del cliente.
-await emitir(
+<!-- declaraciones:
+import type { AlmacenFiscal, Emisor } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const emisor: Emisor;
+-->
+```ts
+import { emitir } from 'factura-hn';
+
+// Una venta a un cliente con RTN…
+const original = await emitir(
+  {
+    emisor,
+    cliente: { nombre: 'Constructora Ejemplo S. A.', rtn: '99990000000002' },
+    preciosIncluyenISV: true,
+    lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '2', precioUnitario: '89.50' }],
+  },
+  { almacen, establecimiento: '000', puntoEmision: '001', operador: 'María' },
+);
+
+// …y su Nota de Crédito (06) por la devolución de 1 unidad. La serie 06 requiere su propia autorización.
+const nota = await emitir(
   {
     tipoDocumento: '06',
     emisor,
@@ -144,9 +178,13 @@ await emitir(
     preciosIncluyenISV: original.preciosIncluyenISV,
     lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '89.50' }],
   },
-  { almacen, establecimiento: '000', puntoEmision: '001' },
+  { almacen, establecimiento: '000', puntoEmision: '001', operador: 'María' },
 );
+console.log(nota.numero, nota.advertencias); // 000-001-06-00000001 []
 ```
+
+Si la nota supera el total del original o usa otra tasa de ISV, se emite con `AVISO_NOTA_SUPERA_ORIGINAL` o
+`AVISO_NOTA_TASA_DISTINTA` (DEC-051): revisa el importe antes de entregarla.
 
 ## 7. Libro de ventas
 
@@ -158,7 +196,7 @@ declare const almacen: AlmacenFiscal;
 import { filaLibroVentas, libroVentasCSV } from 'factura-hn';
 
 const docs = await almacen.transaccion((tx) => tx.documentos({ desde: '2026-11-01', hasta: '2026-11-30' }));
-const csv = libroVentasCSV(docs.map(filaLibroVentas)); // los anulados salen con su número y montos en cero
+const csv = libroVentasCSV(docs.map(filaLibroVentas)); // en lempiras; los anulados salen con su número y montos en cero
 ```
 
 ## Con un agente de IA

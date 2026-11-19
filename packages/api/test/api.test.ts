@@ -176,6 +176,32 @@ conBase('flujo completo', () => {
     expect(nc.status).toBe(201);
     expect((await json(nc)).documento.numero).toBe('000-001-06-00000001');
   });
+
+  it('DEC-051: una caja no emite una NC que supera el original o no se puede verificar; una admin sí, y el número no se pierde', async () => {
+    const { app, admin } = await tenantListo();
+    const caja = cliente(app, await crearCaja(admin, '001'));
+    const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '99990000000002' }, lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' }] } })))).documento;
+    const notaDe = (cantidad: number, numero = f.numero) => venta('100.00', {
+      documento: {
+        tipoDocumento: '06', motivo: 'Devolución', cliente: { nombre: 'Cliente', rtn: '99990000000002' },
+        referencia: { cai: f.cai, numero, fecha: f.fechaEmision },
+        lineas: [{ descripcion: 'Martillo', cantidad, precioUnitario: '100.00' }],
+      },
+    });
+    // L 1,150 sobre una factura de L 115, y sobre un número que no está en el sistema: 403 para la caja.
+    for (const cuerpo of [notaDe(10), notaDe(1, '000-001-01-99999999')]) {
+      const r = await emitir(caja, cuerpo);
+      expect(r.status).toBe(403);
+      expect((await json(r)).error.codigo).toBe('SOLO_ADMIN');
+    }
+    // Una NC normal sí la emite la caja, y es la primera de la serie: los intentos rechazados no tomaron número.
+    const normal = await emitir(caja, notaDe(1));
+    expect(normal.status).toBe(201);
+    expect((await json(normal)).documento.numero).toBe('000-001-06-00000001');
+    // La admin puede emitir la que supera el original; queda con el aviso.
+    const grande = await json(await emitir(admin, notaDe(10)));
+    expect(grande.documento.advertencias.map((p: any) => p.codigo)).toContain('AVISO_NOTA_SUPERA_ORIGINAL');
+  });
 });
 
 conBase('idempotencia', () => {

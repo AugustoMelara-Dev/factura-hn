@@ -20,7 +20,8 @@ import { AlmacenPostgres, esTransaccionPostgres, type TransaccionPostgres } from
 export const EVENTOS_WEBHOOK = ['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'] as const;
 export type EventoWebhook = (typeof EVENTOS_WEBHOOK)[number];
 
-export const MAX_INTENTOS = 8;
+/** 12 intentos: entre el primero y el último pasan unas 14 h y media (cubre un receptor caído una noche). */
+export const MAX_INTENTOS = 12;
 /** Espera antes del intento n (n ≥ 1): 30 s, 1 min, 2 min, … hasta 6 h. */
 export function esperaReintento(intentos: number): number {
   return Math.min(30 * 2 ** (intentos - 1), 6 * 3600) * 1000;
@@ -172,7 +173,11 @@ function lookupSeguro(host: string, opciones: object, cb: (e: Error | null, dir:
   });
 }
 
-/** POST sin seguir redirecciones; en modo alojado, conectando solo a direcciones públicas validadas. */
+/**
+ * POST sin seguir redirecciones; en modo alojado, conectando solo a direcciones públicas validadas.
+ * `tiempoMaximo` es el tope de TODA la entrega (conexión, envío y cabeceras de la respuesta), no de inactividad:
+ * un receptor que responde byte a byte no la alarga. El cuerpo de la respuesta no se lee.
+ */
 function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: string, tiempoMaximo: number, permitirRedInterna: boolean): Promise<number> {
   return new Promise((resolver, rechazar) => {
     const u = new URL(url);
@@ -186,12 +191,18 @@ function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: stri
         ...(permitirRedInterna ? {} : { lookup: lookupSeguro as never }),
       },
       (res) => {
-        res.resume();
+        clearTimeout(tope);
+        res.destroy();
         resolver(res.statusCode ?? 0);
       },
     );
-    req.on('timeout', () => req.destroy(Object.assign(new Error('Tiempo agotado'), { name: 'TimeoutError' })));
-    req.on('error', rechazar);
+    const agotado = () => req.destroy(Object.assign(new Error('Tiempo agotado'), { name: 'TimeoutError' }));
+    const tope = setTimeout(agotado, tiempoMaximo);
+    req.on('timeout', agotado);
+    req.on('error', (e) => {
+      clearTimeout(tope);
+      rechazar(e);
+    });
     req.end(cuerpo);
   });
 }
@@ -229,6 +240,11 @@ export interface OpcionesDespacho {
   /** Entregas simultáneas por tenant. */
   paralelas?: number;
   ahora?: () => Date;
+  /**
+   * Tenants con un despacho en curso. Si se pasa, se omiten y se marcan mientras se atienden: el servidor llama
+   * cada pocos segundos sin esperar a la pasada anterior, y un receptor lento solo retrasa a su propio tenant.
+   */
+  enCurso?: Set<string>;
 }
 
 interface Reclamada { id: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string }
@@ -245,53 +261,63 @@ export async function despacharWebhooks(o: OpcionesDespacho): Promise<number> {
   const tenants = await base.transaccion(async (tx) =>
     (await comoTransaccionPostgres(tx).consulta<{ t: string }>('SELECT fhn_api_tenants_con_pendientes() AS t')).rows.map((f) => f.t),
   );
+  const libres = o.enCurso ? tenants.filter((t) => !o.enCurso!.has(t)) : tenants;
+  for (const t of libres) o.enCurso?.add(t);
   const porTenant = await Promise.all(
-    tenants.map(async (tenant) => {
-      const almacen = base.paraTenant(tenant);
-      const reclamadas = await almacen.transaccion(async (t) => {
-        const tx = comoTransaccionPostgres(t);
-        // Lo pendiente de un webhook desactivado ya no se entrega.
-        await tx.consulta(
-          `UPDATE api_entregas e SET estado = 'FALLIDA', ultimo_error = 'Webhook desactivado'
-             FROM api_webhooks w WHERE w.id = e.webhook_id AND e.tenant = $1 AND e.estado = 'PENDIENTE' AND NOT w.activo`,
-          [tenant],
-        );
-        const r = await tx.consulta<Reclamada>(
-          `SELECT e.id, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
-             FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
-            WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
-            ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
-          [tenant, o.lote ?? 20],
-        );
-        if (r.rows.length) {
-          await tx.consulta("UPDATE api_entregas SET proximo = now() + interval '5 minutes' WHERE id = ANY($1::bigint[])", [r.rows.map((e) => e.id)]);
-        }
-        return r.rows;
-      });
-      const resultados: { e: Reclamada; ok: boolean; codigo: number | null; error: string | null }[] = [];
-      const cola = [...reclamadas];
-      await Promise.all(
-        Array.from({ length: Math.min(o.paralelas ?? 4, cola.length) }, async () => {
-          for (let e = cola.shift(); e; e = cola.shift()) resultados.push({ e, ...(await entregar(o, e)) });
-        }),
-      );
-      if (resultados.length) {
-        await almacen.transaccion(async (t) => {
-          const tx = comoTransaccionPostgres(t);
-          for (const { e, ok, codigo, error } of resultados) {
-            const intentos = e.intentos + 1;
-            const estado = ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
-            await tx.consulta(
-              'UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6 WHERE id = $1',
-              [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error],
-            );
-          }
-        });
+    libres.map(async (tenant) => {
+      try {
+        return await despacharTenant(o, base, tenant, ahora);
+      } finally {
+        o.enCurso?.delete(tenant);
       }
-      return resultados.length;
     }),
   );
   return porTenant.reduce((a, b) => a + b, 0);
+}
+
+async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenant: string, ahora: () => Date): Promise<number> {
+  const almacen = base.paraTenant(tenant);
+  const reclamadas = await almacen.transaccion(async (t) => {
+    const tx = comoTransaccionPostgres(t);
+    // Lo pendiente de un webhook desactivado ya no se entrega.
+    await tx.consulta(
+      `UPDATE api_entregas e SET estado = 'FALLIDA', ultimo_error = 'Webhook desactivado'
+         FROM api_webhooks w WHERE w.id = e.webhook_id AND e.tenant = $1 AND e.estado = 'PENDIENTE' AND NOT w.activo`,
+      [tenant],
+    );
+    const r = await tx.consulta<Reclamada>(
+      `SELECT e.id, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
+         FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
+        WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
+        ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
+      [tenant, o.lote ?? 20],
+    );
+    if (r.rows.length) {
+      await tx.consulta("UPDATE api_entregas SET proximo = now() + interval '5 minutes' WHERE id = ANY($1::bigint[])", [r.rows.map((e) => e.id)]);
+    }
+    return r.rows;
+  });
+  const resultados: { e: Reclamada; ok: boolean; codigo: number | null; error: string | null }[] = [];
+  const cola = [...reclamadas];
+  await Promise.all(
+    Array.from({ length: Math.min(o.paralelas ?? 4, cola.length) }, async () => {
+      for (let e = cola.shift(); e; e = cola.shift()) resultados.push({ e, ...(await entregar(o, e)) });
+    }),
+  );
+  if (resultados.length) {
+    await almacen.transaccion(async (t) => {
+      const tx = comoTransaccionPostgres(t);
+      for (const { e, ok, codigo, error } of resultados) {
+        const intentos = e.intentos + 1;
+        const estado = ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
+        await tx.consulta(
+          'UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6 WHERE id = $1',
+          [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error],
+        );
+      }
+    });
+  }
+  return resultados.length;
 }
 
 async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolean; codigo: number | null; error: string | null }> {

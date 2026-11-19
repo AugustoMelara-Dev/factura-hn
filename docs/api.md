@@ -24,7 +24,15 @@ Al primer arranque se crean dos tenants:
 - `demo` (por `FHN_DEMO=1`): emisor «NEGOCIO DE DEMOSTRACIÓN» y **CAI ficticio** (`DEMO00-NO-VALIDO-…`), sin
   validez fiscal, con una llave de caja 000-001 lista para probar. Pon `FHN_DEMO: "0"` para no crearlo.
 
-Si perdiste una llave: `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"`.
+La llave de caja del demo y la admin de `local` salen **una sola vez** en el log del primer arranque
+(`docker compose logs api`). Si las perdiste, crea otras (las anteriores siguen activas hasta que las revoques):
+
+```sh
+docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"
+docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001
+```
+
+Con `docker-compose.dev.yml` agrega `-f docker-compose.yml -f docker-compose.dev.yml` después de `docker compose`.
 Para desarrollo, `docker-compose.dev.yml` publica Postgres en 127.0.0.1:54329 (sin contraseña: no lo uses en
 el equipo de un negocio).
 
@@ -92,6 +100,7 @@ documento lleva «Atendido por: …». El operador no cambia la huella de idempo
 |---|:-:|:-:|
 | Emitir, consultar documentos, PDF/HTML/TXT, libro de ventas, autorizaciones y su estado, emisor | ✅ | ✅ |
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
+| Nota de crédito que supera el original, cambia la tasa o modifica un documento que no está en el sistema (DEC-051) | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
 
 Una llave de caja siempre está atada a un establecimiento y punto de emisión: emite solo ahí (otro punto da
@@ -160,15 +169,18 @@ documento se anuló después, consulta `GET /v1/documentos/{numero}` para ver su
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
-y un despachador los entrega cada 5 s: hasta 8 intentos con espera creciente (30 s, 1 min, 2 min, … 6 h).
-Cada entrega se reclama en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant: un
-receptor lento no frena a los demás. Lo pendiente de un webhook desactivado no se entrega.
+y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (30 s, 1 min, 2 min, … 4 h 16 min,
+6 h), unas 14 h y media entre el primero y el último. Después la entrega queda `FALLIDA`. Cada entrega se reclama
+en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
+máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
+webhook desactivado no se entrega.
 
 ```ts
-import { verificarFirmaWebhook } from '@factura-hn/api';
-// Express: app.post('/hook', express.raw({ type: 'application/json' }), (req, res) => { … })
+import { verificarFirmaWebhook } from '@factura-hn/cliente'; // npm install @factura-hn/cliente
+// Express: app.post('/hook', express.raw({ type: 'application/json' }), async (req, res) => { … })
 const cuerpo = req.body.toString('utf8'); // crudo, antes de JSON.parse
-if (!verificarFirmaWebhook(cuerpo, req.header('x-facturahn-firma'), process.env.SECRETO_WEBHOOK)) return res.sendStatus(400);
+// verificarFirmaWebhook devuelve una promesa: sin `await` el `if` nunca rechaza.
+if (!(await verificarFirmaWebhook(cuerpo, req.header('x-facturahn-firma'), process.env.FHN_SECRETO_WEBHOOK!))) return res.sendStatus(400);
 const evento = JSON.parse(cuerpo); // { id, evento, creado, datos }
 // Usa X-FacturaHN-Entrega (= evento.id) para descartar duplicados.
 ```

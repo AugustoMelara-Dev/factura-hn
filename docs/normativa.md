@@ -35,7 +35,7 @@
 | Importes exonerado, exento, gravado 0 % y gravado por tasa; ISV discriminado por tasa (Art. 11 num. 1 g-i) | `calcularDocumento` |
 | Exportaciones con tasa cero (Art. 12) | `isv: 'GRAVADO0'`, `totales.importeGravado0` |
 | Crédito fiscal: en ventas mixtas solo cuentan las gravadas (Art. 11 num. 3) | `totales.baseCreditoFiscal`, `AVISO_VENTA_MIXTA` |
-| Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41) | `REFERENCIA_*` en `emitir` |
+| Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41): tipo, CAI, número, fecha, RTN, estado, moneda y tipo de cambio. El importe y la tasa solo avisan (DEC-051 [REVISAR]) | `REFERENCIA_*` en `emitir`; `AVISO_NOTA_SUPERA_ORIGINAL`, `AVISO_NOTA_TASA_DISTINTA` |
 | Tipos que un sistema no puede emitir: 04, 09, 10, 12 (Arts. 4 num. 43, 46, 47) | `TIPO_NO_EMITIBLE` |
 | Importe total en número y letras, moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |
@@ -43,11 +43,13 @@
 | Notas: nombre y RTN del adquirente; moneda nacional (Arts. 26 y 28) | `NOTA_CLIENTE_RTN`, `NOTA_MONEDA` |
 | Nota de Crédito: nombre, identidad y firma de quien la recibe (Art. 26 num. 7) | render (campos en blanco) |
 
-## Fuera de alcance en v0.1
+## Fuera de alcance
 
-- Recibo por honorarios (04), comprobante de retención (05), guía de remisión (08), ticket (09),
-  factura prevalorada (10), boleta de compra (11) y constancia de donación (12).
-  La numeración sí los soporta; falta su cálculo y render.
+- **No se pueden emitir por sistema computarizado**, y el SDK los rechaza con `TIPO_NO_EMITIBLE`: recibo por
+  honorarios (04), ticket (09, solo máquina registradora), factura prevalorada (10) y constancia de donación (12)
+  (Arts. 4 num. 43, 46 y 47).
+- **Emitibles, pero aún no soportados:** comprobante de retención (05), guía de remisión (08) y boleta de compra
+  (11). La numeración los reconoce; falta su cálculo y render.
 - Envío de archivos al SAR y declaración SAR-222 (hay `libroVentasCSV` y `resumenVentas` como apoyo).
 - Validación del dígito verificador del RTN y consulta en línea de RTN/CAI.
 

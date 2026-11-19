@@ -16,3 +16,6 @@ packages/cliente/AGENTS.md
 dist-docker
 sitio/
 packages/core/test/.generado/
+examples/nextjs/AGENTS.md
+pos.db
+pos.db-*

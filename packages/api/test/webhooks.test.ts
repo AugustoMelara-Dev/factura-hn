@@ -43,6 +43,10 @@ describe('firma HMAC', () => {
   it('reintentos con espera creciente hasta 6 horas', () => {
     expect([1, 2, 3, 8].map(esperaReintento)).toEqual([30_000, 60_000, 120_000, 3_840_000]);
     expect(esperaReintento(20)).toBe(6 * 3600 * 1000);
+    // Entre el primer intento y el último (FALLIDA) pasan unas 14 h y media: un receptor caído una noche no pierde el aviso.
+    let total = 0;
+    for (let n = 1; n < MAX_INTENTOS; n++) total += esperaReintento(n);
+    expect(total / 3_600_000).toBeCloseTo(14.525, 2);
   });
 });
 
@@ -73,7 +77,9 @@ describe.skipIf(!URL_PG)('entregas', () => {
   it('emitir y anular encolan avisos firmados; el receptor los verifica; los fallos se reintentan hasta FALLIDA', async () => {
     const { admin, tenant } = await tenantListo();
     const pool = await poolPrueba();
-    const alta = await admin('POST', '/v1/webhooks', { url: 'http://127.0.0.1:9/hook', eventos: ['documento.emitido', 'documento.anulado'] });
+    // URL propia de esta prueba: el despachador también entrega lo pendiente de otros tenants de la base.
+    const urlHook = `http://127.0.0.1:9/hook-${randomUUID()}`;
+    const alta = await admin('POST', '/v1/webhooks', { url: urlHook, eventos: ['documento.emitido', 'documento.anulado'] });
     expect(alta.status).toBe(201);
     const { secreto, webhook: { id } } = (await alta.json()) as { secreto: string; webhook: { id: string } };
     expect(secreto).toMatch(/^whsec_/);
@@ -83,20 +89,20 @@ describe.skipIf(!URL_PG)('entregas', () => {
     // Una emisión rechazada no encola nada.
     await admin('POST', '/v1/documentos', venta('-1'), { 'idempotency-key': randomUUID() });
 
-    const recibidas: { cuerpo: string; cabeceras: Headers }[] = [];
+    const recibidas: { url: string; cuerpo: string; cabeceras: Headers }[] = [];
     let ahoraMs = Date.now();
     const correr = (estado: number) =>
       despacharWebhooks({
         pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, ahora: () => new Date(ahoraMs),
-        fetch: (async (_url: string, init: RequestInit) => {
-          recibidas.push({ cuerpo: String(init.body), cabeceras: new Headers(init.headers) });
+        fetch: (async (url: string, init: RequestInit) => {
+          recibidas.push({ url: String(url), cuerpo: String(init.body), cabeceras: new Headers(init.headers) });
           return new Response(null, { status: estado });
         }) as unknown as typeof fetch,
       });
 
     // Primer intento: el receptor responde 500.
     expect(await correr(500)).toBeGreaterThanOrEqual(2);
-    const deEste = () => recibidas.filter((r) => JSON.parse(r.cuerpo).datos.numero === doc.numero);
+    const deEste = () => recibidas.filter((r) => r.url === urlHook && JSON.parse(r.cuerpo).datos.numero === doc.numero);
     expect(deEste().map((r) => r.cabeceras.get('x-facturahn-evento'))).toEqual(['documento.emitido', 'documento.anulado']);
     for (const r of deEste()) {
       expect(verificarFirmaWebhook(r.cuerpo, r.cabeceras.get('x-facturahn-firma'), secreto)).toBe(true);
@@ -187,6 +193,64 @@ describe.skipIf(!URL_PG)('entregas', () => {
       expect(e.rows).toEqual([{ estado: 'ENTREGADA', ultimo_codigo: 200 }]);
     } finally {
       srv.close();
+    }
+  });
+
+  it('un receptor que responde byte a byte no pasa del tiempo máximo ni retrasa a otro tenant', async () => {
+    const http = await import('node:http');
+    // Receptor lento: responde una cabecera válida de a un byte cada 50 ms, sin terminarla nunca.
+    const sockets = new Set<import('node:net').Socket>();
+    const lento = http.createServer();
+    lento.on('connection', (s) => {
+      sockets.add(s);
+      s.write('HTTP/1.1 200 OK\r\nX-Goteo: ');
+      const goteo = setInterval(() => s.writable && s.write('a'), 50);
+      s.on('close', () => clearInterval(goteo));
+    });
+    let rapidoRecibio = 0;
+    const rapido = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        rapidoRecibio++;
+        res.end('ok');
+      });
+    });
+    await Promise.all([lento, rapido].map((srv) => new Promise<void>((r) => srv.listen(0, '127.0.0.1', r))));
+    try {
+      const puerto = (srv: typeof lento) => (srv.address() as { port: number }).port;
+      const a = await tenantListo();
+      const b = await tenantListo();
+      const pool = await poolPrueba();
+      await a.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto(lento)}/hook`, eventos: ['documento.emitido'] });
+      await b.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto(rapido)}/hook`, eventos: ['documento.emitido'] });
+      await a.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+      await b.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+
+      // Tope total por entrega: con 300 ms, la entrega lenta termina en «Tiempo agotado» poco después.
+      const enCurso = new Set<string>();
+      const inicio = Date.now();
+      const pasada = despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso });
+      // Mientras el tenant lento está en curso, otra pasada lo omite y atiende al otro.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(enCurso.has(a.tenant)).toBe(true);
+      await pasada;
+      expect(Date.now() - inicio).toBeLessThan(2_000);
+      expect(enCurso.size).toBe(0);
+      const estado = async (t: string) => (await pool.query('SELECT estado, ultimo_error FROM api_entregas WHERE tenant = $1', [t])).rows;
+      expect(await estado(a.tenant)).toEqual([{ estado: 'PENDIENTE', ultimo_error: 'Tiempo agotado' }]);
+      expect(await estado(b.tenant)).toEqual([{ estado: 'ENTREGADA', ultimo_error: null }]);
+      expect(rapidoRecibio).toBe(1);
+
+      // Un tenant marcado como en curso no se despacha en otra pasada.
+      await b.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+      const ocupado = new Set([b.tenant]);
+      await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso: ocupado });
+      expect(rapidoRecibio).toBe(1);
+      expect(ocupado).toEqual(new Set([b.tenant]));
+    } finally {
+      for (const s of sockets) s.destroy();
+      lento.close();
+      rapido.close();
     }
   });
 
