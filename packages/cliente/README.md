@@ -2,7 +2,7 @@
 
 Cliente tipado de la API REST de factura-hn (ver `docs/api.md`). Los tipos se generan desde
 `packages/api/openapi.json`; una prueba falla si quedan desactualizados. Sin dependencias pesadas
-(`openapi-fetch`): Node 18+, navegador, Deno y edge.
+(`openapi-fetch`): Node 20+, navegador, Deno y edge.
 
 ```ts
 import { crearCliente, ErrorFacturaHN } from '@factura-hn/cliente';

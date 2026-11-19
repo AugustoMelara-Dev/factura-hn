@@ -23,6 +23,9 @@ npm install factura-hn
 
 ## En 30 segundos
 
+Usa `await` de nivel superior: guárdalo como `factura.mjs` o `.ts`, o pon `"type": "module"` en tu
+`package.json`. El paquete también funciona con `require` (CommonJS) dentro de una función `async`.
+
 ```ts
 import { AlmacenFiscalMemoria, emitir, fechaHonduras, registrarAutorizacion, renderizarHTML } from 'factura-hn';
 
@@ -192,6 +195,7 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 - `AlmacenFiscal` (interfaz) · `AlmacenFiscalMemoria` (pruebas y demos)
 - `@factura-hn/postgres` (`AlmacenPostgres`) · `@factura-hn/sqlite` (`AlmacenSQLite`)
 - `@factura-hn/pdf` (`renderizarPDF(doc, { formato: 'carta' | 'ticket' })`): PDF sin navegador
+  (`npm install @factura-hn/pdf`)
 - `factura-hn/pruebas`: `ejecutarContratoAlmacen` para validar tu propio adaptador
 
 ### Autorizaciones
@@ -239,12 +243,22 @@ especificación OpenAPI e incluye `verificarFirmaWebhook` (Web Crypto: Node, edg
 Para que un agente de IA (Claude Desktop, Claude Code, Cursor) emita, consulte y anule:
 [`@factura-hn/mcp`](packages/mcp/README.md), con las herramientas `emitir_factura`, `emitir_nota_credito`,
 `consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o con el SDK local
-sobre SQLite. Aún no está en npm: mientras tanto, `node packages/mcp/dist/cli.js` en lugar de `npx` (ver su
-README). No apruebes automáticamente `anular_documento` en tu cliente MCP.
+sobre SQLite. No apruebes automáticamente `anular_documento` en tu cliente MCP.
+
+Vía la API (con Docker, ver [Autoalojamiento](docs/autoalojamiento.md)):
 
 ```json
 { "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
+```
+
+Sin Docker, con SQLite en este equipo (Node 22.13+). Antes, crea `emisor.json` y registra el CAI como explica
+[el README del MCP](packages/mcp/README.md#vía-el-sdk-local-sqlite-en-este-equipo):
+
+```json
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],
+  "env": { "FHN_SQLITE": "C:/negocio/factura.db", "FHN_EMISOR": "C:/negocio/emisor.json",
+           "FHN_ESTABLECIMIENTO": "000", "FHN_PUNTO": "001" } } } }
 ```
 
 ## Ejemplos

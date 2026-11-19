@@ -43,6 +43,10 @@ describe('firma HMAC', () => {
   it('reintentos con espera creciente hasta 6 horas', () => {
     expect([1, 2, 3, 8].map(esperaReintento)).toEqual([30_000, 60_000, 120_000, 3_840_000]);
     expect(esperaReintento(20)).toBe(6 * 3600 * 1000);
+    // Entre el primer intento y el último (FALLIDA) pasan unas 14 h y media: un receptor caído una noche no pierde el aviso.
+    let total = 0;
+    for (let n = 1; n < MAX_INTENTOS; n++) total += esperaReintento(n);
+    expect(total / 3_600_000).toBeCloseTo(14.525, 2);
   });
 });
 
@@ -73,7 +77,9 @@ describe.skipIf(!URL_PG)('entregas', () => {
   it('emitir y anular encolan avisos firmados; el receptor los verifica; los fallos se reintentan hasta FALLIDA', async () => {
     const { admin, tenant } = await tenantListo();
     const pool = await poolPrueba();
-    const alta = await admin('POST', '/v1/webhooks', { url: 'http://127.0.0.1:9/hook', eventos: ['documento.emitido', 'documento.anulado'] });
+    // URL propia de esta prueba: el despachador también entrega lo pendiente de otros tenants de la base.
+    const urlHook = `http://127.0.0.1:9/hook-${randomUUID()}`;
+    const alta = await admin('POST', '/v1/webhooks', { url: urlHook, eventos: ['documento.emitido', 'documento.anulado'] });
     expect(alta.status).toBe(201);
     const { secreto, webhook: { id } } = (await alta.json()) as { secreto: string; webhook: { id: string } };
     expect(secreto).toMatch(/^whsec_/);
@@ -83,20 +89,20 @@ describe.skipIf(!URL_PG)('entregas', () => {
     // Una emisión rechazada no encola nada.
     await admin('POST', '/v1/documentos', venta('-1'), { 'idempotency-key': randomUUID() });
 
-    const recibidas: { cuerpo: string; cabeceras: Headers }[] = [];
+    const recibidas: { url: string; cuerpo: string; cabeceras: Headers }[] = [];
     let ahoraMs = Date.now();
     const correr = (estado: number) =>
       despacharWebhooks({
         pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, ahora: () => new Date(ahoraMs),
-        fetch: (async (_url: string, init: RequestInit) => {
-          recibidas.push({ cuerpo: String(init.body), cabeceras: new Headers(init.headers) });
+        fetch: (async (url: string, init: RequestInit) => {
+          recibidas.push({ url: String(url), cuerpo: String(init.body), cabeceras: new Headers(init.headers) });
           return new Response(null, { status: estado });
         }) as unknown as typeof fetch,
       });
 
     // Primer intento: el receptor responde 500.
     expect(await correr(500)).toBeGreaterThanOrEqual(2);
-    const deEste = () => recibidas.filter((r) => JSON.parse(r.cuerpo).datos.numero === doc.numero);
+    const deEste = () => recibidas.filter((r) => r.url === urlHook && JSON.parse(r.cuerpo).datos.numero === doc.numero);
     expect(deEste().map((r) => r.cabeceras.get('x-facturahn-evento'))).toEqual(['documento.emitido', 'documento.anulado']);
     for (const r of deEste()) {
       expect(verificarFirmaWebhook(r.cuerpo, r.cabeceras.get('x-facturahn-firma'), secreto)).toBe(true);

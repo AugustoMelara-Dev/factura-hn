@@ -20,7 +20,8 @@ import { AlmacenPostgres, esTransaccionPostgres, type TransaccionPostgres } from
 export const EVENTOS_WEBHOOK = ['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'] as const;
 export type EventoWebhook = (typeof EVENTOS_WEBHOOK)[number];
 
-export const MAX_INTENTOS = 8;
+/** 12 intentos: entre el primero y el último pasan unas 14 h y media (cubre un receptor caído una noche). */
+export const MAX_INTENTOS = 12;
 /** Espera antes del intento n (n ≥ 1): 30 s, 1 min, 2 min, … hasta 6 h. */
 export function esperaReintento(intentos: number): number {
   return Math.min(30 * 2 ** (intentos - 1), 6 * 3600) * 1000;

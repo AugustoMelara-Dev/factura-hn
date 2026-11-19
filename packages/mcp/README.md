@@ -25,8 +25,7 @@ que el agente se los muestre al usuario tal cual.
 
 ## Configuración
 
-`@factura-hn/mcp` aún no está publicado en npm. Mientras tanto, compílalo (`pnpm --filter @factura-hn/mcp build`)
-y usa `"command": "node", "args": ["<ruta al repo>/packages/mcp/dist/cli.js"]` en lugar de `npx`.
+Dos modos: contra la API de factura-hn (con Docker) o con el SDK local sobre un archivo SQLite (sin Docker).
 
 ### Vía la API
 
@@ -37,8 +36,9 @@ y usa `"command": "node", "args": ["<ruta al repo>/packages/mcp/dist/cli.js"]` e
 } } }
 ```
 
-Con una llave de caja, el agente emite y consulta pero no anula (403): usa una llave admin solo si quieres
-que pueda anular.
+Con una llave de caja, el agente emite y consulta pero no anula (403), ni emite una nota de crédito que supere
+su original, cambie la tasa o modifique un documento que no está en el sistema (403 `SOLO_ADMIN`, DEC-051).
+Usa una llave admin solo si quieres que pueda hacerlo.
 
 En ambos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el agente: queda en la bitácora junto a
 la llave (DEC-031). Las herramientas de emitir y anular aceptan además `operador` (si el usuario dice quién
@@ -54,8 +54,47 @@ atiende) e `imprimirOperador` para imprimir «Atendido por» en el documento.
 } } }
 ```
 
-`emisor.json` lleva los datos del emisor (RTN, razón social, nombre comercial, direcciones, teléfono y
-correo). Las claves de idempotencia se guardan en la misma base (tabla `mcp_claves`), en la transacción de
-cada emisión: un reintento del agente, aun después de reiniciar el servidor, devuelve la misma factura. Las autorizaciones se registran antes con el SDK (`registrarAutorizacion`) o la API: el servidor MCP
-no registra CAI. `FHN_SQLITE` debe ser un archivo: no hay modo en memoria (se perderían documentos y
-números consumidos). El modo SQLite requiere Node 22.13+ (`node:sqlite` sin bandera); el modo API, Node 20+.
+Requiere Node 22.13+ (el modo SQLite usa `node:sqlite` sin bandera). `FHN_SQLITE` debe ser
+un archivo: no hay modo en memoria (se perderían documentos y números consumidos). Antes de arrancar:
+
+**1. `emisor.json`** con los datos del emisor (Art. 10 num. 1). El servidor lo valida al arrancar y dice qué
+falta:
+
+```json
+{
+  "rtn": "99990000000001",
+  "razonSocial": "Comercial Ejemplo S. de R.L.",
+  "nombreComercial": "Tienda Ejemplo",
+  "direccionCasaMatriz": "Barrio Centro, Tegucigalpa",
+  "direccionEstablecimiento": "Barrio Centro, Tegucigalpa",
+  "telefono": "0000-0000",
+  "correo": "ventas@ejemplo.example"
+}
+```
+
+**2. El CAI de tu resolución**, registrado en la misma base. El servidor MCP no registra CAI: hazlo una vez con
+el SDK. En una carpeta con `"type": "module"` en `package.json`, `npm install factura-hn @factura-hn/sqlite` y
+este `registrar-cai.mjs` (cambia los datos por los de tu resolución):
+
+```js
+import { DatabaseSync } from 'node:sqlite';
+import { registrarAutorizacion } from 'factura-hn';
+import { AlmacenSQLite } from '@factura-hn/sqlite';
+
+const db = new DatabaseSync('C:/negocio/factura.db'); // el mismo archivo de FHN_SQLITE
+await registrarAutorizacion(new AlmacenSQLite(db), {
+  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
+  tipoDocumento: '01', // 06 para notas de crédito: registra también su CAI
+  establecimiento: '000',
+  puntoEmision: '001',
+  rangoInicial: 1,
+  rangoFinal: 5000,
+  fechaLimiteEmision: '2027-06-30',
+});
+db.close();
+console.log('CAI registrado');
+```
+
+`node registrar-cai.mjs`. Las claves de idempotencia se guardan en la misma base (tabla `mcp_claves`), en la
+transacción de cada emisión: un reintento del agente, aun después de reiniciar el servidor, devuelve la misma
+factura.

@@ -178,3 +178,35 @@ describe('documentación para agentes', () => {
     }
   });
 });
+
+it('la guía del SDK, seguida en orden (pasos 3 a 6), corre sin errores', async () => {
+  const texto = readFileSync(join(RAIZ, 'docs/guia-sdk.md'), 'utf8');
+  const inicio = texto.split('\n').findIndex((l) => l.startsWith('## 3.')) + 1;
+  const fin = texto.split('\n').findIndex((l) => l.startsWith('## 7.')) + 1;
+  const bloques = fragmentosTS('docs/guia-sdk.md').filter((f) => f.linea > inicio && f.linea < fin);
+  expect(bloques.length).toBeGreaterThanOrEqual(4);
+  // Un solo módulo: sin las declaraciones (`declare …`) ni los import de cada bloque; el almacén es en memoria y el
+  // PDF se omite (es otro paquete). El catch del paso 4 relanza lo que no es ErrorValidacion; un ErrorValidacion
+  // impreso con console.error haría fallar la comprobación de abajo.
+  const cuerpo = bloques
+    .map((b) => b.codigo.split('\n').filter((l) => !/^\s*(import |declare |export \{\};)/.test(l)).join('\n'))
+    .join('\n')
+    .replace(/await renderizarPDF\([^)]*\)/g, 'null');
+  const errores: unknown[] = [];
+  const codigo = [
+    "import { AlmacenFiscalMemoria, anular, buscarDocumento, emitir, ErrorValidacion, registrarAutorizacion, renderizarHTML, renderizarTexto } from '../../src/index';",
+    'const almacen = new AlmacenFiscalMemoria();',
+    'const console = { log: () => {}, error: (...a: unknown[]) => (globalThis as any).__erroresGuia.push(a) };',
+    cuerpo,
+    'export { almacen, nota };',
+  ].join('\n');
+  (globalThis as any).__erroresGuia = errores;
+  const dir = join(__dirname, '.generado');
+  mkdirSync(dir, { recursive: true });
+  const ruta = join(dir, 'guia-sdk-pasos.ts');
+  writeFileSync(ruta, codigo);
+  const { nota } = (await import(ruta)) as { nota: DocumentoFiscal };
+  expect(errores).toEqual([]);
+  expect(nota.numero).toBe('000-001-06-00000001');
+  expect(nota.advertencias).toEqual([]);
+});

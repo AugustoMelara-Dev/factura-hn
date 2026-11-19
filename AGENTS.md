@@ -36,7 +36,8 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
    solo para pruebas.
 4. **Números inmutables.** Un número emitido no se borra ni se reutiliza. Si algo falla después de emitir (la
    impresión, el pago), anula el documento con `anular`. Una factura emitida se corrige con Nota de Crédito
-   (`tipoDocumento: '06'`) o de Débito (`'07'`).
+   (`tipoDocumento: '06'`) o de Débito (`'07'`). Si la nota supera el total del original o usa otra tasa de ISV,
+   sale con `AVISO_NOTA_SUPERA_ORIGINAL` o `AVISO_NOTA_TASA_DISTINTA`: muéstralo antes de entregarla (DEC-051).
 5. **Server-side.** La emisión corre en el servidor (API route, server action, servicio local del POS). El
    cliente solo envía el carrito. Las credenciales de la base nunca van al navegador.
 6. **Cobra `totales.total`, no la suma de precios.** Con `preciosIncluyenISV: true` el total puede quedar
@@ -260,7 +261,9 @@ La API aplica las mismas reglas que el SDK; tu código solo arma la solicitud y 
 Referencia completa: `docs/api.md`.
 
 1. La llave va **solo en el servidor** (variables de entorno). Usa una llave de **caja**, atada a su punto de
-   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks.
+   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks. Una nota de crédito que
+   supera su original, cambia la tasa o modifica un documento que no está en el sistema da 403 `SOLO_ADMIN` con
+   llave de caja (DEC-051): muestra el mensaje y pide que la emita un supervisor.
 2. **`Idempotency-Key` estable por venta** (el id del pedido o de la venta, nunca un valor nuevo por intento):
    si la respuesta se pierde y reintentas, recibes la misma factura.
 3. **422 = reglas fiscales.** Muestra `errores[].mensaje` tal cual. Una solicitud rechazada no consume número

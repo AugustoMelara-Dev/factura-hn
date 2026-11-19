@@ -169,15 +169,18 @@ documento se anuló después, consulta `GET /v1/documentos/{numero}` para ver su
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
-y un despachador los entrega cada 5 s: hasta 8 intentos con espera creciente (30 s, 1 min, 2 min, … 6 h).
-Cada entrega se reclama en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant: un
-receptor lento no frena a los demás. Lo pendiente de un webhook desactivado no se entrega.
+y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (30 s, 1 min, 2 min, … 4 h 16 min,
+6 h), unas 14 h y media entre el primero y el último. Después la entrega queda `FALLIDA`. Cada entrega se reclama
+en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
+máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
+webhook desactivado no se entrega.
 
 ```ts
-import { verificarFirmaWebhook } from '@factura-hn/api';
-// Express: app.post('/hook', express.raw({ type: 'application/json' }), (req, res) => { … })
+import { verificarFirmaWebhook } from '@factura-hn/cliente'; // npm install @factura-hn/cliente
+// Express: app.post('/hook', express.raw({ type: 'application/json' }), async (req, res) => { … })
 const cuerpo = req.body.toString('utf8'); // crudo, antes de JSON.parse
-if (!verificarFirmaWebhook(cuerpo, req.header('x-facturahn-firma'), process.env.SECRETO_WEBHOOK)) return res.sendStatus(400);
+// verificarFirmaWebhook devuelve una promesa: sin `await` el `if` nunca rechaza.
+if (!(await verificarFirmaWebhook(cuerpo, req.header('x-facturahn-firma'), process.env.FHN_SECRETO_WEBHOOK!))) return res.sendStatus(400);
 const evento = JSON.parse(cuerpo); // { id, evento, creado, datos }
 // Usa X-FacturaHN-Entrega (= evento.id) para descartar duplicados.
 ```
