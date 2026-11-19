@@ -407,3 +407,16 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
   reescritura de enlaces, el playground y la verificación de enlaces y anclas.
 - **Alternativa:** VitePress (interfaz y buscador sin español), Fumadocs (pierde sus ventajas en Pages) o
   seguir con el generador propio (sin buscador).
+
+### DEC-050 · El libro de ventas va en lempiras · [REVISAR]
+- **Contexto:** la revisión fiscal de la 0.2.0 encontró que `filaLibroVentas` y `resumenVentas` sumaban los
+  importes de un documento en dólares como si fueran lempiras (L 100 + USD 100 a 24.70 daban ISV 30 en lugar de
+  385.50). El ISV se declara y se paga en lempiras. El repositorio no tiene una norma que fije el formato del libro
+  ni cómo convertir.
+- **Elegida:** los importes de la fila van en lempiras. Un documento en moneda extranjera se convierte con el
+  tipo de cambio que el propio documento imprime (Art. 11, párrafo final: tasa vigente a la fecha), campo por
+  campo, redondeando a centavos con la regla del Art. 9 de la Ley del ISV. La fila agrega `moneda`, `tipoCambio`
+  y `totalMonedaOriginal`, y el CSV, las columnas «Moneda», «Tipo de cambio» y «Total en moneda original». Por
+  convertir cada campo por separado, la suma de las partes puede diferir del total en 1 centavo.
+- **Alternativa:** convertir solo la base y recalcular el ISV en lempiras (otro redondeo), o un libro por
+  moneda. Va en la consulta al SAR junto con P-14.

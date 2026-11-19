@@ -36,6 +36,9 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   constancia, o solo `registroSAG` (RUPNSA).
 - `filaLibroVentas(doc)` ya no recibe `{ anulado }`: el estado sale del documento. El CSV del libro agrega la
   columna «Gravado 0%».
+- **Libro de ventas en lempiras (DEC-050).** `filaLibroVentas` convierte los documentos en moneda extranjera con
+  su tipo de cambio y agrega `moneda`, `tipoCambio` y `totalMonedaOriginal`. El CSV suma tres columnas al final.
+  Antes `resumenVentas` sumaba dólares como lempiras.
 - `TIPO_NO_EMITIBLE` (en lugar de `TIPO_NO_SOPORTADO`) para 04, 09, 10 y 12, también al registrar la
   autorización (B-15, Arts. 4 num. 43, 46 y 47).
 

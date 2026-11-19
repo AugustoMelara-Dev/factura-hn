@@ -158,7 +158,7 @@ declare const almacen: AlmacenFiscal;
 import { filaLibroVentas, libroVentasCSV } from 'factura-hn';
 
 const docs = await almacen.transaccion((tx) => tx.documentos({ desde: '2026-11-01', hasta: '2026-11-30' }));
-const csv = libroVentasCSV(docs.map(filaLibroVentas)); // los anulados salen con su número y montos en cero
+const csv = libroVentasCSV(docs.map(filaLibroVentas)); // en lempiras; los anulados salen con su número y montos en cero
 ```
 
 ## Con un agente de IA
