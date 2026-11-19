@@ -2,7 +2,7 @@
 
 Todo lo que se podía preparar sin publicar nada ya está en el repositorio:
 - CI;
-- release con changesets y procedencia;
+- workflow de release con changesets, listo para publicar con procedencia firmada (OIDC) cuando se active `PUBLICAR_NPM`;
 - sitio de documentación;
 - archivos de comunidad;
 - auditoría de datos.

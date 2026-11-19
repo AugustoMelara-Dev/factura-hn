@@ -4,8 +4,9 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Estado
 
-- **Rama:** `main` (fases 1 a 4 fusionadas localmente; nada publicado ni empujado).
-- **Fase actual:** 4, lanzamiento: preparado, esperando al responsable (`docs/lanzamiento.md`).
+- **Rama:** `etapa-0` (sobre `main`, que está en GitHub; nada publicado en npm).
+- **Fase actual:** plan v1 (`docs/plan-v1.md`, aprobado el 19-11-2026). Etapa 0 cerrada; sigue publicar la
+  0.2.0 (lo hace el responsable) y después la Etapa 1.
 - **Reglas de trabajo:** lotes por fase; decisiones en `docs/decisiones.md` ([REVISAR] si cambian la
   interpretación fiscal); Docker solo para `docker-compose.yml` de factura-hn; pedir permiso para npm, push,
   despliegues, cuentas, instalaciones globales, contenedores ajenos y licencia.
@@ -67,13 +68,28 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 - Repositorio público `AugustoMelara-Dev/factura-hn`, con `main` protegida y el CI en verde en GitHub.
 - Publicación en npm con OIDC, sin tokens (`scripts/publicar.mjs`, DEC-042).
 
+## Hecho (plan v1, Etapa 0)
+
+- Coma decimal: `"89,50"` da `ErrorMonto` (antes, 8950). La coma solo separa miles en grupos de 3.
+- API: 400 `CUERPO_NO_UTF8`; el pool de Postgres sobrevive a un reinicio; `restart: unless-stopped`.
+- Paquete: de `docs/` solo los documentos de `DOCS_PUBLICOS`; `verificar-dist` falla si se cuela otro.
+- El ejemplo del README calcula la fecha límite del CAI y la CI lo ejecuta tal cual con el reloj real.
+- Marca sin «SAR» en el nombre y el titular; «Proyecto independiente, no afiliado al SAR» (DEC-045).
+- Afirmaciones exactas: la consulta al SAR no se ha enviado y trae las 14 preguntas; la 0.2.0 sale sin
+  procedencia; «revisión interna», no independiente.
+- API: recursos envueltos, listas `{ <plural>, hayMas, siguiente }`, documentos y bitácora paginados (DEC-047);
+  precisión de los montos documentada (DEC-048).
+- Decisiones del plan: DEC-045 a DEC-049.
+
 ## Sigue
 
-0. Plan v1 (`docs/plan-v1.md`, con los informes de `docs/analisis/`): pendiente de aprobación del responsable.
+0. Fusionar `etapa-0` en `main` (con permiso del responsable).
 1. El responsable publica la 0.2.0 desde su máquina, configura la publicación de confianza de los seis
    paquetes y activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` (`docs/lanzamiento.md`, pasos 4 a 6). Nada de eso lo hace
    el agente sin permiso.
-2. Enviar `docs/consulta-sar.md` y archivar las respuestas.
+2. El responsable envía `docs/consulta-sar.md` (14 preguntas; aún no se ha enviado) y se archivan las
+   respuestas.
+3. Plan v1: Etapa 1, luego 2 y 3. La Etapa 4 queda fuera por ahora.
 
 ## Cómo correr
 
