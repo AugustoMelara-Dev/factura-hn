@@ -49,17 +49,11 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);
 
-  let ocupado = false;
-  const intervalo = setInterval(async () => {
-    if (ocupado) return;
-    ocupado = true;
-    try {
-      await despacharWebhooks({ pool, rol, cofre, permitirRedInterna: modo === 'local' });
-    } catch (e) {
-      console.error('Despacho de webhooks', e);
-    } finally {
-      ocupado = false;
-    }
+  // Cada 5 s, sin esperar a la pasada anterior: los tenants que siguen entregando se omiten (enCurso), así que
+  // un receptor lento solo retrasa los avisos de su propio tenant.
+  const enCurso = new Set<string>();
+  const intervalo = setInterval(() => {
+    despacharWebhooks({ pool, rol, cofre, permitirRedInterna: modo === 'local', enCurso }).catch((e) => console.error('Despacho de webhooks', e));
   }, 5000);
 
   return {

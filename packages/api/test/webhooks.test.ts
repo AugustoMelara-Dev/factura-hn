@@ -190,6 +190,64 @@ describe.skipIf(!URL_PG)('entregas', () => {
     }
   });
 
+  it('un receptor que responde byte a byte no pasa del tiempo máximo ni retrasa a otro tenant', async () => {
+    const http = await import('node:http');
+    // Receptor lento: responde una cabecera válida de a un byte cada 50 ms, sin terminarla nunca.
+    const sockets = new Set<import('node:net').Socket>();
+    const lento = http.createServer();
+    lento.on('connection', (s) => {
+      sockets.add(s);
+      s.write('HTTP/1.1 200 OK\r\nX-Goteo: ');
+      const goteo = setInterval(() => s.writable && s.write('a'), 50);
+      s.on('close', () => clearInterval(goteo));
+    });
+    let rapidoRecibio = 0;
+    const rapido = http.createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        rapidoRecibio++;
+        res.end('ok');
+      });
+    });
+    await Promise.all([lento, rapido].map((srv) => new Promise<void>((r) => srv.listen(0, '127.0.0.1', r))));
+    try {
+      const puerto = (srv: typeof lento) => (srv.address() as { port: number }).port;
+      const a = await tenantListo();
+      const b = await tenantListo();
+      const pool = await poolPrueba();
+      await a.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto(lento)}/hook`, eventos: ['documento.emitido'] });
+      await b.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto(rapido)}/hook`, eventos: ['documento.emitido'] });
+      await a.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+      await b.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+
+      // Tope total por entrega: con 300 ms, la entrega lenta termina en «Tiempo agotado» poco después.
+      const enCurso = new Set<string>();
+      const inicio = Date.now();
+      const pasada = despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso });
+      // Mientras el tenant lento está en curso, otra pasada lo omite y atiende al otro.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(enCurso.has(a.tenant)).toBe(true);
+      await pasada;
+      expect(Date.now() - inicio).toBeLessThan(2_000);
+      expect(enCurso.size).toBe(0);
+      const estado = async (t: string) => (await pool.query('SELECT estado, ultimo_error FROM api_entregas WHERE tenant = $1', [t])).rows;
+      expect(await estado(a.tenant)).toEqual([{ estado: 'PENDIENTE', ultimo_error: 'Tiempo agotado' }]);
+      expect(await estado(b.tenant)).toEqual([{ estado: 'ENTREGADA', ultimo_error: null }]);
+      expect(rapidoRecibio).toBe(1);
+
+      // Un tenant marcado como en curso no se despacha en otra pasada.
+      await b.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+      const ocupado = new Set([b.tenant]);
+      await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso: ocupado });
+      expect(rapidoRecibio).toBe(1);
+      expect(ocupado).toEqual(new Set([b.tenant]));
+    } finally {
+      for (const s of sockets) s.destroy();
+      lento.close();
+      rapido.close();
+    }
+  });
+
   it('modo alojado: rechaza registrar un webhook hacia la red interna', async () => {
     const { admin } = await tenantListo({ modo: 'alojado' });
     const r = await admin('POST', '/v1/webhooks', { url: 'https://169.254.169.254/latest/meta-data', eventos: ['documento.emitido'] });
