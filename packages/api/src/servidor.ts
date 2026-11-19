@@ -11,7 +11,7 @@ import { serve } from '@hono/node-server';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { iniciarLocal } from './operador';
-import { crearPool } from './pool';
+import { crearPool, esperarBase } from './pool';
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
 export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ cerrar: () => Promise<void> }> {
@@ -26,6 +26,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const pool = crearPool(url, Number(env.FHN_POOL ?? 20));
 
+  await esperarBase(pool);
   await migrarApi(pool, rol);
   if (modo === 'local') {
     const r = await iniciarLocal(pool, { demo: env.FHN_DEMO === '1', rol });
