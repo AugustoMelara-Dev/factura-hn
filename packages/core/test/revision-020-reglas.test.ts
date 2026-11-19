@@ -22,9 +22,9 @@ const codigos = (e: DocumentoEntrada) => validarEntrada(e, AUT).errores.map((p) 
 
 describe('identificación del cliente (Art. 11)', () => {
   it('párrafo final: sobre el umbral, la identificación sin nombre no basta (M02)', () => {
-    const sinNombre = base({ cliente: { identificacion: { tipo: 'DNI', numero: '0801199912345' } } });
+    const sinNombre = base({ cliente: { identificacion: { tipo: 'DNI', numero: '9999000000001' } } });
     expect(codigos(sinNombre)).toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
-    const completo = base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '0801199912345' } } });
+    const completo = base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } } });
     expect(codigos(completo)).not.toContain('CONSUMIDOR_FINAL_IDENTIFICACION');
   });
 
@@ -34,22 +34,22 @@ describe('identificación del cliente (Art. 11)', () => {
   });
 
   it('DEC-024: el DNI tiene 13 dígitos (M66)', () => {
-    for (const numero of ['123', '08011999123', '08011999123456']) {
+    for (const numero of ['123', '08011999123', '99990000000011']) {
       expect(codigos(base({ cliente: { nombre: 'Ana', identificacion: { tipo: 'DNI', numero } } }))).toContain('CLIENTE_DNI');
     }
   });
 
   it('párrafo final: el tipo y número de identificación se imprimen en HTML y texto (M35)', () => {
-    const doc = construirDocumento(base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '0801199912345' } } }), AUT, 1);
+    const doc = construirDocumento(base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } } }), AUT, 1);
     for (const salida of [renderizarHTML(doc), renderizarTexto(doc)]) {
       expect(salida).toContain('Ana Ejemplo');
-      expect(salida).toMatch(/DNI: 0801-?1999-?12345/);
+      expect(salida).toMatch(/DNI: 9999-?0000-?00001/);
     }
   });
 });
 
 describe('datos impresos en el HTML', () => {
-  const doc = construirDocumento(base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '0801199912345' } } }), AUT, 1);
+  const doc = construirDocumento(base({ cliente: { nombre: 'Ana Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } } }), AUT, 1);
   const html = renderizarHTML(doc);
 
   it('Art. 10 num. 1 d-f: dirección del establecimiento, teléfono y correo del emisor (M31-M33)', () => {
