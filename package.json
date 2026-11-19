@@ -21,7 +21,7 @@
     "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start",
     "auditar:datos": "node scripts/auditar-datos.mjs",
     "changeset": "changeset",
-    "release": "pnpm build && node scripts/verificar-dist.mjs && changeset publish",
+    "release": "pnpm build && node scripts/verificar-dist.mjs && node scripts/publicar.mjs",
     "sitio": "pnpm playground && node scripts/sitio.mjs"
   },
   "devDependencies": {

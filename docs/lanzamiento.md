@@ -56,7 +56,7 @@ gh repo create AugustoMelara-Dev/factura-hn --public \
 git push -u origin main
 ```
 
-El primer push corre el CI (pestaña Actions). Release y Sitio quedan apagados hasta los pasos 5 y 6.
+El primer push corre el CI (pestaña Actions). Release y Sitio quedan apagados hasta el paso 6.
 
 Ajustes recomendados:
 
@@ -97,55 +97,72 @@ JSON
 
    Si `factura-hn` (sin scope) está ocupado, avísame antes de seguir: hay que renombrar el paquete del núcleo.
 
-## 4. Token de npm en GitHub
+## 4. Primera publicación (0.2.0), desde tu máquina
 
-1. Crea un **token granular** en <https://www.npmjs.com/settings/~/tokens/granular-access-tokens/new>:
-   - nombre `github-factura-hn`, vencimiento de 90 días;
-   - permisos de paquetes: **Read and write**; para la primera publicación, «All packages» (los paquetes aún
-     no existen);
-   - organizaciones: `factura-hn`, **Read only**.
-2. Guárdalo en un entorno protegido del repositorio. El flujo usa el entorno `npm`; con revisor obligatorio,
-   cada publicación espera tu aprobación:
+La publicación de confianza (trusted publishing, OIDC) se configura en la página de cada paquete en npmjs.com,
+y esa página solo existe después de la primera publicación. Por eso la 0.2.0 sale de tu máquina, con tu
+código 2FA. Esa versión no lleva procedencia firmada (solo la firma la CI); las siguientes, sí.
 
-   ```bash
-   R=AugustoMelara-Dev/factura-hn
-   gh api -X PUT repos/$R/environments/npm --input - <<JSON
-   { "reviewers": [ { "type": "User", "id": $(gh api user --jq .id) } ] }
-   JSON
-   gh secret set NPM_TOKEN --env npm --repo $R     # pega el token cuando lo pida (no queda en el historial)
-   ```
-
-Después de la primera publicación, cambia el token por uno limitado a los seis paquetes. Mejor aún, configura
-la publicación de confianza (trusted publishing, OIDC) de cada paquete en npmjs.com y borra el token.
-
-## 5. Primera publicación (0.2.0)
-
-Los paquetes ya están en 0.2.0 y el `CHANGELOG.md` describe la versión. No hace falta un changeset: el flujo
-Release publica lo que aún no está en npm.
+Los paquetes ya están en 0.2.0 y el `CHANGELOG.md` describe la versión. `scripts/publicar.mjs` empaqueta cada
+paquete con `pnpm pack` (cambia `workspace:` por versiones) y lo sube con `npm publish`, en orden de
+dependencias: `factura-hn`, `@factura-hn/pdf`, `@factura-hn/postgres`, `@factura-hn/sqlite`,
+`@factura-hn/cliente`, `@factura-hn/mcp`. Lo que ya está en npm se salta: si el código 2FA vence a medias,
+vuelve a correrlo con un código nuevo.
 
 ```bash
-R=AugustoMelara-Dev/factura-hn
-pnpm -r --filter "./packages/*" publish --dry-run --no-git-checks   # ensayo local: no publica (la API es privada y se omite)
-gh variable set PUBLICAR_NPM --body true --repo $R
-gh workflow run release.yml --repo $R
-gh run watch --repo $R             # aprueba el entorno «npm» cuando lo pida
+git checkout main && git pull --ff-only && git status   # limpio, en main
+pnpm install --frozen-lockfile
+pnpm build && node scripts/verificar-dist.mjs
+node scripts/publicar.mjs --dry-run                     # ensayo: no publica
+npm whoami                                              # tu usuario, miembro de la organización factura-hn
+node scripts/publicar.mjs --otp=CODIGO                  # CODIGO: el de tu app de 2FA, recién generado
+git push origin --tags                                  # etiquetas factura-hn@0.2.0, @factura-hn/…@0.2.0
 ```
 
 Comprueba el resultado:
 
 ```bash
 npm view factura-hn version                      # 0.2.0
-npm view @factura-hn/mcp dist.attestations       # procedencia firmada
 mkdir /tmp/prueba-fhn && cd /tmp/prueba-fhn && npm init -y >/dev/null && npm install factura-hn && npm audit signatures
 ```
 
-Desde aquí, cada cambio a un paquete lleva `pnpm changeset`. Al llegar a `main`, el flujo abre el PR
-«Versión de paquetes»; al fusionarlo, publica.
+## 5. Publicación de confianza en npmjs.com
 
-## 6. Activar GitHub Pages
+En cada uno de los seis paquetes: npmjs.com → el paquete → **Settings** → **Trusted publishing** → **GitHub
+Actions**, con estos datos (los mismos para los seis):
+
+| Campo | Valor |
+|---|---|
+| Organization or user | `AugustoMelara-Dev` |
+| Repository | `factura-hn` |
+| Workflow filename | `release.yml` (solo el nombre, con la extensión) |
+| Environment name | `npm` |
+| Allowed actions | marca **npm publish** (`npm stage publish` va siempre) |
+
+npm exige que `repository.url` de cada paquete coincida exactamente con el repositorio: es
+`git+https://github.com/AugustoMelara-Dev/factura-hn.git` en los seis, y `pnpm verificar:dist` lo comprueba.
+Una conexión no se puede editar: si cambia el repositorio, el archivo del flujo o el entorno, bórrala y créala de
+nuevo.
+
+Después, en cada paquete, **Settings** → **Publishing access** → «Require two-factor authentication and
+disallow tokens»: sin tokens, solo tú (con 2FA) y el flujo Release pueden publicar.
+
+El entorno `npm` del repositorio lleva tu aprobación obligatoria y solo acepta despliegues desde ramas
+protegidas (`main`):
 
 ```bash
 R=AugustoMelara-Dev/factura-hn
+gh api -X PUT repos/$R/environments/npm --input - <<JSON
+{ "reviewers": [ { "type": "User", "id": $(gh api user --jq .id) } ],
+  "deployment_branch_policy": { "protected_branches": true, "custom_branch_policies": false } }
+JSON
+```
+
+## 6. Activar el flujo Release y GitHub Pages
+
+```bash
+R=AugustoMelara-Dev/factura-hn
+gh variable set PUBLICAR_NPM --body true --repo $R
 gh api -X POST repos/$R/pages -f build_type=workflow
 gh variable set PUBLICAR_SITIO --body true --repo $R
 gh workflow run pages.yml --repo $R
@@ -153,6 +170,10 @@ gh run watch --repo $R
 ```
 
 El sitio queda en <https://augustomelara-dev.github.io/factura-hn/>.
+
+Desde aquí, cada cambio a un paquete lleva `pnpm changeset`. Al llegar a `main`, el flujo Release abre el PR
+«Versión de paquetes»; al fusionarlo, espera tu aprobación del entorno `npm` y publica con OIDC, sin tokens. La
+procedencia firmada se comprueba con `npm view @factura-hn/mcp dist.attestations`.
 
 ## 7. Después del lanzamiento
 

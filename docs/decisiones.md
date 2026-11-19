@@ -318,17 +318,30 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   `AugustoMelara-Dev/factura-hn`, con el sitio en `augustomelara-dev.github.io/factura-hn`. Los paquetes siguen en
   la organización `factura-hn` de npm. El 18-11-2026 los seis nombres de paquete estaban libres en npm
   (consulta de solo lectura). `docs/lanzamiento.md` trae el comando para cambiar la URL en todo el repositorio.
+  La publicación de confianza de npm (DEC-042) exige que `repository.url` coincida exactamente con el
+  repositorio: los seis paquetes llevan `git+https://github.com/AugustoMelara-Dev/factura-hn.git`, definido en
+  `scripts/paquetes.mjs` y comprobado por `verificar-dist` y `publicar.mjs`.
 - **Alternativa:** una organización `factura-hn` en GitHub (se descartó: no hace falta para empezar y puede
   transferirse después; GitHub redirige las URLs antiguas).
 
-### DEC-042 · Publicación y sitio apagados hasta que el responsable los active
-- **Contexto:** el CI no debe publicar en npm ni desplegar sin una decisión explícita.
-- **Elegida:** los flujos Release y Pages solo corren si las variables del repositorio `PUBLICAR_NPM` y
-  `PUBLICAR_SITIO` valen `true`. Release usa el entorno `npm`, con revisor obligatorio, y el secreto
-  `NPM_TOKEN`. Las acciones van fijadas por SHA. Los seis paquetes publicables van en un grupo `fixed` de
-  changesets (misma versión); la API y los ejemplos no se publican.
-- **Alternativa:** publicación de confianza (OIDC) desde el principio. npm la configura por paquete, y los
-  paquetes aún no existen: queda como paso posterior en `docs/lanzamiento.md`.
+### DEC-042 · Publicación y sitio apagados hasta que el responsable los active; npm sin tokens
+- **Contexto:** el CI no debe publicar en npm ni desplegar sin una decisión explícita, y un token de npm
+  guardado en GitHub es una credencial de larga vida que puede filtrarse.
+- **Elegida (cambiada por el responsable el 19-11-2026: publicación de confianza en lugar de `NPM_TOKEN`):**
+  los flujos Release y Pages solo corren si las variables del repositorio `PUBLICAR_NPM` y `PUBLICAR_SITIO`
+  valen `true`. Release publica con la publicación de confianza de npm (trusted publishing, OIDC): permiso
+  `id-token: write`, npm >= 11.5.1 y ningún token ni secreto de npm; la procedencia se firma sola. Usa el
+  entorno `npm`, con revisor obligatorio, y en npmjs.com cada paquete acepta solo `release.yml` de este
+  repositorio con ese entorno. `scripts/publicar.mjs` empaqueta con `pnpm pack` (cambia `workspace:` por
+  versiones) y sube con `npm publish`, que es quien hace el intercambio OIDC; salta lo ya publicado. La 0.2.0
+  se publica desde la máquina del responsable con 2FA, porque la publicación de confianza se configura en
+  paquetes que ya existen: esa versión no lleva procedencia. Las acciones van fijadas por SHA. Los seis
+  paquetes publicables van en un grupo `fixed` de changesets (misma versión); la API y los ejemplos no se
+  publican.
+- **Alternativa:** un token granular de npm en un secreto del entorno `npm` (era la opción anterior): sirve
+  desde la primera versión, pero hay que rotarlo y puede filtrarse. También `changeset publish` (usa
+  `pnpm publish`): se descartó porque la documentación de npm sobre la publicación de confianza solo cubre el
+  CLI de npm.
 
 ### DEC-043 · Generador propio del sitio
 - **Contexto:** el sitio debe salir de los mismos Markdown del repositorio, sin una segunda copia.

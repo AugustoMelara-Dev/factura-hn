@@ -1,8 +1,12 @@
-# Publicación en npm con changesets y procedencia (npm provenance).
+# Publicación en npm con changesets y publicación de confianza (trusted publishing, OIDC).
 #
 # Apagado hasta que el responsable lo active: corre solo si la variable del repositorio PUBLICAR_NPM vale
 # "true" (ver docs/lanzamiento.md). Con changesets pendientes abre o actualiza el PR «Versión de paquetes»;
 # al fusionar ese PR (sin changesets pendientes) publica las versiones que aún no están en npm.
+#
+# Sin tokens ni secretos de npm: npm (>= 11.5.1) cambia el token OIDC de GitHub por una credencial de un solo
+# uso y firma la procedencia. Cada paquete tiene en npmjs.com un «Trusted Publisher» con este repositorio, el
+# archivo release.yml y el entorno npm; si cambia el nombre de este archivo o del entorno, deja de publicar.
 name: Release
 
 on:
@@ -26,7 +30,7 @@ jobs:
     permissions:
       contents: write # commit y etiquetas del PR de versión
       pull-requests: write # abrir el PR de versión
-      id-token: write # firma de procedencia (OIDC de GitHub)
+      id-token: write # publicación de confianza y procedencia (OIDC de GitHub)
     env:
       TZ: UTC
     steps:
@@ -39,6 +43,8 @@ jobs:
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: npm con publicación de confianza (>= 11.5.1)
+        run: npm install -g npm@11.6.2 && npm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm auditar:datos
       - run: pnpm build
@@ -50,9 +56,7 @@ jobs:
           title: 'Versión de paquetes'
           commit: 'chore: versión de paquetes'
           version: pnpm changeset version
-          publish: pnpm release
+          # Empaqueta con pnpm y sube con npm (scripts/publicar.mjs): npm hace el intercambio OIDC.
+          publish: node scripts/publicar.mjs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'

@@ -64,11 +64,14 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 - Archivos de comunidad y plantillas.
 - Sitio (`pnpm sitio`).
 - Modelo de negocio y pasos de lanzamiento.
+- Repositorio público `AugustoMelara-Dev/factura-hn`, con `main` protegida y el CI en verde en GitHub.
+- Publicación en npm con OIDC, sin tokens (`scripts/publicar.mjs`, DEC-042).
 
 ## Sigue
 
-1. El responsable ejecuta `docs/lanzamiento.md` (repositorio, npm, token, publicación, Pages). Nada de eso lo
-   hace el agente sin permiso.
+1. El responsable publica la 0.2.0 desde su máquina, configura la publicación de confianza de los seis
+   paquetes y activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` (`docs/lanzamiento.md`, pasos 4 a 6). Nada de eso lo hace
+   el agente sin permiso.
 2. Enviar `docs/consulta-sar.md` y archivar las respuestas.
 
 ## Cómo correr
