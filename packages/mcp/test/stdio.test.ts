@@ -11,6 +11,11 @@ import { describe, expect, it } from 'vitest';
 import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 
+const EMISOR = {
+  rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
+  direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
+};
+
 // node:sqlite se carga con require para que el empaquetador de las pruebas no intente resolverlo.
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
@@ -23,7 +28,10 @@ describe('factura-hn-mcp por stdio', () => {
     const salidaPrueba = join(paquete, 'node_modules', '.cache', 'dist-prueba-stdio');
     execFileSync(process.execPath, [join(raiz, 'node_modules', 'tsup', 'dist', 'cli-default.js'), 'src/index.ts', 'src/cli.ts', '--format', 'esm', '--target', 'node22', '--clean', '--out-dir', salidaPrueba], { cwd: paquete, stdio: 'pipe' });
     const cli = join(salidaPrueba, 'cli.js');
-    for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(mkdtempSync(join(tmpdir(), 'fhn-dist-')), 'f.db'), FHN_EMISOR: join(paquete, 'package.json') }]) {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-dist-'));
+    const emisorJson = join(dir, 'emisor.json');
+    writeFileSync(emisorJson, JSON.stringify(EMISOR));
+    for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(dir, 'f.db'), FHN_EMISOR: emisorJson }]) {
       const cliente = new Client({ name: 'prueba', version: '1.0.0' });
       await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
       expect((await cliente.listTools()).tools).toHaveLength(6);
@@ -37,16 +45,24 @@ describe('factura-hn-mcp por stdio', () => {
       salida = String((e as { stderr: string }).stderr);
     }
     expect(salida).toMatch(/debe ser un archivo/);
+    // Un emisor.json que falta o está incompleto se informa al arrancar, con qué corregir.
+    const arrancar = (emisor: string) => {
+      try {
+        execFileSync(process.execPath, [cli], { env: { ...process.env, FHN_SQLITE: join(dir, 'g.db'), FHN_EMISOR: emisor }, stdio: 'pipe', encoding: 'utf8' });
+        return '';
+      } catch (e) {
+        return String((e as { stderr: string }).stderr);
+      }
+    };
+    expect(arrancar(join(dir, 'no-existe.json'))).toMatch(/No se encontró el archivo del emisor/);
+    expect(arrancar(join(paquete, 'package.json'))).toMatch(/Datos del emisor incompletos[\s\S]*RTN del emisor/);
   }, 120_000);
 
   it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'fhn-mcp-'));
     const db = join(dir, 'factura.db');
     const emisor = join(dir, 'emisor.json');
-    writeFileSync(emisor, JSON.stringify({
-      rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
-      direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
-    }));
+    writeFileSync(emisor, JSON.stringify(EMISOR));
     const base = new DatabaseSync(db);
     await registrarAutorizacion(new AlmacenSQLite(base), {
       cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
