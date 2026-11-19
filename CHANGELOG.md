@@ -16,6 +16,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   `number | string` (se recomienda texto: `"19.99"`). Un `number` se lee por su texto decimal exacto. Si trae
   más decimales de los permitidos (cantidad y precio: 4; descuento: 2; tipo de cambio: 6), se rechaza en lugar
   de redondearse: `0.1 + 0.2` como precio da `LINEA_PRECIO`. Antes el precio se redondeaba a centavos en silencio.
+  En texto, la coma solo separa miles en grupos de 3 (`"1,234.50"`): `"89,50"` da `ErrorMonto`. Antes se leía
+  como 8950, un monto 100 veces mayor, sin ningún aviso.
 - **ISV estatutario con precios con ISV incluido (B-03, D-01).** El ISV impreso es siempre la tasa × la base
   impresa con el redondeo del Art. 9 de la Ley del ISV. Antes se calculaba por diferencia y quedaba 1 centavo
   por encima de la regla en el 4.35 % (15 %) y el 6.78 % (18 %) de los montos. Cuando un precio no tiene base
@@ -56,9 +58,13 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **`@factura-hn/api`** (privado, 0.2.0): API REST con Hono y OpenAPI 3.1 sobre Postgres. Modos local
   (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
   y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
+  Rechaza cuerpos que no son UTF-8 válido (`CUERPO_NO_UTF8`) y sigue en pie si Postgres se reinicia.
+  Cada recurso va envuelto con su nombre y cada lista es `{ <plural>, hayMas, siguiente }`; documentos y
+  bitácora se paginan con `limite` y `cursor` (DEC-047). Montos de salida en lempiras con 2 decimales (DEC-048).
   `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
 - **`@factura-hn/cliente`** (0.2.0): cliente tipado de la API generado desde OpenAPI (`openapi-fetch`), con
-  `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, CAI, libro, exportación, `ErrorFacturaHN` y
+  `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, `documentos` (recorre las páginas) y
+  `paginaDocumentos`, CAI, libro, exportación, `ErrorFacturaHN` y
   `verificarFirmaWebhook` con Web Crypto (Node 20+, edge, navegador).
 - **`@factura-hn/mcp`** (0.2.0): servidor MCP con `emitir_factura`, `emitir_nota_credito`,
   `consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o el SDK local sobre
@@ -71,7 +77,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
 - CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
 - `docs/consulta-sar.md`: consulta formal con las preguntas abiertas.
-- Revisión independiente de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
+- Revisión interna de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
   sale duplicado en notas.
@@ -126,8 +132,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   góndola que no requieren ajuste), `baseDesdePrecioConISV`.
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
-- Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública con procedencia firmada
-  (`provenance`) y `LICENSE` dentro de cada paquete. `@factura-hn/pdf` se publica junto con los demás.
+- Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública y `LICENSE` dentro de cada
+  paquete. La 0.2.0 se publica sin procedencia; las versiones que publique la CI la llevan firmada (DEC-042). `@factura-hn/pdf` se publica junto con los demás.
 - Guía rápida del SDK (`docs/guia-sdk.md`, con sus ejemplos compilados en las pruebas) y guía de
   autoalojamiento con Docker (`docs/autoalojamiento.md`).
 - Sitio de documentación en español para GitHub Pages (`pnpm sitio`): inicio, SDK, API con referencia generada

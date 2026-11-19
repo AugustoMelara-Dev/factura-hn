@@ -184,7 +184,7 @@ function pagina(p, cuerpo) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(p.html === 'index.html' ? 'factura-hn: facturación SAR Honduras' : `${titulo} · factura-hn`)}</title>
+<title>${esc(p.html === 'index.html' ? 'factura-hn: facturación para Honduras' : `${titulo} · factura-hn`)}</title>
 <meta name="description" content="Facturación conforme al SAR de Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP de código abierto.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5d8f'/%3E%3Cpath d='M9 8h14v3H12v4h9v3h-9v6H9z' fill='white'/%3E%3C/svg%3E">
 <style>${CSS}</style>
@@ -194,7 +194,7 @@ function pagina(p, cuerpo) {
 <main>
 ${cuerpo}
 </main>
-<footer><div>MIT · No es asesoría fiscal ni un sistema autorizado por el SAR. Fuente de esta página:
+<footer><div>MIT · Proyecto independiente, no afiliado al SAR. No es asesoría fiscal ni un sistema autorizado por el SAR. Fuente de esta página:
 <a href="${REPO}/blob/main/${p.fuente}"><code>${esc(p.fuente)}</code></a>.</div></footer>
 </body>
 </html>

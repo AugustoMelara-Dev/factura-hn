@@ -10,7 +10,7 @@ import { AlmacenSQLite } from '@factura-hn/sqlite';
 
 const almacen = new AlmacenSQLite(new Database('fiscal.db'));
 await registrarAutorizacion(almacen, { cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
-  rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30' });
+  rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30' }); // la de tu resolución
 const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmision: '001' });
 ```
 

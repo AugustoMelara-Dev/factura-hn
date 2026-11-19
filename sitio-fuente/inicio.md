@@ -1,4 +1,4 @@
-# Facturación SAR Honduras, sin inventar reglas
+# Facturación para Honduras, sin inventar reglas
 
 **factura-hn** emite facturas, notas de crédito y notas de débito conforme al Reglamento del Régimen de
 Facturación (Acuerdo 481-2017). Cada regla cita su artículo y tiene una prueba. Es código abierto (MIT).
@@ -36,8 +36,9 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 ## Qué tan listo está
 
 - La [matriz de cumplimiento](../docs/investigacion.md) lista cada artículo, cómo se cumple y con qué prueba.
-- Algunas interpretaciones esperan respuesta del SAR. La [consulta al SAR](../docs/consulta-sar.md) las reúne; la más
-  importante (P-02) decide si se puede ofrecer una API alojada por terceros.
+- Algunas interpretaciones necesitan respuesta del SAR. La [consulta al SAR](../docs/consulta-sar.md) reúne las 14
+  preguntas abiertas; está redactada, pero **aún no se ha enviado**. La más importante (P-02) decide si se puede
+  ofrecer una API alojada por terceros.
 - Versión 0.x: puede haber cambios incompatibles entre versiones menores (ver el
   [CHANGELOG](../CHANGELOG.md)).
 

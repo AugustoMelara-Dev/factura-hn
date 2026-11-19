@@ -76,8 +76,17 @@ describe('casos que un flotante resolvería mal', () => {
 
   it('acepta texto con separador de miles y exponentes', () => {
     expect(parsearDecimal('1,234.56', 2)).toBe(123456n);
+    expect(parsearDecimal('12,345,678.9', 2)).toBe(1234567890n);
+    expect(parsearDecimal('-1,000', 2)).toBe(-100000n);
     expect(parsearDecimal(1e-2, 2)).toBe(1n);
     expect(parsearDecimal('2.5e3', 2)).toBe(250000n);
+  });
+
+  it('una coma que no separa miles es un error, no un monto 100 veces mayor', () => {
+    for (const malo of ['89,50', '8,9,5', '1,2345.00', ',50', '1,23', '1,234,5', '89,']) {
+      expect(() => parsearDecimal(malo, 2), malo).toThrow(/La coma solo separa miles/);
+    }
+    expect(() => calcularDocumento([{ descripcion: 'Café', cantidad: 1, precioUnitario: '89,50' }])).toThrow(/89,50/);
   });
 
   it('montos grandes sin pérdida: 99,999,999.99 × 3', () => {

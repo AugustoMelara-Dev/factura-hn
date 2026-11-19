@@ -19,7 +19,7 @@ todas las versiones con soporte.
 
 El código del modo alojado (varios negocios en un servidor, aislados con RLS) existe y está probado, pero
 **no se ofrece como servicio** hasta que el SAR responda por escrito la
-[consulta P-02](consulta-sar.md#1-sistema-alojado-en-la-nube-por-un-tercero-p-02). El Art. 47 pide registrar
+[consulta P-02](consulta-sar.md#p-02-sistema-alojado-en-la-nube-por-un-tercero). El Art. 47 pide registrar
 «el establecimiento donde se encuentre el servidor», y en la nube ese servidor lo opera un tercero.
 
 | Respuesta del SAR | Qué hacemos |

@@ -15,3 +15,4 @@ packages/core/docs/
 packages/cliente/AGENTS.md
 dist-docker
 sitio/
+packages/core/test/.generado/

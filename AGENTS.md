@@ -65,7 +65,7 @@ await registrarAutorizacion(almacen, {
   puntoEmision: '001',
   rangoInicial: 1,
   rangoFinal: 5000,
-  fechaLimiteEmision: '2027-06-30',
+  fechaLimiteEmision: '2027-06-30', // la fecha límite de la resolución
 });
 ```
 
@@ -268,6 +268,8 @@ Referencia completa: `docs/api.md`.
 4. Guarda el `numero` y reimprime desde la API (`.pdf`, `.html`, `.txt`): no recalcules.
 5. Webhooks: verifica la firma sobre el cuerpo **crudo**, descarta repetidos por `id` y responde 2xx solo
    cuando ya procesaste el aviso.
+6. Las listas vienen por páginas (`{ documentos, hayMas, siguiente }`): pide la siguiente con
+   `?cursor=<siguiente>` mientras `hayMas`. Con `@factura-hn/cliente`, `fhn.documentos` las recorre todas.
 
 <!-- declaraciones:
 declare const req: { texto: string; firma: string | null };

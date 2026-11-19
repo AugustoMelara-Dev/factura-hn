@@ -309,7 +309,7 @@ La API se diseña para dos modos con el mismo código:
 
 ### Preguntas abiertas para el SAR o un contador
 
-Redactadas como consulta formal en `docs/consulta-sar.md`.
+Redactadas como consulta formal en `docs/consulta-sar.md` (las 14; aún no enviada).
 
 | ID | Pregunta | Por qué importa |
 |---|---|---|

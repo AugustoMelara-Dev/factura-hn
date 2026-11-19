@@ -2,7 +2,7 @@
 
 Todo lo que se podía preparar sin publicar nada ya está en el repositorio:
 - CI;
-- release con changesets y procedencia;
+- workflow de release con changesets, listo para publicar con procedencia firmada (OIDC) cuando se active `PUBLICAR_NPM`;
 - sitio de documentación;
 - archivos de comunidad;
 - auditoría de datos.
@@ -50,7 +50,7 @@ pnpm sitio && git commit -am "chore: datos del repositorio para el lanzamiento"
 ```bash
 gh auth login
 gh repo create AugustoMelara-Dev/factura-hn --public \
-  --description "Facturación SAR Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP" \
+  --description "Facturación SAR Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP. Proyecto independiente, no afiliado al SAR." \
   --homepage "https://augustomelara-dev.github.io/factura-hn/" \
   --source . --remote origin
 git push -u origin main

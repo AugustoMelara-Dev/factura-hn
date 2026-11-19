@@ -7,6 +7,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: factura_hn
       POSTGRES_HOST_AUTH_METHOD: trust
@@ -22,6 +23,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+    # Vuelve a arrancar si el proceso termina (también tras reiniciar Docker o el equipo).
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://postgres@db:5432/factura_hn
       FHN_MODO: local

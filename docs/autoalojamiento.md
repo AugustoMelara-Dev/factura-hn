@@ -20,9 +20,14 @@ un emisor y un CAI **ficticios** (`DEMO00-NO-VALIDO-…`): lo que emitas ahí no
 
 ```bash
 LLAVE=fhn_...   # la llave de caja demo del log
+# El cuerpo va en un archivo UTF-8: escrito en la línea de comandos, una consola de Windows puede mandar la
+# «é» en otra codificación, y la API lo rechaza (400 CUERPO_NO_UTF8).
+cat > factura.json <<'JSON'
+{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":"2","precioUnitario":"57.50"}]}}
+JSON
 curl -X POST http://127.0.0.1:8787/v1/documentos \
   -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
-  -d '{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":"2","precioUnitario":"57.50"}]}}'
+  --data-binary @factura.json
 curl -H "authorization: Bearer $LLAVE" -o factura.pdf \
   http://127.0.0.1:8787/v1/documentos/000-001-01-00000001.pdf
 ```

@@ -1,7 +1,7 @@
 {
   "name": "factura-hn-monorepo",
   "private": true,
-  "description": "Monorepo de factura-hn: SDK, API REST y servidor MCP para facturación SAR Honduras.",
+  "description": "Monorepo de factura-hn: SDK, API REST y servidor MCP para facturación SAR Honduras. Proyecto independiente, no afiliado al SAR.",
   "license": "MIT",
   "author": "Augusto Melara (VitoCode Technologies)",
   "packageManager": "pnpm@12.14.0",

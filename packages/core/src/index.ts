@@ -1,5 +1,5 @@
 /**
- * factura-hn — Facturación SAR Honduras (Acuerdo 481-2017).
+ * factura-hn — facturación para Honduras (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR.
  *
  * Flujo típico:
  *   await registrarAutorizacion(almacen, autorizacion);          // una vez por resolución del SAR

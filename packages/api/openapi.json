@@ -3,7 +3,7 @@
   "info": {
     "title": "factura-hn API",
     "version": "0.2.0",
-    "description": "Facturación SAR Honduras (Acuerdo 481-2017). Montos como texto decimal. Fechas en America/Tegucigalpa.\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
+    "description": "Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.\n\nMontos (DEC-048): en la entrada, texto decimal (`\"57.50\"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.\n\nRespuestas (DEC-047): cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
   },
   "components": {
     "securitySchemes": {
@@ -14,6 +14,17 @@
       }
     },
     "schemas": {
+      "RespuestaEmisor": {
+        "type": "object",
+        "properties": {
+          "emisor": {
+            "$ref": "#/components/schemas/EmisorGuardado"
+          }
+        },
+        "required": [
+          "emisor"
+        ]
+      },
       "EmisorGuardado": {
         "allOf": [
           {
@@ -177,6 +188,17 @@
           }
         }
       },
+      "RespuestaAutorizacion": {
+        "type": "object",
+        "properties": {
+          "autorizacion": {
+            "$ref": "#/components/schemas/Autorizacion"
+          }
+        },
+        "required": [
+          "autorizacion"
+        ]
+      },
       "Autorizacion": {
         "type": "object",
         "properties": {
@@ -233,12 +255,24 @@
           "fechaLimiteEmision"
         ]
       },
-      "EstadoAutorizacion": {
+      "RespuestaEstado": {
         "type": "object",
         "properties": {
           "autorizacion": {
             "$ref": "#/components/schemas/Autorizacion"
           },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoAutorizacion"
+          }
+        },
+        "required": [
+          "autorizacion",
+          "estado"
+        ]
+      },
+      "EstadoAutorizacion": {
+        "type": "object",
+        "properties": {
           "vigente": {
             "type": "boolean"
           },
@@ -265,7 +299,6 @@
           }
         },
         "required": [
-          "autorizacion",
           "vigente",
           "diasRestantes",
           "correlativosRestantes",
@@ -777,6 +810,22 @@
           "motivo"
         ]
       },
+      "RespuestaLlaveNueva": {
+        "type": "object",
+        "properties": {
+          "llave": {
+            "$ref": "#/components/schemas/Llave"
+          },
+          "secreto": {
+            "type": "string",
+            "description": "La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez."
+          }
+        },
+        "required": [
+          "llave",
+          "secreto"
+        ]
+      },
       "Llave": {
         "type": "object",
         "properties": {
@@ -866,6 +915,33 @@
           "rol"
         ]
       },
+      "RespuestaLlave": {
+        "type": "object",
+        "properties": {
+          "llave": {
+            "$ref": "#/components/schemas/Llave"
+          }
+        },
+        "required": [
+          "llave"
+        ]
+      },
+      "RespuestaWebhookNuevo": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          },
+          "secreto": {
+            "type": "string",
+            "description": "Secreto de firma (`whsec_…`) para verificar los envíos. Solo se muestra esta vez."
+          }
+        },
+        "required": [
+          "webhook",
+          "secreto"
+        ]
+      },
       "Webhook": {
         "type": "object",
         "properties": {
@@ -921,6 +997,17 @@
         "required": [
           "url",
           "eventos"
+        ]
+      },
+      "RespuestaWebhook": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          }
+        },
+        "required": [
+          "webhook"
         ]
       }
     },
@@ -990,7 +1077,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmisorGuardado"
+                  "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
             }
@@ -1080,10 +1167,23 @@
                       "items": {
                         "$ref": "#/components/schemas/EmisorGuardado"
                       }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "emisores"
+                    "emisores",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -1170,7 +1270,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmisorGuardado"
+                  "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
             }
@@ -1274,7 +1374,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmisorGuardado"
+                  "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
             }
@@ -1369,15 +1469,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "autorizacion": {
-                      "$ref": "#/components/schemas/Autorizacion"
-                    }
-                  },
-                  "required": [
-                    "autorizacion"
-                  ]
+                  "$ref": "#/components/schemas/RespuestaAutorizacion"
                 }
               }
             }
@@ -1457,10 +1549,23 @@
                       "items": {
                         "$ref": "#/components/schemas/Autorizacion"
                       }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "autorizaciones"
+                    "autorizaciones",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -1548,7 +1653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EstadoAutorizacion"
+                  "$ref": "#/components/schemas/RespuestaEstado"
                 }
               }
             }
@@ -1732,7 +1837,7 @@
             "llave": []
           }
         ],
-        "summary": "Documentos de un período",
+        "summary": "Documentos de un período, por fecha de emisión y número (paginado)",
         "parameters": [
           {
             "schema": {
@@ -1762,11 +1867,35 @@
             "required": false,
             "name": "identificador",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Elementos por página (1-500). Por defecto 100."
+            },
+            "required": false,
+            "description": "Elementos por página (1-500). Por defecto 100.",
+            "name": "limite",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "El valor `siguiente` de la página anterior."
+            },
+            "required": false,
+            "description": "El valor `siguiente` de la página anterior.",
+            "name": "cursor",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "Lista",
+            "description": "Una página",
             "content": {
               "application/json": {
                 "schema": {
@@ -1777,10 +1906,23 @@
                       "items": {
                         "$ref": "#/components/schemas/DocumentoFiscal"
                       }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "documentos"
+                    "documentos",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -2560,28 +2702,56 @@
             "llave": []
           }
         ],
-        "summary": "Bitácora fiscal (Art. 53 num. 2) y de la API",
+        "summary": "Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)",
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fiscal",
+                "api"
+              ],
+              "description": "`fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks."
+            },
+            "required": false,
+            "description": "`fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks.",
+            "name": "origen",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 1000
+              "maximum": 500,
+              "description": "Elementos por página (1-500). Por defecto 100."
             },
             "required": false,
+            "description": "Elementos por página (1-500). Por defecto 100.",
             "name": "limite",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "El valor `siguiente` de la página anterior."
+            },
+            "required": false,
+            "description": "El valor `siguiente` de la página anterior.",
+            "name": "cursor",
             "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "Bitácora",
+            "description": "Una página",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "fiscal": {
+                    "eventos": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -2589,18 +2759,22 @@
                         "additionalProperties": {}
                       }
                     },
-                    "api": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": {}
-                      }
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "fiscal",
-                    "api"
+                    "eventos",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -2686,22 +2860,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Llave"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "llave": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "llave"
-                      ]
-                    }
-                  ]
+                  "$ref": "#/components/schemas/RespuestaLlaveNueva"
                 }
               }
             }
@@ -2781,10 +2940,23 @@
                       "items": {
                         "$ref": "#/components/schemas/Llave"
                       }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "llaves"
+                    "llaves",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -2871,7 +3043,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Llave"
+                  "$ref": "#/components/schemas/RespuestaLlave"
                 }
               }
             }
@@ -2976,22 +3148,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Webhook"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "secreto": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "secreto"
-                      ]
-                    }
-                  ]
+                  "$ref": "#/components/schemas/RespuestaWebhookNuevo"
                 }
               }
             }
@@ -3071,10 +3228,23 @@
                       "items": {
                         "$ref": "#/components/schemas/Webhook"
                       }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
                     }
                   },
                   "required": [
-                    "webhooks"
+                    "webhooks",
+                    "hayMas",
+                    "siguiente"
                   ]
                 }
               }
@@ -3161,7 +3331,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Webhook"
+                  "$ref": "#/components/schemas/RespuestaWebhook"
                 }
               }
             }

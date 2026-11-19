@@ -101,6 +101,29 @@ const respuestasError = {
 const json = <T extends z.ZodTypeAny>(schema: T, description: string) => ({ description, content: { 'application/json': { schema } } });
 const seguridad = [{ llave: [] }];
 
+// --- Paginación (DEC-047) ------------------------------------------------------------------------------------
+const LIMITE_POR_DEFECTO = 100;
+const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
+
+/** El cursor es opaco para el cliente: la llave de orden del último elemento, en JSON y base64url. */
+const escribirCursor = (llave: unknown) => Buffer.from(JSON.stringify(llave)).toString('base64url');
+function leerCursor<T>(cursor: string, valido: (v: unknown) => v is T): T {
+  let v: unknown;
+  try {
+    v = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    v = undefined;
+  }
+  if (!valido(v)) throw new ErrorApi(400, 'CURSOR_INVALIDO', 'El cursor no es válido: usa el valor `siguiente` de la página anterior, sin cambios.');
+  return v;
+}
+/** De `limite + 1` filas, la página y el cursor de la siguiente si sobró una. */
+function paginar<F>(filas: F[], limite: number, llave: (f: F) => unknown) {
+  const hayMas = filas.length > limite;
+  const elementos = hayMas ? filas.slice(0, limite) : filas;
+  return { elementos, hayMas, siguiente: hayMas ? escribirCursor(llave(elementos[elementos.length - 1]!)) : null };
+}
+
 export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rolBd = cfg.rol ?? ROL_POR_DEFECTO;
   const base = new AlmacenPostgres(cfg.pool, { rol: rolBd });
@@ -191,6 +214,24 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     await next();
   });
 
+  // El cuerpo debe ser UTF-8 válido. Sin esto, un byte en otra codificación (p. ej. «é» en Latin-1 desde una
+  // consola de Windows) se convierte en U+FFFD y queda guardado en un documento que ya no se puede corregir.
+  const utf8Estricto = new TextDecoder('utf-8', { fatal: true });
+  app.use('/v1/*', async (c, next) => {
+    if (c.req.raw.body) {
+      try {
+        utf8Estricto.decode(await c.req.arrayBuffer());
+      } catch {
+        throw new ErrorApi(
+          400,
+          'CUERPO_NO_UTF8',
+          'El cuerpo no es UTF-8 válido. Envía el JSON en UTF-8; con curl, guárdalo en un archivo y usa --data-binary @archivo.json.',
+        );
+      }
+    }
+    await next();
+  });
+
   const sesion = (c: Context<Env>) => c.get('sesion');
   const almacenDe = (c: Context<Env>) => base.paraTenant(sesion(c).tenant);
   // DEC-031: el actor es el id interno de la llave, con su rol y nombre al momento de la operación.
@@ -264,7 +305,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/emisores', tags: ['Emisor'], security: seguridad,
       summary: 'Registra los datos del obligado tributario (uno por tenant)',
       request: { body: { content: { 'application/json': { schema: S.Emisor } }, required: true } },
-      responses: { 201: json(S.EmisorGuardado, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
+      responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -279,18 +320,18 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'emisor.creado', { rtn: e.rtn });
         return r.rows[0].id;
       });
-      return c.json({ id, ...e }, 201);
+      return c.json({ emisor: { id, ...e } }, 201);
     },
   );
 
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/emisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
-      responses: { 200: json(z.object({ emisores: z.array(S.EmisorGuardado) }), 'Lista'), ...respuestasError },
+      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasError },
     }),
     async (c) => {
       const e = await enTenant(c, leerEmisor);
-      return c.json({ emisores: e ? [{ id: e.id, ...e.datos }] : [] }, 200);
+      return c.json({ emisores: e ? [{ id: e.id, ...e.datos }] : [], hayMas: false, siguiente: null }, 200);
     },
   );
 
@@ -299,13 +340,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
       request: { params: rutaEmisorId },
-      responses: { 200: json(S.EmisorGuardado, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
     }),
     async (c) => {
       const { id } = c.req.valid('param');
       const e = await enTenant(c, leerEmisor);
       if (!e || e.id !== id) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Emisor no encontrado.');
-      return c.json({ id: e.id, ...e.datos }, 200);
+      return c.json({ emisor: { id: e.id, ...e.datos } }, 200);
     },
   );
 
@@ -314,7 +355,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'patch', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad,
       summary: 'Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)',
       request: { params: rutaEmisorId, body: { content: { 'application/json': { schema: S.EmisorCambios } }, required: true } },
-      responses: { 200: json(S.EmisorGuardado, 'Actualizado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEmisor, 'Actualizado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -332,7 +373,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'emisor.actualizado', { campos: Object.keys(cambios) });
         return datos;
       });
-      return c.json({ id, ...nuevo }, 200);
+      return c.json({ emisor: { id, ...nuevo } }, 200);
     },
   );
 
@@ -342,7 +383,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Registra una autorización del SAR (CAI, rango y fecha límite)',
       request: { body: { content: { 'application/json': { schema: S.Autorizacion } }, required: true } },
-      responses: { 201: json(z.object({ autorizacion: S.Autorizacion }), 'Registrada'), ...respuestasError },
+      responses: { 201: json(S.RespuestaAutorizacion, 'Registrada'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -354,13 +395,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
-      responses: { 200: json(z.object({ autorizaciones: z.array(S.Autorizacion) }), 'Lista'), ...respuestasError },
+      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasError },
     }),
     async (c) => {
       const lista = await enTenant(c, async (tx) =>
         (await tx.consulta<{ datos: AutorizacionCAI }>('SELECT datos FROM fhn_autorizaciones WHERE tenant = $1 ORDER BY identificador, rango_inicial', [tx.tenant])).rows.map((f) => f.datos),
       );
-      return c.json({ autorizaciones: lista as unknown as z.infer<typeof S.Autorizacion>[] }, 200);
+      return c.json({ autorizaciones: lista as unknown as z.infer<typeof S.Autorizacion>[], hayMas: false, siguiente: null }, 200);
     },
   );
 
@@ -369,7 +410,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'get', path: '/v1/autorizaciones/{cai}/estado', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Vigencia y rango restante de una autorización (Arts. 59 y 62)',
       request: { params: z.object({ cai: z.string().min(1).max(60) }) },
-      responses: { 200: json(S.EstadoAutorizacion, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
@@ -383,7 +424,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const consumido = Math.max(r.ultimo ?? 0, r.aut.ultimoEmitidoAntes ?? 0);
       const ultimo = consumido < r.aut.rangoInicial ? null : Math.min(consumido, r.aut.rangoFinal);
       const estado = estadoAutorizacion(r.aut, ultimo, { hoy: fechaHonduras(reloj()) });
-      return c.json({ autorizacion: r.aut as unknown as z.infer<typeof S.Autorizacion>, ...estado }, 200);
+      return c.json({ autorizacion: r.aut as unknown as z.infer<typeof S.Autorizacion>, estado }, 200);
     },
   );
 
@@ -515,14 +556,25 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/documentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período',
-      request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional() }) },
-      responses: { 200: json(z.object({ documentos: z.array(S.DocumentoFiscal) }), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/documentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
+      request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
+      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasError },
     }),
     async (c) => {
       const q = c.req.valid('query');
-      const docs = await almacenDe(c).transaccion((tx) => tx.documentos(q));
-      return c.json({ documentos: docs as unknown as z.infer<typeof S.DocumentoFiscal>[] }, 200);
+      const limite = q.limite ?? LIMITE_POR_DEFECTO;
+      const despues = q.cursor ? leerCursor(q.cursor, (v): v is [string, string] => Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && FECHA_CURSOR.test(v[0]) && typeof v[1] === 'string' && v[1].length <= 40) : null;
+      const filas = await enTenant(c, async (tx) => {
+        const params: unknown[] = [tx.tenant, q.desde, q.hasta];
+        let sql = 'SELECT datos, fecha_emision::text AS fecha, numero FROM fhn_documentos WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3';
+        if (q.identificador) sql += ` AND identificador = $${params.push(q.identificador)}`;
+        if (despues) sql += ` AND (fecha_emision, numero) > ($${params.push(despues[0])}::date, $${params.push(despues[1])})`;
+        sql += ` ORDER BY fecha_emision, numero LIMIT $${params.push(limite + 1)}`;
+        return (await tx.consulta<{ datos: unknown; fecha: string; numero: string }>(sql, params)).rows;
+      });
+      const { elementos, hayMas, siguiente } = paginar(filas, limite, (f) => [f.fecha, f.numero]);
+      const documentos = elementos.map((f) => (typeof f.datos === 'string' ? JSON.parse(f.datos) : f.datos));
+      return c.json({ documentos: documentos as z.infer<typeof S.DocumentoFiscal>[], hayMas, siguiente }, 200);
     },
   );
 
@@ -682,22 +734,31 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/bitacora', tags: ['Auditoría'], security: seguridad,
-      summary: 'Bitácora fiscal (Art. 53 num. 2) y de la API',
-      request: { query: z.object({ limite: z.coerce.number().int().min(1).max(1000).optional() }) },
-      responses: { 200: json(z.object({ fiscal: z.array(z.looseObject({})), api: z.array(z.looseObject({})) }), 'Bitácora'), ...respuestasError },
+      summary: 'Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)',
+      request: {
+        query: z.object({
+          origen: z.enum(['fiscal', 'api']).optional().openapi({ description: '`fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks.' }),
+          ...S.Paginacion,
+        }),
+      },
+      responses: { 200: json(S.pagina('eventos', z.looseObject({})), 'Una página'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
-      const limite = c.req.valid('query').limite ?? 200;
-      const fiscal = await enTenant(c, async (tx) =>
-        (await tx.consulta<{ datos: unknown }>('SELECT datos FROM fhn_eventos WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite])).rows.map((f) => f.datos).reverse(),
+      const q = c.req.valid('query');
+      const limite = q.limite ?? LIMITE_POR_DEFECTO;
+      const antesDe = q.cursor ? leerCursor(q.cursor, (v): v is string => typeof v === 'string' && /^\d{1,19}$/.test(v)) : null;
+      const sql = q.origen === 'api'
+        ? "SELECT id::text AS id, json_build_object('id', id, 'instante', instante, 'actor', actor, 'operador', operador, 'accion', accion, 'detalle', detalle) AS evento FROM api_bitacora"
+        : 'SELECT id::text AS id, datos AS evento FROM fhn_eventos';
+      const filas = await enTenant(c, async (tx) =>
+        (await tx.consulta<{ id: string; evento: unknown }>(
+          `${sql} WHERE tenant = $1 AND ($2::bigint IS NULL OR id < $2::bigint) ORDER BY id DESC LIMIT $3`, [tx.tenant, antesDe, limite + 1],
+        )).rows,
       );
-      const api = await enTenant(c, async (tx) =>
-        (await tx.consulta(
-          'SELECT id, instante, actor, operador, accion, detalle FROM api_bitacora WHERE tenant = $1 ORDER BY id DESC LIMIT $2', [tx.tenant, limite],
-        )).rows.reverse(),
-      );
-      return c.json({ fiscal, api } as never, 200);
+      const { elementos, hayMas, siguiente } = paginar(filas, limite, (f) => f.id);
+      const eventos = elementos.map((f) => (typeof f.evento === 'string' ? JSON.parse(f.evento) : f.evento));
+      return c.json({ eventos, hayMas, siguiente } as never, 200);
     },
   );
 
@@ -712,7 +773,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/llaves', tags: ['Llaves'], security: seguridad,
       summary: 'Crea una llave (la llave completa se muestra solo esta vez)',
       request: { body: { content: { 'application/json': { schema: S.LlaveNueva } }, required: true } },
-      responses: { 201: json(S.Llave.extend({ llave: z.string() }), 'Creada'), ...respuestasError },
+      responses: { 201: json(S.RespuestaLlaveNueva, 'Creada'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -730,21 +791,21 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'llave.creada', { prefijo, rol: b.rol, nombre: b.nombre });
         return r.rows[0]!;
       });
-      return c.json({ ...aLlave(fila), llave }, 201);
+      return c.json({ llave: aLlave(fila), secreto: llave }, 201);
     },
   );
 
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/llaves', tags: ['Llaves'], security: seguridad, summary: 'Llaves del tenant (sin secretos)',
-      responses: { 200: json(z.object({ llaves: z.array(S.Llave) }), 'Lista'), ...respuestasError },
+      responses: { 200: json(S.pagina('llaves', S.Llave), 'Lista'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
       const filas = await enTenant(c, async (tx) =>
         (await tx.consulta<FilaLlave>('SELECT id, prefijo, nombre, rol, establecimiento, punto_emision, creada, revocada, ultimo_uso FROM api_llaves WHERE tenant = $1 ORDER BY creada', [tx.tenant])).rows,
       );
-      return c.json({ llaves: filas.map(aLlave) }, 200);
+      return c.json({ llaves: filas.map(aLlave), hayMas: false, siguiente: null }, 200);
     },
   );
 
@@ -752,7 +813,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'delete', path: '/v1/llaves/{prefijo}', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
       request: { params: z.object({ prefijo: z.string().regex(/^[0-9a-f]{12}$/) }) },
-      responses: { 200: json(S.Llave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasError },
+      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -771,7 +832,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'llave.revocada', { prefijo });
         return r.rows[0]!;
       });
-      return c.json(aLlave(fila), 200);
+      return c.json({ llave: aLlave(fila) }, 200);
     },
   );
 
@@ -783,7 +844,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
       summary: 'Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)',
       request: { body: { content: { 'application/json': { schema: S.WebhookNuevo } }, required: true } },
-      responses: { 201: json(S.Webhook.extend({ secreto: z.string() }), 'Creado'), ...respuestasError },
+      responses: { 201: json(S.RespuestaWebhookNuevo, 'Creado'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -799,21 +860,21 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'webhook.creado', { id: r.rows[0]!.id, url: b.url, eventos: b.eventos });
         return r.rows[0]!;
       });
-      return c.json({ ...aWebhook(fila), secreto }, 201);
+      return c.json({ webhook: aWebhook(fila), secreto }, 201);
     },
   );
 
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad, summary: 'Webhooks del tenant',
-      responses: { 200: json(z.object({ webhooks: z.array(S.Webhook) }), 'Lista'), ...respuestasError },
+      responses: { 200: json(S.pagina('webhooks', S.Webhook), 'Lista'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
       const filas = await enTenant(c, async (tx) =>
         (await tx.consulta<FilaWebhook>('SELECT id, url, eventos, activo, creado FROM api_webhooks WHERE tenant = $1 ORDER BY creado', [tx.tenant])).rows,
       );
-      return c.json({ webhooks: filas.map(aWebhook) }, 200);
+      return c.json({ webhooks: filas.map(aWebhook), hayMas: false, siguiente: null }, 200);
     },
   );
 
@@ -821,7 +882,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'delete', path: '/v1/webhooks/{id}', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
       request: { params: z.object({ id: z.string().uuid() }) },
-      responses: { 200: json(S.Webhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -832,7 +893,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         await bitacora(tx, actor(c), 'webhook.desactivado', { id });
         return r.rows[0];
       });
-      return c.json(aWebhook(fila), 200);
+      return c.json({ webhook: aWebhook(fila) }, 200);
     },
   );
 
@@ -843,7 +904,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       title: 'factura-hn API',
       version: VERSION_API,
       description: [
-        'Facturación SAR Honduras (Acuerdo 481-2017). Montos como texto decimal. Fechas en America/Tegucigalpa.',
+        'Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.',
+        '',
+        'Montos (DEC-048): en la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.',
+        '',
+        'Respuestas (DEC-047): cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).',
         '',
         'Reglas para integrar (también en AGENTS.md, sección «Con la API REST»):',
         '1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.',

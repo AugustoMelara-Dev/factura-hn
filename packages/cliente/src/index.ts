@@ -94,6 +94,14 @@ export function crearCliente(o: OpcionesCliente) {
     return tipo === 'pdf' ? new Uint8Array(await resp.arrayBuffer()) : await resp.text();
   };
 
+  /** Una página de documentos. Pide la siguiente con `cursor: pagina.siguiente` mientras `hayMas`. */
+  const paginaDocumentos = async (
+    desde: string,
+    hasta: string,
+    opciones: { identificador?: string; limite?: number; cursor?: string } = {},
+  ): Promise<{ documentos: DocumentoFiscal[]; hayMas: boolean; siguiente: string | null }> =>
+    exigir(await api.GET('/v1/documentos', { params: { query: { desde, hasta, ...opciones } } }));
+
   return {
     /** Cliente tipado para cualquier ruta de la API. */
     api,
@@ -124,17 +132,30 @@ export function crearCliente(o: OpcionesCliente) {
       const header = opciones.operador !== undefined ? { 'x-operador': enc(opciones.operador) } : undefined;
       return exigir(await api.POST('/v1/documentos/{numero}/anular', { params: { path: { numero } }, body, ...(header ? { headers: header } : {}) })).documento;
     },
-    async documentos(desde: string, hasta: string): Promise<DocumentoFiscal[]> {
-      return exigir(await api.GET('/v1/documentos', { params: { query: { desde, hasta } } })).documentos;
+    /**
+     * Documentos del período (a lo sumo 366 días), por fecha de emisión y número. Recorre todas las páginas de
+     * la API; para leer página por página, usa `paginaDocumentos`.
+     */
+    async documentos(desde: string, hasta: string, opciones: { identificador?: string } = {}): Promise<DocumentoFiscal[]> {
+      const todos: DocumentoFiscal[] = [];
+      let cursor: string | undefined;
+      do {
+        const p = await paginaDocumentos(desde, hasta, { ...opciones, limite: 500, cursor });
+        todos.push(...p.documentos);
+        cursor = p.siguiente ?? undefined;
+      } while (cursor);
+      return todos;
     },
+    paginaDocumentos,
     async registrarAutorizacion(a: Autorizacion): Promise<Autorizacion> {
       return exigir(await api.POST('/v1/autorizaciones', { body: a })).autorizacion;
     },
     async autorizaciones(): Promise<Autorizacion[]> {
       return exigir(await api.GET('/v1/autorizaciones')).autorizaciones;
     },
+    /** Vigencia, días y correlativos restantes, y alertas de una autorización (Arts. 59 y 62). */
     async estadoAutorizacion(cai: string): Promise<EstadoAutorizacion> {
-      return exigir(await api.GET('/v1/autorizaciones/{cai}/estado', { params: { path: { cai } } }));
+      return exigir(await api.GET('/v1/autorizaciones/{cai}/estado', { params: { path: { cai } } })).estado;
     },
     async libroVentas(desde: string, hasta: string) {
       return exigir(await api.GET('/v1/libro-ventas', { params: { query: { desde, hasta, formato: 'json' } } })) as {

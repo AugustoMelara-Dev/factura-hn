@@ -81,7 +81,7 @@ describe('B-07 · rangos no utilizados', () => {
   });
 });
 
-describe('B-07 · revisión independiente: números saltados de una autorización vencida', () => {
+describe('B-07 · revisión interna: números saltados de una autorización vencida', () => {
   it('se siguen reportando después de que la serie continúa en la autorización siguiente', async () => {
     const almacen = new AlmacenFiscalMemoria();
     const A = { ...AUT, rangoFinal: 10 };

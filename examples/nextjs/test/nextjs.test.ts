@@ -56,7 +56,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
 
     // Como en producción: la app usa una llave de caja, atada a su punto de emisión.
     const { data } = await admin.api.POST('/v1/llaves', { body: { nombre: 'next', rol: 'caja', establecimiento: '000', puntoEmision: '001' } });
-    const fhn = crearCliente({ url: 'http://api', llave: (data as { llave: string }).llave, fetch: fetchApi });
+    const fhn = crearCliente({ url: 'http://api', llave: (data as { secreto: string }).secreto, fetch: fetchApi });
     const formulario = (campos: Record<string, string>) => {
       const f = new FormData();
       for (const [k, v] of Object.entries(campos)) f.set(k, v);
@@ -94,7 +94,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
     const r4 = await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-cajero-1', operador: 'Rosa Mejía', imprimirOperador: 'on' }), nueva);
     const numero4 = r4.tipo === 'emitida' ? r4.numero : '';
     expect(await fhn.descargar(numero4, 'txt')).toContain('Atendido por: Rosa Mejía');
-    const bit = (await admin.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { fiscal: { numero?: string; operador?: string; actor: string }[] };
-    expect(bit.fiscal.find((e) => e.numero === numero4)).toMatchObject({ operador: 'Rosa Mejía', actor: expect.stringMatching(/\(caja: next\)$/) });
+    const bit = (await admin.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { eventos: { numero?: string; operador?: string; actor: string }[] };
+    expect(bit.eventos.find((e) => e.numero === numero4)).toMatchObject({ operador: 'Rosa Mejía', actor: expect.stringMatching(/\(caja: next\)$/) });
   });
 });
