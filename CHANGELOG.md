@@ -36,6 +36,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   constancia, o solo `registroSAG` (RUPNSA).
 - `filaLibroVentas(doc)` ya no recibe `{ anulado }`: el estado sale del documento. El CSV del libro agrega la
   columna «Gravado 0%».
+- **Notas de crédito (DEC-051).** `emitir` avisa `AVISO_NOTA_SUPERA_ORIGINAL` y `AVISO_NOTA_TASA_DISTINTA`. En la
+  API, una NC con esos avisos o sobre un original externo requiere llave admin (403 `SOLO_ADMIN` con llave de caja).
 - **Libro de ventas en lempiras (DEC-050).** `filaLibroVentas` convierte los documentos en moneda extranjera con
   su tipo de cambio y agrega `moneda`, `tipoCambio` y `totalMonedaOriginal`. El CSV suma tres columnas al final.
   Antes `resumenVentas` sumaba dólares como lempiras.

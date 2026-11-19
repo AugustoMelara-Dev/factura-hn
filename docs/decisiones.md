@@ -420,3 +420,16 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
   convertir cada campo por separado, la suma de las partes puede diferir del total en 1 centavo.
 - **Alternativa:** convertir solo la base y recalcular el ISV en lempiras (otro redondeo), o un libro por
   moneda. Va en la consulta al SAR junto con P-14.
+
+### DEC-051 · Avisos de importe y tasa en las notas de crédito; en la API, solo admin · [REVISAR]
+- **Contexto:** la revisión de la 0.2.0 emitió, sin aviso, una NC de L 1,150.00 sobre una factura de L 115.00 y una
+  NC con ISV 15 % sobre una factura exonerada. Con la API, una llave de caja podía hacerlo, y también emitir una NC
+  sobre un número inventado (`AVISO_ORIGINAL_EXTERNO`). El Art. 4 num. 32 (C L.381-385) dice que la NC respalda un
+  ajuste, devolución o descuento sobre el «correspondiente» comprobante, pero ningún artículo fija un tope numérico.
+- **Elegida:** con el original en el almacén, `emitir` agrega avisos (no errores, porque el tope sería una regla
+  derivada): `AVISO_NOTA_SUPERA_ORIGINAL` si el total de la nota supera el del original en lempiras (no suma notas
+  anteriores) y `AVISO_NOTA_TASA_DISTINTA` si la nota lleva ISV a una tasa que el original no tenía o el original
+  era exonerado. Como **política de seguridad de la API** (no fiscal), una NC con alguno de esos avisos o con
+  `AVISO_ORIGINAL_EXTERNO` requiere llave admin: con llave de caja responde 403 `SOLO_ADMIN` sin consumir número.
+- **Alternativa:** convertir los avisos en errores, sumar las NC previas sobre el mismo original o limitar las
+  NC a la llave admin siempre. Pendiente de la consulta al SAR.

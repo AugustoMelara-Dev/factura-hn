@@ -13,6 +13,7 @@ import {
   type TipoEventoAuditoria,
   type TransaccionFiscal,
 } from './almacen';
+import { deCentavos, dividirRedondeando, formatearMonto, parsearDecimal, redondearDecimal } from './dinero';
 import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeOperador, problemaDeTipo } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
@@ -243,7 +244,12 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
     if (tipo === '06' || tipo === '07') entrada = await monedaDelOriginal(tx, entrada);
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
-    const doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
+    let doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
+    if (tipo === '06') {
+      // DEC-051: los avisos de importe y tasa necesitan los totales ya calculados de la nota.
+      const avisos = await avisosDeNotaCredito(tx, entrada, doc);
+      if (avisos.length) doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, [...adicionales, ...avisos]);
+    }
     await tx.guardarDocumento(doc);
     await tx.registrarEvento(
       evento('DOCUMENTO_EMITIDO', ahora, {
@@ -451,6 +457,42 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
     problemas.push({ codigo: 'AVISO_ORIGINAL_SIN_RTN', mensaje: `El documento ${numero} se emitió sin RTN del adquirente; verifica que la nota corresponde al mismo cliente.`, campo: 'cliente.rtn' });
   }
   return problemas;
+}
+
+/**
+ * DEC-051 [REVISAR]: avisos (no bloquean) de una nota de crédito contra el original guardado en el almacén. El Art. 4
+ * num. 32 dice que la nota respalda un ajuste, devolución o descuento sobre el «correspondiente» comprobante; no
+ * fija un tope numérico, así que esto es una derivación y no un error:
+ * - `AVISO_NOTA_SUPERA_ORIGINAL`: el total de esta nota supera el total del original (en lempiras). No suma las
+ *   notas anteriores sobre el mismo original.
+ * - `AVISO_NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o el original era exonerado.
+ */
+async function avisosDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoEntrada, nota: DocumentoFiscal): Promise<Problema[]> {
+  const r = entrada.referencia;
+  if (!r?.numero || !esNumeroValido(r.numero)) return [];
+  const original = await tx.buscarDocumento(formatearNumero(parsearNumero(r.numero)));
+  if (!original || original.estado === 'ANULADO') return [];
+  const avisos: Problema[] = [];
+  const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6, 'tipoCambio') : 1_000_000n;
+  const totalOriginal = dividirRedondeando(redondearDecimal(original.totales.total, 2) * tc, 1_000_000n);
+  if (redondearDecimal(nota.totales.total, 2) > totalOriginal) {
+    avisos.push({
+      codigo: 'AVISO_NOTA_SUPERA_ORIGINAL',
+      mensaje: `La nota (L ${formatearMonto(nota.totales.total)}) supera el total del documento ${original.numero} (L ${formatearMonto(deCentavos(totalOriginal))}). Revisa el importe: una nota de crédito ajusta, devuelve o descuenta sobre ese documento (Art. 4 num. 32).`,
+      campo: 'lineas',
+    });
+  }
+  const o = original.totales;
+  const n = nota.totales;
+  const tasaNueva = (n.isv15 > 0 && o.importeGravado15 === 0) || (n.isv18 > 0 && o.importeGravado18 === 0);
+  if (tasaNueva || (o.importeExonerado > 0 && n.isv15 + n.isv18 > 0)) {
+    avisos.push({
+      codigo: 'AVISO_NOTA_TASA_DISTINTA',
+      mensaje: `La nota lleva ISV a una tasa que el documento ${original.numero} no tenía (o el original era exonerado). Usa en cada línea el mismo tratamiento del ISV que en la factura original.`,
+      campo: 'lineas',
+    });
+  }
+  return avisos;
 }
 
 /** DEC-018: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */

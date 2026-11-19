@@ -104,6 +104,7 @@ puede traer cambios incompatibles.
 | Otra llave de caja | `POST /v1/llaves` |
 | Revocar una llave | `DELETE /v1/llaves/{prefijo}` |
 | Perdí la llave admin | `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"` |
+| Perdí la llave de caja del demo | `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001` |
 
 La base guarda solo el hash de cada llave: una llave perdida no se recupera, se reemplaza.
 

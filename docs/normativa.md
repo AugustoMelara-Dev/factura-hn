@@ -35,7 +35,7 @@
 | Importes exonerado, exento, gravado 0 % y gravado por tasa; ISV discriminado por tasa (Art. 11 num. 1 g-i) | `calcularDocumento` |
 | Exportaciones con tasa cero (Art. 12) | `isv: 'GRAVADO0'`, `totales.importeGravado0` |
 | Crédito fiscal: en ventas mixtas solo cuentan las gravadas (Art. 11 num. 3) | `totales.baseCreditoFiscal`, `AVISO_VENTA_MIXTA` |
-| Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41) | `REFERENCIA_*` en `emitir` |
+| Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41): tipo, CAI, número, fecha, RTN, estado, moneda y tipo de cambio. El importe y la tasa solo avisan (DEC-051 [REVISAR]) | `REFERENCIA_*` en `emitir`; `AVISO_NOTA_SUPERA_ORIGINAL`, `AVISO_NOTA_TASA_DISTINTA` |
 | Tipos que un sistema no puede emitir: 04, 09, 10, 12 (Arts. 4 num. 43, 46, 47) | `TIPO_NO_EMITIBLE` |
 | Importe total en número y letras, moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |

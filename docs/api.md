@@ -24,7 +24,15 @@ Al primer arranque se crean dos tenants:
 - `demo` (por `FHN_DEMO=1`): emisor «NEGOCIO DE DEMOSTRACIÓN» y **CAI ficticio** (`DEMO00-NO-VALIDO-…`), sin
   validez fiscal, con una llave de caja 000-001 lista para probar. Pon `FHN_DEMO: "0"` para no crearlo.
 
-Si perdiste una llave: `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"`.
+La llave de caja del demo y la admin de `local` salen **una sola vez** en el log del primer arranque
+(`docker compose logs api`). Si las perdiste, crea otras (las anteriores siguen activas hasta que las revoques):
+
+```sh
+docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"
+docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001
+```
+
+Con `docker-compose.dev.yml` agrega `-f docker-compose.yml -f docker-compose.dev.yml` después de `docker compose`.
 Para desarrollo, `docker-compose.dev.yml` publica Postgres en 127.0.0.1:54329 (sin contraseña: no lo uses en
 el equipo de un negocio).
 
@@ -92,6 +100,7 @@ documento lleva «Atendido por: …». El operador no cambia la huella de idempo
 |---|:-:|:-:|
 | Emitir, consultar documentos, PDF/HTML/TXT, libro de ventas, autorizaciones y su estado, emisor | ✅ | ✅ |
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
+| Nota de crédito que supera el original, cambia la tasa o modifica un documento que no está en el sistema (DEC-051) | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
 
 Una llave de caja siempre está atada a un establecimiento y punto de emisión: emite solo ahí (otro punto da
