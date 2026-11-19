@@ -9,7 +9,7 @@ Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 ## Probar en 2 minutos
 
 ```bash
-git clone https://github.com/factura-hn/factura-hn.git
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git
 cd factura-hn
 docker compose up -d --build --wait
 docker compose logs api        # llaves: se muestran UNA sola vez

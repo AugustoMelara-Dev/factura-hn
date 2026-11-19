@@ -6,6 +6,8 @@
  * - Correos: solo dominios reservados (`*.example`, RFC 2606) o el patrón genérico `algo@dominio.tld`.
  * - CAI con forma real (6-6-6-6-6-2 hexadecimal): solo los patrones ficticios conocidos.
  * - Nada de rutas de una máquina (C:\Users\…, /home/…, /Users/…).
+ * - Historial de git: autores y committers solo con correo `@users.noreply.github.com`, y ningún correo real en
+ *   los mensajes de commit (se publican con el repositorio).
  *
  * Uso: node scripts/auditar-datos.mjs   (sale con 1 y lista los hallazgos si hay alguno)
  */
@@ -13,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const archivos = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-const OMITIR = new Set(['pnpm-lock.yaml', 'LICENSE', 'scripts/auditar-datos.mjs']);
+const OMITIR = new Set(['pnpm-lock.yaml', 'scripts/auditar-datos.mjs']);
 const BINARIO = /\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|db|sqlite)$/i;
 
 const CAI_FICTICIOS = [/^[0-9A-F]{6}-D4E5F6-A1B2C3-D4E5F6-A1B2C3-[0-9A-F]{2}$/, /^DEMO00-/, /^0{6}-/, /^F{6}-/];
@@ -47,8 +49,29 @@ for (const archivo of archivos) {
   });
 }
 
+// Historial: cada commit publica el correo de su autor y de quien lo confirmó.
+const correo = reglas[1];
+let commits = 0;
+let log = '';
+try {
+  log = execFileSync('git', ['log', '--all', '--format=%x00%h%x01%ae%x01%ce%x01%B'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+} catch {
+  // Sin git (p. ej. en un tarball): solo se auditan los archivos.
+}
+for (const registro of log.split('\0').filter((r) => r.trim())) {
+  commits++;
+  const [hash, autor, committer, mensaje = ''] = registro.split('\x01');
+  for (const [quien, c] of [['autor', autor], ['committer', committer]]) {
+    // noreply@github.com: committer de los merges hechos desde la web de GitHub.
+    if (!/@users\.noreply\.github\.com$/.test(c) && c !== 'noreply@github.com') hallazgos.push(`commit ${hash}: correo de ${quien} que no es noreply de GitHub: ${c}`);
+  }
+  for (const m of mensaje.matchAll(correo.patron)) {
+    if (!correo.permitido(m[0])) hallazgos.push(`commit ${hash}: correo en el mensaje: ${m[0]}`);
+  }
+}
+
 if (hallazgos.length) {
   console.error(`Datos que podrían ser reales (usa los ficticios de CONTRIBUTING.md):\n${hallazgos.join('\n')}`);
   process.exit(1);
 }
-console.log(`Auditoría de datos: ${archivos.length} archivos, sin datos que parezcan reales.`);
+console.log(`Auditoría de datos: ${archivos.length} archivos y ${commits} commits, sin datos que parezcan reales.`);

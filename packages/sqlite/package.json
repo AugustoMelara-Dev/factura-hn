@@ -51,12 +51,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/factura-hn/factura-hn.git",
+    "url": "git+https://github.com/AugustoMelara-Dev/factura-hn.git",
     "directory": "packages/sqlite"
   },
-  "homepage": "https://factura-hn.github.io/factura-hn/",
+  "homepage": "https://augustomelara-dev.github.io/factura-hn/",
   "bugs": {
-    "url": "https://github.com/factura-hn/factura-hn/issues"
+    "url": "https://github.com/AugustoMelara-Dev/factura-hn/issues"
   },
   "publishConfig": {
     "access": "public",

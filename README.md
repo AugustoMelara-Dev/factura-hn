@@ -1,10 +1,10 @@
 # factura-hn
 
-[![CI](https://github.com/factura-hn/factura-hn/actions/workflows/ci.yml/badge.svg)](https://github.com/factura-hn/factura-hn/actions/workflows/ci.yml)
+[![CI](https://github.com/AugustoMelara-Dev/factura-hn/actions/workflows/ci.yml/badge.svg)](https://github.com/AugustoMelara-Dev/factura-hn/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/factura-hn?label=npm)](https://www.npmjs.com/package/factura-hn)
 [![procedencia npm](https://img.shields.io/badge/npm-procedencia_firmada-0b5d8f)](https://docs.npmjs.com/generating-provenance-statements)
 [![licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
-[![documentación](https://img.shields.io/badge/docs-espa%C3%B1ol-0b5d8f)](https://factura-hn.github.io/factura-hn/)
+[![documentación](https://img.shields.io/badge/docs-espa%C3%B1ol-0b5d8f)](https://augustomelara-dev.github.io/factura-hn/)
 
 **Facturación SAR Honduras para JavaScript/TypeScript.** Numeración de 16 dígitos, control de CAI y rangos,
 cálculo de ISV 15% / 18% / 0% / exento / exonerado, montos en letras, validación según el Acuerdo 481-2017 e

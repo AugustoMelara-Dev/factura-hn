@@ -11,8 +11,9 @@ Estos pasos crean cuentas, publican o despliegan: los ejecutas tú, en este orde
 Bash (en Windows) o cualquier terminal Unix, desde la raíz del repositorio. Necesitas `gh` (GitHub CLI) y
 `npm`, con una sesión iniciada en cada uno.
 
-Se supone la organización **`factura-hn`** en GitHub y en npm, y el repositorio `factura-hn/factura-hn`. Si
-usas otros nombres, el paso 1 los cambia en todo el repositorio.
+El repositorio es `AugustoMelara-Dev/factura-hn`, en la cuenta personal, y el sitio va en
+`augustomelara-dev.github.io/factura-hn`. Los paquetes van en la organización **`factura-hn`** de npm. Si cambias
+el repositorio, el paso 1 actualiza los enlaces en todo el código.
 
 ## 0. Antes de empezar
 
@@ -25,49 +26,32 @@ pnpm verificar:dist && pnpm sitio
 
 ### El correo de autor en el historial
 
-Los commits del historial llevan como autor el correo de tu configuración de git. Al hacer público el
-repositorio, ese correo queda visible en cada commit. Revisa qué correos hay:
+Cada commit publica el correo de su autor. El historial ya usa el correo noreply de GitHub, y
+`pnpm auditar:datos` falla si algún commit trae otro (también en la CI). Mantenlo así en el `git config` local:
 
 ```bash
-git log --format='%an <%ae>' | sort | uniq -c
+git config user.email    # debe terminar en @users.noreply.github.com
 ```
 
-Si no quieres publicar alguno, tienes dos opciones:
-
-1. **Desde ahora:** usa el correo privado que te da GitHub (Settings → Emails → «Keep my email addresses
-   private»):
-
-   ```bash
-   git config user.email "TU_ID+TU_USUARIO@users.noreply.github.com"
-   ```
-
-2. **Reescribir el historial antes del primer push.** Es irreversible: haz una copia antes. Necesita
-   `git-filter-repo` (`pip install git-filter-repo`):
-
-   ```bash
-   cp -r ../factura-hn ../factura-hn-respaldo
-   printf 'Tu Nombre <TU_ID+TU_USUARIO@users.noreply.github.com> <correo-a-ocultar@ejemplo.example>\n' > ../mailmap.txt
-   git filter-repo --mailmap ../mailmap.txt
-   ```
+Activa también en GitHub Settings → Emails «Keep my email addresses private» y «Block command line pushes that
+expose my email».
 
 ## 1. Nombre del repositorio (solo si cambia)
 
 ```bash
-# Solo si la organización o el repositorio no se llaman factura-hn/factura-hn:
-git grep -l "factura-hn/factura-hn\|factura-hn.github.io" | xargs sed -i \
-  -e 's#factura-hn/factura-hn#TU_ORG/TU_REPO#g' -e 's#factura-hn.github.io/factura-hn#TU_ORG.github.io/TU_REPO#g'
+# Solo si el repositorio deja de ser AugustoMelara-Dev/factura-hn (el dominio de Pages va en minúsculas):
+git grep -l "AugustoMelara-Dev/factura-hn\|augustomelara-dev.github.io" | xargs sed -i \
+  -e 's#AugustoMelara-Dev/factura-hn#DUENO/REPO#g' -e 's#augustomelara-dev.github.io/factura-hn#dueno.github.io/REPO#g'
 pnpm sitio && git commit -am "chore: datos del repositorio para el lanzamiento"
 ```
 
 ## 2. Crear el repositorio en GitHub
 
-Crea la organización `factura-hn` en <https://github.com/account/organizations/new> (plan gratuito). Después:
-
 ```bash
 gh auth login
-gh repo create factura-hn/factura-hn --public \
+gh repo create AugustoMelara-Dev/factura-hn --public \
   --description "Facturación SAR Honduras (Acuerdo 481-2017): SDK, API REST y servidor MCP" \
-  --homepage "https://factura-hn.github.io/factura-hn/" \
+  --homepage "https://augustomelara-dev.github.io/factura-hn/" \
   --source . --remote origin
 git push -u origin main
 ```
@@ -77,9 +61,9 @@ El primer push corre el CI (pestaña Actions). Release y Sitio quedan apagados h
 Ajustes recomendados:
 
 ```bash
-R=factura-hn/factura-hn
+R=AugustoMelara-Dev/factura-hn
 gh api -X PUT repos/$R/private-vulnerability-reporting          # reporte privado (SECURITY.md)
-gh repo edit $R --enable-wiki=false --delete-branch-on-merge --enable-squash-merge
+gh repo edit $R --enable-wiki=false --enable-discussions --delete-branch-on-merge --enable-squash-merge
 gh api repos/$R/topics -X PUT -f 'names[]=honduras' -f 'names[]=sar' -f 'names[]=facturacion' -f 'names[]=typescript' -f 'names[]=mcp'
 
 # Protección de main: PR obligatorio y el CI en verde
@@ -124,7 +108,7 @@ JSON
    cada publicación espera tu aprobación:
 
    ```bash
-   R=factura-hn/factura-hn
+   R=AugustoMelara-Dev/factura-hn
    gh api -X PUT repos/$R/environments/npm --input - <<JSON
    { "reviewers": [ { "type": "User", "id": $(gh api user --jq .id) } ] }
    JSON
@@ -140,7 +124,7 @@ Los paquetes ya están en 0.2.0 y el `CHANGELOG.md` describe la versión. No hac
 Release publica lo que aún no está en npm.
 
 ```bash
-R=factura-hn/factura-hn
+R=AugustoMelara-Dev/factura-hn
 pnpm -r --filter "./packages/*" publish --dry-run --no-git-checks   # ensayo local: no publica (la API es privada y se omite)
 gh variable set PUBLICAR_NPM --body true --repo $R
 gh workflow run release.yml --repo $R
@@ -161,14 +145,14 @@ Desde aquí, cada cambio a un paquete lleva `pnpm changeset`. Al llegar a `main`
 ## 6. Activar GitHub Pages
 
 ```bash
-R=factura-hn/factura-hn
+R=AugustoMelara-Dev/factura-hn
 gh api -X POST repos/$R/pages -f build_type=workflow
 gh variable set PUBLICAR_SITIO --body true --repo $R
 gh workflow run pages.yml --repo $R
 gh run watch --repo $R
 ```
 
-El sitio queda en <https://factura-hn.github.io/factura-hn/>.
+El sitio queda en <https://augustomelara-dev.github.io/factura-hn/>.
 
 ## 7. Después del lanzamiento
 

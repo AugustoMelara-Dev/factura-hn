@@ -14,7 +14,7 @@ import { Marked } from 'marked';
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url));
 const SALIDA = join(RAIZ, 'sitio');
-const REPO = 'https://github.com/factura-hn/factura-hn';
+const REPO = 'https://github.com/AugustoMelara-Dev/factura-hn';
 const leer = (r) => readFileSync(join(RAIZ, r), 'utf8');
 
 /** Páginas: archivo de salida, título en el menú y fuente (ruta del repositorio). */
