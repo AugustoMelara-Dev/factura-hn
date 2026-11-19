@@ -69,6 +69,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             emisores: components["schemas"]["EmisorGuardado"][];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -140,7 +144,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["EmisorGuardado"];
+                        "application/json": components["schemas"]["RespuestaEmisor"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -230,7 +234,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["EmisorGuardado"];
+                        "application/json": components["schemas"]["RespuestaEmisor"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -316,7 +320,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["EmisorGuardado"];
+                        "application/json": components["schemas"]["RespuestaEmisor"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -402,6 +406,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             autorizaciones: components["schemas"]["Autorizacion"][];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -473,9 +481,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            autorizacion: components["schemas"]["Autorizacion"];
-                        };
+                        "application/json": components["schemas"]["RespuestaAutorizacion"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -556,7 +562,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["EstadoAutorizacion"];
+                        "application/json": components["schemas"]["RespuestaEstado"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -630,13 +636,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Documentos de un período */
+        /** Documentos de un período, por fecha de emisión y número (paginado) */
         get: {
             parameters: {
                 query: {
                     desde: string;
                     hasta: string;
                     identificador?: string;
+                    /** @description Elementos por página (1-500). Por defecto 100. */
+                    limite?: number;
+                    /** @description El valor `siguiente` de la página anterior. */
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -644,7 +654,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Lista */
+                /** @description Una página */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -652,6 +662,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             documentos: components["schemas"]["DocumentoFiscal"][];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -1357,11 +1371,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Bitácora fiscal (Art. 53 num. 2) y de la API */
+        /** Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada) */
         get: {
             parameters: {
                 query?: {
+                    /** @description `fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks. */
+                    origen?: "fiscal" | "api";
+                    /** @description Elementos por página (1-500). Por defecto 100. */
                     limite?: number;
+                    /** @description El valor `siguiente` de la página anterior. */
+                    cursor?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1369,19 +1388,20 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Bitácora */
+                /** @description Una página */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            fiscal: {
+                            eventos: {
                                 [key: string]: unknown;
                             }[];
-                            api: {
-                                [key: string]: unknown;
-                            }[];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -1465,6 +1485,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             llaves: components["schemas"]["Llave"][];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -1536,9 +1560,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Llave"] & {
-                            llave: string;
-                        };
+                        "application/json": components["schemas"]["RespuestaLlaveNueva"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -1622,7 +1644,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Llave"];
+                        "application/json": components["schemas"]["RespuestaLlave"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -1720,6 +1742,10 @@ export interface paths {
                     content: {
                         "application/json": {
                             webhooks: components["schemas"]["Webhook"][];
+                            /** @description true si hay más elementos después de esta página. */
+                            hayMas: boolean;
+                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                            siguiente: string | null;
                         };
                     };
                 };
@@ -1791,9 +1817,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Webhook"] & {
-                            secreto: string;
-                        };
+                        "application/json": components["schemas"]["RespuestaWebhookNuevo"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -1877,7 +1901,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Webhook"];
+                        "application/json": components["schemas"]["RespuestaWebhook"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -1945,6 +1969,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RespuestaEmisor: {
+            emisor: components["schemas"]["EmisorGuardado"];
+        };
         EmisorGuardado: components["schemas"]["Emisor"] & {
             /** Format: uuid */
             id: string;
@@ -1986,6 +2013,9 @@ export interface components {
                 [key: string]: string;
             };
         };
+        RespuestaAutorizacion: {
+            autorizacion: components["schemas"]["Autorizacion"];
+        };
         Autorizacion: {
             cai: string;
             /** @enum {string} */
@@ -2000,8 +2030,11 @@ export interface components {
             fechaAutorizacion?: string;
             ultimoEmitidoAntes?: number;
         };
-        EstadoAutorizacion: {
+        RespuestaEstado: {
             autorizacion: components["schemas"]["Autorizacion"];
+            estado: components["schemas"]["EstadoAutorizacion"];
+        };
+        EstadoAutorizacion: {
             vigente: boolean;
             diasRestantes: number;
             correlativosRestantes: number;
@@ -2160,6 +2193,11 @@ export interface components {
              */
             operador?: string;
         };
+        RespuestaLlaveNueva: {
+            llave: components["schemas"]["Llave"];
+            /** @description La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez. */
+            secreto: string;
+        };
         Llave: {
             /** @description Id interno de la llave: identifica al actor en la bitácora. */
             id: string;
@@ -2180,6 +2218,14 @@ export interface components {
             establecimiento?: string;
             puntoEmision?: string;
         };
+        RespuestaLlave: {
+            llave: components["schemas"]["Llave"];
+        };
+        RespuestaWebhookNuevo: {
+            webhook: components["schemas"]["Webhook"];
+            /** @description Secreto de firma (`whsec_…`) para verificar los envíos. Solo se muestra esta vez. */
+            secreto: string;
+        };
         Webhook: {
             id: string;
             url: string;
@@ -2191,6 +2237,9 @@ export interface components {
             /** Format: uri */
             url: string;
             eventos: ("documento.emitido" | "documento.anulado" | "autorizacion.por_vencer" | "autorizacion.agotada")[];
+        };
+        RespuestaWebhook: {
+            webhook: components["schemas"]["Webhook"];
         };
     };
     responses: never;

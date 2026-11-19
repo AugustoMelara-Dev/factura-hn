@@ -144,7 +144,7 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
 
     // Con una llave de caja, el agente emite pero no anula (lo decide el rol de la llave en la API).
     const r = await admin('/v1/llaves', { nombre: 'agente', rol: 'caja', establecimiento: '000', puntoEmision: '001' });
-    const { llave } = (await r.json()) as { llave: string };
+    const { secreto: llave } = (await r.json()) as { secreto: string };
     const { llamar } = await conectar(new BackendApi({ url: 'http://api.local', llave, operador: 'Agente de Rosa', fetch: fetchApp }));
     const f = await llamar('emitir_factura', { lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10.00' }], idempotencyKey: randomUUID() });
     expect(f.error).toBe(false);
@@ -152,7 +152,7 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
     expect(an.error).toBe(true);
     expect(an.datos.codigo).toBe('SOLO_ADMIN');
     // DEC-031: el operador configurado llega a la bitácora de la API junto al id de la llave.
-    const bit = (await (await app.request('/v1/bitacora', { headers: { authorization: `Bearer ${llaveAdmin}` } })).json()) as { fiscal: { numero?: string; actor: string; operador?: string }[] };
-    expect(bit.fiscal.find((e) => e.numero === f.datos.documento.numero)).toMatchObject({ actor: expect.stringMatching(/^llave:[0-9a-f-]{36} \(caja: agente\)$/), operador: 'Agente de Rosa' });
+    const bit = (await (await app.request('/v1/bitacora', { headers: { authorization: `Bearer ${llaveAdmin}` } })).json()) as { eventos: { numero?: string; actor: string; operador?: string }[] };
+    expect(bit.eventos.find((e) => e.numero === f.datos.documento.numero)).toMatchObject({ actor: expect.stringMatching(/^llave:[0-9a-f-]{36} \(caja: agente\)$/), operador: 'Agente de Rosa' });
   });
 });

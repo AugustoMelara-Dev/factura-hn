@@ -154,7 +154,6 @@ export const Autorizacion = z
 
 export const EstadoAutorizacion = z
   .object({
-    autorizacion: Autorizacion,
     vigente: z.boolean(),
     diasRestantes: z.number().int(),
     correlativosRestantes: z.number().int(),
@@ -163,6 +162,27 @@ export const EstadoAutorizacion = z
     alertas: z.array(Problema),
   })
   .openapi('EstadoAutorizacion');
+
+// --- Respuestas (DEC-047) ------------------------------------------------------------------------------------
+// Todo recurso va envuelto con su nombre y toda lista es { <plural>, hayMas, siguiente }.
+
+/** Parámetros de una lista paginada: `limite` (1-500, 100 por defecto) y el `cursor` de la página anterior. */
+export const Paginacion = {
+  limite: z.coerce.number().int().min(1).max(500).optional().openapi({ description: 'Elementos por página (1-500). Por defecto 100.' }),
+  cursor: z.string().min(1).max(200).optional().openapi({ description: 'El valor `siguiente` de la página anterior.' }),
+};
+
+/** Una página de una lista: los elementos, si hay más y el cursor para pedir la siguiente. */
+export const pagina = <T extends z.ZodTypeAny>(nombre: string, elemento: T) =>
+  z.object({
+    [nombre]: z.array(elemento),
+    hayMas: z.boolean().openapi({ description: 'true si hay más elementos después de esta página.' }),
+    siguiente: z.string().nullable().openapi({ description: 'Cursor para la página siguiente (parámetro `cursor`); null en la última.' }),
+  });
+
+export const RespuestaEmisor = z.object({ emisor: EmisorGuardado }).openapi('RespuestaEmisor');
+export const RespuestaAutorizacion = z.object({ autorizacion: Autorizacion }).openapi('RespuestaAutorizacion');
+export const RespuestaEstado = z.object({ autorizacion: Autorizacion, estado: EstadoAutorizacion }).openapi('RespuestaEstado');
 
 export const Motivo = z.object({ motivo: z.string().min(1).max(500), operador: Operador.optional() }).openapi('Motivo');
 
@@ -201,3 +221,18 @@ export const WebhookNuevo = z
 export const Webhook = z
   .object({ id: z.string(), url: z.string(), eventos: z.array(z.string()), activo: z.boolean(), creado: z.string() })
   .openapi('Webhook');
+
+export const RespuestaLlave = z.object({ llave: Llave }).openapi('RespuestaLlave');
+export const RespuestaLlaveNueva = z
+  .object({
+    llave: Llave,
+    secreto: z.string().openapi({ description: 'La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez.' }),
+  })
+  .openapi('RespuestaLlaveNueva');
+export const RespuestaWebhook = z.object({ webhook: Webhook }).openapi('RespuestaWebhook');
+export const RespuestaWebhookNuevo = z
+  .object({
+    webhook: Webhook,
+    secreto: z.string().openapi({ description: 'Secreto de firma (`whsec_…`) para verificar los envíos. Solo se muestra esta vez.' }),
+  })
+  .openapi('RespuestaWebhookNuevo');

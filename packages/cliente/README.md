@@ -24,6 +24,9 @@ try {
 queda en la bitácora junto a la llave. Para imprimirlo en la factura, emite con `imprimirOperador: true`. Al
 anular: `fhn.anular(numero, motivo, { operador })`.
 
+`fhn.documentos(desde, hasta)` recorre todas las páginas; `fhn.paginaDocumentos(desde, hasta, { limite, cursor })`
+lee una por una (`hayMas`, `siguiente`).
+
 `fhn.api` es el cliente de `openapi-fetch` con todas las rutas tipadas (`fhn.api.POST('/v1/llaves', …)`).
 La llave de API va solo en el servidor: nunca en código que llega al navegador.
 

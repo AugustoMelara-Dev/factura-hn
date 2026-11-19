@@ -75,7 +75,7 @@ describe.skipIf(!URL_PG)('entregas', () => {
     const pool = await poolPrueba();
     const alta = await admin('POST', '/v1/webhooks', { url: 'http://127.0.0.1:9/hook', eventos: ['documento.emitido', 'documento.anulado'] });
     expect(alta.status).toBe(201);
-    const { secreto, id } = (await alta.json()) as { secreto: string; id: string };
+    const { secreto, webhook: { id } } = (await alta.json()) as { secreto: string; webhook: { id: string } };
     expect(secreto).toMatch(/^whsec_/);
     // El secreto no está en claro en la base del modo alojado (aquí, modo local sin clave: marcado como plano).
     const doc = (await (await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).json()).documento;
@@ -147,7 +147,7 @@ describe.skipIf(!URL_PG)('entregas', () => {
     const { admin, tenant } = await tenantListo();
     const pool = await poolPrueba();
     const destino = `http://127.0.0.1:9/hook-${tenant}`;
-    const { id } = (await (await admin('POST', '/v1/webhooks', { url: destino, eventos: ['documento.emitido'] })).json()) as { id: string };
+    const { webhook: { id } } = (await (await admin('POST', '/v1/webhooks', { url: destino, eventos: ['documento.emitido'] })).json()) as { webhook: { id: string } };
     await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
     await admin('DELETE', `/v1/webhooks/${id}`);
     let llamadas = 0;

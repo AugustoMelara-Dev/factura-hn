@@ -61,7 +61,7 @@ export async function tenantListo(
   const admin = cliente(app, llaveAdmin);
   const r = await admin('POST', '/v1/emisores', EMISOR);
   if (r.status !== 201) throw new Error(`emisor: ${r.status} ${await r.text()}`);
-  const emisor = (await r.json()) as { id: string };
+  const { emisor } = (await r.json()) as { emisor: { id: string } };
   for (const punto of o.cajas ?? ['001']) {
     for (const tipoDocumento of ['01', '06'] as const) {
       const a = await admin('POST', '/v1/autorizaciones', {
@@ -84,5 +84,5 @@ export const venta = (precio = '100.00', extra: Record<string, unknown> = {}) =>
 export async function crearCaja(admin: Cliente, punto: string | null, rol: 'caja' | 'admin' = 'caja'): Promise<string> {
   const r = await admin('POST', '/v1/llaves', { nombre: `caja ${punto}`, rol, ...(punto ? { establecimiento: '000', puntoEmision: punto } : {}) });
   if (r.status !== 201) throw new Error(`llave: ${r.status} ${await r.text()}`);
-  return ((await r.json()) as { llave: string }).llave;
+  return ((await r.json()) as { secreto: string }).secreto;
 }

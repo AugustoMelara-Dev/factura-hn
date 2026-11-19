@@ -36,7 +36,10 @@ describe.skipIf(!URL_PG)('DEC-031: actor y operador', () => {
     // Anulación con operador (admin).
     expect((await admin('POST', `/v1/documentos/${d1.numero}/anular`, { motivo: 'Error en el precio', operador: 'Supervisora Ana' })).status).toBe(200);
 
-    const bit = await json(await admin('GET', '/v1/bitacora'));
+    const bit = {
+      fiscal: (await json(await admin('GET', '/v1/bitacora?origen=fiscal'))).eventos.reverse(),
+      api: (await json(await admin('GET', '/v1/bitacora?origen=api'))).eventos.reverse(),
+    };
     const actorCaja = `llave:${llaveCaja.id} (caja: ${llaveCaja.nombre})`;
     const fiscal = bit.fiscal.filter((e: any) => e.numero);
     expect(fiscal.map((e: any) => [e.tipo, e.numero, e.actor, e.operador ?? null])).toEqual([

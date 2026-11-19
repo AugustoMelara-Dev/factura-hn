@@ -107,18 +107,37 @@ El esquema `Bearer` no distingue mayúsculas.
 | `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo) |
 | `GET /v1/autorizaciones/{cai}/estado` | caja | Vigencia, restantes y alertas (Arts. 59 y 62) |
 | `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria |
-| `GET /v1/documentos?desde&hasta[&identificador]` | caja | |
+| `GET /v1/documentos?desde&hasta[&identificador][&limite&cursor]` | caja | Paginada, por fecha de emisión y número |
 | `GET /v1/documentos/{numero}[.pdf\|.html\|.txt]` | caja | `?formato=carta\|ticket` (PDF), `?ancho=` (TXT) |
 | `POST /v1/documentos/{numero}/anular` | admin | Art. 41 |
 | `POST /v1/series/{id}/corregir-fecha` | admin | Reloj adelantado (Arts. 41 y 43) |
 | `GET /v1/series/{id}/no-utilizados` | admin | Art. 42 |
 | `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | |
 | `GET /v1/exportacion?desde&hasta&formato=jsonl\|csv\|txt` | admin | Art. 53 num. 5 |
-| `GET /v1/bitacora` | admin | Bitácora fiscal (núcleo) y de la API |
+| `GET /v1/bitacora?origen=fiscal\|api[&limite&cursor]` | admin | Paginada, del evento más reciente al más antiguo. `fiscal` (por defecto): la del núcleo; `api`: llaves, emisor y webhooks |
 | `POST/GET /v1/llaves` · `DELETE /v1/llaves/{prefijo}` | admin | La llave completa se muestra solo al crearla |
 | `POST/GET /v1/webhooks` · `DELETE /v1/webhooks/{id}` | admin | El secreto se muestra solo al crearlo |
 
 Los períodos (`desde`, `hasta`) son de hasta 366 días.
+
+### Forma de las respuestas (DEC-047)
+
+- Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
+  `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`. Al crear una llave o un webhook,
+  la respuesta trae además `secreto` (la llave completa `fhn_…` o el secreto de firma `whsec_…`), que solo se
+  muestra esa vez.
+- Cada lista es `{ "<plural>": [...], "hayMas": bool, "siguiente": "cursor" | null }`. Si `hayMas`, pide la
+  página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
+  El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
+  páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
+- Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
+
+### Montos (DEC-048)
+
+En la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número JSON en lempiras con a lo
+sumo 2 decimales. Se calcula en centavos enteros y se convierte con la representación decimal más corta, así que
+`Math.round(monto * 100)` da los centavos exactos. Sumar montos en coma flotante sí puede acumular error: pásalos
+antes a centavos.
 
 Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, campo }] }`.
 400 forma inválida · 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB ·

@@ -60,7 +60,7 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
       '2': { id: '2', articulos: [{ descripcion: 'Malo', cantidad: 1, precioConISV: '-1.00' }] },
     };
     const tienda = crearTienda({
-      fhn: crearCliente({ url: 'http://api', llave: (data as { llave: string }).llave, fetch: fetchApi }),
+      fhn: crearCliente({ url: 'http://api', llave: (data as { secreto: string }).secreto, fetch: fetchApi }),
       buscarPedido: async (id) => pedidos[id] ?? null,
       guardarFactura: async (id, numero) => void (pedidos[id]!.numeroFactura = numero),
       secretoWebhook: 'x',
@@ -85,8 +85,8 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
       expect((await fetch(`${base}/pedidos/2/factura.pdf`)).status).toBe(404);
       expect((await fetch(`${base}/facturas/000-001-01-00000001.pdf`)).status).toBe(404);
       // DEC-031: el operador de la sesión llega a la bitácora junto a la llave de la tienda.
-      const bit = (await admin.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { fiscal: { numero?: string; tipo: string; operador?: string; actor: string }[] };
-      expect(bit.fiscal.find((e) => e.tipo === 'DOCUMENTO_EMITIDO')).toMatchObject({ numero: f.numero, operador: 'Despacho Ana', actor: expect.stringMatching(/\(caja: tienda\)$/) });
+      const bit = (await admin.api.GET('/v1/bitacora', { params: { query: {} } })).data as unknown as { eventos: { numero?: string; tipo: string; operador?: string; actor: string }[] };
+      expect(bit.eventos.find((e) => e.tipo === 'DOCUMENTO_EMITIDO')).toMatchObject({ numero: f.numero, operador: 'Despacho Ana', actor: expect.stringMatching(/\(caja: tienda\)$/) });
     } finally {
       cerrar();
     }

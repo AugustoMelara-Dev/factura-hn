@@ -59,9 +59,12 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
   y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
   Rechaza cuerpos que no son UTF-8 válido (`CUERPO_NO_UTF8`) y sigue en pie si Postgres se reinicia.
+  Cada recurso va envuelto con su nombre y cada lista es `{ <plural>, hayMas, siguiente }`; documentos y
+  bitácora se paginan con `limite` y `cursor` (DEC-047). Montos de salida en lempiras con 2 decimales (DEC-048).
   `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
 - **`@factura-hn/cliente`** (0.2.0): cliente tipado de la API generado desde OpenAPI (`openapi-fetch`), con
-  `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, CAI, libro, exportación, `ErrorFacturaHN` y
+  `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, `documentos` (recorre las páginas) y
+  `paginaDocumentos`, CAI, libro, exportación, `ErrorFacturaHN` y
   `verificarFirmaWebhook` con Web Crypto (Node 20+, edge, navegador).
 - **`@factura-hn/mcp`** (0.2.0): servidor MCP con `emitir_factura`, `emitir_nota_credito`,
   `consultar_documento`, `anular_documento`, `estado_cai` y `libro_ventas`, vía la API o el SDK local sobre

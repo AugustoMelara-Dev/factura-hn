@@ -116,14 +116,17 @@ conBase('flujo completo', () => {
     expect((await exp.text()).trim().split('\n')).toHaveLength(2); // un documento por línea
 
     const estado = await json(await admin('GET', `/v1/autorizaciones/${encodeURIComponent(` ${doc.cai.toLowerCase()} `)}/estado`));
-    expect(estado).toMatchObject({ vigente: true, siguienteCorrelativo: 3, correlativosRestantes: 998 });
+    expect(estado.autorizacion.cai).toBe(doc.cai);
+    expect(estado.estado).toMatchObject({ vigente: true, siguienteCorrelativo: 3, correlativosRestantes: 998 });
 
-    const bit = await json(await admin('GET', '/v1/bitacora'));
-    expect(bit.fiscal.map((e: any) => e.tipo)).toEqual(['AUTORIZACION_REGISTRADA', 'AUTORIZACION_REGISTRADA', 'DOCUMENTO_EMITIDO', 'DOCUMENTO_ANULADO', 'DOCUMENTO_EMITIDO']);
-    expect(bit.fiscal[3].actor).toMatch(/^llave:[0-9a-f-]{36} \(admin: admin inicial\)$/);
-    expect(bit.api.map((e: any) => e.accion)).toEqual(['tenant.creado', 'emisor.creado', 'documento.emitido', 'documento.emitido', 'exportacion']);
+    // La bitácora va del evento más reciente al más antiguo.
+    const fiscal = (await json(await admin('GET', '/v1/bitacora'))).eventos.reverse();
+    expect(fiscal.map((e: any) => e.tipo)).toEqual(['AUTORIZACION_REGISTRADA', 'AUTORIZACION_REGISTRADA', 'DOCUMENTO_EMITIDO', 'DOCUMENTO_ANULADO', 'DOCUMENTO_EMITIDO']);
+    expect(fiscal[3].actor).toMatch(/^llave:[0-9a-f-]{36} \(admin: admin inicial\)$/);
+    const api = (await json(await admin('GET', '/v1/bitacora?origen=api'))).eventos.reverse();
+    expect(api.map((e: any) => e.accion)).toEqual(['tenant.creado', 'emisor.creado', 'documento.emitido', 'documento.emitido', 'exportacion']);
 
-    const emisor = await json(await admin('GET', `/v1/emisores/${emisorId}`));
+    const { emisor } = await json(await admin('GET', `/v1/emisores/${emisorId}`));
     expect(emisor.rtn).toBe('99990000000001');
     expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { rtn: '99990000000003' })).status).toBe(422);
     expect((await admin('PATCH', `/v1/emisores/${emisorId}`, { telefono: '0000-0005' })).status).toBe(200);
@@ -345,7 +348,7 @@ conBase('correcciones de la revisión de seguridad', () => {
 
   it('GET /v1/emisores da el id; un segundo POST responde 409 con el id', async () => {
     const { admin, emisorId } = await tenantListo();
-    expect((await json(await admin('GET', '/v1/emisores'))).emisores.map((e: any) => e.id)).toEqual([emisorId]);
+    expect(await json(await admin('GET', '/v1/emisores'))).toMatchObject({ emisores: [{ id: emisorId }], hayMas: false, siguiente: null });
     const r = await admin('POST', '/v1/emisores', { rtn: '99990000000001', razonSocial: 'x', nombreComercial: 'x', direccionCasaMatriz: 'x', direccionEstablecimiento: 'x', telefono: '1', correo: 'a@ejemplo.example' });
     expect(r.status).toBe(409);
     expect((await json(r)).id).toBe(emisorId);
@@ -387,5 +390,71 @@ conBase('modo local', () => {
     // Si esta llamada creó el tenant local, no le puso datos de demostración.
     if (r.llaveAdmin) expect(auts.rows.find((f) => f.tenant === TENANT_LOCAL)).toBeUndefined();
     expect(auts.rows.find((f) => f.tenant === TENANT_DEMO)?.n).toBe(3);
+  });
+});
+
+conBase('respuestas uniformes y paginación (DEC-047)', () => {
+  it('GET /v1/documentos se recorre por páginas con el cursor, sin repetir ni saltar documentos', async () => {
+    const { admin } = await tenantListo({}, { cajas: ['001', '002'] });
+    const numeros: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const cuerpo = { ...venta(`${i + 1}.00`), puntoEmision: i % 2 ? '002' : '001' };
+      numeros.push((await json(await emitir(admin, cuerpo))).documento.numero);
+    }
+    const hoy = (await json(await admin('GET', `/v1/documentos/${numeros[0]}`))).documento.fechaEmision;
+    const vistos: string[] = [];
+    let cursor: string | null = null;
+    let paginas = 0;
+    do {
+      const r = await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}&limite=2${cursor ? `&cursor=${cursor}` : ''}`);
+      expect(r.status).toBe(200);
+      const p = await json(r);
+      expect(p.documentos.length).toBeLessThanOrEqual(2);
+      expect(p.hayMas).toBe(p.siguiente !== null);
+      vistos.push(...p.documentos.map((d: any) => d.numero));
+      cursor = p.siguiente;
+      paginas++;
+    } while (cursor);
+    expect(paginas).toBe(3);
+    expect(vistos).toEqual([...numeros].sort());
+
+    // Sin limite: 100 por defecto, todo en una página.
+    expect(await json(await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}`))).toMatchObject({ hayMas: false, siguiente: null });
+    for (const malo of ['no-es-un-cursor', Buffer.from('["x","y"]').toString('base64url'), Buffer.from('1').toString('base64url')]) {
+      const r = await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}&cursor=${malo}`);
+      expect(r.status, malo).toBe(400);
+      expect((await json(r)).error.codigo).toBe('CURSOR_INVALIDO');
+    }
+    expect((await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}&limite=501`)).status).toBe(400);
+  });
+
+  it('la bitácora se pagina del evento más reciente al más antiguo', async () => {
+    const { admin } = await tenantListo();
+    for (let i = 0; i < 3; i++) await emitir(admin, venta());
+    const todos = (await json(await admin('GET', '/v1/bitacora'))).eventos as any[];
+    expect(todos.map((e) => e.tipo).slice(0, 3)).toEqual(['DOCUMENTO_EMITIDO', 'DOCUMENTO_EMITIDO', 'DOCUMENTO_EMITIDO']);
+    const p1 = await json(await admin('GET', '/v1/bitacora?limite=2'));
+    expect(p1.hayMas).toBe(true);
+    const p2 = await json(await admin('GET', `/v1/bitacora?limite=2&cursor=${p1.siguiente}`));
+    expect([...p1.eventos, ...p2.eventos]).toEqual(todos.slice(0, 4));
+    const api = await json(await admin('GET', '/v1/bitacora?origen=api&limite=1'));
+    expect(api.eventos[0]).toMatchObject({ accion: 'documento.emitido' });
+    expect(api.hayMas).toBe(true);
+  });
+
+  it('cada recurso va envuelto con su nombre; las listas cortas dicen hayMas: false', async () => {
+    const { admin } = await tenantListo();
+    const nueva = await json(await admin('POST', '/v1/llaves', { nombre: 'caja 9', rol: 'caja', establecimiento: '000', puntoEmision: '009' }));
+    expect(Object.keys(nueva).sort()).toEqual(['llave', 'secreto']);
+    expect(nueva.secreto).toMatch(new RegExp(`^fhn_${nueva.llave.prefijo}_`));
+    expect(Object.keys(await json(await admin('DELETE', `/v1/llaves/${nueva.llave.prefijo}`)))).toEqual(['llave']);
+    const hook = await json(await admin('POST', '/v1/webhooks', { url: 'http://127.0.0.1:9/x', eventos: ['documento.emitido'] }));
+    expect(Object.keys(hook).sort()).toEqual(['secreto', 'webhook']);
+    expect(Object.keys(await json(await admin('DELETE', `/v1/webhooks/${hook.webhook.id}`)))).toEqual(['webhook']);
+    for (const [ruta, nombre] of [['/v1/llaves', 'llaves'], ['/v1/webhooks', 'webhooks'], ['/v1/autorizaciones', 'autorizaciones'], ['/v1/emisores', 'emisores']]) {
+      const lista = await json(await admin('GET', ruta!));
+      expect(Object.keys(lista).sort(), ruta).toEqual([nombre!, 'hayMas', 'siguiente'].sort());
+      expect(lista).toMatchObject({ hayMas: false, siguiente: null });
+    }
   });
 });
