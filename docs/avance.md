@@ -69,6 +69,7 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Sigue
 
+0. Plan v1 (`docs/plan-v1.md`, con los informes de `docs/analisis/`): pendiente de aprobación del responsable.
 1. El responsable publica la 0.2.0 desde su máquina, configura la publicación de confianza de los seis
    paquetes y activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` (`docs/lanzamiento.md`, pasos 4 a 6). Nada de eso lo hace
    el agente sin permiso.
