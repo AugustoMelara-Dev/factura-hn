@@ -8,10 +8,11 @@
  * Usa DATABASE_URL y FHN_ROL. Las llaves se imprimen una sola vez.
  */
 import { writeFileSync } from 'node:fs';
-import pg from 'pg';
+import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { crearLlaveOperador, crearTenant } from './operador';
+import { crearPool } from './pool';
 
 function opcion(args: string[], nombre: string): string | undefined {
   const i = args.indexOf(`--${nombre}`);
@@ -30,7 +31,7 @@ async function principal(args: string[]): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('Falta DATABASE_URL.');
   const rol = process.env.FHN_ROL ?? ROL_POR_DEFECTO;
-  const pool = new pg.Pool({ connectionString: url, max: 2 });
+  const pool = crearPool(url, 2);
   try {
     await migrarApi(pool, rol);
     if (cmd === 'migrar') return console.log('Esquema al día.');

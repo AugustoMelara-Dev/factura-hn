@@ -282,6 +282,26 @@ conBase('inyección y entradas hostiles', () => {
     expect(html).toContain('&lt;script&gt;');
   });
 
+  it('un cuerpo que no es UTF-8 válido se rechaza con 400 y no se emite nada', async () => {
+    const { app, llaveAdmin } = await tenantListo();
+    const texto = JSON.stringify(venta('1.00', { documento: { lineas: [{ descripcion: 'Café', cantidad: 1, precioUnitario: '1.00' }] } }));
+    const enviar = (cuerpo: Uint8Array<ArrayBuffer>) => app.request('/v1/documentos', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${llaveAdmin}`, 'content-type': 'application/json', 'idempotency-key': randomUUID() },
+      body: cuerpo,
+    });
+    // «é» en Latin-1 (0xE9), como la manda una consola que no usa UTF-8.
+    const r = await enviar(new Uint8Array(Buffer.from(texto, 'latin1')));
+    expect(r.status).toBe(400);
+    expect((await json(r)).error.codigo).toBe('CUERPO_NO_UTF8');
+    // El intento rechazado no tomó número: la siguiente emisión es la primera de la serie.
+    const ok = await enviar(new TextEncoder().encode(texto));
+    expect(ok.status).toBe(201);
+    const { documento } = await json(ok);
+    expect(documento.numero.endsWith('00000001')).toBe(true);
+    expect(documento.lineas[0].descripcion).toBe('Café');
+  });
+
   it('errores internos no filtran detalles', async () => {
     const { llaveAdmin, pool } = await tenantListo();
     const app = crearApp({ pool, modo: 'local', rol: 'rol_que_no_existe', registrar: () => undefined });

@@ -37,9 +37,14 @@ Documentación interactiva en `/docs` y especificación en `/openapi.json` (tamb
 
 ```bash
 LLAVE=fhn_...   # la llave de caja del log
+# El cuerpo va en un archivo UTF-8: escrito en la línea de comandos, una consola de Windows puede mandar la
+# «é» en otra codificación, y la API lo rechaza (400 CUERPO_NO_UTF8).
+cat > factura.json <<'JSON'
+{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":2,"precioUnitario":"57.50"}]}}
+JSON
 curl -X POST http://127.0.0.1:8787/v1/documentos \
   -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
-  -d '{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":2,"precioUnitario":"57.50"}]}}'
+  --data-binary @factura.json
 curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-001-01-00000001.pdf -o factura.pdf
 ```
 
@@ -171,6 +176,10 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
 - `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca.
 - CSV (libro de ventas y exportación): el texto que empieza con `= + - @` lleva un apóstrofo delante para que
   una hoja de cálculo no lo ejecute como fórmula.
+- El cuerpo debe ser UTF-8 válido (400 `CUERPO_NO_UTF8`): un byte en otra codificación no se convierte en «?»
+  dentro de un documento inmutable. Tamaño máximo: 512 KB (413 `CUERPO_DEMASIADO_GRANDE`).
+- Si Postgres se reinicia o cierra una conexión inactiva, la API lo registra en una línea y abre otra conexión
+  en la siguiente consulta. El `docker-compose.yml` reinicia los dos servicios (`restart: unless-stopped`).
 - Errores internos sin detalles para el cliente.
 
 **Pendientes conocidos:** las claves de idempotencia no caducan; el `docker-compose.yml` conecta la API como

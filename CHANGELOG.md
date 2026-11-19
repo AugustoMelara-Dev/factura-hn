@@ -58,6 +58,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - **`@factura-hn/api`** (privado, 0.2.0): API REST con Hono y OpenAPI 3.1 sobre Postgres. Modos local
   (Art. 47) y alojado multi-tenant con RLS; llaves con roles caja/admin; `Idempotency-Key`; límites por llave
   y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
+  Rechaza cuerpos que no son UTF-8 válido (`CUERPO_NO_UTF8`) y sigue en pie si Postgres se reinicia.
   `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
 - **`@factura-hn/cliente`** (0.2.0): cliente tipado de la API generado desde OpenAPI (`openapi-fetch`), con
   `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, CAI, libro, exportación, `ErrorFacturaHN` y

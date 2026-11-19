@@ -191,6 +191,24 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     await next();
   });
 
+  // El cuerpo debe ser UTF-8 válido. Sin esto, un byte en otra codificación (p. ej. «é» en Latin-1 desde una
+  // consola de Windows) se convierte en U+FFFD y queda guardado en un documento que ya no se puede corregir.
+  const utf8Estricto = new TextDecoder('utf-8', { fatal: true });
+  app.use('/v1/*', async (c, next) => {
+    if (c.req.raw.body) {
+      try {
+        utf8Estricto.decode(await c.req.arrayBuffer());
+      } catch {
+        throw new ErrorApi(
+          400,
+          'CUERPO_NO_UTF8',
+          'El cuerpo no es UTF-8 válido. Envía el JSON en UTF-8; con curl, guárdalo en un archivo y usa --data-binary @archivo.json.',
+        );
+      }
+    }
+    await next();
+  });
+
   const sesion = (c: Context<Env>) => c.get('sesion');
   const almacenDe = (c: Context<Env>) => base.paraTenant(sesion(c).tenant);
   // DEC-031: el actor es el id interno de la llave, con su rol y nombre al momento de la operación.

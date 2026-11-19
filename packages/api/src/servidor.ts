@@ -8,10 +8,10 @@
  * - FHN_DEMO=1: en modo local, carga datos de demostración con CAI ficticio
  */
 import { serve } from '@hono/node-server';
-import pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { iniciarLocal } from './operador';
+import { crearPool } from './pool';
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
 export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ cerrar: () => Promise<void> }> {
@@ -24,7 +24,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<{ 
   const rol = env.FHN_ROL ?? ROL_POR_DEFECTO;
   if (modo === 'alojado' && !env.FHN_CLAVE_CIFRADO) throw new Error('El modo alojado requiere FHN_CLAVE_CIFRADO (32 bytes en base64).');
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
-  const pool = new pg.Pool({ connectionString: url, max: Number(env.FHN_POOL ?? 20) });
+  const pool = crearPool(url, Number(env.FHN_POOL ?? 20));
 
   await migrarApi(pool, rol);
   if (modo === 'local') {
