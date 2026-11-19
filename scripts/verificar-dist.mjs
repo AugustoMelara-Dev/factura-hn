@@ -2,7 +2,8 @@
 //
 // 1. Cada paquete publicable se empaqueta como lo haría `pnpm publish` (corre `prepack`) y se revisa el tarball:
 //    están los archivos que nombran main/module/types/exports/bin, README y LICENSE; no van fuentes ni pruebas;
-//    `workspace:` se reemplazó por versiones; repository.directory apunta al paquete (lo exige la procedencia).
+//    `workspace:` se reemplazó por versiones; repository.url es exactamente el repositorio de GitHub y
+//    repository.directory apunta al paquete (los exige la publicación de confianza de npm).
 // 2. Cada entrada carga por import (ESM) y, si la tiene, por require (CJS), con las mismas exportaciones.
 // 3. El núcleo compilado emite un documento y el PDF compilado lo imprime.
 import { execFileSync } from 'node:child_process';
@@ -12,10 +13,10 @@ import { tmpdir } from 'node:os';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { PUBLICABLES, REPOSITORIO } from './paquetes.mjs';
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
 const require = createRequire(import.meta.url);
-const PUBLICABLES = ['core', 'sqlite', 'postgres', 'pdf', 'cliente', 'mcp'];
 let fallas = 0;
 const fallo = (m) => {
   fallas++;
@@ -65,7 +66,8 @@ try {
     if (sobran.length) fallo(`${j.name}: no deberían publicarse ${sobran.slice(0, 5).join(', ')}`);
     const manifiesto = contenido.get('package/package.json')?.toString('utf8') ?? '';
     if (manifiesto.includes('workspace:')) fallo(`${j.name}: el package.json publicado conserva «workspace:»`);
-    if (j.repository?.directory !== `packages/${p}` || !j.publishConfig?.provenance) fallo(`${j.name}: falta repository.directory o publishConfig.provenance`);
+    if (j.repository?.url !== REPOSITORIO) fallo(`${j.name}: repository.url debe ser ${REPOSITORIO}`);
+    if (j.repository?.directory !== `packages/${p}` || j.publishConfig?.access !== 'public') fallo(`${j.name}: falta repository.directory o publishConfig.access public`);
     if (j.private) fallo(`${j.name}: está marcado private`);
     if (!fallas) console.log(`ok  ${j.name}@${j.version}: ${archivos.length} archivos en el paquete`);
   }
