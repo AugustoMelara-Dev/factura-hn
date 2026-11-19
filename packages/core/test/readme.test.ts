@@ -6,11 +6,11 @@
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
  * HTML inmediatamente anterior:  <!-- declaraciones: declare const carrito: Item[]; -->
  */
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { AlmacenFiscalMemoria, emitir, registrarAutorizacion } from '../src';
+import { emitir, type AlmacenFiscalMemoria, type DocumentoFiscal } from '../src';
 
 const RAIZ = join(__dirname, '..', '..', '..');
 const INDICE = join(__dirname, '..', 'src', 'index.ts');
@@ -86,23 +86,18 @@ describe('los fragmentos de código de la documentación compilan', () => {
   }, 60_000);
 });
 
-it('el ejemplo del README da los números que promete', async () => {
-  const almacen = new AlmacenFiscalMemoria();
-  await registrarAutorizacion(almacen, {
-    cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', tipoDocumento: '01', establecimiento: '000',
-    puntoEmision: '001', rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30',
-  });
-  const f = await emitir({
-    emisor: { rtn: '99990000000001', razonSocial: 'Inversiones Ejemplo S. de R.L.', nombreComercial: 'Pulpería La Bendición',
-      direccionCasaMatriz: 'Barrio El Centro, Ciudad Ejemplo', direccionEstablecimiento: 'Barrio El Centro, Ciudad Ejemplo',
-      telefono: '0000-0001', correo: 'ventas@ejemplo.example' },
-    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
-    preciosIncluyenISV: true,
-    lineas: [
-      { descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' },
-      { descripcion: 'Cerveza lata', cantidad: 6, precioUnitario: '32.00', isv: 'ISV18' },
-    ],
-  }, { almacen, establecimiento: '000', puntoEmision: '001' });
+it('el ejemplo «En 30 segundos» del README corre tal cual, con el reloj real, y da lo que promete', async () => {
+  // Se ejecuta el bloque del README, sin reloj fijo: si su CAI de ejemplo caducara, esta prueba fallaría.
+  const bloque = fragmentosTS('README.md').find((f) => f.codigo.includes('// En cada venta'));
+  expect(bloque, 'bloque «En 30 segundos» del README').toBeDefined();
+  const dir = join(__dirname, '.generado');
+  mkdirSync(dir, { recursive: true });
+  const ruta = join(dir, 'readme-en-30-segundos.ts');
+  const codigo = bloque!.codigo
+    .replace("from 'factura-hn'", "from '../../src/index'")
+    .replace('export {};', 'export { almacen, factura };');
+  writeFileSync(ruta, codigo);
+  const { almacen, factura: f } = (await import(ruta)) as { almacen: AlmacenFiscalMemoria; factura: DocumentoFiscal };
   expect(f.numero).toBe('000-001-01-00000001');
   expect(f.totales.total).toBe(371);
   expect(f.totales.totalEnLetras).toBe('TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100');

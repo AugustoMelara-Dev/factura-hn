@@ -24,7 +24,7 @@ npm install factura-hn
 ## En 30 segundos
 
 ```ts
-import { AlmacenFiscalMemoria, emitir, registrarAutorizacion, renderizarHTML } from 'factura-hn';
+import { AlmacenFiscalMemoria, emitir, fechaHonduras, registrarAutorizacion, renderizarHTML } from 'factura-hn';
 
 // En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
 const almacen = new AlmacenFiscalMemoria();
@@ -37,7 +37,8 @@ await registrarAutorizacion(almacen, {
   puntoEmision: '001',
   rangoInicial: 1,
   rangoFinal: 5000,
-  fechaLimiteEmision: '2027-06-30',
+  // La fecha límite de tu resolución. En esta prueba, dentro de seis meses (hora de Honduras).
+  fechaLimiteEmision: fechaHonduras(new Date(Date.now() + 180 * 86_400_000)),
 });
 
 // En cada venta: valida, toma el siguiente número y guarda el documento, todo en una transacción.

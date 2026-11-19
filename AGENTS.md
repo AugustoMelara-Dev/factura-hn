@@ -65,7 +65,7 @@ await registrarAutorizacion(almacen, {
   puntoEmision: '001',
   rangoInicial: 1,
   rangoFinal: 5000,
-  fechaLimiteEmision: '2027-06-30',
+  fechaLimiteEmision: '2027-06-30', // la fecha límite de la resolución
 });
 ```
 

@@ -7,6 +7,7 @@ import {
   AlmacenFiscalMemoria,
   emitir,
   estadoAutorizacion,
+  fechaHonduras,
   registrarAutorizacion,
   renderizarHTML,
   renderizarTexto,
@@ -21,7 +22,8 @@ const autorizacion: AutorizacionCAI = {
   puntoEmision: '001',
   rangoInicial: 1,
   rangoFinal: 5000,
-  fechaLimiteEmision: '2027-06-30',
+  // La fecha límite de la resolución. En este ejemplo, dentro de seis meses (hora de Honduras).
+  fechaLimiteEmision: fechaHonduras(new Date(Date.now() + 180 * 86_400_000)),
 };
 
 // En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
