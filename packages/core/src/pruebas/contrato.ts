@@ -23,6 +23,7 @@ import {
   eventosAuditoria,
   registrarAutorizacion,
 } from '../emision';
+import { contarDocumentos, correlativosDe, documentosPorPaginas } from '../paginas';
 import type { AutorizacionCAI, DocumentoEntrada } from '../tipos';
 
 export interface FuncionesDePrueba {
@@ -274,6 +275,37 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       const lista = await a.transaccion((tx) => tx.documentos({ desde: '2026-11-18', hasta: '2026-11-18', identificador: '000-001-01' }));
       igual(lista.map((d) => d.correlativo), [1, 2, 3], 'listado');
       igual((await a.transaccion((tx) => tx.documentos({ desde: '2026-11-19' }))).length, 0, 'filtro de fecha');
+    }));
+
+    t.it('lee por páginas lo mismo que documentos(), cuenta y lista correlativos (reportes de período)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-P', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-P2', 1, 100, { puntoEmision: '002' }));
+      for (let i = 0; i < 5; i++) await emitir(D.entrada(), { almacen: a, ...base });
+      for (let i = 0; i < 2; i++) await emitir(D.entrada(), { almacen: a, ...base, puntoEmision: '002' });
+      const filtro = { desde: '2026-11-18', hasta: '2026-11-18' };
+      // Claves ordenadas: un adaptador puede devolver el documento sin líneas con otro orden de campos.
+      const canonico = (v: unknown): string => Array.isArray(v)
+        ? `[${v.map(canonico).join(',')}]`
+        : v && typeof v === 'object'
+          ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonico((v as Record<string, unknown>)[k])}`).join(',')}}`
+          : JSON.stringify(v);
+      await a.transaccion(async (tx) => {
+        const todos = await tx.documentos(filtro);
+        const completos: unknown[][] = [];
+        for await (const p of documentosPorPaginas(tx, filtro, { tamano: 3 })) completos.push(p);
+        igual(completos.map((p) => p.length), [3, 3, 1], 'tamaño de las páginas');
+        igual(completos.flat(), todos, 'páginas completas');
+        const resumenes: unknown[] = [];
+        for await (const p of documentosPorPaginas(tx, filtro, { tamano: 2, sinLineas: true })) resumenes.push(...p);
+        igual(resumenes.map(canonico), todos.map(({ lineas: _l, ...resto }) => canonico(resto)), 'páginas sin líneas');
+        const soloUno: unknown[] = [];
+        for await (const p of documentosPorPaginas(tx, { ...filtro, identificador: '000-002-01' }, { tamano: 2 })) soloUno.push(...p);
+        igual(soloUno, await tx.documentos({ ...filtro, identificador: '000-002-01' }), 'páginas por identificador');
+        igual(await contarDocumentos(tx, filtro), 7, 'conteo');
+        igual(await contarDocumentos(tx, { desde: '2026-11-19' }), 0, 'conteo vacío');
+        igual(await correlativosDe(tx, '000-001-01'), [1, 2, 3, 4, 5], 'correlativos');
+        igual(await correlativosDe(tx, '000-009-01'), [], 'correlativos de una serie vacía');
+      });
     }));
 
     t.it('notas de crédito: el acumulado sobre un original no supera su total, ni con notas concurrentes (Art. 4 num. 32)', conAlmacen(async (a) => {

@@ -89,6 +89,7 @@ export type {
   TransaccionFiscal,
   EstadoSerie,
   FiltroDocumentos,
+  PaginaDocumentos,
   EventoAuditoria,
   FiltroEventos,
   TipoEventoAuditoria,
@@ -106,7 +107,7 @@ export {
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
-export { exportarTexto, leerExportacionJSONL, VERSION_EXPORTACION } from './exportacion';
+export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, VERSION_EXPORTACION } from './exportacion';
 export type { FormatoExportacion, LibroContable } from './exportacion';
 export {
   CAUSALES_NO_UTILIZACION,
@@ -119,5 +120,7 @@ export { estaAnulado, LEYENDA_ANULADA } from './anulacion';
 export { congelar } from './inmutable';
 export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';
+export { contarDocumentos, correlativosDe, documentosPorPaginas, TAMANO_PAGINA, TAMANO_PAGINA_COMPLETOS } from './paginas';
+export type { OpcionesPaginas } from './paginas';
 export { filaLibroVentas, resumenVentas, libroVentasCSV } from './reportes';
 export type { FilaLibroVentas, ResumenVentas } from './reportes';

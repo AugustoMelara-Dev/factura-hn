@@ -15,7 +15,7 @@
  */
 import { centavosATexto, redondearDecimal, textoSeguroCSV } from './dinero';
 import type { TransaccionFiscal } from './almacen';
-import type { DocumentoFiscal } from './tipos';
+import type { DocumentoFiscal, ResumenDocumento } from './tipos';
 
 export type FormatoExportacion = 'jsonl' | 'csv' | 'txt';
 
@@ -30,7 +30,7 @@ const COLUMNAS = [
 
 const monto = (v: number) => centavosATexto(redondearDecimal(v, 2));
 
-function fila(d: DocumentoFiscal): Record<(typeof COLUMNAS)[number], string> {
+function fila(d: ResumenDocumento): Record<(typeof COLUMNAS)[number], string> {
   const t = d.totales;
   return {
     numero: d.numero,
@@ -70,24 +70,50 @@ function fila(d: DocumentoFiscal): Record<(typeof COLUMNAS)[number], string> {
  */
 export function exportarTexto(docs: readonly DocumentoFiscal[], opciones: { formato: FormatoExportacion }): string {
   const ordenados = [...docs].sort((a, b) => (a.numero < b.numero ? -1 : a.numero > b.numero ? 1 : 0));
-  switch (opciones.formato) {
+  return inicioExportacion(opciones.formato, ordenados.length) + ordenados.map((d) => lineaExportacion(d, opciones.formato)).join('');
+}
+
+/**
+ * Encabezado del archivo de `exportarTexto` para `total` documentos. Con `lineaExportacion` permite escribir
+ * el archivo por partes (p. ej. en una respuesta HTTP transmitida) con el mismo contenido byte por byte:
+ * `inicioExportacion(f, docs.length) + docs.map((d) => lineaExportacion(d, f)).join('')`, con `docs` en
+ * orden de número, es igual a `exportarTexto(docs, { formato: f })`.
+ */
+export function inicioExportacion(formato: FormatoExportacion, total: number): string {
+  switch (formato) {
     case 'jsonl':
-      return ordenados.map((d) => JSON.stringify(d)).join('\n') + (ordenados.length ? '\n' : '');
-    case 'csv': {
-      const q = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-      const texto = new Set<string>(['clienteNombre', 'clienteRTN', 'motivoAnulacion', 'referencia']);
-      const lineas = ordenados.map((d) => COLUMNAS.map((c) => q(texto.has(c) ? textoSeguroCSV(fila(d)[c]) : fila(d)[c])).join(','));
-      return '﻿' + [COLUMNAS.join(','), ...lineas].join('\n') + '\n';
-    }
-    case 'txt': {
-      const limpio = (s: string) => s.replace(/[|\r\n]+/g, ' ');
-      const lineas = ordenados.map((d) => COLUMNAS.map((c) => limpio(fila(d)[c])).join('|'));
-      return [`#factura-hn|v${VERSION_EXPORTACION}|${ordenados.length}`, COLUMNAS.join('|'), ...lineas].join('\n') + '\n';
-    }
+      return '';
+    case 'csv':
+      return '﻿' + COLUMNAS.join(',') + '\n';
+    case 'txt':
+      return `#factura-hn|v${VERSION_EXPORTACION}|${total}\n` + COLUMNAS.join('|') + '\n';
     default:
-      throw new Error(`Formato de exportación desconocido: ${String((opciones as { formato: unknown }).formato)}`);
+      throw new Error(`Formato de exportación desconocido: ${String(formato)}`);
   }
 }
+
+/** Línea de un documento en el archivo de `exportarTexto`, con su salto de línea final. `jsonl` necesita el documento completo. */
+export function lineaExportacion(d: DocumentoFiscal, formato: FormatoExportacion): string;
+export function lineaExportacion(d: ResumenDocumento, formato: 'csv' | 'txt'): string;
+export function lineaExportacion(d: ResumenDocumento, formato: FormatoExportacion): string {
+  switch (formato) {
+    case 'jsonl':
+      return JSON.stringify(d) + '\n';
+    case 'csv': {
+      const f = fila(d);
+      return COLUMNAS.map((c) => comillasCSV(TEXTO_CSV.has(c) ? textoSeguroCSV(f[c]) : f[c])).join(',') + '\n';
+    }
+    case 'txt': {
+      const f = fila(d);
+      return COLUMNAS.map((c) => f[c].replace(/[|\r\n]+/g, ' ')).join('|') + '\n';
+    }
+    default:
+      throw new Error(`Formato de exportación desconocido: ${String(formato)}`);
+  }
+}
+
+const TEXTO_CSV = new Set<string>(['clienteNombre', 'clienteRTN', 'motivoAnulacion', 'referencia']);
+const comillasCSV = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 
 /** Lee un archivo `jsonl` de `exportarTexto` y devuelve los documentos tal como se exportaron. */
 export function leerExportacionJSONL(texto: string): DocumentoFiscal[] {

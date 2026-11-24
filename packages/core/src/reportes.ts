@@ -7,7 +7,7 @@
  * la regla del Art. 9 de la Ley del ISV. Así el resumen nunca suma dólares como si fueran lempiras.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, parsearDecimal, redondearDecimal, textoSeguroCSV } from './dinero';
-import type { DocumentoFiscal } from './tipos';
+import type { ResumenDocumento } from './tipos';
 
 export interface FilaLibroVentas {
   fecha: string;
@@ -37,7 +37,7 @@ export interface FilaLibroVentas {
  * Una fila por documento. Los anulados (Art. 41) se registran con su número y montos en cero, para que la
  * numeración del libro no tenga huecos. El estado se toma del propio documento.
  */
-export function filaLibroVentas(doc: DocumentoFiscal): FilaLibroVentas {
+export function filaLibroVentas(doc: ResumenDocumento): FilaLibroVentas {
   const anulado = doc.estado === 'ANULADO';
   const signo = doc.tipoDocumento === '06' ? -1 : 1;
   const extranjera = doc.moneda !== 'HNL' && doc.tipoCambio !== undefined;
