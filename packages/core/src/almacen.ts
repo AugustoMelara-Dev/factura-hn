@@ -68,6 +68,13 @@ export interface FiltroDocumentos {
   hasta?: string;
   /** `NNN-NNN-TT` */
   identificador?: string;
+  /** Solo documentos de este tipo (`'01'`, `'06'`…). */
+  tipoDocumento?: string;
+  /**
+   * Solo notas que modifican este documento (`referencia.numero`, con guiones). Un adaptador que no lo implemente
+   * devuelve de más y el núcleo vuelve a filtrar: es una optimización, no un requisito del contrato.
+   */
+  referencia?: string;
 }
 
 /**
@@ -194,6 +201,7 @@ export class AlmacenFiscalMemoria implements AlmacenFiscal {
         return [...s().documentos.values()]
           .filter((d) => (!filtro.desde || d.fechaEmision >= filtro.desde) && (!filtro.hasta || d.fechaEmision <= filtro.hasta))
           .filter((d) => !filtro.identificador || identificadorDeNumero(d.numero) === filtro.identificador)
+          .filter((d) => (!filtro.tipoDocumento || d.tipoDocumento === filtro.tipoDocumento) && (!filtro.referencia || d.referencia?.numero === filtro.referencia))
           .sort((a, b) => (a.numero < b.numero ? -1 : 1))
           .map((d) => structuredClone(d));
       },

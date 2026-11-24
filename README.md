@@ -111,8 +111,6 @@ mixta.totales.baseCreditoFiscal; // 100
 | `AVISO_AJUSTE_CENTAVO` | Con precios con ISV incluido, el total bajó 1 centavo para cumplir el Art. 9 de la Ley del ISV |
 | `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
 | `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
-| `AVISO_NOTA_SUPERA_ORIGINAL` | Nota de crédito por más que el total del documento que modifica (DEC-051) |
-| `AVISO_NOTA_TASA_DISTINTA` | Nota de crédito con ISV a una tasa que el original no tenía, o sobre un original exonerado (DEC-051) |
 
 **Cliente exonerado con una OCE que no cubre todo:** la exoneración aplica al documento completo. Emite dos
 facturas, una con `exoneracion` y los artículos cubiertos por la Orden de Compra Exenta y otra normal con el

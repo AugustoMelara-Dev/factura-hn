@@ -183,8 +183,9 @@ const nota = await emitir(
 console.log(nota.numero, nota.advertencias); // 000-001-06-00000001 []
 ```
 
-Si la nota supera el total del original o usa otra tasa de ISV, se emite con `AVISO_NOTA_SUPERA_ORIGINAL` o
-`AVISO_NOTA_TASA_DISTINTA` (DEC-051): revisa el importe antes de entregarla.
+La suma de las notas de crédito sobre un documento no puede superar su total: si lo hace, `emitir` lanza
+`ErrorValidacion` con `NOTA_SUPERA_ORIGINAL` y el saldo disponible en el mensaje. Tampoco puede llevar ISV a una
+tasa que el original no tenía (`NOTA_TASA_DISTINTA`). En ambos casos no se consume número.
 
 ## 7. Libro de ventas
 

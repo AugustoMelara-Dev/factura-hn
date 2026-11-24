@@ -6,7 +6,7 @@ import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PREC
 import { centavosATexto, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
-import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
+import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import type {
   AutorizacionCAI,
   DocumentoEntrada,
@@ -387,7 +387,11 @@ export function construirDocumento(
   if (entrada.horaEmision) doc.horaEmision = entrada.horaEmision;
   if (entrada.exoneracion) doc.exoneracion = entrada.exoneracion;
   if (moneda !== 'HNL') doc.tipoCambio = Number(escaladoATexto(leerTipoCambio(entrada.tipoCambio)!, 6));
-  if (entrada.referencia) doc.referencia = entrada.referencia;
+  if (entrada.referencia) {
+    // El número se guarda con guiones para poder buscar las notas de un documento (DEC-051).
+    const r = entrada.referencia;
+    doc.referencia = esNumeroValido(r.numero) ? { ...r, numero: formatearNumero(parsearNumero(r.numero)) } : r;
+  }
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;

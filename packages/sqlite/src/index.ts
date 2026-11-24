@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS fhn_documentos (
   UNIQUE (identificador, correlativo)
 );
 CREATE INDEX IF NOT EXISTS fhn_documentos_fecha ON fhn_documentos (fecha_emision, numero);
+CREATE INDEX IF NOT EXISTS fhn_documentos_referencia ON fhn_documentos (json_extract(datos, '$.referencia.numero'));
 -- Bitácora de auditoría: solo inserción.
 CREATE TABLE IF NOT EXISTS fhn_eventos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,6 +233,8 @@ export class AlmacenSQLite implements AlmacenFiscal {
         if (filtro.desde) (condiciones.push('fecha_emision >= ?'), parametros.push(filtro.desde));
         if (filtro.hasta) (condiciones.push('fecha_emision <= ?'), parametros.push(filtro.hasta));
         if (filtro.identificador) (condiciones.push('identificador = ?'), parametros.push(filtro.identificador));
+        if (filtro.tipoDocumento) (condiciones.push("json_extract(datos, '$.tipoDocumento') = ?"), parametros.push(filtro.tipoDocumento));
+        if (filtro.referencia) (condiciones.push("json_extract(datos, '$.referencia.numero') = ?"), parametros.push(filtro.referencia));
         const donde = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
         const filas = db.prepare(`SELECT datos FROM fhn_documentos ${donde} ORDER BY numero`).all(...parametros) as FilaDatos[];
         return filas.map((f) => JSON.parse(f.datos) as DocumentoFiscal);

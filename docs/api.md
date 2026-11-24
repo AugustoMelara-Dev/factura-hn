@@ -100,7 +100,7 @@ documento lleva «Atendido por: …». El operador no cambia la huella de idempo
 |---|:-:|:-:|
 | Emitir, consultar documentos, PDF/HTML/TXT, libro de ventas, autorizaciones y su estado, emisor | ✅ | ✅ |
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
-| Nota de crédito que supera el original, cambia la tasa o modifica un documento que no está en el sistema (DEC-051) | | ✅ |
+| Nota de crédito sobre un documento que no está en el sistema | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
 
 Una llave de caja siempre está atada a un establecimiento y punto de emisión: emite solo ahí (otro punto da

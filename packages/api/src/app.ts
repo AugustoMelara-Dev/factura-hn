@@ -104,7 +104,7 @@ const seguridad = [{ llave: [] }];
 // --- Paginación (DEC-047) ------------------------------------------------------------------------------------
 const LIMITE_POR_DEFECTO = 100;
 /** Avisos de una nota de crédito que la API solo acepta con llave admin (DEC-051). */
-const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_NOTA_SUPERA_ORIGINAL', 'AVISO_NOTA_TASA_DISTINTA', 'AVISO_ORIGINAL_EXTERNO']);
+const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_ORIGINAL_EXTERNO']);
 const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
 
 /** El cursor es opaco para el cliente: la llave de orden del último elemento, en JSON y base64url. */
@@ -515,9 +515,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           confirmarSaltoDeFecha: cuerpo.confirmarSaltoDeFecha,
           opciones: { reloj },
           alEmitir: async (doc, t) => {
-            // Política de la API (DEC-051): una nota de crédito que no se pudo verificar contra su original, que lo
-            // supera o que cambia la tasa reduce el débito fiscal del tenant; solo una llave admin la emite. Se lanza
-            // dentro de la transacción, así que el número no se consume.
+            // Política de la API (DEC-051): una nota de crédito sobre un original que no está en el sistema no se
+            // pudo verificar (importe ni tasa) y reduce el débito fiscal del tenant; solo una llave admin la emite.
+            // Con el original en el sistema, superarlo o cambiar la tasa ya es error del núcleo (422) para todos.
+            // Se lanza dentro de la transacción, así que el número no se consume.
             const avisoNota = doc.tipoDocumento === '06' && doc.advertencias.find((p) => AVISOS_NOTA_SOLO_ADMIN.has(p.codigo));
             if (avisoNota && s.rol !== 'admin') {
               throw new ErrorApi(403, 'SOLO_ADMIN', `${avisoNota.mensaje} Una nota de crédito así requiere una llave admin.`, { advertencias: doc.advertencias });

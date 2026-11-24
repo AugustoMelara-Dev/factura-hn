@@ -421,15 +421,25 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
 - **Alternativa:** convertir solo la base y recalcular el ISV en lempiras (otro redondeo), o un libro por
   moneda. Va en la consulta al SAR junto con P-14.
 
-### DEC-051 · Avisos de importe y tasa en las notas de crédito; en la API, solo admin · [REVISAR]
+### DEC-051 · Una nota de crédito no supera su original ni cambia la tasa; en la API, original externo solo con admin · [REVISAR]
 - **Contexto:** la revisión de la 0.2.0 emitió, sin aviso, una NC de L 1,150.00 sobre una factura de L 115.00 y una
   NC con ISV 15 % sobre una factura exonerada. Con la API, una llave de caja podía hacerlo, y también emitir una NC
   sobre un número inventado (`AVISO_ORIGINAL_EXTERNO`). El Art. 4 num. 32 (C L.381-385) dice que la NC respalda un
-  ajuste, devolución o descuento sobre el «correspondiente» comprobante, pero ningún artículo fija un tope numérico.
-- **Elegida:** con el original en el almacén, `emitir` agrega avisos (no errores, porque el tope sería una regla
-  derivada): `AVISO_NOTA_SUPERA_ORIGINAL` si el total de la nota supera el del original en lempiras (no suma notas
-  anteriores) y `AVISO_NOTA_TASA_DISTINTA` si la nota lleva ISV a una tasa que el original no tenía o el original
-  era exonerado. Como **política de seguridad de la API** (no fiscal), una NC con alguno de esos avisos o con
-  `AVISO_ORIGINAL_EXTERNO` requiere llave admin: con llave de caja responde 403 `SOLO_ADMIN` sin consumir número.
-- **Alternativa:** convertir los avisos en errores, sumar las NC previas sobre el mismo original o limitar las
-  NC a la llave admin siempre. Pendiente de la consulta al SAR.
+  ajuste, devolución o descuento sobre el «correspondiente» comprobante; ningún artículo fija un tope numérico, así
+  que el tope es una derivación: no se puede devolver o descontar más de lo vendido, ni a otra tasa.
+- **Elegida (2026-11-23, a pedido del responsable del proyecto):** con el original en el almacén, `emitir`
+  rechaza con **error** (no consume número):
+  - `NOTA_SUPERA_ORIGINAL` si la suma de las notas de crédito vigentes (no anuladas) sobre ese original, más la
+    nueva, supera su total. Se compara en lempiras: un original en moneda extranjera se convierte con su tipo de
+    cambio (DEC-018). El mensaje trae el total, lo ya acreditado y el saldo disponible. Las notas de débito no
+    amplían el saldo. Una nota anulada libera su importe.
+  - `NOTA_TASA_DISTINTA` si la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original
+    exonerado.
+
+  Para que dos cajas no emitan a la vez notas que juntas superen el original, la emisión bloquea también la serie
+  del original. Con un original **externo** no hay con qué comparar: sigue el aviso `AVISO_ORIGINAL_EXTERNO`
+  (DEC-004). Como **política de seguridad de la API** (no fiscal), esa nota requiere llave admin: con llave de caja,
+  403 `SOLO_ADMIN` sin consumir número.
+- **Antes (2026-11-19):** eran avisos y no sumaban las notas anteriores.
+- **Alternativa:** dejar que las notas de débito amplíen el saldo, o permitir notas de crédito por encima del
+  original con confirmación. Va en la consulta al SAR.
