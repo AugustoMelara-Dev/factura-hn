@@ -40,3 +40,22 @@ export async function esperarBase(
     }
   }
 }
+
+/** Usuario de una URL de conexión `postgres://usuario@…`. */
+export function usuarioDeUrl(url: string): string {
+  let usuario = '';
+  try {
+    usuario = decodeURIComponent(new URL(url).username);
+  } catch {
+    usuario = '';
+  }
+  if (!usuario) throw new Error('Con FHN_MIGRAR_URL, DATABASE_URL debe ser una URL postgres://usuario@host/base con el rol LOGIN de la API.');
+  return usuario;
+}
+
+/** Conexión del dueño de las tablas (migraciones y consola): FHN_MIGRAR_URL si está, si no DATABASE_URL. */
+export function urlDueno(env: NodeJS.ProcessEnv): string {
+  const url = env.FHN_MIGRAR_URL || env.DATABASE_URL;
+  if (!url) throw new Error('Falta DATABASE_URL.');
+  return url;
+}

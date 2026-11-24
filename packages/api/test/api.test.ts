@@ -469,12 +469,15 @@ conBase('modo local', () => {
     const { iniciarLocal, TENANT_DEMO, TENANT_LOCAL } = await import('../src/operador');
     const yaHabia = (await pool.query('SELECT tenant FROM api_tenants WHERE tenant = ANY($1)', [[TENANT_LOCAL, TENANT_DEMO]])).rows.map((f) => f.tenant);
     const r = await iniciarLocal(pool, { demo: true, rol: ROL });
-    expect(Boolean(r.llaveAdmin)).toBe(!yaHabia.includes(TENANT_LOCAL));
     expect(Boolean(r.demo)).toBe(!yaHabia.includes(TENANT_DEMO));
-    expect(await iniciarLocal(pool, { demo: true, rol: ROL })).toEqual({});
+    expect((await iniciarLocal(pool, { demo: true, rol: ROL })).demo).toBeUndefined();
     const auts = await pool.query('SELECT tenant, count(*)::int AS n FROM fhn_autorizaciones WHERE tenant = ANY($1) GROUP BY tenant', [[TENANT_LOCAL, TENANT_DEMO]]);
-    // Si esta llamada creó el tenant local, no le puso datos de demostración.
-    if (r.llaveAdmin) expect(auts.rows.find((f) => f.tenant === TENANT_LOCAL)).toBeUndefined();
+    // Si esta llamada creó el tenant local, no le puso datos de demostración ni llaves.
+    if (!yaHabia.includes(TENANT_LOCAL)) {
+      expect(r.localSinLlaveAdmin).toBe(true);
+      expect(auts.rows.find((f) => f.tenant === TENANT_LOCAL)).toBeUndefined();
+      expect((await pool.query('SELECT 1 FROM api_llaves WHERE tenant = $1', [TENANT_LOCAL])).rowCount).toBe(0);
+    }
     expect(auts.rows.find((f) => f.tenant === TENANT_DEMO)?.n).toBe(3);
   });
 });

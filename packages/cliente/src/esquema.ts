@@ -719,7 +719,7 @@ export interface paths {
         put?: never;
         /**
          * Emite una factura, nota de crédito o nota de débito
-         * @description Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422.
+         * @description Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.
          */
         post: {
             parameters: {
@@ -1797,7 +1797,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez) */
+        /**
+         * Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)
+         * @description Hasta 20 webhooks activos por tenant: con 20 activos, crear otro es 409 `LIMITE_WEBHOOKS`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1840,6 +1843,15 @@ export interface paths {
                 };
                 /** @description La llave no tiene permiso */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Límite de 20 webhooks activos por tenant (LIMITE_WEBHOOKS) */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

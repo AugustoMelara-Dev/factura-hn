@@ -85,22 +85,47 @@ export const EMISOR_DEMO = {
 
 export const TENANT_DEMO = 'demo';
 
+/** Comando para crear la llave admin del tenant `local` en la instalación con Docker Compose. */
+export const COMANDO_LLAVE_ADMIN_LOCAL = 'docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración';
+
 /**
- * Modo local (Art. 47): un solo negocio en su establecimiento. Crea el tenant `local` y su llave admin si
- * no existen. Con `demo`, crea **además** un tenant aparte, `demo`, con el emisor y un CAI ficticios y una
- * llave de caja: el tenant `local` del negocio queda limpio para su RTN y sus CAI reales.
- * Devuelve solo las llaves creadas en esta llamada (se muestran una vez).
+ * Modo local (Art. 47): un solo negocio en su establecimiento. Crea el tenant `local` si no existe, **sin
+ * llave**: la llave admin del negocio la crea el operador con la consola (`llave crear local --rol admin`), que
+ * la imprime solo en su terminal y no en el log del servidor. Con `demo`, crea **además** un tenant aparte,
+ * `demo`, con el emisor y un CAI ficticios y sus llaves (sin validez fiscal): el tenant `local` del negocio
+ * queda limpio para su RTN y sus CAI reales.
+ * Devuelve si `local` sigue sin llave admin activa y las llaves del demo creadas en esta llamada.
  */
 export async function iniciarLocal(
   pool: pg.Pool,
   o: { demo?: boolean; rol?: string; hoy?: Date } = {},
-): Promise<{ llaveAdmin?: string; demo?: { llaveAdmin: string; llaveCaja: string } }> {
-  const r: { llaveAdmin?: string; demo?: { llaveAdmin: string; llaveCaja: string } } = {};
+): Promise<{ localSinLlaveAdmin: boolean; demo?: { llaveAdmin: string; llaveCaja: string } }> {
   if (!(await existeTenant(pool, TENANT_LOCAL))) {
-    r.llaveAdmin = (await crearTenant(pool, { tenant: TENANT_LOCAL, nombre: 'Instalación local' })).llaveAdmin;
+    await enTenant(pool, TENANT_LOCAL, async (c) => {
+      await c.query('INSERT INTO api_tenants (tenant, nombre) VALUES ($1, $2)', [TENANT_LOCAL, 'Instalación local']);
+      await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'tenant.creado', '{}')", [TENANT_LOCAL]);
+    });
   }
+  const localSinLlaveAdmin = await enTenant(pool, TENANT_LOCAL, async (c) =>
+    !(await c.query("SELECT 1 FROM api_llaves WHERE tenant = $1 AND rol = 'admin' AND revocada IS NULL", [TENANT_LOCAL])).rowCount,
+  );
+  const r: { localSinLlaveAdmin: boolean; demo?: { llaveAdmin: string; llaveCaja: string } } = { localSinLlaveAdmin };
   if (o.demo && !(await existeTenant(pool, TENANT_DEMO))) r.demo = await crearDemo(pool, o);
   return r;
+}
+
+/**
+ * Tenants distintos de `local` y `demo`, para negarse a arrancar en modo local con datos de varios negocios.
+ * Corre con el dueño de las tablas. `api_tenants` fuerza RLS también al dueño (sin tenant fijado no ve filas,
+ * salvo un superusuario); `api_llaves` no, y todo tenant creado con la consola tiene al menos una llave.
+ */
+export async function tenantsAjenosAlModoLocal(pool: pg.Pool): Promise<string[]> {
+  const r = await pool.query<{ tenant: string }>(
+    `SELECT tenant FROM (SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_tenants) t
+      WHERE tenant NOT IN ($1, $2) ORDER BY tenant LIMIT 5`,
+    [TENANT_LOCAL, TENANT_DEMO],
+  );
+  return r.rows.map((f) => f.tenant);
 }
 
 async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {
