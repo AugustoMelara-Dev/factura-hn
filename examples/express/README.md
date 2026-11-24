@@ -17,7 +17,7 @@ crea otra: `docker compose exec api node cli.cjs llave crear demo --rol caja --n
 Pruébalo en otra terminal:
 
 ```bash
-curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201 con el número
+curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201: emite y responde el número
 curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 200: la misma factura
 curl -o factura.pdf http://127.0.0.1:3001/pedidos/1001/factura.pdf
 ```
