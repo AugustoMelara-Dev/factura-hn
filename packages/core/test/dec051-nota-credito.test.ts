@@ -114,7 +114,7 @@ describe('nota de crédito contra su original en el almacén (DEC-051)', () => {
 
   it('con un original externo no hay con qué comparar: se emite con AVISO_ORIGINAL_EXTERNO', async () => {
     const externa = {
-      cai: 'F1E2D3-C4B5A6-F1E2D3-C4B5A6-F1E2D3-01', numero: '001-001-01-00000099', fecha: '2026-01-15',
+      cai: 'DEMO00-NO-VALIDO-EXTERNO', numero: '001-001-01-00000099', fecha: '2026-01-15',
     } as unknown as DocumentoFiscal;
     const nc = await emitir({
       tipoDocumento: '06', emisor: EMISOR, cliente: CLIENTE, motivo: 'Devolución',
