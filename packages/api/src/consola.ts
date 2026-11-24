@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
-import { bloqueLlavesDemo, consolaDe, crearLlaveDemo, crearLlaveOperador, crearTenant } from './operador';
+import { bloqueLlavesDemo, consolaDe, crearLlaveDemo, crearLlaveOperador, crearTenant, LEYENDA_PRUEBA } from './operador';
 import { crearPool, urlDueno, usuarioDeUrl } from './pool';
 
 export interface SalidaConsola {
@@ -224,7 +224,7 @@ export async function ejecutarConsola(
         const llave = await crearLlaveDemo(pool, { rol: rolLlave });
         const bloque = bloqueLlavesDemo(rolLlave === 'caja' ? { caja: llave } : { admin: llave }, consola);
         if (banderas.has('solo-llave')) {
-          salida.error(bloqueLlavesDemo({}, consola));
+          salida.error(`Llave ${rolLlave} del demo (tenant «demo», 000-001): CAI FICTICIO · ${LEYENDA_PRUEBA}. Se muestra solo esta vez.`);
           salida.log(llave);
         } else salida.log(bloque);
         return 0;

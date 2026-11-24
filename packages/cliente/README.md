@@ -15,7 +15,8 @@ try {
   );
   const pdf = await fhn.descargar(documento.numero, 'pdf', { papel: 'ticket' });
 } catch (e) {
-  if (e instanceof ErrorFacturaHN) console.error(e.codigo, e.errores); // 422: errores fiscales tal cual
+  // 422: errores fiscales tal cual. En los frecuentes, e.solucion dice qué hacer y e.documentacion enlaza la guía.
+  if (e instanceof ErrorFacturaHN) console.error(e.codigo, e.solucion, e.errores);
 }
 ```
 
@@ -23,6 +24,9 @@ try {
 `crearCliente({ url, llave, operador: 'María López' })`. Va en la cabecera `X-Operador` de cada solicitud y
 queda en la bitácora junto a la llave. Para imprimirlo en la factura, emite con `imprimirOperador: true`. Al
 anular: `fhn.anular(numero, motivo, { operador })`.
+
+`emitir` devuelve también `enlaces` (`pdf`, `html`, `txt`): las rutas de la representación impresa. `fhn.sesion()`
+dice con qué llave hablas y, si aún no puedes emitir, qué falta (`pendientes`, con su solución).
 
 `fhn.documentos(desde, hasta)` recorre todas las páginas; `fhn.paginaDocumentos(desde, hasta, { limite, cursor })`
 lee una por una (`hayMas`, `siguiente`).

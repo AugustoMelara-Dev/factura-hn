@@ -10,13 +10,54 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 > **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») está
 > pendiente de una consulta al SAR que aún no tiene respuesta. Mientras tanto, la recomendación es el modo local.
 
-## Levantarla en tu máquina
+## La primera factura (3 pasos)
+
+Desde la raíz del repositorio, con Docker y Compose v2. Emite en el tenant `demo`, con **CAI ficticio**: el
+documento es de prueba y no tiene validez fiscal.
 
 ```bash
-docker compose up --build        # API en http://127.0.0.1:8787 (Postgres solo en la red interna de Compose)
-docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración   # llave admin de tu negocio
-docker compose logs api          # llaves del demo (CAI ficticio): se muestran una sola vez, al primer arranque
+docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro puerto: FHN_PUERTO=8788 docker compose …)
 ```
+
+1. **La llave de caja del demo.** Sale una vez en el log del primer arranque (`docker compose logs api`), en un
+   bloque que dice «CAI FICTICIO». Para tenerla en una variable, crea otra:
+
+   ```bash
+   LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+   ```
+
+2. **Emite** con el cuerpo en un archivo UTF-8 (`packages/api/ejemplos/factura.json`). La respuesta trae el
+   documento y `enlaces` a su PDF, HTML y texto:
+
+   ```bash
+   PDF=$(curl -s -X POST http://127.0.0.1:8787/v1/documentos \
+     -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
+     --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
+   ```
+
+3. **Descarga el PDF** del enlace:
+
+   ```bash
+   curl -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
+   ```
+
+Repetir el paso 2 con la misma `idempotency-key` devuelve la misma factura; para otra venta, usa otra clave.
+
+En PowerShell (Windows), los mismos tres pasos:
+
+```powershell
+$LLAVE = docker compose exec -T api factura-hn-api demo llave --solo-llave
+$r = Invoke-RestMethod -Method Post http://127.0.0.1:8787/v1/documentos -ContentType 'application/json' `
+  -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = 'venta-0001' } -InFile packages/api/ejemplos/factura.json
+Invoke-WebRequest "http://127.0.0.1:8787$($r.enlaces.pdf)" -Headers @{ authorization = "Bearer $LLAVE" } -OutFile factura.pdf
+```
+
+Escribe tu propio cuerpo siempre en un archivo UTF-8 y envíalo con `--data-binary @archivo.json` (o `-InFile`):
+escrito en la línea de comandos, una consola de Windows puede mandar la «é» en otra codificación, y la API lo
+rechaza (400 `CUERPO_NO_UTF8`). Si algo falla, el error trae `solucion` y `documentacion`, y
+`GET /v1/sesion` dice qué falta para emitir.
+
+## Levantarla en tu máquina
 
 Al primer arranque se crean dos tenants:
 
@@ -27,13 +68,13 @@ Al primer arranque se crean dos tenants:
 
 La llave admin de `local` **no** sale en el log del servidor: la crea la consola del operador, que la imprime
 solo en tu terminal (el servidor recuerda el comando en cada arranque mientras `local` no tenga llave admin).
-Las llaves del demo, sin validez fiscal, sí salen **una sola vez** en el log del primer arranque
-(`docker compose logs api`). Si perdiste una llave, crea otra (las anteriores siguen activas hasta que las
-revoques):
+Las llaves del demo, sin validez fiscal, sí salen **una sola vez** en el log del primer arranque, en un bloque
+destacado; en los arranques siguientes el log recuerda cómo crear otra. Si perdiste una llave, crea otra (las
+anteriores siguen activas hasta que las revoques):
 
 ```sh
-docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"
-docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001
+docker compose exec api factura-hn-api llave crear local --rol admin --nombre Administración   # la del negocio
+docker compose exec api factura-hn-api demo llave                                              # caja del demo
 ```
 
 Con `docker-compose.dev.yml` agrega `-f docker-compose.yml -f docker-compose.dev.yml` después de `docker compose`.
@@ -47,19 +88,6 @@ caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
 `packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`).
 
-```bash
-LLAVE=fhn_...   # la llave de caja del log
-# El cuerpo va en un archivo UTF-8: escrito en la línea de comandos, una consola de Windows puede mandar la
-# «é» en otra codificación, y la API lo rechaza (400 CUERPO_NO_UTF8).
-cat > factura.json <<'JSON'
-{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":2,"precioUnitario":"57.50"}]}}
-JSON
-curl -X POST http://127.0.0.1:8787/v1/documentos \
-  -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
-  --data-binary @factura.json
-curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-001-01-00000001.pdf -o factura.pdf
-```
-
 ### Variables de entorno
 
 | Variable | Por defecto | |
@@ -70,22 +98,37 @@ curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-0
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
-| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | |
+| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor. El puerto publicado por Compose es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos (ver «Límites de solicitudes») |
+| `FHN_CONSOLA` | `factura-hn-api` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
 | `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
 | `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool (`FHN_POOL`, 20 por defecto) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
 
 ### Consola del operador
 
+La consola se llama `factura-hn-api`. Cómo se invoca depende de dónde corre la API:
+
+| Dónde | Cómo |
+|---|---|
+| Docker Compose (`docker-compose.yml`) | `docker compose exec api factura-hn-api <comando>` |
+| Tu propio servidor, con el repositorio compilado (`pnpm build`) | `factura-hn-api <comando>`, que es `node packages/api/dist/cli.js <comando>` |
+
+En esta guía y en los mensajes del servidor aparece la forma de Docker Compose. Los comandos:
+
 ```bash
-factura-hn-api migrar
-factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin
-factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
-factura-hn-api openapi openapi.json
+docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
+docker compose exec api factura-hn-api migrar
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin
+docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
+docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
+docker compose exec api factura-hn-api openapi openapi.json
 ```
 
-La consola se conecta como dueño de las tablas: `FHN_MIGRAR_URL` si está definida, si no `DATABASE_URL`. Las
-llaves que crea se imprimen una sola vez, solo en la terminal de quien la usa.
+`ayuda <comando>` (o `<comando> --help`) muestra el uso de cada uno. Un error de uso sale en español, con el uso
+correcto, y termina con código 1. La consola se conecta como dueño de las tablas: `FHN_MIGRAR_URL` si está
+definida, si no `DATABASE_URL`. Las llaves que crea se imprimen una sola vez, solo en la terminal de quien la
+usa. En la imagen de Docker, `node cli.cjs <comando>` sigue funcionando.
 
 No hay registro público de tenants: en el modo alojado los crea el operador.
 
@@ -131,10 +174,11 @@ El esquema `Bearer` no distingue mayúsculas.
 | Método y ruta | Rol | |
 |---|---|---|
 | `GET /salud`, `GET /openapi.json`, `GET /docs` | — | |
+| `GET /v1/sesion` | caja | Con qué llave hablas y qué falta para emitir (ver «Sesión») |
 | `POST /v1/emisores` · `GET /v1/emisores` · `GET/PATCH /v1/emisores/{id}` | admin · caja · caja/admin | Un emisor por tenant (el 409 trae su `id`); el RTN no cambia; los cambios afectan solo a documentos futuros |
 | `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo) |
 | `GET /v1/autorizaciones/{cai}/estado` | caja | Vigencia, restantes y alertas (Arts. 59 y 62) |
-| `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria |
+| `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria. Responde `{ documento, enlaces: { pdf, html, txt } }` |
 | `GET /v1/documentos?desde&hasta[&identificador][&limite&cursor]` | caja | Paginada, por fecha de emisión y número |
 | `GET /v1/documentos/{numero}[.pdf\|.html\|.txt]` | caja | `?formato=carta\|ticket` (PDF), `?ancho=` (TXT) |
 | `POST /v1/documentos/{numero}/anular` | admin | Art. 41 |
@@ -197,10 +241,68 @@ sumo 2 decimales. Se calcula en centavos enteros y se convierte con la represent
 `Math.round(monto * 100)` da los centavos exactos. Sumar montos en coma flotante sí puede acumular error: pásalos
 antes a centavos.
 
-Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, campo }] }`.
-400 forma inválida · 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB ·
-**422 reglas fiscales** (lista completa de `errores`; también `PERIODO_DEMASIADO_GRANDE`) · 429 límites
-(`DEMASIADAS_SOLICITUDES` por llave o `LIMITE_SOLICITUDES` de reportes en curso, con `Retry-After`).
+### Errores
+
+```json
+{
+  "error": {
+    "codigo": "VALIDACION",
+    "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).",
+    "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: POST /v1/autorizaciones …",
+    "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+  },
+  "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "…", "solucion": "…", "documentacion": "…#sin_autorizacion" }]
+}
+```
+
+- `error.codigo` es estable; `error.mensaje` es para mostrar.
+- `solucion` dice qué hacer, y `documentacion` enlaza el código en la guía de errores (`docs/errores.md`). Los
+  traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
+  `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
+  `LIMITE_SOLICITUDES`, `LIMITE_MENSUAL`), cuerpo (`CUERPO_NO_UTF8`, `CUERPO_DEMASIADO_GRANDE`), forma
+  (`SOLICITUD_INVALIDA`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
+  autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`).
+- **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
+  (p. ej. `documento.lineas`) y `errores` trae todos.
+- **422 reglas fiscales** (`VALIDACION`): `errores` trae la lista completa, cada uno con su código, campo y
+  enlace; el código que importa es `errores[].codigo`. El error principal toma la solución del primero que la
+  tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`.
+- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites
+  (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES` y `LIMITE_SOLICITUDES` con `Retry-After`; `LIMITE_MENSUAL`).
+
+### Sesión
+
+`GET /v1/sesion` responde, para cualquier rol, con qué llave hablas y si ya puedes emitir:
+
+- `tenant`, `modo` (`local` o `alojado`) y `demo` (true en el tenant de demostración, con CAI ficticio);
+- `llave`: id, prefijo, nombre, rol y, si es de caja, su establecimiento y punto de emisión (nunca el secreto);
+- `emisor`: si está registrado, con su RTN y razón social;
+- `puntos`: el punto de la llave de caja, o todos los que tienen autorizaciones si la llave es admin. Por cada
+  tipo (`01`, `06`, `07`): si está `listo`, el `siguienteNumero`, las autorizaciones vigentes (rango, fecha
+  límite, días y números restantes, alertas) y, si no está listo, el `problema`;
+- `documentosDelMes` y `limiteMensual`;
+- `puedeEmitir`: si esta llave ya puede emitir una factura (tipo 01) y, si no, `pendientes`: lo que falta
+  (`SIN_EMISOR`, `CAJA_SIN_PUNTO`, `SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`,
+  `LIMITE_MENSUAL`), cada uno con `solucion` y `documentacion`.
+
+Solo lee datos del tenant de la llave (RLS).
+
+### Límites de solicitudes
+
+- **Por llave:** 20 solicitudes por segundo, ráfaga de 40 (opción `limiteSolicitudes`). Solo cuentan las
+  solicitudes con el secreto correcto: conocer el prefijo de una llave (sale en listados y en la bitácora) no
+  basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`.
+- **Intentos fallidos** (llave inexistente, secreto equivocado o revocada): 2 por segundo y ráfaga de 20 por
+  dirección, y 50 por segundo y ráfaga de 200 en total (opción `limiteIntentos`). Agotados, una llave que este
+  proceso aún no validó recibe 429 `DEMASIADOS_INTENTOS` **sin consultar la base**. Una llave que ya autenticó
+  en este proceso sigue entrando, aunque su dirección agote los intentos.
+- **Dirección del cliente:** la del socket. `X-Forwarded-For` se ignora, porque lo escribe el cliente. Detrás de
+  proxies de confianza (Caddy, nginx), define `FHN_PROXIES_DE_CONFIANZA` (opción `proxiesDeConfianza`) con su
+  número: se toma la dirección que anotó el más externo, la N-ésima de `X-Forwarded-For` desde la derecha. Sin
+  eso, todas las cajas detrás del proxy comparten una cubeta de intentos. Las direcciones IPv6 se agrupan por
+  /64.
+- Los límites son en memoria y por réplica (DEC-030). Con varias cajas detrás de la misma dirección (NAT), los
+  intentos fallidos de una pueden demorar el primer acceso de otra llave tras reiniciar el servidor.
 
 ## Emisión: una transacción
 
@@ -208,6 +310,10 @@ Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, ca
 (`SELECT … FOR UPDATE`), elección de la autorización, validación, documento, registro de la
 `Idempotency-Key` con la respuesta, conteo del uso del mes, avisos de webhooks y bitácora. Si algo falla,
 `ROLLBACK`: el número no se consume.
+
+La respuesta (201) es `{ documento, enlaces }`. `enlaces.pdf`, `enlaces.html` y `enlaces.txt` son las rutas de
+la representación impresa (`/v1/documentos/{numero}.pdf|.html|.txt`), relativas al servidor y con la misma
+llave. La repetición idempotente también los trae.
 
 **Idempotencia.** Reintentar con la misma clave y el mismo cuerpo devuelve el mismo documento con
 `Idempotency-Replayed: true`. Con otro cuerpo: 422 `IDEMPOTENCIA_CONFLICTO`. Si dos reintentos llegan a la
@@ -277,9 +383,9 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.
 - HTML de los documentos con `Content-Security-Policy: default-src 'none'` y texto escapado.
-- Límite de solicitudes por llave (20/s, ráfaga 40, en memoria por réplica), aplicado **antes** de consultar
-  la base, y de documentos por mes por tenant (en la base). El último uso de una llave se registra solo con el
-  secreto correcto.
+- Límite de solicitudes por llave, que cuenta solo el secreto correcto, y de intentos fallidos por dirección y
+  en total, aplicado **antes** de consultar la base (ver «Límites de solicitudes»); límite de documentos por mes
+  por tenant, en la base. El último uso de una llave se registra solo con el secreto correcto.
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.
 - `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca. Sin definir, avisa en el log; en
