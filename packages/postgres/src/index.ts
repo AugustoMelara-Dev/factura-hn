@@ -41,6 +41,12 @@ export interface ClientePostgres {
   query<F = Record<string, unknown>>(texto: string, parametros?: unknown[]): Promise<ResultadoConsulta<F>>;
   /** `pg` destruye la conexión si recibe un error o `true`. */
   release(destruir?: boolean | Error): void;
+  /**
+   * Eventos de `pg.Client`. Mientras la conexión está prestada, `pg-pool` no escucha su `error`: sin un
+   * manejador, una conexión cortada por el servidor tumba el proceso.
+   */
+  on?(evento: 'error', fn: (e: Error) => void): unknown;
+  removeListener?(evento: 'error', fn: (e: Error) => void): unknown;
 }
 
 /** Lo mínimo que el adaptador necesita: un pool como `pg.Pool`. */
@@ -307,20 +313,31 @@ ${permisosFiscales(rol)}`);
 
   async transaccion<T>(fn: (tx: TransaccionFiscal) => Promise<T>, opciones: OpcionesTransaccionPostgres = {}): Promise<T> {
     const c = await this.pool.connect();
+    // La conexión puede caerse mientras está prestada (p. ej. un reporte transmitido que espera al cliente). El
+    // error se registra aquí para no tumbar el proceso; la siguiente consulta falla y la conexión se descarta.
+    let errorConexion: Error | null = null;
+    const alError = (e: Error) => {
+      errorConexion = e;
+    };
+    c.on?.('error', alError);
+    const devolver = (destruir: boolean) => {
+      c.removeListener?.('error', alError);
+      c.release(destruir || errorConexion !== null);
+    };
     try {
       await c.query(opciones.soloLectura ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       if (this.rol) await c.query(`SET LOCAL ROLE ${this.rol}`);
       await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [this.tenant]);
       const resultado = await fn(this.tx(c));
       await c.query('COMMIT');
-      c.release();
+      devolver(false);
       return resultado;
     } catch (e) {
       let rota = false;
       await c.query('ROLLBACK').catch(() => {
         rota = true;
       });
-      c.release(rota);
+      devolver(rota);
       throw e;
     }
   }

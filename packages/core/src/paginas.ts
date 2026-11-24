@@ -57,8 +57,13 @@ export async function* documentosPorPaginas(
     // `limite` es un máximo: un adaptador puede devolver menos sin haber terminado. Se sigue hasta una página vacía.
     const pagina = await tx.paginaDocumentos(filtro, { despuesDe, limite: tamano, sinLineas });
     if (!pagina.length) return;
+    const ultimo = pagina[pagina.length - 1]!.numero;
+    // Un adaptador que ignora `despuesDe` repetiría la misma página para siempre.
+    if (despuesDe !== undefined && !(ultimo > despuesDe)) {
+      throw new Error(`paginaDocumentos no avanzó después de ${despuesDe}: el adaptador debe respetar despuesDe.`);
+    }
     yield pagina;
-    despuesDe = pagina[pagina.length - 1]!.numero;
+    despuesDe = ultimo;
   }
 }
 

@@ -125,6 +125,17 @@ describe('páginas de un adaptador que devuelve menos que el límite', () => {
   });
 });
 
+describe('páginas de un adaptador que ignora despuesDe', () => {
+  it('lanza en vez de repetir la misma página para siempre', async () => {
+    await almacen.transaccion(async (tx) => {
+      const roto: TransaccionFiscal = { ...tx, paginaDocumentos: async (filtro, p) => (await tx.documentos(filtro)).slice(0, p.limite) };
+      await expect((async () => {
+        for await (const _p of documentosPorPaginas(roto, {}, { tamano: 2 })) { /* recorrer */ }
+      })()).rejects.toThrow(/no avanzó/);
+    });
+  });
+});
+
 describe('no utilizados sin cargar documentos', () => {
   it('usa los correlativos del adaptador y da el mismo resultado', async () => {
     const hoy = '2027-07-15';
