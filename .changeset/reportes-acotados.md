@@ -13,3 +13,5 @@ Reportes de período acotados en memoria.
   de ventas. Nuevo tipo `ResumenDocumento` (un documento sin `lineas`); `filaLibroVentas` lo acepta.
 - `@factura-hn/postgres`: implementa esos métodos con páginas por número (`LIMIT`) y conteo en SQL, y
   `transaccion(fn, { soloLectura: true })` abre una transacción de solo lectura con una sola instantánea.
+  Una conexión que el servidor corta mientras está prestada (p. ej. durante un reporte largo) ya no tumba el
+  proceso: el error se registra, la transacción falla y la conexión se descarta.

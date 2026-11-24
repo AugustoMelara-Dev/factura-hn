@@ -708,12 +708,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     c: Context<Env>,
     preparar: (tx: TransaccionFiscal) => Promise<P>,
     producir: (tx: TransaccionFiscal, preparado: P, escribir: Escribir) => Promise<void>,
+    alTerminar?: (preparado: P, completo: boolean) => Promise<void>,
   ) => {
     const almacen = almacenDe(c);
     return transmitir({
       ejecutar: (fn) => almacen.transaccion(fn, { soloLectura: true }),
       preparar,
       producir,
+      alTerminar,
       liberar: reportes.reclamar(c.req.raw),
       registrar,
       duracionMaxMs: cfg.duracionMaxReporteMs,
@@ -816,14 +818,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const formato = q.formato ?? 'jsonl';
       const filtro = { desde: q.desde, hasta: q.hasta };
       const tipos = { jsonl: 'application/x-ndjson', csv: 'text/csv', txt: 'text/plain' } as const;
-      // Mismo contenido que `exportarTexto`, transmitido documento por documento. El tope, la bitácora y el
-      // encabezado de `txt` usan el mismo conteo, de la misma instantánea que las páginas.
+      // Mismo contenido que `exportarTexto`, transmitido documento por documento. El tope, el encabezado de `txt`
+      // y la bitácora usan el mismo conteo, de la misma instantánea que las páginas. La bitácora se escribe al
+      // cerrar la transacción de solo lectura (no se pide otra conexión con ella abierta) y antes de la última
+      // parte: la exportación no llega completa sin su registro; una cortada queda con `completo: false`.
       const { cuerpo } = await reporteTransmitido(
         c,
         async (tx) => {
           const total = await contarDocumentos(tx, filtro);
           exigirPeriodoAcotado(total, maxDocumentos);
-          await enTenant(c, (t) => bitacora(t, actor(c), 'exportacion', { desde: q.desde, hasta: q.hasta, formato, documentos: total }));
           return total;
         },
         async (tx, total, escribir) => {
@@ -834,6 +837,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           } else {
             for await (const p of documentosPorPaginas(tx, filtro, { sinLineas: true })) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
           }
+        },
+        async (total, completo) => {
+          await enTenant(c, (t) => bitacora(t, actor(c), 'exportacion', {
+            desde: q.desde, hasta: q.hasta, formato, documentos: total, ...(completo ? {} : { completo: false }),
+          }));
         },
       );
       return c.body(cuerpo, 200, {

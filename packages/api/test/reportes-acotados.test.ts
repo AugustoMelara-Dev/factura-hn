@@ -10,7 +10,7 @@ import { fechaHonduras, filaLibroVentas, noUtilizadosDelAlmacen, type AlmacenFis
 import { crearApp } from '../src/app';
 import { exportarTextoAnterior } from '../../core/test/exportacion-anterior';
 import { libroVentasCSVAnterior, resumenVentasAnterior } from '../../core/test/libro-anterior';
-import { cerrarPool, cliente, crearCaja, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
+import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
 
 afterAll(cerrarPool);
 
@@ -206,6 +206,76 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
       expect((await r.text()).startsWith('#factura-hn|v1|3\n')).toBe(true);
     } finally {
       await chico.end();
+    }
+  }, 60_000);
+
+  it('con un pool de 1 conexión los tres reportes terminan (ninguno pide una segunda conexión)', async () => {
+    const uno = new pg.Pool({ connectionString: URL_PG, max: 1 });
+    const aTiempo = <T>(p: Promise<T>, que: string) =>
+      Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error(`colgado: ${que}`)), 10_000))]);
+    try {
+      const a = await tenantListo(sinLimite);
+      for (let i = 0; i < 3; i++) expect((await emitir(a.admin, venta('1.00', { documento: { lineas: lineasGrandes } }), `uno-${i}`)).status).toBe(201);
+      const app = crearApp({ pool: uno, modo: 'local', rol: ROL, registrar: () => undefined, ...sinLimite });
+      const ka = cliente(app, a.llaveAdmin);
+      for (const ruta of [
+        `/v1/exportacion?${PERIODO}`, `/v1/exportacion?${PERIODO}&formato=csv`, `/v1/exportacion?${PERIODO}&formato=txt`,
+        `/v1/libro-ventas?${PERIODO}`, `/v1/libro-ventas?${PERIODO}&formato=csv`, '/v1/series/000-001-01/no-utilizados',
+      ]) {
+        const texto = await aTiempo((async () => {
+          const r = await ka('GET', ruta);
+          expect(r.status, ruta).toBe(200);
+          return r.text();
+        })(), ruta);
+        expect(texto.length, ruta).toBeGreaterThan(0);
+      }
+      // La bitácora registra cada exportación con el conteo de la misma lectura.
+      const eventos = (await json(await aTiempo(ka('GET', '/v1/bitacora?origen=api'), 'bitácora'))).eventos as Array<{ accion: string; detalle: Record<string, unknown> }>;
+      const exportaciones = eventos.filter((e) => e.accion === 'exportacion');
+      expect(exportaciones.map((e) => [e.detalle.formato, e.detalle.documentos, e.detalle.completo])).toEqual([['txt', 3, undefined], ['csv', 3, undefined], ['jsonl', 3, undefined]]);
+      // Más reportes por proceso que conexiones libres: se rechaza al crear la app.
+      expect(() => crearApp({ pool: uno, modo: 'local', rol: ROL, reportesSimultaneosProceso: 2 })).toThrow(/no puede pasar de 1/);
+    } finally {
+      await uno.end();
+    }
+  }, 60_000);
+
+  it('si la base corta la conexión de un reporte transmitido, el proceso sigue, la respuesta falla y todo se libera', async () => {
+    const nombre = `fhn-corte-${Date.now().toString(36)}`;
+    const propio = new pg.Pool({ connectionString: URL_PG, max: 4, application_name: nombre });
+    const noCapturadas: unknown[] = [];
+    const alNoCapturada = (e: unknown) => noCapturadas.push(e);
+    process.on('uncaughtException', alNoCapturada);
+    try {
+      const a = await tenantListo(sinLimite);
+      for (let i = 0; i < 3; i++) expect((await emitir(a.admin, venta('1.00', { documento: { lineas: lineasGrandes } }), `corte-${i}`)).status).toBe(201);
+      const registros: string[] = [];
+      const app = crearApp({ pool: propio, modo: 'local', rol: ROL, registrar: (m) => registros.push(m), ...sinLimite });
+      const ka = cliente(app, a.llaveAdmin);
+      const r = await ka('GET', `/v1/exportacion?${PERIODO}`);
+      expect(r.status).toBe(200);
+      // La transacción del reporte espera al cliente: está «idle in transaction».
+      const admin = await poolPrueba();
+      let pid: number | undefined;
+      for (let i = 0; i < 100 && pid === undefined; i++) {
+        pid = (await admin.query<{ pid: number }>(
+          "SELECT pid FROM pg_stat_activity WHERE application_name = $1 AND state = 'idle in transaction'", [nombre],
+        )).rows[0]?.pid;
+        if (pid === undefined) await new Promise((res) => setTimeout(res, 20));
+      }
+      expect(pid).toBeDefined();
+      await admin.query('SELECT pg_terminate_backend($1)', [pid]);
+      await new Promise((res) => setTimeout(res, 300));
+      await expect(r.text()).rejects.toThrow(); // cortada con error, no truncada en silencio
+      expect(registros).toContain('Error al transmitir un reporte');
+      // Cupo y conexión liberados: la siguiente exportación sale completa.
+      const otra = await hastaEstado(() => ka('GET', `/v1/exportacion?${PERIODO}&formato=txt`), 200);
+      expect(otra.status).toBe(200);
+      expect((await otra.text()).startsWith('#factura-hn|v1|3\n')).toBe(true);
+      expect(noCapturadas).toEqual([]);
+    } finally {
+      process.off('uncaughtException', alNoCapturada);
+      await propio.end();
     }
   }, 60_000);
 });

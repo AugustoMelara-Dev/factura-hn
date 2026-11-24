@@ -70,6 +70,15 @@ describe('tope y cupos: configuración', () => {
     expect(() => reportesSimultaneosProceso(undefined, 20, { FHN_REPORTES_SIMULTANEOS_PROCESO: '-1' })).toThrow(/FHN_REPORTES_SIMULTANEOS_PROCESO/);
   });
 
+  it('reportes por proceso: nunca más que el pool menos 1 (con un pool de 1, uno)', () => {
+    expect(reportesSimultaneosProceso(undefined, 1, {})).toBe(1);
+    expect(reportesSimultaneosProceso(1, 1, {})).toBe(1);
+    expect(reportesSimultaneosProceso(3, 4, {})).toBe(3);
+    expect(() => reportesSimultaneosProceso(4, 4, {})).toThrow(/no puede pasar de 3/);
+    expect(() => reportesSimultaneosProceso(2, 1, {})).toThrow(/no puede pasar de 1/);
+    expect(() => reportesSimultaneosProceso(undefined, 4, { FHN_REPORTES_SIMULTANEOS_PROCESO: '9' })).toThrow(/no puede pasar de 3/);
+  });
+
   it('422 PERIODO_DEMASIADO_GRANDE por encima del tope', () => {
     expect(() => exigirPeriodoAcotado(5, 5)).not.toThrow();
     try {
@@ -302,6 +311,63 @@ describe('respuesta transmitida', () => {
     expect(Date.now() - inicio).toBeLessThan(2_000);
     expect(await hasta(() => estado.liberado === 1)).toBe(true);
     expect(estado.abierta).toBe(false);
+  });
+
+  it('si ejecutar lanza sin devolver una promesa, se rechaza y se libera', async () => {
+    const { estado, promesa } = transmision(async () => undefined, {
+      ejecutar: () => {
+        throw new Error('sin conexión');
+      },
+    });
+    await expect(promesa).rejects.toThrow('sin conexión');
+    expect(await hasta(() => estado.liberado === 1)).toBe(true);
+  });
+
+  it('un motivo vacío también corta con error', async () => {
+    const { estado, promesa } = transmision(async (escribir) => {
+      await escribir('a');
+      throw undefined; // eslint-disable-line no-throw-literal
+    });
+    await expect(leerTodo((await promesa).cuerpo)).rejects.toThrow();
+    expect(await hasta(() => estado.liberado === 1)).toBe(true);
+  });
+
+  it('alTerminar corre con la transacción cerrada y antes de la última parte; si falla, no llega completa', async () => {
+    const vistos: Array<[boolean, boolean]> = [];
+    const ok = transmision(async (escribir) => {
+      await escribir('fin');
+    }, {
+      alTerminar: async (_p, completo) => {
+        vistos.push([completo, ok.estado.abierta]);
+      },
+    });
+    expect(await leerTodo((await ok.promesa).cuerpo)).toBe('fin');
+    expect(vistos).toEqual([[true, false]]);
+
+    const falla = transmision(async (escribir) => {
+      await escribir('fin');
+    }, {
+      alTerminar: async () => {
+        throw new Error('bitácora caída');
+      },
+    });
+    await expect(leerTodo((await falla.promesa).cuerpo)).rejects.toThrow();
+    expect(falla.estado.registros).toEqual(['Error al cerrar un reporte transmitido']);
+
+    const cortes: boolean[] = [];
+    const cancelada = transmision(async (escribir) => {
+      await escribir('a'.repeat(TAMANO_PARTE));
+      await escribir('b'.repeat(TAMANO_PARTE));
+    }, {
+      alTerminar: async (_p, completo) => {
+        cortes.push(completo);
+      },
+    });
+    const lector = (await cancelada.promesa).cuerpo.getReader();
+    await lector.read();
+    await lector.cancel();
+    expect(await hasta(() => cancelada.estado.liberado === 1)).toBe(true);
+    expect(cortes).toEqual([false]);
   });
 
   it('un error del productor corta la respuesta con error (no un archivo truncado que parezca completo)', async () => {

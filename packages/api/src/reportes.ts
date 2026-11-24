@@ -6,7 +6,7 @@
  * - tope de documentos por reporte (`maxDocumentosReporte`, `FHN_MAX_DOCUMENTOS_REPORTE`, 50 000 por defecto):
  *   se cuenta antes de enviar nada y, si se pasa, 422 `PERIODO_DEMASIADO_GRANDE`;
  * - reportes en curso por tenant (`reportesSimultaneos`, 2) y en todo el proceso (`reportesSimultaneosProceso`,
- *   `FHN_REPORTES_SIMULTANEOS_PROCESO`, por defecto un cuarto del pool): el siguiente recibe 429
+ *   `FHN_REPORTES_SIMULTANEOS_PROCESO`, por defecto un cuarto del pool, nunca más que el pool menos 1): el siguiente recibe 429
  *   `LIMITE_SOLICITUDES` con `Retry-After`. Un reporte transmitido retiene una conexión del pool mientras el
  *   cliente lee; el límite del proceso deja siempre conexiones libres para el resto de la API;
  * - el libro y la exportación se transmiten por partes (de unos 64 KB), con un plazo por parte (30 s: un
@@ -38,7 +38,14 @@ export function maxDocumentosReporte(opcion: number | undefined, env: Entorno = 
  */
 export function reportesSimultaneosProceso(opcion: number | undefined, tamanoPool: number, env: Entorno = process.env): number {
   const porDefecto = Math.max(1, Math.floor(tamanoPool / 4));
-  return desdeEntorno(opcion, 'reportesSimultaneosProceso', env, 'FHN_REPORTES_SIMULTANEOS_PROCESO', porDefecto);
+  const n = desdeEntorno(opcion, 'reportesSimultaneosProceso', env, 'FHN_REPORTES_SIMULTANEOS_PROCESO', porDefecto);
+  // Cada reporte transmitido retiene una conexión: siempre debe quedar al menos una para el resto de la API (con
+  // un pool de 1, un solo reporte, y las demás solicitudes esperan a que termine).
+  const maximo = Math.max(1, tamanoPool - 1);
+  if (n > maximo) {
+    throw new Error(`reportesSimultaneosProceso (${n}) no puede pasar de ${maximo}: el pool tiene ${tamanoPool} conexiones y cada reporte en curso retiene una.`);
+  }
+  return n;
 }
 
 function desdeEntorno(opcion: number | undefined, nombre: string, env: Entorno, variable: string, porDefecto: number): number {
@@ -158,6 +165,12 @@ export interface OpcionesTransmision<X, P> {
   preparar: (tx: X) => Promise<P>;
   /** Escribe la respuesta. Debe parar si `escribir` devuelve false. */
   producir: (tx: X, preparado: P, escribir: Escribir) => Promise<void>;
+  /**
+   * Después de cerrar la transacción y antes de enviar la última parte: p. ej. registrar en la bitácora. No
+   * corre si `preparar` falló. `completo` es false si la respuesta se cortó o `producir` falló. Si lanza con
+   * `completo`, la respuesta se corta con error: el cliente no recibe el archivo completo sin ese registro.
+   */
+  alTerminar?: (preparado: P, completo: boolean) => Promise<void>;
   /** Se llama una vez, cuando todo terminó (bien, con error o cortado). */
   liberar: () => void;
   registrar: (mensaje: string, error?: unknown) => void;
@@ -173,6 +186,9 @@ export interface OpcionesTransmision<X, P> {
  * Lo escrito se junta en partes de `TAMANO_PARTE`; cada parte debe llegar al cliente en `esperaEscrituraMs` y la
  * respuesta entera en `duracionMaxMs`. Si un plazo vence o `producir` falla, la respuesta se corta con error:
  * el cliente nunca recibe un archivo truncado que parezca completo.
+ *
+ * `ejecutar` usa una sola conexión: ni `preparar` ni `producir` deben pedir otra al pool mientras la transacción
+ * está abierta (con un pool chico se bloquearía para siempre). Lo que necesite escribir va en `alTerminar`.
  */
 export function transmitir<X, P>(o: OpcionesTransmision<X, P>): Promise<{ preparado: P; cuerpo: ReadableStream<Uint8Array> }> {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -192,7 +208,8 @@ export function transmitir<X, P>(o: OpcionesTransmision<X, P>): Promise<{ prepar
     if (cortado) return;
     cortado = true;
     avisarCorte();
-    escritor.abort(motivo).catch(() => undefined);
+    // Siempre con un error: un motivo vacío terminaría la respuesta como si estuviera completa.
+    escritor.abort(motivo ?? new Error('Reporte cortado.')).catch(() => undefined);
   };
   const enviar = async (bytes: Uint8Array): Promise<boolean> => {
     let reloj: ReturnType<typeof setTimeout> | undefined;
@@ -226,20 +243,33 @@ export function transmitir<X, P>(o: OpcionesTransmision<X, P>): Promise<{ prepar
 
   return new Promise((resolve, reject) => {
     let iniciado = false;
-    o.ejecutar(async (tx) => {
-      const preparado = await o.preparar(tx);
-      iniciado = true;
-      plazoTotal = setTimeout(() => cortar(new Error('La respuesta superó el tiempo máximo.')), o.duracionMaxMs ?? DURACION_MAX_REPORTE_MS);
-      resolve({ preparado, cuerpo: readable });
-      await o.producir(tx, preparado, escribir);
-    })
-      // La transacción ya terminó: lo que queda pendiente (menos de una parte) se envía sin retener la conexión.
+    let preparado: P;
+    // `Promise.resolve().then`: si `ejecutar` lanza sin devolver una promesa, igual se rechaza y se libera.
+    Promise.resolve()
+      .then(() => o.ejecutar(async (tx) => {
+        preparado = await o.preparar(tx);
+        iniciado = true;
+        plazoTotal = setTimeout(() => cortar(new Error('La respuesta superó el tiempo máximo.')), o.duracionMaxMs ?? DURACION_MAX_REPORTE_MS);
+        resolve({ preparado, cuerpo: readable });
+        await o.producir(tx, preparado, escribir);
+      }))
+      // La transacción ya terminó (conexión devuelta): `alTerminar` y lo que queda pendiente (menos de una parte).
       .then(async () => {
+        const completo = !cortado;
+        if (o.alTerminar) {
+          try {
+            await o.alTerminar(preparado, completo);
+          } catch (e) {
+            o.registrar('Error al cerrar un reporte transmitido', e);
+            cortar(e);
+          }
+        }
         if (await vaciar()) escritor.close().catch(() => undefined);
-      }, (e: unknown) => {
+      }, async (e: unknown) => {
         if (!iniciado) return reject(e);
         if (!cortado) o.registrar('Error al transmitir un reporte', e);
         cortar(e);
+        await o.alTerminar?.(preparado, false).catch((e2: unknown) => o.registrar('Error al cerrar un reporte transmitido', e2));
       })
       .catch((e: unknown) => cortar(e))
       .finally(() => {
