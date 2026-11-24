@@ -71,9 +71,9 @@ describe.skipIf(!URL_PG)('arranque', () => {
     const url = await esquemaNuevo();
     const login = `fhn_api_prueba_${hex()}`;
     roles.push(login);
+    const claveCifrado = randomBytes(32).toString('base64');
     const s = await arrancar({
-      ...base, DATABASE_URL: url(login), FHN_MIGRAR_URL: url(), FHN_MODO: 'alojado',
-      FHN_CLAVE_CIFRADO: randomBytes(32).toString('base64'),
+      ...base, DATABASE_URL: url(login), FHN_MIGRAR_URL: url(), FHN_MODO: 'alojado', FHN_CLAVE_CIFRADO: claveCifrado,
     });
     expect(salida.warn.join('\n')).not.toMatch(/dueño de las tablas/);
     const dueno = nuevoPool(url());
@@ -113,7 +113,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
       // Despachador y mantenimiento, también como el rol LOGIN.
       const enviados: string[] = [];
       const n = await despacharWebhooks({
-        pool: runtime, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: false,
+        pool: runtime, rol: ROL, cofre: new CofreSecretos(claveCifrado), permitirRedInterna: false,
         fetch: (async (u: string) => {
           enviados.push(String(u));
           return new Response(null, { status: 200 });
