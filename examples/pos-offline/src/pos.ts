@@ -32,7 +32,10 @@ export interface BaseSQLite {
 
 export interface OpcionesPOS {
   db: BaseSQLite;
-  /** Puerto en el que escucha: solo se aceptan solicitudes dirigidas a 127.0.0.1 o localhost en ese puerto. */
+  /**
+   * Puerto en el que escucha: solo se aceptan solicitudes dirigidas a 127.0.0.1 o localhost en ese puerto.
+   * Si se omite, se usa el puerto local del socket que recibió la solicitud. Nunca desactiva la revisión.
+   */
   puerto?: number;
   emisor: Emisor;
   establecimiento: string;
@@ -170,10 +173,13 @@ export function crearPOS(o: OpcionesPOS) {
       // - Host fijo: un nombre de otro sitio que resuelva a 127.0.0.1 (DNS rebinding) no pasa.
       // - Origin, si viene, debe ser este mismo POS.
       // - Los POST exigen application/json, que obliga al navegador a una verificación previa (CORS) que no se concede.
-      const anfitriones = o.puerto ? [`127.0.0.1:${o.puerto}`, `localhost:${o.puerto}`] : null;
-      if (anfitriones && !anfitriones.includes(req.headers.host ?? '')) return responder(421, { error: 'Anfitrión no permitido.' });
+      // - Falla cerrado: sin un puerto válido (configurado o del socket que atendió) no se responde nada.
+      const puerto = o.puerto ?? req.socket?.localPort;
+      if (!Number.isInteger(puerto) || !puerto || puerto < 1 || puerto > 65535) return responder(421, { error: 'Anfitrión no permitido.' });
+      const anfitriones = [`127.0.0.1:${puerto}`, `localhost:${puerto}`];
+      if (!anfitriones.includes(req.headers.host ?? '')) return responder(421, { error: 'Anfitrión no permitido.' });
       const origen = req.headers.origin;
-      if (origen && (!anfitriones || !anfitriones.some((a) => origen === `http://${a}`))) return responder(403, { error: 'Origen no permitido.' });
+      if (origen && !anfitriones.some((a) => origen === `http://${a}`)) return responder(403, { error: 'Origen no permitido.' });
       if (req.method === 'POST' && !/^application\/json(;|$)/i.test(req.headers['content-type'] ?? '')) return responder(415, { error: 'Se espera application/json.' });
       const url = new URL(req.url ?? '/', 'http://pos');
       const m = /^\/api\/documentos\/(\d{3}-\d{3}-\d{2}-\d{8})(\.txt|\/anular)?$/.exec(url.pathname);
