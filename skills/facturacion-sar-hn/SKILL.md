@@ -30,21 +30,26 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 4. Crea el almacén (`AlmacenPostgres` + `migrar()`, o `AlmacenSQLite`). Si la base no es Postgres ni SQLite,
    implementa `AlmacenFiscal` y hazlo pasar `ejecutarContratoAlmacen` de `factura-hn/pruebas`.
 5. Agrega una pantalla para registrar autorizaciones CAI con `registrarAutorizacion`.
-6. Agrega al modelo de producto el campo `tratamientoISV` (`ISV15` | `ISV18` | `EXENTO`), por defecto `ISV15`.
+6. Agrega al modelo de producto el campo `tratamientoISV` (`ISV15` | `ISV18` | `GRAVADO0` | `EXENTO`), por
+   defecto `ISV15`, y pásalo en cada línea como `isv`. `GRAVADO0` (tasa cero, exportaciones) no es `EXENTO`.
 7. Crea el servicio de emisión en el servidor con `emitir`. Es el único camino: no armes la numeración ni
    guardes el documento por tu cuenta.
-8. Agrega impresión (`renderizarHTML` carta/ticket o `renderizarTexto` para térmicas), anulación con `anular`
-   y Nota de Crédito (06).
+8. Agrega impresión (`renderizarHTML` carta/ticket, `renderizarTexto` para térmicas o `renderizarPDF` de
+   `@factura-hn/pdf`), anulación con `anular` y Nota de Crédito (06).
 9. Muestra `estadoAutorizacion(...).alertas` en la UI del POS.
 10. Escribe pruebas: validación sin consumo de número, CAI vencido o agotado, total en caja igual al impreso.
 
 ## Pasos con la API
 
 1. Instala `@factura-hn/cliente` (en JS/TS) o genera un cliente desde `/openapi.json` de la API.
-2. Lee la sección «Con la API REST» de `node_modules/factura-hn/AGENTS.md` y `docs/api.md`.
+2. Lee la sección «Con la API REST» de `node_modules/@factura-hn/cliente/AGENTS.md` y la referencia
+   `node_modules/@factura-hn/cliente/docs/api.md` (ambos vienen en el paquete del cliente). Sin el cliente
+   instalado: https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md.
 3. Emite en el servidor con `crearCliente({ url, llave })` y `fhn.emitir(solicitud, { idempotencyKey })`, con
-   una clave estable por venta y una llave de caja que nunca llegue al navegador.
-4. Muestra los errores del 422 tal cual; guarda el número y reimprime con `fhn.descargar(numero, 'pdf')`.
+   una clave estable por venta y una llave de caja que nunca llegue al navegador. La clave se crea al abrir la
+   venta (p. ej. `crypto.randomUUID()`) y se guarda con ella: no la fijes en el código.
+4. Muestra los errores del 422 tal cual; guarda el número que devuelve la emisión (`documento.numero`, nunca
+   uno supuesto) y reimprime con `fhn.descargar(numero, 'pdf')`.
 5. Si registras webhooks, verifica la firma con `await verificarFirmaWebhook(cuerpo, cabecera, secreto)` sobre el
    cuerpo crudo y descarta repetidos por `id`.
 
