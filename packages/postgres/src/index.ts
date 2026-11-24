@@ -27,6 +27,8 @@ import type {
   EventoAuditoria,
   FiltroDocumentos,
   FiltroEventos,
+  PaginaDocumentos,
+  ResumenDocumento,
   TransaccionFiscal,
 } from 'factura-hn';
 
@@ -54,6 +56,15 @@ export interface OpcionesAlmacenPostgres {
    * Hace falta si la conexión es dueña de las tablas o superusuario: esos roles se saltan las políticas.
    */
   rol?: string;
+}
+
+/** Opciones de una transacción de `AlmacenPostgres`. */
+export interface OpcionesTransaccionPostgres {
+  /**
+   * Transacción de solo lectura con aislamiento REPEATABLE READ: todas sus consultas ven la misma instantánea.
+   * Para reportes que cuentan y luego leen por páginas (el conteo coincide con las filas leídas).
+   */
+  soloLectura?: boolean;
 }
 
 /** Transacción de `AlmacenPostgres`: además del contrato, da acceso SQL a la misma transacción y tenant. */
@@ -228,6 +239,22 @@ interface FilaDatos {
 /** `pg` entrega `json` ya parseado; otros drivers pueden entregar texto. */
 const leer = <T>(v: unknown): T => (typeof v === 'string' ? JSON.parse(v) : v) as T;
 
+/** Condiciones SQL de `FiltroDocumentos` (parámetros posicionales; `$1` es el tenant). */
+function condicionesDocumentos(tenant: string, filtro: FiltroDocumentos) {
+  const donde = ['tenant = $1'];
+  const parametros: unknown[] = [tenant];
+  const agregar = (sql: string, v: unknown) => {
+    parametros.push(v);
+    donde.push(sql.replace('?', `$${parametros.length}`));
+  };
+  if (filtro.desde) agregar('fecha_emision >= ?', filtro.desde);
+  if (filtro.hasta) agregar('fecha_emision <= ?', filtro.hasta);
+  if (filtro.identificador) agregar('identificador = ?', filtro.identificador);
+  if (filtro.tipoDocumento) agregar("datos->>'tipoDocumento' = ?", filtro.tipoDocumento);
+  if (filtro.referencia) agregar("datos->'referencia'->>'numero' = ?", filtro.referencia);
+  return { donde, parametros, agregar };
+}
+
 export class AlmacenPostgres implements AlmacenFiscal {
   private readonly tenant: string;
   private readonly rol: string | null;
@@ -278,10 +305,10 @@ ${permisosFiscales(rol)}`);
     return new AlmacenPostgres(this.pool, { tenant, rol: this.rol ?? undefined });
   }
 
-  async transaccion<T>(fn: (tx: TransaccionFiscal) => Promise<T>): Promise<T> {
+  async transaccion<T>(fn: (tx: TransaccionFiscal) => Promise<T>, opciones: OpcionesTransaccionPostgres = {}): Promise<T> {
     const c = await this.pool.connect();
     try {
-      await c.query('BEGIN');
+      await c.query(opciones.soloLectura ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       if (this.rol) await c.query(`SET LOCAL ROLE ${this.rol}`);
       await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [this.tenant]);
       const resultado = await fn(this.tx(c));
@@ -358,19 +385,34 @@ ${permisosFiscales(rol)}`);
         return r.rows[0] ? leer<DocumentoFiscal>(r.rows[0].datos) : null;
       },
       async documentos(filtro: FiltroDocumentos = {}): Promise<DocumentoFiscal[]> {
-        const condiciones = ['tenant = $1'];
-        const parametros: unknown[] = [t];
-        const agregar = (sql: string, v: unknown) => {
-          parametros.push(v);
-          condiciones.push(sql.replace('?', `$${parametros.length}`));
-        };
-        if (filtro.desde) agregar('fecha_emision >= ?', filtro.desde);
-        if (filtro.hasta) agregar('fecha_emision <= ?', filtro.hasta);
-        if (filtro.identificador) agregar('identificador = ?', filtro.identificador);
-        if (filtro.tipoDocumento) agregar("datos->>'tipoDocumento' = ?", filtro.tipoDocumento);
-        if (filtro.referencia) agregar("datos->'referencia'->>'numero' = ?", filtro.referencia);
-        const r = await c.query<FilaDatos>(`SELECT datos FROM fhn_documentos WHERE ${condiciones.join(' AND ')} ORDER BY numero`, parametros);
+        const { donde, parametros } = condicionesDocumentos(t, filtro);
+        const r = await c.query<FilaDatos>(`SELECT datos FROM fhn_documentos WHERE ${donde.join(' AND ')} ORDER BY numero`, parametros);
         return r.rows.map((f) => leer<DocumentoFiscal>(f.datos));
+      },
+      // Páginas por clave (keyset) sobre el número, en el mismo orden que `documentos`: cada consulta lee como
+      // mucho `limite` filas, sin importar cuántos documentos tenga el período.
+      async paginaDocumentos(filtro: FiltroDocumentos, pagina: PaginaDocumentos): Promise<ResumenDocumento[]> {
+        const { donde, parametros, agregar } = condicionesDocumentos(t, filtro);
+        if (pagina.despuesDe !== undefined) agregar('numero > ?', pagina.despuesDe);
+        parametros.push(Math.max(1, Math.floor(pagina.limite)));
+        const columna = pagina.sinLineas ? "datos::jsonb - 'lineas'" : 'datos';
+        const r = await c.query<FilaDatos>(
+          `SELECT ${columna} AS datos FROM fhn_documentos WHERE ${donde.join(' AND ')} ORDER BY numero LIMIT $${parametros.length}`,
+          parametros,
+        );
+        return r.rows.map((f) => leer<ResumenDocumento>(f.datos));
+      },
+      async contarDocumentos(filtro: FiltroDocumentos): Promise<number> {
+        const { donde, parametros } = condicionesDocumentos(t, filtro);
+        const r = await c.query<{ n: number }>(`SELECT count(*)::int AS n FROM fhn_documentos WHERE ${donde.join(' AND ')}`, parametros);
+        return r.rows[0]!.n;
+      },
+      async correlativos(identificador: string): Promise<number[]> {
+        const r = await c.query<{ correlativo: number }>(
+          'SELECT correlativo FROM fhn_documentos WHERE tenant = $1 AND identificador = $2 ORDER BY numero',
+          [t, identificador],
+        );
+        return r.rows.map((f) => f.correlativo);
       },
       async registrarEvento(e: EventoAuditoria): Promise<void> {
         await c.query(
