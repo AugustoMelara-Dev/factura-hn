@@ -3,7 +3,7 @@
  * Consola del operador.
  *   factura-hn-api migrar
  *   factura-hn-api tenant crear <tenant> --nombre "Mi Negocio" [--limite 1000]
- *   factura-hn-api llave crear <tenant> --rol admin|caja --nombre "Caja 2" [--caja 000-002]
+ *   factura-hn-api llave crear <tenant> --rol admin|caja --nombre "Caja 2" [--caja 000-002]  (--caja es obligatorio con --rol caja)
  *   factura-hn-api openapi [archivo]
  * Usa DATABASE_URL y FHN_ROL. Las llaves se imprimen una sola vez.
  */

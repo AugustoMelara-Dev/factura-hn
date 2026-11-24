@@ -12,7 +12,7 @@
 import type pg from 'pg';
 import { AlmacenPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 3;
+export const VERSION_ESQUEMA_API = 4;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -43,6 +43,20 @@ CREATE INDEX IF NOT EXISTS api_llaves_tenant ON api_llaves (tenant);
 -- v3 (DEC-031): id interno estable de la llave, el que identifica al actor en las bitácoras.
 ALTER TABLE api_llaves ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid();
 CREATE UNIQUE INDEX IF NOT EXISTS api_llaves_id ON api_llaves (id);
+-- v4: una llave de caja nueva siempre va atada a un punto de emisión (DEC-035), aunque se inserte a mano.
+-- Disparador de INSERT y no CHECK: un CHECK (aun NOT VALID) también se revisa en el UPDATE de ultimo_uso
+-- y dejaría inservible, con error 500, una llave vieja que hoy solo lee. Esas llaves ya no emiten (la API
+-- falla cerrado con CAJA_SIN_PUNTO).
+CREATE OR REPLACE FUNCTION fhn_api_caja_con_punto() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.rol = 'caja' AND (NEW.establecimiento IS NULL OR NEW.punto_emision IS NULL) THEN
+    RAISE EXCEPTION 'api_llaves_caja_con_punto: una llave de caja se ata a un establecimiento y punto de emisión';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS fhn_api_llaves_caja_con_punto ON api_llaves;
+CREATE TRIGGER fhn_api_llaves_caja_con_punto BEFORE INSERT ON api_llaves
+  FOR EACH ROW EXECUTE FUNCTION fhn_api_caja_con_punto();
 
 CREATE TABLE IF NOT EXISTS api_emisores (
   tenant text PRIMARY KEY REFERENCES api_tenants(tenant),

@@ -81,6 +81,14 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
   precisión de los montos documentada (DEC-048).
 - Decisiones del plan: DEC-045 a DEC-049.
 
+## Hecho (auditoría de seguridad, 24-11-2026)
+
+Rama `seguridad/auditoria-run-1` (sobre `main` en 0f61444), en PR hacia `main`. Corrige los cuatro
+hallazgos confirmados (DEC-052): exponente de montos acotado, llave de caja sin punto de emisión (API, consola y
+disparador; esquema API v4), revisión de anfitrión del POS sin `puerto` y `/docs` con Swagger UI fija, SRI y CSP.
+Pruebas: núcleo 230, API 53 y Postgres 39 en verde; ejemplos en verde. Las nueve pistas «pendientes de
+validación» y las notas de hardening del informe siguen abiertas.
+
 ## Sigue
 
 0. Fusionar `etapa-0` en `main` (con permiso del responsable).

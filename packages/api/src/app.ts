@@ -7,8 +7,8 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { swaggerUI } from '@hono/swagger-ui';
 import { bodyLimit } from 'hono/body-limit';
+import { CABECERAS_DOCS, HTML_DOCS } from './docs';
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
@@ -457,6 +457,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       }
       let establecimiento = cuerpo.establecimiento;
       let puntoEmision = cuerpo.puntoEmision;
+      // Falla cerrado: una llave de caja sin punto de emisión completo (creada a mano o con la consola sin
+      // --caja) no emite en la caja que pida el cuerpo.
+      if (s.rol === 'caja' && !(s.establecimiento && s.puntoEmision)) {
+        throw new ErrorApi(403, 'CAJA_SIN_PUNTO', 'Esta llave de caja no está atada a un punto de emisión; crea otra con establecimiento y punto de emisión.');
+      }
       if (s.establecimiento && s.puntoEmision) {
         if ((establecimiento && establecimiento !== s.establecimiento) || (puntoEmision && puntoEmision !== s.puntoEmision)) {
           throw new ErrorApi(403, 'CAJA_NO_AUTORIZADA', `Esta llave emite solo en ${s.establecimiento}-${s.puntoEmision}.`);
@@ -929,7 +934,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       ].join('\n'),
     },
   });
-  app.get('/docs', swaggerUI({ url: '/openapi.json' }));
+  app.get('/docs', (c) => {
+    for (const [k, v] of Object.entries(CABECERAS_DOCS)) c.header(k, v);
+    return c.html(HTML_DOCS);
+  });
   app.get('/', (c) => c.redirect('/docs'));
 
   return app;
