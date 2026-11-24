@@ -66,6 +66,7 @@ curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-0
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
+| `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
 
 ### Consola del operador
 
@@ -141,6 +142,25 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
 
+### Reportes de período
+
+`libro-ventas`, `exportacion` y `no-utilizados` responden con el período completo, con estos límites para que
+un período grande no afecte al resto del servicio:
+
+- **Tope de documentos.** Antes de leer nada se cuentan los documentos del período. Si pasan de
+  `FHN_MAX_DOCUMENTOS_REPORTE` (50 000 por defecto; opción `maxDocumentosReporte` de `crearApp`), la respuesta
+  es 422 `PERIODO_DEMASIADO_GRANDE` con `documentos` y `maximo`: divide el período (p. ej. por mes) y pide cada
+  parte por separado.
+- **Dos reportes a la vez por negocio.** Cada proceso atiende como mucho 2 de estos reportes en curso por
+  tenant (opción `reportesSimultaneos`). El siguiente recibe 429 `LIMITE_SOLICITUDES` con `Retry-After`. El
+  cupo se libera cuando la respuesta termina de enviarse o el cliente la corta. `HEAD` no se atiende en estas
+  rutas (405).
+- **La exportación se transmite.** `GET /v1/exportacion` envía el archivo por partes, a medida que lo lee de
+  la base, sin `Content-Length`. El contenido es el mismo que antes. Si algo falla a mitad de camino, la
+  conexión se corta con error en vez de terminar normalmente: un archivo cortado nunca parece completo. Si el
+  cliente deja de leer durante 30 s, la respuesta se corta. El encabezado de `txt` (`#factura-hn|v1|N`)
+  coincide siempre con las filas enviadas.
+
 ### Montos
 
 En la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número JSON en lempiras con a lo
@@ -150,7 +170,8 @@ antes a centavos.
 
 Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, campo }] }`.
 400 forma inválida · 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB ·
-**422 reglas fiscales** (lista completa de `errores`) · 429 límites (`Retry-After`).
+**422 reglas fiscales** (lista completa de `errores`; también `PERIODO_DEMASIADO_GRANDE`) · 429 límites
+(`DEMASIADAS_SOLICITUDES` por llave o `LIMITE_SOLICITUDES` de reportes en curso, con `Retry-After`).
 
 ## Emisión: una transacción
 

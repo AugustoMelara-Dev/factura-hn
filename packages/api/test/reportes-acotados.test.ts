@@ -59,8 +59,11 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
   it('422 PERIODO_DEMASIADO_GRANDE por encima del tope, antes de leer documentos', async () => {
     const { admin } = await tenantListo({ ...sinLimite, maxDocumentosReporte: 3 });
     for (let i = 0; i < 3; i++) expect((await emitir(admin, venta(), `tope-${i}`)).status).toBe(201);
-    expect((await admin('GET', `/v1/libro-ventas?${PERIODO}`)).status).toBe(200);
-    expect((await admin('GET', `/v1/exportacion?${PERIODO}`)).status).toBe(200);
+    for (const ruta of [`/v1/libro-ventas?${PERIODO}`, `/v1/exportacion?${PERIODO}`]) {
+      const r = await admin('GET', ruta);
+      expect(r.status).toBe(200);
+      await r.text(); // leer la respuesta libera el cupo
+    }
     expect((await emitir(admin, venta(), 'tope-3')).status).toBe(201);
     for (const ruta of [`/v1/libro-ventas?${PERIODO}`, `/v1/libro-ventas?${PERIODO}&formato=csv`, `/v1/exportacion?${PERIODO}&formato=txt`]) {
       const r = await admin('GET', ruta);
