@@ -15,6 +15,7 @@
     "test:pg": "node scripts/test-pg.mjs",
     "ci": "pnpm auditar:datos && pnpm build && pnpm typecheck && pnpm test && pnpm test:ejemplos && pnpm test:pg && node scripts/verificar-dist.mjs && pnpm sitio",
     "verificar:dist": "pnpm build && node scripts/verificar-dist.mjs",
+    "humo": "pnpm build && node scripts/humo.mjs",
     "example": "pnpm --filter factura-hn build && pnpm --filter ./examples/basico start",
     "test:ejemplos": "pnpm -r --filter \"./examples/*\" test",
     "playground": "pnpm --filter @factura-hn/ejemplo-playground build",
