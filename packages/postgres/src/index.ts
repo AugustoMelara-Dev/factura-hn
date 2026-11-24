@@ -150,6 +150,9 @@ CREATE TABLE IF NOT EXISTS fhn_documentos (
   UNIQUE (tenant, identificador, correlativo)
 );
 CREATE INDEX IF NOT EXISTS fhn_documentos_fecha ON fhn_documentos (tenant, fecha_emision, numero);
+-- Notas de un documento (suma de notas de crédito sobre un original).
+CREATE INDEX IF NOT EXISTS fhn_documentos_referencia ON fhn_documentos (tenant, (datos->'referencia'->>'numero'))
+  WHERE datos->'referencia' IS NOT NULL;
 -- Bitácora de auditoría: solo inserción.
 CREATE TABLE IF NOT EXISTS fhn_eventos (
   id bigserial PRIMARY KEY,
@@ -364,6 +367,8 @@ ${permisosFiscales(rol)}`);
         if (filtro.desde) agregar('fecha_emision >= ?', filtro.desde);
         if (filtro.hasta) agregar('fecha_emision <= ?', filtro.hasta);
         if (filtro.identificador) agregar('identificador = ?', filtro.identificador);
+        if (filtro.tipoDocumento) agregar("datos->>'tipoDocumento' = ?", filtro.tipoDocumento);
+        if (filtro.referencia) agregar("datos->'referencia'->>'numero' = ?", filtro.referencia);
         const r = await c.query<FilaDatos>(`SELECT datos FROM fhn_documentos WHERE ${condiciones.join(' AND ')} ORDER BY numero`, parametros);
         return r.rows.map((f) => leer<DocumentoFiscal>(f.datos));
       },

@@ -2,7 +2,7 @@
  * Resúmenes para el libro de ventas y la declaración mensual del ISV.
  * Las notas de crédito restan y las notas de débito suman.
  *
- * Los montos del libro van en lempiras (DEC-050): un documento en moneda extranjera se convierte con el tipo de
+ * Los montos del libro van en lempiras: un documento en moneda extranjera se convierte con el tipo de
  * cambio que el propio documento imprime (Art. 11, párrafo final), campo por campo y redondeando a centavos con
  * la regla del Art. 9 de la Ley del ISV. Así el resumen nunca suma dólares como si fueran lempiras.
  */
@@ -85,7 +85,7 @@ export function resumenVentas(filas: FilaLibroVentas[]): ResumenVentas {
   return r;
 }
 
-/** CSV con separador coma y BOM para que Excel lo abra con acentos. Importes en lempiras (DEC-050). */
+/** CSV con separador coma y BOM para que Excel lo abra con acentos. Importes en lempiras. */
 export function libroVentasCSV(filas: FilaLibroVentas[]): string {
   const enc = ['Fecha', 'Tipo', 'Número', 'CAI', 'Cliente', 'RTN cliente', 'Exonerado', 'Exento', 'Gravado 0%', 'Gravado 15%', 'Gravado 18%', 'ISV 15%', 'ISV 18%', 'Total', 'Anulado', 'Moneda', 'Tipo de cambio', 'Total en moneda original'];
   const q = (v: unknown) => {

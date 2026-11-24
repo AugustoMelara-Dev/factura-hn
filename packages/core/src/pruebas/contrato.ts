@@ -130,7 +130,7 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       igual(await buscarDocumento(a, '000-001-01-00000099'), null, 'documento inexistente');
     }));
 
-    t.it('continúa la numeración en la siguiente autorización del mismo identificador (B-04)', conAlmacen(async (a) => {
+    t.it('continúa la numeración en la siguiente autorización del mismo identificador', conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 2));
       await registrarAutorizacion(a, D.autorizacion('CAI-B', 3, 4));
       const docs = [];
@@ -275,6 +275,35 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       igual(lista.map((d) => d.correlativo), [1, 2, 3], 'listado');
       igual((await a.transaccion((tx) => tx.documentos({ desde: '2026-11-19' }))).length, 0, 'filtro de fecha');
     }));
+
+    t.it('notas de crédito: el acumulado sobre un original no supera su total, ni con notas concurrentes (Art. 4 num. 32)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-F', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
+      await registrarAutorizacion(a, D.autorizacion('CAI-NC2', 1, 100, { tipoDocumento: '06', puntoEmision: '002' }));
+      const cliente = { nombre: 'Cliente de Prueba', rtn: '99990000000002' };
+      const f = await emitir(D.entrada({ cliente }), { almacen: a, ...base });
+      const nota = (cantidad: string, precioUnitario = '89.50') => D.entrada({
+        tipoDocumento: '06', cliente, motivo: 'Devolución',
+        referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision },
+        lineas: [{ descripcion: 'Arroz 5 lb', cantidad, precioUnitario }],
+      });
+      // Factura de L 205.85; la primera nota acredita L 102.93 y deja L 102.92.
+      await emitir(nota('1'), { almacen: a, ...base });
+      igual(await codigoDeError(() => emitir(nota('2'), { almacen: a, ...base })), 'NOTA_SUPERA_ORIGINAL', 'acumulado');
+      // Dos cajas a la vez con L 92.00 cada una: cabe una sola.
+      const otra = config.otraConexion ? await config.otraConexion(a) : a;
+      try {
+        const intentos = await Promise.allSettled([
+          emitir(nota('1', '80.00'), { almacen: a, ...base }),
+          emitir(nota('1', '80.00'), { almacen: otra, ...base, puntoEmision: '002' }),
+        ]);
+        igual(intentos.map((r) => r.status).sort(), ['fulfilled', 'rejected'], 'una sola nota concurrente');
+        const rechazo = intentos.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+        igual((rechazo.reason as ErrorValidacion).errores?.[0]?.codigo, 'NOTA_SUPERA_ORIGINAL', 'motivo del rechazo');
+      } finally {
+        if (otra !== a) await config.cerrar?.(otra);
+      }
+    }), 30_000);
 
     const n = config.concurrencia ?? 50;
     t.it(`${n} emisiones concurrentes desde varias cajas: sin huecos ni repetidos`, conAlmacen(async (a) => {

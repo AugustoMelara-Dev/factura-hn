@@ -1,5 +1,5 @@
 /**
- * Emisión y anulación atómicas sobre un `AlmacenFiscal` (docs/investigacion.md, B-04 y B-18).
+ * Emisión y anulación atómicas sobre un `AlmacenFiscal`.
  */
 import type { LibroContable } from './exportacion';
 import { anularDocumento } from './anulacion';
@@ -246,9 +246,10 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
     let doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     if (tipo === '06') {
-      // DEC-051: los avisos de importe y tasa necesitan los totales ya calculados de la nota.
-      const avisos = await avisosDeNotaCredito(tx, entrada, doc);
-      if (avisos.length) doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, [...adicionales, ...avisos]);
+      // DEC-051: el importe y la tasa se comparan con los totales ya calculados de la nota. Con errores,
+      // construirDocumento lanza ErrorValidacion y la transacción se revierte sin consumir número.
+      const errores = await problemasDeNotaCredito(tx, entrada, doc);
+      if (errores.length) doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, [...adicionales, ...errores]);
     }
     await tx.guardarDocumento(doc);
     await tx.registrarEvento(
@@ -460,39 +461,55 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
 }
 
 /**
- * DEC-051 [REVISAR]: avisos (no bloquean) de una nota de crédito contra el original guardado en el almacén. El Art. 4
- * num. 32 dice que la nota respalda un ajuste, devolución o descuento sobre el «correspondiente» comprobante; no
- * fija un tope numérico, así que esto es una derivación y no un error:
- * - `AVISO_NOTA_SUPERA_ORIGINAL`: el total de esta nota supera el total del original (en lempiras). No suma las
- *   notas anteriores sobre el mismo original.
- * - `AVISO_NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o el original era exonerado.
+ * DEC-051 [REVISAR]: coherencia de importe y tasa de una nota de crédito con el original guardado en el almacén.
+ * El Art. 4 num. 32 (C L.381-385) dice que la nota respalda un ajuste, devolución o descuento sobre el
+ * «correspondiente» comprobante: no puede devolver más de lo que se vendió ni a otra tasa. Son errores:
+ * - `NOTA_SUPERA_ORIGINAL`: la suma de las notas de crédito vigentes sobre el original, más esta, supera su total
+ *   (en lempiras; un original en moneda extranjera se convierte con su tipo de cambio). El mensaje da el saldo.
+ * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
+ * Con un original externo no hay con qué comparar: queda `AVISO_ORIGINAL_EXTERNO` (DEC-004).
+ * Se bloquea la serie del original para que dos cajas no emitan a la vez notas que juntas lo superen.
  */
-async function avisosDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoEntrada, nota: DocumentoFiscal): Promise<Problema[]> {
+async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoEntrada, nota: DocumentoFiscal): Promise<Problema[]> {
   const r = entrada.referencia;
   if (!r?.numero || !esNumeroValido(r.numero)) return [];
-  const original = await tx.buscarDocumento(formatearNumero(parsearNumero(r.numero)));
-  if (!original || original.estado === 'ANULADO') return [];
-  const avisos: Problema[] = [];
+  const numero = formatearNumero(parsearNumero(r.numero));
+  const original = await tx.buscarDocumento(numero);
+  if (!original || original.estado === 'ANULADO') return []; // externo: aviso; anulado: REFERENCIA_ANULADA
+  await tx.bloquearSerie(identificadorDeNumero(numero));
+  const problemas: Problema[] = [];
   const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6, 'tipoCambio') : 1_000_000n;
   const totalOriginal = dividirRedondeando(redondearDecimal(original.totales.total, 2) * tc, 1_000_000n);
-  if (redondearDecimal(nota.totales.total, 2) > totalOriginal) {
-    avisos.push({
-      codigo: 'AVISO_NOTA_SUPERA_ORIGINAL',
-      mensaje: `La nota (L ${formatearMonto(nota.totales.total)}) supera el total del documento ${original.numero} (L ${formatearMonto(deCentavos(totalOriginal))}). Revisa el importe: una nota de crédito ajusta, devuelve o descuenta sobre ese documento (Art. 4 num. 32).`,
+  const previas = (await tx.documentos({ desde: original.fechaEmision, tipoDocumento: '06', referencia: numero })).filter(
+    (d) => d.tipoDocumento === '06' && d.estado !== 'ANULADO' && d.numero !== nota.numero && d.referencia?.numero === numero,
+  );
+  const acreditado = previas.reduce((suma, d) => suma + redondearDecimal(d.totales.total, 2), 0n);
+  const saldo = totalOriginal - acreditado;
+  const estaNota = redondearDecimal(nota.totales.total, 2);
+  if (estaNota > saldo) {
+    const L = (c: bigint) => `L ${formatearMonto(deCentavos(c < 0n ? 0n : c))}`;
+    problemas.push({
+      codigo: 'NOTA_SUPERA_ORIGINAL',
+      mensaje:
+        `La nota (${L(estaNota)}) supera el saldo disponible del documento ${numero}: total ${L(totalOriginal)}, ` +
+        `ya acreditado ${L(acreditado)} en ${previas.length} nota(s), saldo disponible ${L(saldo)} (Art. 4 num. 32).`,
       campo: 'lineas',
     });
   }
   const o = original.totales;
   const n = nota.totales;
   const tasaNueva = (n.isv15 > 0 && o.importeGravado15 === 0) || (n.isv18 > 0 && o.importeGravado18 === 0);
-  if (tasaNueva || (o.importeExonerado > 0 && n.isv15 + n.isv18 > 0)) {
-    avisos.push({
-      codigo: 'AVISO_NOTA_TASA_DISTINTA',
-      mensaje: `La nota lleva ISV a una tasa que el documento ${original.numero} no tenía (o el original era exonerado). Usa en cada línea el mismo tratamiento del ISV que en la factura original.`,
+  const sobreExonerado = o.importeExonerado > 0 && n.isv15 + n.isv18 > 0;
+  if (tasaNueva || sobreExonerado) {
+    problemas.push({
+      codigo: 'NOTA_TASA_DISTINTA',
+      mensaje: sobreExonerado
+        ? `El documento ${numero} es exonerado: la nota no puede llevar ISV. Usa en cada línea el mismo tratamiento que en el original.`
+        : `La nota lleva ISV a una tasa que el documento ${numero} no tenía. Usa en cada línea la misma tasa que en el original.`,
       campo: 'lineas',
     });
   }
-  return avisos;
+  return problemas;
 }
 
 /** DEC-018: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */

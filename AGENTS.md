@@ -36,8 +36,9 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
    solo para pruebas.
 4. **Números inmutables.** Un número emitido no se borra ni se reutiliza. Si algo falla después de emitir (la
    impresión, el pago), anula el documento con `anular`. Una factura emitida se corrige con Nota de Crédito
-   (`tipoDocumento: '06'`) o de Débito (`'07'`). Si la nota supera el total del original o usa otra tasa de ISV,
-   sale con `AVISO_NOTA_SUPERA_ORIGINAL` o `AVISO_NOTA_TASA_DISTINTA`: muéstralo antes de entregarla (DEC-051).
+   (`tipoDocumento: '06'`) o de Débito (`'07'`). Con el original en el almacén, la suma de las notas de crédito
+   no puede superar su total (`NOTA_SUPERA_ORIGINAL`, el mensaje trae el saldo) ni cambiar la tasa de ISV
+   (`NOTA_TASA_DISTINTA`): muestra el mensaje tal cual.
 5. **Server-side.** La emisión corre en el servidor (API route, server action, servicio local del POS). El
    cliente solo envía el carrito. Las credenciales de la base nunca van al navegador.
 6. **Cobra `totales.total`, no la suma de precios.** Con `preciosIncluyenISV: true` el total puede quedar
@@ -111,7 +112,7 @@ Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustr
 `{ ordenCompraExenta, constanciaRegistroExonerado }` o `{ registroSAG }`.
 
 Si la Orden de Compra Exenta **no cubre todos los artículos**, emite dos facturas: una con `exoneracion` y
-los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo (DEC-019).
+los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo.
 
 En exportaciones usa `isv: 'GRAVADO0'` (tasa cero, Art. 12); no es lo mismo que `EXENTO`.
 
@@ -175,7 +176,7 @@ const nota = await emitir({
 ```
 
 Si la factura original se emitió en dólares, escribe las líneas de la nota en dólares: la nota se emite en
-lempiras con el tipo de cambio de la factura original, que se imprime como referencia (DEC-018). Si el
+lempiras con el tipo de cambio de la factura original, que se imprime como referencia. Si el
 original no está en el almacén, indica `referencia.moneda` y `referencia.tipoCambio`.
 
 ## Momento de emisión (Art. 14)
@@ -261,9 +262,9 @@ La API aplica las mismas reglas que el SDK; tu código solo arma la solicitud y 
 Referencia completa: `docs/api.md`.
 
 1. La llave va **solo en el servidor** (variables de entorno). Usa una llave de **caja**, atada a su punto de
-   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks. Una nota de crédito que
-   supera su original, cambia la tasa o modifica un documento que no está en el sistema da 403 `SOLO_ADMIN` con
-   llave de caja (DEC-051): muestra el mensaje y pide que la emita un supervisor.
+   emisión; la de admin es para registrar el emisor, el CAI, las llaves y los webhooks. Una nota de crédito sobre
+   un documento que no está en el sistema da 403 `SOLO_ADMIN` con llave de caja: muestra el mensaje y pide que la
+   emita un supervisor.
 2. **`Idempotency-Key` estable por venta** (el id del pedido o de la venta, nunca un valor nuevo por intento):
    si la respuesta se pierde y reintentas, recibes la misma factura.
 3. **422 = reglas fiscales.** Muestra `errores[].mensaje` tal cual. Una solicitud rechazada no consume número

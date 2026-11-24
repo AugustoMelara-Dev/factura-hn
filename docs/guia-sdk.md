@@ -183,8 +183,9 @@ const nota = await emitir(
 console.log(nota.numero, nota.advertencias); // 000-001-06-00000001 []
 ```
 
-Si la nota supera el total del original o usa otra tasa de ISV, se emite con `AVISO_NOTA_SUPERA_ORIGINAL` o
-`AVISO_NOTA_TASA_DISTINTA` (DEC-051): revisa el importe antes de entregarla.
+La suma de las notas de crédito sobre un documento no puede superar su total: si lo hace, `emitir` lanza
+`ErrorValidacion` con `NOTA_SUPERA_ORIGINAL` y el saldo disponible en el mensaje. Tampoco puede llevar ISV a una
+tasa que el original no tenía (`NOTA_TASA_DISTINTA`). En ambos casos no se consume número.
 
 ## 7. Libro de ventas
 
@@ -207,4 +208,4 @@ Pega este prompt en Claude Code, Cursor u otro agente, dentro de tu proyecto:
 Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
 ```
 
-Siguiente: [cumplimiento](investigacion.md) (qué artículo cubre cada regla y con qué prueba).
+Siguiente: [qué cubre la librería](normativa.md) (de qué artículo sale cada regla).

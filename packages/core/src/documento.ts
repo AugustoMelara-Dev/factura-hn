@@ -6,7 +6,7 @@ import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PREC
 import { centavosATexto, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
-import { esNumeroValido, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
+import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import type {
   AutorizacionCAI,
   DocumentoEntrada,
@@ -36,7 +36,7 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
 }
 
 /**
- * DEC-018: una nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Si el documento original está en
+ * Una nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Si el documento original está en
  * moneda extranjera, las líneas de la nota se escriben en esa moneda y aquí se convierten a lempiras con el
  * tipo de cambio del original (precio a 4 decimales, descuento a 2, redondeo del Art. 9 de la Ley del ISV).
  * Si las líneas no se pueden leer, se devuelven sin convertir para que la validación reporte el error.
@@ -87,7 +87,7 @@ export function hoyHonduras(opciones: Pick<OpcionesDocumento, 'reloj'> = {}): st
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
 /**
- * Documentos que un autoimpresor por sistema computarizado no puede emitir (B-15):
+ * Documentos que un autoimpresor por sistema computarizado no puede emitir:
  * - 09 Ticket: se emite «exclusivamente para consumidores finales a través de máquinas registradoras»
  *   (Reglamento Art. 4 num. 43, C L.448-450; Art. 17).
  * - 04 Recibo por Honorarios Profesionales y 10 Factura Prevalorada: «deben ser exclusivamente emitidos bajo
@@ -387,7 +387,11 @@ export function construirDocumento(
   if (entrada.horaEmision) doc.horaEmision = entrada.horaEmision;
   if (entrada.exoneracion) doc.exoneracion = entrada.exoneracion;
   if (moneda !== 'HNL') doc.tipoCambio = Number(escaladoATexto(leerTipoCambio(entrada.tipoCambio)!, 6));
-  if (entrada.referencia) doc.referencia = entrada.referencia;
+  if (entrada.referencia) {
+    // El número se guarda con guiones para poder buscar las notas de un documento (DEC-051).
+    const r = entrada.referencia;
+    doc.referencia = esNumeroValido(r.numero) ? { ...r, numero: formatearNumero(parsearNumero(r.numero)) } : r;
+  }
   if (entrada.motivo) doc.motivo = entrada.motivo;
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;

@@ -136,7 +136,7 @@ export interface ReferenciaDocumento {
   /** YYYY-MM-DD */
   fecha: string;
   /**
-   * Moneda del documento original (DEC-018). Si no es HNL, las líneas de la nota se escriben en esa moneda
+   * Moneda del documento original. Si no es HNL, las líneas de la nota se escriben en esa moneda
    * y se convierten a lempiras con `tipoCambio`; la nota se emite en lempiras e imprime el tipo de cambio
    * como referencia. Con `emitir`, si el original está en el almacén, se toman de él.
    */
@@ -182,7 +182,7 @@ export interface OpcionesDocumento {
   umbralIdentificacionConsumidorFinal?: Monto;
   /**
    * Exigir que el CAI tenga la forma observada 6-6-6-6-6-2 hexadecimal (`PATRON_CAI`). Por defecto false:
-   * esa forma no tiene fuente normativa (B-09) y solo se exigen letras, dígitos y guiones.
+   * esa forma no tiene fuente normativa y solo se exigen letras, dígitos y guiones.
    */
   caiEstricto?: boolean;
   /**
@@ -226,7 +226,7 @@ export interface Totales {
   total: number;
   /**
    * Con precios con ISV incluido: lo que el total quedó por debajo de la suma de precios para que el ISV
-   * sea exactamente la tasa × la base (Ley del ISV Art. 9, decisión D-01). 0 si no hubo ajuste.
+   * sea exactamente la tasa × la base (Ley del ISV, Art. 9). 0 si no hubo ajuste.
    * El POS debe cobrar `total`, que ya lo descuenta.
    */
   ajustePorRedondeo: number;

@@ -13,6 +13,7 @@ packages/*/LICENSE
 packages/core/skills/
 packages/core/docs/
 packages/cliente/AGENTS.md
+packages/cliente/docs/
 dist-docker
 sitio/
 packages/core/test/.generado/

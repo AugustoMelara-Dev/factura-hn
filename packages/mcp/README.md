@@ -36,12 +36,12 @@ Dos modos: contra la API de factura-hn (con Docker) o con el SDK local sobre un 
 } } }
 ```
 
-Con una llave de caja, el agente emite y consulta pero no anula (403), ni emite una nota de crédito que supere
-su original, cambie la tasa o modifique un documento que no está en el sistema (403 `SOLO_ADMIN`, DEC-051).
+Con una llave de caja, el agente emite y consulta pero no anula (403), ni emite una nota de crédito sobre un
+documento que no está en el sistema (403 `SOLO_ADMIN`).
 Usa una llave admin solo si quieres que pueda hacerlo.
 
 En ambos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el agente: queda en la bitácora junto a
-la llave (DEC-031). Las herramientas de emitir y anular aceptan además `operador` (si el usuario dice quién
+la llave. Las herramientas de emitir y anular aceptan además `operador` (si el usuario dice quién
 atiende) e `imprimirOperador` para imprimir «Atendido por» en el documento.
 
 ### Vía el SDK local (SQLite en este equipo)

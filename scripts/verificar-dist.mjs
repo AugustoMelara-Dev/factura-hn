@@ -68,6 +68,13 @@ try {
     // Solo los documentos públicos: nada interno (análisis, planes, avance, lanzamiento, modelo de negocio).
     const docsInternos = archivos.filter((f) => f.startsWith('docs/') && !DOCS_PUBLICOS.includes(f.slice('docs/'.length)));
     if (docsInternos.length) fallo(`${j.name}: documentos internos en el paquete: ${docsInternos.join(', ')}`);
+    // Ni referencias a ellos: decisiones (DEC-xxx), pendientes de la matriz interna (B-xx, P-xx, D-xx) ni sus archivos.
+    const INTERNO = /\bDEC-\d{3}\b|\[REVISAR\]|\b[BPD]-\d{2}\b|(?:decisiones|investigacion|consulta-sar|plan-v1|lanzamiento|avance|modelo-de-negocio)\.md|docs\/analisis/;
+    for (const [nombre, bytes] of contenido) {
+      if (!/\.(md|txt|d\.c?ts|c?js|json)$/.test(nombre)) continue;
+      const linea = bytes.toString('utf8').split('\n').findIndex((l) => INTERNO.test(l));
+      if (linea >= 0) fallo(`${j.name}: referencia interna en ${nombre.replace(/^package\//, '')}:${linea + 1}`);
+    }
     const manifiesto = contenido.get('package/package.json')?.toString('utf8') ?? '';
     if (manifiesto.includes('workspace:')) fallo(`${j.name}: el package.json publicado conserva «workspace:»`);
     if (j.repository?.url !== REPOSITORIO) fallo(`${j.name}: repository.url debe ser ${REPOSITORIO}`);
