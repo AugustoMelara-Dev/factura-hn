@@ -13,6 +13,47 @@ async function escuchar(app: ReturnType<typeof crearTienda>) {
 }
 
 const fhnSinUso = crearCliente({ url: 'http://127.0.0.1:9', llave: 'x' });
+const JSON_ = { 'content-type': 'application/json' };
+
+describe('POST /pedidos/:id/factura solo acepta JSON', () => {
+  it('text/plain, un formulario o sin content-type: 415 y no se emite nada', async () => {
+    const llamadas: string[] = [];
+    const fhn = {
+      emitir: async () => {
+        llamadas.push('emitir');
+        throw new Error('El emisor de prueba no emite.');
+      },
+    } as unknown as typeof fhnSinUso;
+    const tienda = crearTienda({
+      fhn,
+      buscarPedido: async (id) => {
+        llamadas.push(`buscar ${id}`);
+        return { id, articulos: [{ descripcion: 'Cemento', cantidad: 1, precioConISV: '245.00' }] };
+      },
+      guardarFactura: async () => void llamadas.push('guardar'),
+      secretoWebhook: 'x',
+    });
+    const { base, cerrar } = await escuchar(tienda);
+    const error = console.error;
+    console.error = () => undefined;
+    try {
+      const enviar = (headers: Record<string, string>, body?: string) => fetch(`${base}/pedidos/1/factura`, { method: 'POST', headers, body });
+      // Lo que un formulario de otro sitio puede enviar sin preflight de CORS.
+      expect((await enviar({ 'content-type': 'text/plain' }, '{}')).status).toBe(415);
+      expect((await enviar({ 'content-type': 'application/x-www-form-urlencoded' }, 'a=1')).status).toBe(415);
+      expect((await enviar({ 'content-type': 'multipart/form-data; boundary=x' }, '--x--')).status).toBe(415);
+      expect((await enviar({})).status).toBe(415);
+      expect((await enviar({ 'content-type': 'application/jsonx' }, '{}')).status).toBe(415);
+      expect(llamadas).toEqual([]);
+      // Con JSON sí llega al pedido y al emisor (el de prueba falla a propósito: 500).
+      expect((await enviar({ 'content-type': 'Application/JSON; charset=utf-8' }, '{}')).status).toBe(500);
+      expect(llamadas).toEqual(['buscar 1', 'emitir']);
+    } finally {
+      console.error = error;
+      cerrar();
+    }
+  });
+});
 
 describe('receptor de webhooks', () => {
   it('acepta firmas válidas una sola vez por aviso y rechaza las falsas', async () => {
@@ -68,19 +109,19 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
     });
     const { base, cerrar } = await escuchar(tienda);
     try {
-      const r1 = await fetch(`${base}/pedidos/1/factura`, { method: 'POST', headers: { 'x-usuario-prueba': 'Despacho Ana' } });
+      const r1 = await fetch(`${base}/pedidos/1/factura`, { method: 'POST', headers: { ...JSON_, 'x-usuario-prueba': 'Despacho Ana' } });
       expect(r1.status).toBe(201);
       const f = await r1.json();
       expect(f).toMatchObject({ numero: '000-001-01-00000001', total: 490 });
-      const r2 = await fetch(`${base}/pedidos/1/factura`, { method: 'POST' });
+      const r2 = await fetch(`${base}/pedidos/1/factura`, { method: 'POST', headers: JSON_ });
       expect([r2.status, (await r2.json()).numero]).toEqual([200, f.numero]);
       const pdf = await fetch(`${base}${f.pdf}`);
       expect(pdf.headers.get('content-type')).toContain('application/pdf');
       expect(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-');
-      const malo = await fetch(`${base}/pedidos/2/factura`, { method: 'POST' });
+      const malo = await fetch(`${base}/pedidos/2/factura`, { method: 'POST', headers: JSON_ });
       expect(malo.status).toBe(422);
       expect((await malo.json()).errores.length).toBeGreaterThan(0);
-      expect((await fetch(`${base}/pedidos/9/factura`, { method: 'POST' })).status).toBe(404);
+      expect((await fetch(`${base}/pedidos/9/factura`, { method: 'POST', headers: JSON_ })).status).toBe(404);
       // Sin factura emitida o pedido ajeno: 404. No hay ruta por número de factura.
       expect((await fetch(`${base}/pedidos/2/factura.pdf`)).status).toBe(404);
       expect((await fetch(`${base}/facturas/000-001-01-00000001.pdf`)).status).toBe(404);

@@ -88,10 +88,10 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
       (l) => `<tr>
         <td class="num">${esc(l.cantidad)}${l.unidad ? ' ' + esc(l.unidad) : ''}</td>
         <td>${l.codigo ? `<span class="cod">${esc(l.codigo)}</span> ` : ''}${esc(l.descripcion)}${
-          l.descuento > 0 ? `<div class="desc">Descuento: ${formatearMonto(l.descuento)}</div>` : ''
+          l.descuento > 0 ? `<div class="desc">Descuento: ${esc(formatearMonto(l.descuento))}</div>` : ''
         }</td>
-        <td class="num">${formatearPrecio(l.precioUnitario)}</td>
-        <td class="num">${formatearMonto(l.importe)} <span class="trat">${ETIQUETA_ISV[l.isv]}</span></td>
+        <td class="num">${esc(formatearPrecio(l.precioUnitario))}</td>
+        <td class="num">${esc(formatearMonto(l.importe))} <span class="trat">${esc(ETIQUETA_ISV[l.isv])}</span></td>
       </tr>`,
     )
     .join('');
@@ -99,7 +99,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   const totales = filasTotales(doc)
     .map(
       ([etq, monto, fuerte]) =>
-        `<tr${fuerte ? ' class="total"' : ''}><td>${etq}</td><td class="num">${simbolo} ${formatearMonto(monto)}</td></tr>`,
+        `<tr${fuerte ? ' class="total"' : ''}><td>${esc(etq)}</td><td class="num">${simbolo} ${esc(formatearMonto(monto))}</td></tr>`,
     )
     .join('');
 
@@ -113,7 +113,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
 
   const ref = doc.referencia
     ? `<section class="bloque"><h3>Documento que modifica</h3>
-        <div>N°: <b>${esc(doc.referencia.numero)}</b> · Fecha: ${fechaLegible(doc.referencia.fecha)}</div>
+        <div>N°: <b>${esc(doc.referencia.numero)}</b> · Fecha: ${esc(fechaLegible(doc.referencia.fecha))}</div>
         <div>CAI: ${esc(doc.referencia.cai)}</div>
         ${doc.referencia.moneda && doc.referencia.moneda !== 'HNL' ? `<div>Original en ${esc(doc.referencia.moneda)}; tipo de cambio L ${esc(doc.referencia.tipoCambio)}. Importes convertidos a lempiras.</div>` : ''}
         ${doc.motivo ? `<div>Motivo: ${esc(doc.motivo)}</div>` : ''}
@@ -153,13 +153,13 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   @media print { .hoja { padding:${ticket ? '0' : '10mm'}; } @page { ${ticket ? 'size:80mm auto; margin:2mm;' : 'size:letter; margin:8mm;'} } }
 </style></head>
 <body><div class="hoja">
-${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anulada-motivo">Anulada el ${fechaLegible(doc.anulacion!.fecha)}: ${esc(doc.anulacion!.motivo)}</div>` : ''}
+${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anulada-motivo">Anulada el ${esc(fechaLegible(doc.anulacion!.fecha))}: ${esc(doc.anulacion!.motivo)}</div>` : ''}
 <header>
   <div>
     ${opciones.logo ? `<img src="${esc(opciones.logo)}" alt="">` : ''}
     <h1>${esc(e.nombreComercial ?? e.razonSocial)}</h1>
     ${e.nombreComercial ? `<div>${esc(e.razonSocial)}</div>` : ''}
-    <div>RTN: ${formatearRTN(e.rtn)}</div>
+    <div>RTN: ${esc(formatearRTN(e.rtn))}</div>
     <div>Casa matriz: ${esc(e.direccionCasaMatriz)}</div>
     ${e.direccionEstablecimiento ? `<div>Establecimiento: ${esc(e.direccionEstablecimiento)}</div>` : ''}
     ${e.telefono ? `<div>Tel.: ${esc(e.telefono)}</div>` : ''}
@@ -168,7 +168,7 @@ ${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anul
   <div class="doc">
     <h2>${esc(doc.nombreDocumento)}</h2>
     <div><b>N° ${esc(doc.numero)}</b></div>
-    <div>Fecha: ${fechaLegible(doc.fechaEmision)}${doc.horaEmision ? ' ' + esc(doc.horaEmision) : ''}</div>
+    <div>Fecha: ${esc(fechaLegible(doc.fechaEmision))}${doc.horaEmision ? ' ' + esc(doc.horaEmision) : ''}</div>
     ${doc.condicionPago ? `<div>Condición: ${esc(doc.condicionPago)}</div>` : ''}
     ${doc.operador ? `<div>Atendido por: ${esc(doc.operador)}</div>` : ''}
   </div>
@@ -177,7 +177,7 @@ ${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anul
 <section class="bloque fiscal">
   <div>CAI: ${esc(doc.cai)}</div>
   <div>Rango autorizado: ${esc(doc.rangoAutorizado)}</div>
-  <div>Fecha límite de emisión: ${fechaLegible(doc.fechaLimiteEmision)}</div>
+  <div>Fecha límite de emisión: ${esc(fechaLegible(doc.fechaLimiteEmision))}</div>
 </section>
 
 <section class="bloque">
@@ -195,7 +195,7 @@ ${doc.preciosIncluyenISV ? '<div class="desc">Precios incluyen ISV. G = gravado 
 
 <table class="totales"><tbody>${totales}</tbody></table>
 <div class="letras">${esc(doc.totales.totalEnLetras)}</div>
-${doc.moneda !== 'HNL' && doc.tipoCambio ? `<div>Tipo de cambio: L ${esc(doc.tipoCambio)} por ${doc.moneda}</div>` : ''}
+${doc.moneda !== 'HNL' && doc.tipoCambio ? `<div>Tipo de cambio: L ${esc(doc.tipoCambio)} por ${esc(doc.moneda)}</div>` : ''}
 ${doc.observaciones ? `<div class="bloque">${esc(doc.observaciones)}</div>` : ''}
 ${doc.tipoDocumento === '06' ? `<section class="bloque"><h3>Recibido por (Art. 26 num. 7)</h3>
   <div>Nombre: ______________________________</div>
@@ -215,11 +215,15 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   const leyenda = opciones.leyenda ?? null;
   const out: string[] = [];
   const sep = '-'.repeat(W);
+  // Todo texto pasa por `sinControles` antes de maquetarse: un ESC o GS en el nombre del cliente o en una
+  // descripción no debe llegar a la impresora como comando. Los saltos de línea los pone el propio renderizador.
   const centro = (s: string) => {
-    for (const t of envolver(s, W)) out.push(' '.repeat(Math.max(0, Math.floor((W - t.length) / 2))) + t);
+    for (const t of envolver(sinControles(s), W)) out.push(' '.repeat(Math.max(0, Math.floor((W - t.length) / 2))) + t);
   };
-  const izq = (s: string) => out.push(...envolver(s, W));
+  const izq = (s: string) => out.push(...envolver(sinControles(s), W));
   const par = (a: string, b: string) => {
+    a = sinControles(a);
+    b = sinControles(b);
     const espacio = W - a.length - b.length;
     if (espacio >= 1) out.push(a + ' '.repeat(espacio) + b);
     else {
@@ -294,6 +298,15 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   if (anulada) centro('*** ANULADA ***');
   if (leyenda) centro(leyenda);
   return out.join('\n') + '\n';
+}
+
+/**
+ * Cambia por «?» los caracteres de control C0 y C1 (ESC, GS, NUL, CR…), salvo el salto de línea. En una
+ * impresora ESC/POS en modo texto, esos bytes son comandos.
+ */
+function sinControles(texto: string): string {
+  // Tabulador, retorno de carro, VT y FF son espacio (texto pegado de una hoja o de Windows); el resto, «?».
+  return texto.replace(/[\t\v\f\r]/g, ' ').replace(/[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g, '?');
 }
 
 function envolver(texto: string, ancho: number): string[] {

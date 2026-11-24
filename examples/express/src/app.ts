@@ -39,6 +39,22 @@ export interface OpcionesTienda {
   alRecibirAviso?: (aviso: AvisoWebhook) => Promise<void>;
 }
 
+/** Si el content-type es `application/json` (con o sin parámetros). Se lee la cabecera: el cuerpo puede venir vacío. */
+function esJSON(req: Request): boolean {
+  return (req.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase() === 'application/json';
+}
+
+/**
+ * Crea la app de la tienda.
+ *
+ * **Las rutas `/pedidos` no tienen autenticación propia.** Móntalas detrás del middleware de sesión de tu
+ * tienda, con la cookie de sesión en `SameSite=Lax` o `Strict` o con un token CSRF, y haz que `buscarPedido`
+ * compruebe que el pedido es del usuario de la sesión (si no, que devuelva null: 404).
+ *
+ * `POST /pedidos/:id/factura` exige `content-type: application/json` (si no, 415). Un formulario de otro sitio
+ * solo puede enviar `text/plain`, `application/x-www-form-urlencoded` o `multipart/form-data` sin preflight de
+ * CORS; con JSON, el navegador pregunta antes y esta app no responde al preflight, así que no se envía.
+ */
 export function crearTienda(o: OpcionesTienda): Express {
   const app = express();
   app.disable('x-powered-by');
@@ -47,6 +63,7 @@ export function crearTienda(o: OpcionesTienda): Express {
   const avisos = new Map<string, Promise<void>>();
 
   app.post('/pedidos/:id/factura', async (req, res) => {
+    if (!esJSON(req)) return void res.status(415).json({ error: 'Envía la solicitud con content-type: application/json.' });
     const pedido = await o.buscarPedido(String(req.params.id));
     if (!pedido) return void res.status(404).json({ error: 'Pedido no encontrado.' });
     const operador = o.operadorDe?.(req);

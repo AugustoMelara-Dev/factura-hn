@@ -19,7 +19,9 @@ que el agente se los muestre al usuario tal cual.
 - `emitir_factura` y `emitir_nota_credito` exigen `idempotencyKey`: el agente la genera una vez por venta y la
   repite si reintenta. La misma clave con otro contenido da `IDEMPOTENCIA_CONFLICTO`.
 - El texto de los documentos (nombres, descripciones, motivos) se entrega entre `<datos_documento>` y marcado
-  como datos: lo escribieron terceros y no son instrucciones.
+  como datos: lo escribieron terceros y no son instrucciones. En `structuredContent`, los resultados que traen
+  documentos o el libro de ventas llevan un campo `aviso` que dice lo mismo, y ningún texto lleva las etiquetas
+  `<datos_documento>` ni `</datos_documento>`: se quitan, para que un nombre no pueda cerrar el bloque de datos.
 - `anular_documento` es destructiva (`destructiveHint`). **No la apruebes automáticamente** en tu cliente MCP:
   que pida confirmación cada vez. Vía la API, usa una llave de caja y el agente no podrá anular (403).
 
