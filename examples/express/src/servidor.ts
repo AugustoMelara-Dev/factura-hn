@@ -16,6 +16,8 @@ const pedidos = new Map<string, Pedido>([
 
 const app = crearTienda({
   fhn: crearCliente({ url: env.FHN_API_URL ?? 'http://127.0.0.1:8787', llave: env.FHN_LLAVE }),
+  // Aquí va la comprobación de la sesión: en tu tienda, devuelve null si el pedido no es del usuario de la
+  // sesión (p. ej. `pedido.usuarioId !== req.session.usuario.id`). Este ejemplo no tiene sesión.
   buscarPedido: async (id) => pedidos.get(id) ?? null,
   guardarFactura: async (id, numero) => void (pedidos.get(id)!.numeroFactura = numero),
   secretoWebhook: env.FHN_SECRETO_WEBHOOK ?? '',
@@ -23,4 +25,4 @@ const app = crearTienda({
   operadorDe: () => 'Tienda en línea',
   alRecibirAviso: async (a) => console.log('Aviso', a.evento, JSON.stringify(a.datos)),
 });
-app.listen(Number(env.PUERTO ?? 3001), '127.0.0.1', () => console.log(`Tienda en http://127.0.0.1:${env.PUERTO ?? 3001}  ·  prueba: curl -X POST http://127.0.0.1:${env.PUERTO ?? 3001}/pedidos/1001/factura`));
+app.listen(Number(env.PUERTO ?? 3001), '127.0.0.1', () => console.log(`Tienda en http://127.0.0.1:${env.PUERTO ?? 3001}  ·  prueba: curl -X POST -H 'content-type: application/json' http://127.0.0.1:${env.PUERTO ?? 3001}/pedidos/1001/factura`));

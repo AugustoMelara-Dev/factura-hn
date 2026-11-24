@@ -15,7 +15,7 @@
  * `factura-hn/pruebas` (`ejecutarContratoAlmacen`) verifica cualquier implementación, incluida la
  * concurrencia.
  */
-import type { AutorizacionCAI, DocumentoFiscal } from './tipos';
+import type { AutorizacionCAI, DocumentoFiscal, ResumenDocumento } from './tipos';
 
 /** Estado de la serie de un identificador, leído con bloqueo exclusivo hasta el fin de la transacción. */
 export interface EstadoSerie {
@@ -77,6 +77,16 @@ export interface FiltroDocumentos {
   referencia?: string;
 }
 
+/** Una página de documentos (ver `TransaccionFiscal.paginaDocumentos`). */
+export interface PaginaDocumentos {
+  /** Número (`NNN-NNN-NN-NNNNNNNN`) del último documento de la página anterior; la página empieza después. */
+  despuesDe?: string;
+  /** Documentos como máximo. */
+  limite: number;
+  /** true: sin `lineas`. */
+  sinLineas?: boolean;
+}
+
 /**
  * Operaciones dentro de una transacción. Todo lo que se haga aquí se confirma junto o se revierte junto.
  */
@@ -104,6 +114,17 @@ export interface TransaccionFiscal {
   buscarDocumento(numero: string): Promise<DocumentoFiscal | null>;
   /** Documentos por fecha de emisión e identificador, en orden de número. */
   documentos(filtro?: FiltroDocumentos): Promise<DocumentoFiscal[]>;
+  /**
+   * Opcional. Una página de `documentos(filtro)`: los siguientes `limite` documentos después de `despuesDe`, en
+   * orden de número. Con `sinLineas` cada documento viene sin `lineas`; si no, completo. Los reportes de
+   * período la usan (con `documentosPorPaginas`) para no cargar todo el período en memoria; sin ella recurren
+   * a `documentos`.
+   */
+  paginaDocumentos?(filtro: FiltroDocumentos, pagina: PaginaDocumentos): Promise<ResumenDocumento[]>;
+  /** Opcional. Cuántos documentos devolvería `documentos(filtro)`. */
+  contarDocumentos?(filtro: FiltroDocumentos): Promise<number>;
+  /** Opcional. Los correlativos de los documentos del identificador, en orden de número. */
+  correlativos?(identificador: string): Promise<number[]>;
   /** Agrega un evento a la bitácora (solo inserción). */
   registrarEvento(evento: EventoAuditoria): Promise<void>;
   /** Eventos en el orden en que se registraron. */

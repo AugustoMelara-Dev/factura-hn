@@ -6,7 +6,8 @@
  *
  * Cabeceras de cada entrega:
  * - `X-FacturaHN-Evento`: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer`, `autorizacion.agotada`
- * - `X-FacturaHN-Entrega`: id de la entrega (el mismo en cada reintento; úsalo para descartar duplicados)
+ * - `X-FacturaHN-Entrega`: id de la entrega, un UUID (el mismo en cada reintento y en el campo `id` del cuerpo;
+ *   úsalo para descartar duplicados)
  * - `X-FacturaHN-Firma`: `t=<segundos unix>,v1=<hex de HMAC-SHA256(secreto, "<t>.<cuerpo>")>`
  */
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -19,6 +20,9 @@ import { AlmacenPostgres, esTransaccionPostgres, type TransaccionPostgres } from
 
 export const EVENTOS_WEBHOOK = ['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'] as const;
 export type EventoWebhook = (typeof EVENTOS_WEBHOOK)[number];
+
+/** Webhooks activos por tenant como máximo: cada emisión encola una entrega por webhook suscrito. */
+export const MAX_WEBHOOKS_ACTIVOS = 20;
 
 /** 12 intentos: entre el primero y el último pasan unas 14 h y media (cubre un receptor caído una noche). */
 export const MAX_INTENTOS = 12;
@@ -245,9 +249,12 @@ export interface OpcionesDespacho {
    * cada pocos segundos sin esperar a la pasada anterior, y un receptor lento solo retrasa a su propio tenant.
    */
   enCurso?: Set<string>;
+  /** Solo para pruebas: atiende solo estos tenants (la base de pruebas es compartida). */
+  soloTenants?: readonly string[];
 }
 
-interface Reclamada { id: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string }
+/** `id` es el bigserial interno; `entrega`, el UUID público; `arriendo`, el `proximo` del reclamo (en µs). */
+interface Reclamada { id: string; entrega: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string; arriendo: string }
 
 /**
  * Entrega los avisos pendientes cuyo momento llegó. Cada entrega se **reclama** en una transacción corta
@@ -261,7 +268,7 @@ export async function despacharWebhooks(o: OpcionesDespacho): Promise<number> {
   const tenants = await base.transaccion(async (tx) =>
     (await comoTransaccionPostgres(tx).consulta<{ t: string }>('SELECT fhn_api_tenants_con_pendientes() AS t')).rows.map((f) => f.t),
   );
-  const libres = o.enCurso ? tenants.filter((t) => !o.enCurso!.has(t)) : tenants;
+  const libres = tenants.filter((t) => !o.enCurso?.has(t) && (!o.soloTenants || o.soloTenants.includes(t)));
   for (const t of libres) o.enCurso?.add(t);
   const porTenant = await Promise.all(
     libres.map(async (tenant) => {
@@ -275,6 +282,9 @@ export async function despacharWebhooks(o: OpcionesDespacho): Promise<number> {
   return porTenant.reduce((a, b) => a + b, 0);
 }
 
+/** `proximo` en microsegundos desde 1970, exacto (un Date de JavaScript solo guarda milisegundos). */
+const MICROSEGUNDOS = "(extract(epoch FROM proximo) * 1000000)::bigint";
+
 async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenant: string, ahora: () => Date): Promise<number> {
   const almacen = base.paraTenant(tenant);
   const reclamadas = await almacen.transaccion(async (t) => {
@@ -285,17 +295,23 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
          FROM api_webhooks w WHERE w.id = e.webhook_id AND e.tenant = $1 AND e.estado = 'PENDIENTE' AND NOT w.activo`,
       [tenant],
     );
-    const r = await tx.consulta<Reclamada>(
-      `SELECT e.id, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
+    const r = await tx.consulta<Omit<Reclamada, 'arriendo'>>(
+      `SELECT e.id, e.entrega, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
          FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
         WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
         ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
       [tenant, o.lote ?? 20],
     );
-    if (r.rows.length) {
-      await tx.consulta("UPDATE api_entregas SET proximo = now() + interval '5 minutes' WHERE id = ANY($1::bigint[])", [r.rows.map((e) => e.id)]);
-    }
-    return r.rows;
+    if (!r.rows.length) return [];
+    // El arrendamiento: `proximo` adelantado 5 minutos. Se guarda el valor exacto (en microsegundos) para que la
+    // escritura del resultado solo aplique si nadie más reclamó la entrega mientras tanto.
+    const a = await tx.consulta<{ id: string; arriendo: string }>(
+      `UPDATE api_entregas SET proximo = now() + interval '5 minutes' WHERE id = ANY($1::bigint[])
+       RETURNING id, ${MICROSEGUNDOS} AS arriendo`,
+      [r.rows.map((e) => e.id)],
+    );
+    const arriendos = new Map(a.rows.map((f) => [String(f.id), f.arriendo]));
+    return r.rows.map((e) => ({ ...e, arriendo: arriendos.get(String(e.id))! }));
   });
   const resultados: { e: Reclamada; ok: boolean; codigo: number | null; error: string | null }[] = [];
   const cola = [...reclamadas];
@@ -310,9 +326,12 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
       for (const { e, ok, codigo, error } of resultados) {
         const intentos = e.intentos + 1;
         const estado = ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
+        // Si el arrendamiento venció y otra pasada ya reclamó (o entregó) la entrega, este resultado se descarta:
+        // nunca devuelve a PENDIENTE una entrega ENTREGADA ni pisa el conteo de intentos de la otra pasada.
         await tx.consulta(
-          'UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6 WHERE id = $1',
-          [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error],
+          `UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6
+            WHERE id = $1 AND estado = 'PENDIENTE' AND ${MICROSEGUNDOS} = $7::bigint`,
+          [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error, e.arriendo],
         );
       }
     });
@@ -323,13 +342,13 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
 async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolean; codigo: number | null; error: string | null }> {
   const problema = problemaDeURL(e.url, o.permitirRedInterna);
   if (problema) return { ok: false, codigo: null, error: problema };
-  const cuerpo = JSON.stringify({ id: e.id, ...(e.cuerpo as object) });
+  const cuerpo = JSON.stringify({ id: e.entrega, ...(e.cuerpo as object) });
   const t = Math.floor((o.ahora ?? (() => new Date()))().getTime() / 1000);
   const cabeceras = {
     'content-type': 'application/json',
     'user-agent': 'factura-hn-webhooks/0.2',
     'x-facturahn-evento': e.evento,
-    'x-facturahn-entrega': e.id,
+    'x-facturahn-entrega': e.entrega,
     'x-facturahn-firma': firmar(o.cofre.leer(e.secreto), cuerpo, t),
   };
   const tiempo = o.tiempoMaximo ?? 10_000;

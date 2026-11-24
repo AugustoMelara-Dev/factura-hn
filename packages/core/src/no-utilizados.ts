@@ -11,6 +11,7 @@
  */
 import { diasEntre, esFechaValida, fechaHonduras } from './autorizacion';
 import { identificadorDe, type AlmacenFiscal } from './almacen';
+import { correlativosDe } from './paginas';
 import type { AutorizacionCAI } from './tipos';
 
 /** Causales del Art. 42 (numerales 1 a 12). */
@@ -156,8 +157,9 @@ export async function noUtilizadosDelAlmacen(
   return almacen.transaccion(async (tx) => {
     await tx.bloquearSerie(identificador);
     // Último emitido dentro de cada autorización: la serie puede haber saltado los números de una vencida
-    // (Arts. 42 y 62) y seguir en la siguiente; esos números saltados son los que hay que reportar.
-    const correlativos = (await tx.documentos({ identificador })).map((d) => d.correlativo);
+    // (Arts. 42 y 62) y seguir en la siguiente; esos números saltados son los que hay que reportar. Solo se leen
+    // los correlativos, no los documentos: la serie puede tener años de historia.
+    const correlativos = await correlativosDe(tx, identificador);
     const ultimoEn = (a: AutorizacionCAI) => {
       let max: number | null = null;
       for (const c of correlativos) if (c >= a.rangoInicial && c <= a.rangoFinal && (max === null || c > max)) max = c;

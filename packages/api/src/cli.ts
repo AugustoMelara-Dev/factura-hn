@@ -5,14 +5,16 @@
  *   factura-hn-api tenant crear <tenant> --nombre "Mi Negocio" [--limite 1000]
  *   factura-hn-api llave crear <tenant> --rol admin|caja --nombre "Caja 2" [--caja 000-002]  (--caja es obligatorio con --rol caja)
  *   factura-hn-api openapi [archivo]
- * Usa DATABASE_URL y FHN_ROL. Las llaves se imprimen una sola vez.
+ * Se conecta como dueño de las tablas: FHN_MIGRAR_URL si está definida, si no DATABASE_URL (y FHN_ROL). Con
+ * FHN_MIGRAR_URL, `migrar` también prepara el rol LOGIN de DATABASE_URL. Las llaves se imprimen una sola vez,
+ * solo en esta terminal.
  */
 import { writeFileSync } from 'node:fs';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { crearLlaveOperador, crearTenant } from './operador';
-import { crearPool } from './pool';
+import { crearPool, urlDueno, usuarioDeUrl } from './pool';
 
 function opcion(args: string[], nombre: string): string | undefined {
   const i = args.indexOf(`--${nombre}`);
@@ -28,12 +30,14 @@ async function principal(args: string[]): Promise<void> {
     else console.log(doc);
     return;
   }
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('Falta DATABASE_URL.');
+  const url = urlDueno(process.env);
   const rol = process.env.FHN_ROL ?? ROL_POR_DEFECTO;
+  // El rol LOGIN solo se prepara con `migrar`: los demás comandos no dependen de cómo se llame el usuario de
+  // DATABASE_URL (p. ej. «usuario@servidor» o con mayúsculas).
+  const login = cmd === 'migrar' && process.env.FHN_MIGRAR_URL && process.env.DATABASE_URL ? usuarioDeUrl(process.env.DATABASE_URL) : undefined;
   const pool = crearPool(url, 2);
   try {
-    await migrarApi(pool, rol);
+    await migrarApi(pool, rol, { login });
     if (cmd === 'migrar') return console.log('Esquema al día.');
     if (cmd === 'tenant' && sub === 'crear' && objetivo) {
       const limite = opcion(args, 'limite');

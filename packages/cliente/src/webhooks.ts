@@ -31,6 +31,7 @@ export async function verificarFirmaWebhook(
 
 /** Forma del cuerpo de cada entrega. Usa `id` (= cabecera `X-FacturaHN-Entrega`) para descartar repetidos. */
 export interface AvisoWebhook<D = unknown> {
+  /** UUID de la entrega: el mismo en cada reintento. */
   id: string;
   evento: 'documento.emitido' | 'documento.anulado' | 'autorizacion.por_vencer' | 'autorizacion.agotada';
   creado: string;

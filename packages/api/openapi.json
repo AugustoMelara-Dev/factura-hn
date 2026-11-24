@@ -1732,7 +1732,7 @@
           }
         ],
         "summary": "Emite una factura, nota de crédito o nota de débito",
-        "description": "Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422.",
+        "description": "Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.",
         "parameters": [
           {
             "schema": {
@@ -3132,6 +3132,7 @@
           }
         ],
         "summary": "Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)",
+        "description": "Hasta 20 webhooks activos por tenant: con 20 activos, crear otro es 409 `LIMITE_WEBHOOKS`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3175,6 +3176,16 @@
           },
           "403": {
             "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Límite de 20 webhooks activos por tenant (LIMITE_WEBHOOKS)",
             "content": {
               "application/json": {
                 "schema": {

@@ -13,23 +13,27 @@ import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
 import {
+  acumuladorResumenVentas,
   anular,
+  contarDocumentos,
   corregirFechaAdelantada,
+  documentosPorPaginas,
   emitir,
   ErrorValidacion,
   problemaDeOperador,
   estadoAutorizacion,
-  exportarTexto,
   fechaHonduras,
   filaLibroVentas,
   identificadorDeNumero,
-  libroVentasCSV,
+  inicioExportacion,
+  inicioLibroVentasCSV,
+  lineaExportacion,
+  lineaLibroVentasCSV,
   noUtilizadosDelAlmacen,
   normalizarCAI,
   registrarAutorizacion,
   renderizarHTML,
   renderizarTexto,
-  resumenVentas,
   validarEntrada,
   type AutorizacionCAI,
   type DocumentoFiscal,
@@ -43,7 +47,16 @@ import { ROL_POR_DEFECTO } from './esquema';
 import { ErrorApi, LimitadorSolicitudes, type CuerpoError } from './errores';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
-import { CofreSecretos, comoTransaccionPostgres, encolarEvento, problemaDeURL, type EventoWebhook } from './webhooks';
+import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
+import {
+  exigirPeriodoAcotado,
+  maxDocumentosReporte,
+  ReportesEnCurso,
+  REPORTES_SIMULTANEOS,
+  reportesSimultaneosProceso,
+  transmitir,
+  type Escribir,
+} from './reportes';
 
 export const VERSION_API = '0.2.0';
 
@@ -56,6 +69,21 @@ export interface ConfigApi {
   reloj?: () => Date;
   /** Solicitudes por segundo y ráfaga por llave. Por defecto 20 y 40. */
   limiteSolicitudes?: { porSegundo: number; rafaga: number };
+  /**
+   * Documentos como máximo en un reporte de período (libro de ventas, exportación); más allá, 422
+   * `PERIODO_DEMASIADO_GRANDE`. Por defecto `FHN_MAX_DOCUMENTOS_REPORTE` o 50 000.
+   */
+  maxDocumentosReporte?: number;
+  /** Reportes de período en curso a la vez por tenant en este proceso; más allá, 429. Por defecto 2. */
+  reportesSimultaneos?: number;
+  /**
+   * Reportes de período en curso a la vez en todo el proceso, de cualquier tenant; más allá, 429. Cada reporte
+   * transmitido retiene una conexión del pool mientras el cliente lee. Por defecto
+   * `FHN_REPORTES_SIMULTANEOS_PROCESO` o un cuarto del tamaño del pool (al menos 1).
+   */
+  reportesSimultaneosProceso?: number;
+  /** Tiempo máximo de una respuesta transmitida (libro de ventas, exportación). Por defecto 5 minutos. */
+  duracionMaxReporteMs?: number;
   registrar?: (mensaje: string, error?: unknown) => void;
 }
 
@@ -438,7 +466,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       description:
         'Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. ' +
         'La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento ' +
-        '(cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422.',
+        '(cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. ' +
+        'La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.',
       request: {
         headers: z.object({ 'idempotency-key': z.string().openapi({ description: 'Clave única por venta (p. ej. un UUID generado por el POS).' }) }),
         body: { content: { 'application/json': { schema: S.SolicitudEmision } }, required: true },
@@ -485,12 +514,21 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         .digest('hex');
       const almacen = almacenDe(c);
 
-      const repetir = (previa: { huella: string; codigo: number; respuesta: unknown }) => {
+      const repetir = async (previa: { huella: string; codigo: number; respuesta: unknown }) => {
         if (previa.huella !== huella) {
           throw new ErrorApi(422, 'IDEMPOTENCIA_CONFLICTO', 'Esta Idempotency-Key ya se usó con otra solicitud. Usa una clave nueva por venta.');
         }
+        let respuestaPrevia = previa.respuesta as { documento?: unknown; numero?: string };
+        // Pasada la retención, la copia de la respuesta se compacta a `{ numero }` (la clave y su huella se
+        // quedan): el documento se lee del almacén fiscal, con su estado actual.
+        if (!respuestaPrevia.documento && respuestaPrevia.numero) {
+          const numero = respuestaPrevia.numero;
+          const doc = await almacen.transaccion((tx) => tx.buscarDocumento(numero));
+          if (!doc) throw new Error(`Idempotencia: el documento ${numero} de una clave compactada no está en el almacén.`);
+          respuestaPrevia = { documento: doc };
+        }
         c.header('Idempotency-Replayed', 'true');
-        return c.json(previa.respuesta as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
+        return c.json(respuestaPrevia as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
       };
       const buscarPrevia = () =>
         enTenant(c, async (tx) => (await tx.consulta<{ huella: string; codigo: number; respuesta: unknown }>(
@@ -662,6 +700,41 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     },
   );
 
+  // --- Reportes de período: límites ------------------------------------------------------------------------
+  // Los reportes (libro de ventas, exportación, no utilizados) son completos por período, pero acotados en
+  // memoria y en conexiones: se cuentan antes de enviar nada (tope), se leen por páginas y se transmiten, con
+  // cupos por tenant y por proceso (ver ./reportes). Los cupos se registran antes que las rutas.
+  const maxDocumentos = maxDocumentosReporte(cfg.maxDocumentosReporte);
+  const reportes = new ReportesEnCurso({
+    porTenant: cfg.reportesSimultaneos ?? REPORTES_SIMULTANEOS,
+    proceso: reportesSimultaneosProceso(cfg.reportesSimultaneosProceso, cfg.pool.options?.max ?? 10),
+  });
+  const limiteReportes = reportes.middleware((c) => (c.get('sesion') as Sesion).tenant);
+  /**
+   * Responde un reporte transmitido desde una transacción de solo lectura del tenant: `preparar` cuenta y aplica
+   * el tope antes de enviar nada (un 422 todavía es posible) y `producir` escribe en la misma instantánea.
+   */
+  const reporteTransmitido = async <P>(
+    c: Context<Env>,
+    preparar: (tx: TransaccionFiscal) => Promise<P>,
+    producir: (tx: TransaccionFiscal, preparado: P, escribir: Escribir) => Promise<void>,
+    alTerminar?: (preparado: P, completo: boolean) => Promise<void>,
+  ) => {
+    const almacen = almacenDe(c);
+    return transmitir({
+      ejecutar: (fn) => almacen.transaccion(fn, { soloLectura: true }),
+      preparar,
+      producir,
+      alTerminar,
+      liberar: reportes.reclamar(c.req.raw),
+      registrar,
+      duracionMaxMs: cfg.duracionMaxReporteMs,
+    });
+  };
+  app.use('/v1/libro-ventas', limiteReportes);
+  app.use('/v1/exportacion', limiteReportes);
+  app.use('/v1/series/:identificador/no-utilizados', limiteReportes);
+
   // --- Series ----------------------------------------------------------------------------------------------
   const rutaSerie = z.object({ identificador: z.string().regex(IDENTIFICADOR).openapi({ example: '000-001-01' }) });
   app.openapi(
@@ -713,15 +786,32 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       const q = c.req.valid('query');
-      const docs = await almacenDe(c).transaccion((tx) => tx.documentos({ desde: q.desde, hasta: q.hasta }));
-      const filas = docs.map(filaLibroVentas);
-      if (q.formato === 'csv') {
-        return c.body(libroVentasCSV(filas), 200, {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"`,
-        });
-      }
-      return c.json({ filas: filas as never, resumen: resumenVentas(filas) as never }, 200);
+      const filtro = { desde: q.desde, hasta: q.hasta };
+      const csv = q.formato === 'csv';
+      // Fila por fila, sin las líneas de cada documento (el libro solo usa encabezado y totales). Mismos bytes
+      // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen })`, sin tener todas las filas a la vez.
+      const { cuerpo } = await reporteTransmitido(
+        c,
+        async (tx) => exigirPeriodoAcotado(await contarDocumentos(tx, filtro), maxDocumentos),
+        async (tx, _, escribir) => {
+          const resumen = acumuladorResumenVentas();
+          if (!(await escribir(csv ? inicioLibroVentasCSV() : '{"filas":['))) return;
+          let primera = true;
+          for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
+            for (const d of pagina) {
+              const fila = filaLibroVentas(d);
+              resumen.agregar(fila);
+              const texto = csv ? lineaLibroVentasCSV(fila) : (primera ? '' : ',') + JSON.stringify(fila);
+              primera = false;
+              if (!(await escribir(texto))) return;
+            }
+          }
+          if (!csv) await escribir(`],"resumen":${JSON.stringify(resumen.resumen())}}`);
+        },
+      );
+      return c.body(cuerpo, 200, csv
+        ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
+        : { 'Content-Type': 'application/json' }) as never;
     },
   );
 
@@ -736,10 +826,35 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       exigirAdmin(c);
       const q = c.req.valid('query');
       const formato = q.formato ?? 'jsonl';
-      const docs = await almacenDe(c).transaccion((tx) => tx.documentos({ desde: q.desde, hasta: q.hasta }));
+      const filtro = { desde: q.desde, hasta: q.hasta };
       const tipos = { jsonl: 'application/x-ndjson', csv: 'text/csv', txt: 'text/plain' } as const;
-      await enTenant(c, (tx) => bitacora(tx, actor(c), 'exportacion', { desde: q.desde, hasta: q.hasta, formato, documentos: docs.length }));
-      return c.body(exportarTexto(docs, { formato }), 200, {
+      // Mismo contenido que `exportarTexto`, transmitido documento por documento. El tope, el encabezado de `txt`
+      // y la bitácora usan el mismo conteo, de la misma instantánea que las páginas. La bitácora se escribe al
+      // cerrar la transacción de solo lectura (no se pide otra conexión con ella abierta) y antes de la última
+      // parte: la exportación no llega completa sin su registro; una cortada queda con `completo: false`.
+      const { cuerpo } = await reporteTransmitido(
+        c,
+        async (tx) => {
+          const total = await contarDocumentos(tx, filtro);
+          exigirPeriodoAcotado(total, maxDocumentos);
+          return total;
+        },
+        async (tx, total, escribir) => {
+          if (!(await escribir(inicioExportacion(formato, total)))) return;
+          // `jsonl` lleva el documento completo; `csv` y `txt`, solo encabezado y totales.
+          if (formato === 'jsonl') {
+            for await (const p of documentosPorPaginas(tx, filtro)) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
+          } else {
+            for await (const p of documentosPorPaginas(tx, filtro, { sinLineas: true })) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
+          }
+        },
+        async (total, completo) => {
+          await enTenant(c, (t) => bitacora(t, actor(c), 'exportacion', {
+            desde: q.desde, hasta: q.hasta, formato, documentos: total, ...(completo ? {} : { completo: false }),
+          }));
+        },
+      );
+      return c.body(cuerpo, 200, {
         'Content-Type': `${tipos[formato]}; charset=utf-8`,
         'Content-Disposition': `attachment; filename="factura-hn_${q.desde}_${q.hasta}.${formato}"`,
       }) as never;
@@ -858,8 +973,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
       summary: 'Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)',
+      description: `Hasta ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant: con ${MAX_WEBHOOKS_ACTIVOS} activos, crear otro es 409 \`LIMITE_WEBHOOKS\`.`,
       request: { body: { content: { 'application/json': { schema: S.WebhookNuevo } }, required: true } },
-      responses: { 201: json(S.RespuestaWebhookNuevo, 'Creado'), ...respuestasError },
+      responses: { 201: json(S.RespuestaWebhookNuevo, 'Creado'), 409: json(S.ErrorRespuesta, `Límite de ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant (LIMITE_WEBHOOKS)`), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -868,6 +984,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (problema) throw new ErrorApi(422, 'WEBHOOK_URL', problema);
       const secreto = `whsec_${randomBytes(24).toString('base64url')}`;
       const fila = await enTenant(c, async (tx) => {
+        // Candado por tenant antes de contar: dos altas a la vez no pasan juntas del límite.
+        await tx.consulta("SELECT pg_advisory_xact_lock(4823191, hashtext('api_webhooks:' || $1))", [tx.tenant]);
+        const activos = await tx.consulta<{ n: number }>('SELECT count(*)::int AS n FROM api_webhooks WHERE tenant = $1 AND activo', [tx.tenant]);
+        if (activos.rows[0]!.n >= MAX_WEBHOOKS_ACTIVOS) {
+          throw new ErrorApi(409, 'LIMITE_WEBHOOKS', `Este tenant ya tiene ${MAX_WEBHOOKS_ACTIVOS} webhooks activos: desactiva uno (DELETE /v1/webhooks/{id}) antes de crear otro.`);
+        }
         const r = await tx.consulta<FilaWebhook>(
           'INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING id, url, eventos, activo, creado',
           [tx.tenant, b.url, cofre.guardar(secreto), [...new Set(b.eventos)]],

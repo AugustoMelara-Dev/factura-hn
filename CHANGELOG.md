@@ -146,6 +146,43 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - Sitio de documentación en español para GitHub Pages (`pnpm sitio`): inicio, SDK, API con referencia generada
   desde OpenAPI, autoalojamiento, playground, matriz de cumplimiento y consulta al SAR.
 
+### Seguridad y operación
+
+Correcciones de la auditoría de seguridad del 24-11-2026 y de la validación de sus pistas (DEC-052 a DEC-060).
+
+- **Montos acotados.** La notación científica rechaza con `ErrorMonto` exponentes de más de ±30 o más de 40
+  dígitos, antes de calcular nada: «1e10000000» bloqueaba el proceso varios segundos.
+- **Render seguro.**
+  - `renderizarHTML` escapa todo valor interpolado (moneda, fechas, RTN del emisor), aunque el documento venga de
+    un archivo exportado.
+  - `renderizarTexto` cambia por espacio el tabulador y el retorno de carro, y por «?» los demás caracteres de
+    control (ESC, GS, NUL…), para que no lleguen a una impresora ESC/POS como comandos.
+- **MCP.** `structuredContent` lleva un campo `aviso` (el texto libre lo escribieron terceros) y ningún texto
+  lleva las etiquetas `<datos_documento>`.
+- **Reportes de período acotados en memoria.**
+  - Libro de ventas y exportación se leen por páginas y se transmiten, iguales byte por byte, con un tope de
+    50 000 documentos (`FHN_MAX_DOCUMENTOS_REPORTE`; más allá, 422 `PERIODO_DEMASIADO_GRANDE`).
+  - Cupos: 2 reportes en curso por tenant y un cuarto del pool por proceso (429 `LIMITE_SOLICITUDES`).
+  - Plazos: 30 s por parte y 5 minutos por respuesta.
+  - Núcleo: `documentosPorPaginas`, `contarDocumentos`, `correlativosDe`, `inicioExportacion`/`lineaExportacion`,
+    `inicioLibroVentasCSV`/`lineaLibroVentasCSV`, `acumuladorResumenVentas` y el tipo `ResumenDocumento`.
+  - `@factura-hn/postgres`: implementa esas lecturas, abre transacciones de solo lectura
+    (`transaccion(fn, { soloLectura: true })`) y ya no tumba el proceso si el servidor corta una conexión prestada.
+- **API (imagen Docker, no se publica en npm).**
+  - **Rol LOGIN propio.** `FHN_MIGRAR_URL` (el dueño) solo migra; `DATABASE_URL` es un rol LOGIN que no es dueño
+    de las tablas (`fhn_api` en Compose). La API no arranca si ese rol es, o puede volverse, superusuario,
+    BYPASSRLS o dueño. El dueño ya no necesita ser superusuario (Postgres administrado). Para actualizar una
+    instalación con contraseñas, ver «Actualizar» en `docs/autoalojamiento.md`.
+  - **Llave admin.** El servidor ya no imprime la llave admin del negocio; dice cómo crearla con la consola.
+  - **Retención** (`FHN_RETENCION_DIAS`, 30 por defecto). La clave de idempotencia no caduca: un reintento tardío
+    devuelve el mismo documento.
+  - **Webhooks.** Las entregas viejas se borran. El id de entrega es un UUID. Hay a lo sumo 20 webhooks activos
+    por tenant (409 `LIMITE_WEBHOOKS`).
+  - **Modo local.** Sin `FHN_MODO` hay aviso. En modo local la API no arranca con tenants de otros negocios.
+  - **Caja y documentación.** Una llave de caja sin punto de emisión no emite (403 `CAJA_SIN_PUNTO`). `/docs` usa
+    Swagger UI fija con SRI y CSP.
+- **`@factura-hn/cliente`.** Tipos regenerados: 409 `LIMITE_WEBHOOKS` y `AvisoWebhook.id` como UUID.
+
 ### Cambiado
 
 - **MCP local solo con SQLite en archivo (DEC-040).** `BackendLocal` recibe `{ db, emisor, … }` en lugar de

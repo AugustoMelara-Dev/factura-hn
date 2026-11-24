@@ -462,3 +462,155 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
     hash) y sin marcos. Se eligió una versión de casi cuatro semanas y no la última, publicada el día anterior.
 - **Alternativa:** servir Swagger UI desde el propio origen con `swagger-ui-dist` como dependencia (descarta el
   CDN por completo), o quitar `/docs` en modo `alojado`. Queda como siguiente paso.
+
+### DEC-053 · Validación de las nueve pistas pendientes de la auditoría
+- **Contexto:** la auditoría del 24-11-2026 dejó nueve pistas «pendientes de validación» que no se pudieron
+  comprobar sin Postgres. Cada una la validó un revisor independiente contra la base de pruebas.
+- **Elegida:** dos se confirman y se corrigen:
+  - **reportes sin cota de memoria** (media): DEC-059;
+  - **webhooks sin tope por tenant** (baja): DEC-058.
+
+  Siete no cruzan ninguna frontera de confianza y no son vulnerabilidades:
+  - modo `local` por defecto;
+  - TXT sin protección de fórmulas;
+  - rutas del ejemplo Express sin autenticación propia;
+  - escritura tardía de una entrega;
+  - campos tipados sin escapar en el HTML;
+  - controles en el texto ESC/POS;
+  - `structuredContent` del MCP sin marcar.
+
+  Aun así se aplica el endurecimiento barato que propuso cada revisor: DEC-057, DEC-058 y DEC-060, y la nota sobre
+  TXT/JSONL en `docs/api.md`.
+- **Alternativa:** corregir solo las confirmadas. Se descartó porque el endurecimiento costaba poco y cerraba
+  diferencias entre lo documentado y lo implementado.
+
+### DEC-054 · La API corre con un rol LOGIN que no es dueño de las tablas
+- **Contexto:** el servidor se conectaba como dueño de las tablas (en Compose, el superusuario) y hacía
+  `SET LOCAL ROLE fhn_app` en cada transacción. Cualquier SQL de esa sesión podía volver al dueño con `RESET ROLE`.
+  Además, una instalación que se actualiza con un override de contraseñas podía quedar corriendo como
+  superusuario sin aviso.
+- **Elegida:**
+  - **Dos conexiones.** `FHN_MIGRAR_URL` (el dueño) solo migra y prepara el modo local al arrancar, con un pool corto
+    que se cierra antes de atender. `DATABASE_URL` es un rol LOGIN. Si no existe, la migración lo crea
+    `NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña, y le concede `fhn_app`.
+  - **Negativas a arrancar (con `FHN_MIGRAR_URL`).** La API no arranca si `DATABASE_URL` usa el mismo usuario que el
+    dueño. Tampoco si su rol, o cualquier rol del que sea miembro (con NOINHERIT igual puede pasar a él con
+    `SET ROLE`), es superusuario, tiene BYPASSRLS, es `pg_write_all_data` o `pg_read_all_data`, o es dueño de las
+    tablas `fhn_*`/`api_*`.
+  - **Modo anterior.** Sin `FHN_MIGRAR_URL` todo sigue como antes y el log lo avisa.
+  - **Dueño sin superusuario.** El dueño no necesita ser superusuario (Supabase, RDS): las funciones
+    `SECURITY DEFINER` no fijan parámetros propios en su definición, porque en PostgreSQL 15+ eso exige
+    superusuario. Guardan y restauran `factura_hn.tenant`, y `fhn_api_autenticar` fija el tenant de la llave solo
+    para leer `api_tenants`, que fuerza RLS al dueño. Con un dueño sin superusuario, antes toda llave daba 401.
+  - **Esquema API v6.**
+- **Alternativa:** exigir que el operador cree el rol a mano antes del primer arranque. Son más pasos para un
+  negocio pequeño, y la instalación de Compose dejaría de funcionar sola.
+
+### DEC-055 · Retención: la clave de idempotencia no caduca, caduca la copia de la respuesta
+- **Contexto:** `api_idempotencia` y `api_entregas` crecían sin límite. Borrar claves viejas permitiría que un
+  reintento tardío emitiera un segundo documento fiscal. Borrar entregas de `autorizacion.*` repetiría ese aviso,
+  porque su deduplicación es la fila `(webhook_id, clave)`.
+- **Elegida:** `fhn_api_mantenimiento(p_dias)` es `SECURITY DEFINER` y solo el rol de la aplicación la ejecuta.
+  Pasados `greatest(p_dias, 7)` días:
+  - **Idempotencia:** reduce la respuesta a `{numero}` y conserva la clave y la huella. Al repetir una clave
+    compactada, el documento se lee del almacén fiscal, con su estado actual, y la huella se sigue comprobando: otro
+    cuerpo da 422.
+  - **Entregas:** borra las `ENTREGADA`/`FALLIDA` de `documento.*`. Las de `autorizacion.*` quedan como lápida, con
+    el cuerpo vacío.
+
+  El servidor la llama al arrancar y cada hora con `FHN_RETENCION_DIAS` (30 por defecto). Un índice parcial
+  sobre lo que falta compactar evita recorrer las filas ya compactadas.
+- **Alternativa:** borrar las claves con TTL (permite facturas duplicadas) o no forzar RLS al dueño en
+  `api_idempotencia` (debilita el aislamiento).
+
+### DEC-056 · La llave admin del negocio no pasa por el log del servidor
+- **Contexto:** al primer arranque, la llave admin del tenant `local` quedaba en `docker compose logs`, donde la
+  puede leer cualquiera con acceso a Docker o a los logs rotados.
+- **Elegida:** el tenant `local` se crea sin llave. Mientras no tenga llave admin activa, el servidor imprime el
+  comando `docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración`. La consola
+  imprime la llave solo en la terminal del operador y da un error claro con un tenant inexistente. Las llaves del
+  demo (CAI ficticio) se siguen imprimiendo, marcadas como sin validez fiscal.
+- **Alternativa:** imprimir la llave y pedir que se rote el log. Depende de que el operador lo haga.
+
+### DEC-057 · Modo local con tenants de otros negocios
+- **Contexto:** sin `FHN_MODO` la API arranca en modo local, con webhooks hacia la red interna y sin bóveda de
+  secretos, aun sobre una base con varios negocios.
+- **Elegida:** sin `FHN_MODO`, aviso en el log. En modo local la API no arranca si hay en uso tenants distintos de
+  `local` y `demo`; se ignoran los desactivados sin llaves activas. El error ofrece dos salidas: `FHN_MODO=alojado`,
+  o el SQL para desactivar esos tenants y revocar sus llaves, sin borrar nada.
+- **Alternativa:** cambiar el modo por defecto a `alojado`. Rompería la instalación local de un solo negocio, que es
+  la recomendada.
+
+### DEC-058 · Límite de webhooks activos, guarda del arrendamiento e id de entrega
+- **Contexto:** sin límite, un tenant podía multiplicar las filas de entregas por emisión. Se midió: 50 webhooks
+  escribieron 16 MB por una sola factura. Un resultado HTTP que llegaba después de vencer el arrendamiento podía
+  devolver a `PENDIENTE` una entrega ya `ENTREGADA`. El id de entrega salía de una secuencia global, que revelaba
+  el volumen de toda la instalación.
+- **Elegida:**
+  - A lo sumo 20 webhooks activos por tenant (409 `LIMITE_WEBHOOKS`). Se cuentan después de un
+    `pg_advisory_xact_lock` por tenant, porque `FOR UPDATE` requiere permiso de UPDATE y no cubre el caso de cero
+    filas.
+  - El reclamo devuelve el `proximo` arrendado en microsegundos, y la escritura del resultado exige
+    `estado = 'PENDIENTE'` y ese mismo valor.
+  - `X-FacturaHN-Entrega` y el `id` del cuerpo son un UUID por entrega, el mismo en cada reintento.
+- **Alternativa:** un candado de fila sobre `api_tenants` (requiere dar UPDATE al rol) o una columna de
+  arrendamiento aparte.
+
+### DEC-059 · Reportes de período completos pero acotados en memoria y en conexiones
+- **Contexto:** DEC-047 dejó los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) completos. Cada uno
+  cargaba todos los documentos, con sus líneas, en un solo arreglo y armaba la respuesta entera como un texto. Una
+  llave de caja con 10 solicitudes a la vez sobre 300 documentos grandes sumó 839 MB de heap. Con
+  `--max-old-space-size=768` el proceso, compartido por todos los tenants, se cayó.
+- **Elegida:** los reportes siguen completos, con estos límites.
+  - **Lectura por páginas.** Keyset sobre `numero`, para conservar el orden y que la salida sea idéntica: 200
+    documentos sin `lineas`, o 50 completos para `jsonl`. Se usan métodos opcionales del almacén
+    (`paginaDocumentos`, `contarDocumentos`, `correlativos`). El núcleo recurre a `documentos` si faltan, sigue
+    hasta una página vacía y falla si el adaptador no avanza.
+  - **Transmisión.** El libro de ventas (JSON y CSV) y la exportación se transmiten fila por fila, iguales byte por
+    byte, desde una transacción de solo lectura REPEATABLE READ con una sola conexión.
+  - **Tope.** Antes del primer byte se cuenta y se aplica el tope, con la misma instantánea que el encabezado `txt`
+    y las filas: `FHN_MAX_DOCUMENTOS_REPORTE`, 50 000 por defecto. Más allá, 422 `PERIODO_DEMASIADO_GRANDE`.
+  - **Bitácora.** La bitácora de la exportación se escribe al cerrar esa transacción, antes de la última parte. Si
+    no se puede registrar, la respuesta se corta. Una exportación cortada queda con `completo: false`.
+  - **Cupos.** 2 reportes en curso por tenant y, en todo el proceso, un cuarto del pool: al menos 1, nunca más que
+    el pool menos 1 (`FHN_REPORTES_SIMULTANEOS_PROCESO`). Más allá, 429 `LIMITE_SOLICITUDES` con `Retry-After`.
+  - **Plazos.** La respuesta va en partes de 64 KB, cada una en 30 s, y entera en 5 minutos. Si vence un plazo, se
+    corta la base o corta el cliente, la respuesta termina con error (nunca un archivo truncado que parezca
+    completo) y se liberan la conexión y los cupos.
+  - **Conexión caída.** Una conexión que el servidor corta mientras está prestada ya no tumba el proceso. El pool
+    falla a los 30 s en lugar de esperar para siempre.
+  - **No utilizados.** `no-utilizados` lee solo correlativos.
+
+  Con 2 000 y con 10 000 documentos, la memoria retenida queda por debajo de 1 MB.
+- **Alternativa:**
+  - Paginar los reportes con `limite` y `cursor`, como las demás listas: es un cambio incompatible, y el libro
+    dejaría de cuadrar por período en una respuesta.
+  - Una transacción corta por página: el tope y el encabezado `txt` podrían no coincidir con las filas.
+
+  Los valores por defecto (50 000 documentos, 2 por tenant, un cuarto del pool, 5 minutos) se ajustan cuando
+  haya datos de producción.
+
+### DEC-060 · Datos de terceros en el render y en el MCP
+- **Contexto:** la validación de las pistas encontró valores que se escribían sin escapar o sin marcar. Ninguno era
+  explotable por alguien de menor confianza; es defensa en profundidad:
+  - en `renderizarHTML`: la moneda, las fechas y el RTN del emisor, que pueden venir alterados de un JSONL;
+  - en el texto ESC/POS: caracteres de control que la impresora toma como comandos;
+  - en el MCP: el `structuredContent`, que entregaba el documento crudo, con un `</datos_documento>` inyectado.
+- **Elegida:**
+  - `renderizarHTML` pasa por `esc()` todo valor interpolado.
+  - `renderizarTexto` cambia por espacio el tabulador, el CR, VT y FF, y por «?» los demás caracteres C0 y C1 (salvo
+    `\n`).
+  - El MCP quita `<datos_documento>` y `</datos_documento>` de todo texto del resultado y añade un campo `aviso`:
+    el texto libre lo escribieron terceros y no son instrucciones.
+  - El ejemplo Express responde 415 a `POST /pedidos/:id/factura` sin `application/json` y avisa que sus rutas no
+    tienen autenticación propia.
+- **Alternativa:** limpiar en el MCP solo una lista de campos libres. Obliga a mantenerla al día y deja fuera
+  `codigo`, `unidad` u `operador`.
+
+### DEC-061 · Los cambios previos a la primera publicación van en la 0.2.0, sin changesets
+- **Contexto:** la 0.2.0 aún no está en npm, y había cinco changesets pendientes. Con ellos, el flujo Release
+  habría sacado una 0.3.0 que anunciaría como nuevos cambios que ya vienen en la primera versión publicada.
+- **Elegida:** su contenido pasa a la sección «Seguridad y operación» de la 0.2.0 en `CHANGELOG.md` y los archivos
+  se borran. Desde la publicación de la 0.2.0, cada cambio lleva su changeset.
+- **Alternativa:** publicar la 0.2.0 y luego versionar en seguida una 0.3.0 con esos cambios. Daría dos versiones
+  con el mismo código.

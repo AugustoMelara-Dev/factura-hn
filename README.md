@@ -227,7 +227,8 @@ OpenAPI 3.1 y PostgreSQL, instalada en el local del negocio (Art. 47) o alojada 
 
 ```bash
 docker compose up --build    # API en http://127.0.0.1:8787/docs + Postgres, con datos de demostración (CAI ficticio)
-docker compose logs api      # llaves admin y caja (se muestran una sola vez)
+docker compose logs api      # llaves del demo, CAI ficticio (se muestran una sola vez)
+docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración   # llave admin de tu negocio
 ```
 
 Llaves con roles caja/admin, `Idempotency-Key` obligatoria en la emisión, PDF/HTML/TXT, libro de ventas,
