@@ -443,3 +443,22 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
 - **Antes (2026-11-19):** eran avisos y no sumaban las notas anteriores.
 - **Alternativa:** dejar que las notas de débito amplíen el saldo, o permitir notas de crédito por encima del
   original con confirmación. Va en la consulta al SAR.
+
+### DEC-052 · Correcciones de la auditoría de seguridad del 24-11-2026
+- **Contexto:** una auditoría de seguridad (solo código y pruebas locales en sandbox) confirmó cuatro fallas.
+  Ninguna cruza tenants ni ejecuta código, y ninguna cambia la interpretación fiscal.
+- **Elegida:**
+  - **Montos:** `descomponer` (núcleo) rechaza con `ErrorMonto` un exponente de más de ±30 o más de 40 dígitos,
+    antes de calcular la potencia de 10. Con «1e10000000» (10 caracteres) una sola emisión bloqueaba el proceso
+    de la API, compartido por todos los tenants, varios segundos.
+  - **Llaves de caja:** la emisión falla cerrada (403 `CAJA_SIN_PUNTO`) si una llave de caja no tiene
+    establecimiento y punto de emisión; antes usaba el punto que pidiera el cuerpo. La consola
+    (`crearLlaveOperador`) valida `--caja 000-001`, y un disparador de INSERT en `api_llaves` (esquema API v4)
+    rechaza llaves de caja sin punto aunque se inserten a mano. Es disparador y no CHECK porque un CHECK, aun
+    `NOT VALID`, también se revisa en el UPDATE de `ultimo_uso` y dejaría con error 500 a una llave vieja.
+  - **POS de ejemplo:** la revisión de anfitrión ya no se apaga sin `puerto`: usa el puerto del socket, y
+    `PUERTO` vacío, `0` o no numérico no arranca.
+  - **`/docs`:** Swagger UI 5.34.1 fija, con Subresource Integrity, CSP (solo esos archivos y el arranque por
+    hash) y sin marcos. Se eligió una versión de casi cuatro semanas y no la última, publicada el día anterior.
+- **Alternativa:** servir Swagger UI desde el propio origen con `swagger-ui-dist` como dependencia (descarta el
+  CDN por completo), o quitar `/docs` en modo `alojado`. Queda como siguiente paso.

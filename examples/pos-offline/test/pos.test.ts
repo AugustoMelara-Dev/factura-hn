@@ -137,4 +137,27 @@ describe('POS fuera de línea', () => {
       srv.close();
     }
   });
+
+  it('sin puerto configurado, la revisión de anfitrión usa el puerto del socket (no se desactiva)', async () => {
+    const { pos } = await posListo();
+    const srv = createServer((req, res) => void pos.manejador(req, res));
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    const puerto = (srv.address() as { port: number }).port;
+    const http = await import('node:http');
+    const pedir = (host: string, origin?: string) => new Promise<number>((r) => {
+      http.get(`http://127.0.0.1:${puerto}/api/documentos/000-001-01-00000001`, { headers: { host, ...(origin ? { origin } : {}) } }, (s) => {
+        s.resume();
+        r(s.statusCode ?? 0);
+      });
+    });
+    try {
+      await pos.vender('sin-puerto-0001', venta);
+      expect(await pedir(`malo.example:${puerto}`)).toBe(421);
+      expect(await pedir(`127.0.0.1:${puerto}`)).toBe(200);
+      expect(await pedir(`localhost:${puerto}`, `http://localhost:${puerto}`)).toBe(200);
+      expect(await pedir(`127.0.0.1:${puerto}`, 'https://sitio-malo.example')).toBe(403);
+    } finally {
+      srv.close();
+    }
+  });
 });

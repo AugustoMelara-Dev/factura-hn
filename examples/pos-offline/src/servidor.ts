@@ -24,6 +24,7 @@ const EMISOR_DEMO: Emisor = {
 
 const emisor: Emisor = env.POS_EMISOR ? JSON.parse(readFileSync(env.POS_EMISOR, 'utf8')) : EMISOR_DEMO;
 const puerto = Number(env.PUERTO ?? 3000);
+if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) throw new Error('PUERTO debe ser un entero entre 1 y 65535.');
 const pos = crearPOS({ db: new DatabaseSync(env.POS_DB ?? 'pos.db'), emisor, establecimiento: env.POS_ESTABLECIMIENTO ?? '000', puntoEmision: env.POS_PUNTO ?? '001', puerto });
 
 if (env.POS_DEMO === '1' && !(await pos.estado()).autorizacion) {

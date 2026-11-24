@@ -4,6 +4,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
+import { generarLlave } from '../src/llaves';
+import { crearLlaveOperador } from '../src/operador';
 import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
@@ -359,6 +361,21 @@ conBase('documentación', () => {
     expect((await c('GET', '/docs')).status).toBe(200);
     expect(await json(await c('GET', '/salud'))).toMatchObject({ ok: true, modo: 'local' });
   });
+
+  it('/docs fija la versión de Swagger UI con SRI, CSP y sin marcos', async () => {
+    const { app } = await tenantListo();
+    const r = await cliente(app, null)('GET', '/docs');
+    const html = await r.text();
+    const externos = [...html.matchAll(/(?:src|href)="(https:[^"]+)"/g)].map((m) => m[1]);
+    expect(externos.length).toBe(2);
+    for (const url of externos) expect(url).toMatch(/swagger-ui-dist@\d+\.\d+\.\d+\//);
+    expect(html.match(/integrity="sha256-[A-Za-z0-9+/=]+"/g)).toHaveLength(2);
+    const csp = r.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(r.headers.get('x-frame-options')).toBe('DENY');
+  });
 });
 
 conBase('correcciones de la revisión de seguridad', () => {
@@ -393,6 +410,41 @@ conBase('correcciones de la revisión de seguridad', () => {
     const r = await admin('POST', '/v1/llaves', { nombre: 'caja suelta', rol: 'caja' });
     expect(r.status).toBe(400);
     expect((await json(r)).error.codigo).toBe('CAJA_INCOMPLETA');
+  });
+
+  it('la consola y la base tampoco crean llaves de caja sin punto de emisión', async () => {
+    const { tenant, pool } = await tenantListo();
+    for (const o of [{}, { establecimiento: '000' }, { puntoEmision: '001' }, { establecimiento: '0', puntoEmision: '001' }]) {
+      await expect(crearLlaveOperador(pool, { tenant, rol: 'caja', nombre: 'caja suelta', ...o })).rejects.toThrow(/--caja 000-001/);
+    }
+    await expect(crearLlaveOperador(pool, { tenant, rol: 'admin', nombre: 'admin a medias', establecimiento: '000' })).rejects.toThrow();
+    const { prefijo, hash } = generarLlave();
+    await expect(pool.query("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'caja', 'x')", [prefijo, tenant, hash]))
+      .rejects.toThrow(/api_llaves_caja_con_punto/);
+  });
+
+  it('una llave de caja vieja sin punto de emisión no emite en la caja que pida (falla cerrado)', async () => {
+    const { app, tenant, pool } = await tenantListo({}, { cajas: ['001', '002'] });
+    // Simula una fila anterior al disparador v4: se desactiva solo dentro de esta transacción.
+    const { llave, prefijo, hash } = generarLlave();
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('ALTER TABLE api_llaves DISABLE TRIGGER fhn_api_llaves_caja_con_punto');
+      await c.query("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento) VALUES ($1, $2, $3, 'caja', 'vieja', '000')", [prefijo, tenant, hash]);
+      await c.query('ALTER TABLE api_llaves ENABLE TRIGGER fhn_api_llaves_caja_con_punto');
+      await c.query('COMMIT');
+    } catch (e) {
+      await c.query('ROLLBACK');
+      throw e;
+    } finally {
+      c.release();
+    }
+    const r = await emitir(cliente(app, llave), venta('10.00', { puntoEmision: '002' }));
+    expect(r.status).toBe(403);
+    expect((await json(r)).error.codigo).toBe('CAJA_SIN_PUNTO');
+    // Sigue autenticando para leer: el disparador no toca el UPDATE de ultimo_uso.
+    expect((await cliente(app, llave)('GET', '/v1/autorizaciones')).status).toBe(200);
   });
 
   it('períodos de más de 366 días o invertidos y direcciones vacías se rechazan', async () => {

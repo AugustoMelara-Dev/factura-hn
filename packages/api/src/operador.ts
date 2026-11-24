@@ -51,11 +51,17 @@ export async function crearLlaveOperador(
   pool: pg.Pool,
   o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string },
 ): Promise<string> {
+  const est = o.establecimiento || null;
+  const pto = o.puntoEmision || null;
+  const tresDigitos = /^[0-9]{3}$/;
+  if (Boolean(est) !== Boolean(pto) || (o.rol === 'caja' && !est) || (est && !tresDigitos.test(est)) || (pto && !tresDigitos.test(pto))) {
+    throw new Error('Una llave de caja se ata a un establecimiento y punto de emisión: --caja 000-001.');
+  }
   const { llave, prefijo, hash } = generarLlave();
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [prefijo, o.tenant, hash, o.rol, o.nombre, o.establecimiento ?? null, o.puntoEmision ?? null],
+      [prefijo, o.tenant, hash, o.rol, o.nombre, est, pto],
     );
     await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol })]);
   });
