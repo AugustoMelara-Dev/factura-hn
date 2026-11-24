@@ -1,12 +1,16 @@
 /**
- * Reportes de período acotados en memoria (libro de ventas, exportación, no utilizados): cupos por tenant,
- * tope de documentos y la misma salida que antes de leer por páginas. Requiere FHN_PG_URL.
+ * Reportes de período acotados en memoria y en conexiones (libro de ventas, exportación, no utilizados): cupos
+ * por tenant y por proceso, plazo total, tope de documentos y la misma salida, byte por byte, que cuando se
+ * armaban en memoria. Requiere FHN_PG_URL.
  */
+import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AlmacenPostgres } from '@factura-hn/postgres';
-import { fechaHonduras, filaLibroVentas, noUtilizadosDelAlmacen, resumenVentas, type AlmacenFiscal, type DocumentoFiscal, type FormatoExportacion } from 'factura-hn';
+import { fechaHonduras, filaLibroVentas, noUtilizadosDelAlmacen, type AlmacenFiscal, type DocumentoFiscal, type FormatoExportacion } from 'factura-hn';
+import { crearApp } from '../src/app';
 import { exportarTextoAnterior } from '../../core/test/exportacion-anterior';
-import { cerrarPool, cliente, crearCaja, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
+import { libroVentasCSVAnterior, resumenVentasAnterior } from '../../core/test/libro-anterior';
+import { cerrarPool, cliente, crearCaja, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
 
 afterAll(cerrarPool);
 
@@ -15,6 +19,17 @@ const json = async (r: Response) => (await r.json()) as any;
 const emitir = (c: Cliente, cuerpo: unknown, clave: string) => c('POST', '/v1/documentos', cuerpo, { 'idempotency-key': clave });
 const HOY = fechaHonduras();
 const PERIODO = `desde=${diasAntes(HOY, 300)}&hasta=${HOY}`;
+/** Repite la solicitud hasta obtener `estado` (los cupos se liberan cuando la transacción termina, un instante después). */
+async function hastaEstado(pedir: () => Promise<Response>, estado: number): Promise<Response> {
+  for (let i = 0; ; i++) {
+    const r = await pedir();
+    if (r.status === estado || i === 100) return r;
+    await r.text();
+    await new Promise((res) => setTimeout(res, 20));
+  }
+}
+/** Documento grande: la exportación `jsonl` pasa de una parte de 64 KB y retiene la transacción hasta que se lee. */
+const lineasGrandes = Array.from({ length: 200 }, (_, i) => ({ descripcion: `${i}`.padEnd(300, 'x'), cantidad: 1, precioUnitario: '1.00' }));
 
 describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
   it('una llave de caja no puede materializar el período completo muchas veces a la vez', async () => {
@@ -52,7 +67,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     expect((await otro.admin('GET', `/v1/libro-ventas?${PERIODO}`)).status).toBe(200);
     expect((await a.text()).split('\n')).toHaveLength(5); // encabezado, 3 filas y la línea vacía final
     await b.body!.cancel(); // el cliente corta: también libera
-    expect((await admin('GET', `/v1/series/000-001-01/no-utilizados`)).status).toBe(200);
+    expect((await hastaEstado(() => admin('GET', `/v1/series/000-001-01/no-utilizados`), 200)).status).toBe(200);
     expect((await admin('GET', `/v1/exportacion?${PERIODO}`)).status).toBe(200);
   }, 60_000);
 
@@ -109,10 +124,19 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
       expect(bytes.equals(Buffer.from(exportarTextoAnterior(docs, { formato }), 'utf8')), formato).toBe(true);
     }
 
+    // Libro: los mismos bytes que `c.json({ filas, resumen })` y que `libroVentasCSV(filas)` de antes.
     const filas = docs.map(filaLibroVentas);
-    const libro = await json(await admin('GET', `/v1/libro-ventas?${PERIODO}`));
-    expect(libro.filas).toEqual(JSON.parse(JSON.stringify(filas)));
-    expect(libro.resumen).toEqual(resumenVentas(filas));
+    const libro = await admin('GET', `/v1/libro-ventas?${PERIODO}`);
+    expect(libro.headers.get('content-type')).toBe('application/json');
+    expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas) }));
+    const csv = await admin('GET', `/v1/libro-ventas?${PERIODO}&formato=csv`);
+    expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8');
+    expect(Buffer.from(await csv.arrayBuffer()).equals(Buffer.from(libroVentasCSVAnterior(filas), 'utf8'))).toBe(true);
+    // Sin documentos también.
+    const vacio = `desde=${diasAntes(HOY, 60)}&hasta=${diasAntes(HOY, 31)}`;
+    expect(await (await admin('GET', `/v1/libro-ventas?${vacio}`)).text()).toBe(JSON.stringify({ filas: [], resumen: resumenVentasAnterior([]) }));
+    const csvVacio = Buffer.from(await (await admin('GET', `/v1/libro-ventas?${vacio}&formato=csv`)).arrayBuffer());
+    expect(csvVacio.equals(Buffer.from(libroVentasCSVAnterior([]), 'utf8'))).toBe(true);
   }, 120_000);
 
   it('no utilizados: lee solo correlativos y da lo mismo que con los documentos completos', async () => {
@@ -128,6 +152,60 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
       const completo = await noUtilizadosDelAlmacen(sinProyeccion, '000-001-01', { hoy, evento: hoy < '2027' ? { causal: 5, fecha: hoy } : undefined });
       expect(proyectado).toEqual(completo);
       expect(proyectado.map((r) => [r.desde, r.hasta])).toEqual([[4, 1000]]);
+    }
+  }, 60_000);
+
+  it('reportes sin leer de otros tenants no dejan sin conexiones al resto (pool de 4)', async () => {
+    const chico = new pg.Pool({ connectionString: URL_PG, max: 4 });
+    try {
+      const a = await tenantListo(sinLimite);
+      const b = await tenantListo(sinLimite);
+      const c = await tenantListo(sinLimite);
+      for (const t of [a, b]) for (let i = 0; i < 3; i++) {
+        const r = await emitir(t.admin, venta('1.00', { documento: { lineas: lineasGrandes } }), `pool-${i}`);
+        expect(r.status, await r.clone().text()).toBe(201);
+      }
+      expect((await emitir(c.admin, venta(), 'pool-c')).status).toBe(201);
+      // Una sola API sobre el pool chico, como un proceso compartido por los tres tenants.
+      const app = crearApp({ pool: chico, modo: 'local', rol: ROL, registrar: () => undefined, ...sinLimite });
+      const [ka, kb, kc] = [cliente(app, a.llaveAdmin), cliente(app, b.llaveAdmin), cliente(app, c.llaveAdmin)];
+      const abiertas = [
+        await ka('GET', `/v1/exportacion?${PERIODO}`), await ka('GET', `/v1/exportacion?${PERIODO}&formato=csv`),
+        await kb('GET', `/v1/exportacion?${PERIODO}`), await kb('GET', `/v1/libro-ventas?${PERIODO}`),
+      ];
+      // Un cuarto del pool: un solo reporte en curso en el proceso; los demás, 429.
+      expect(abiertas.map((r) => r.status)).toEqual([200, 429, 429, 429]);
+      expect((await json(abiertas[2]!)).error.codigo).toBe('LIMITE_SOLICITUDES');
+      // El resto de la API sigue respondiendo a tiempo.
+      const inicio = Date.now();
+      for (let i = 0; i < 5; i++) expect((await kc('GET', '/v1/autorizaciones')).status).toBe(200);
+      expect(Date.now() - inicio).toBeLessThan(3_000);
+      // Al leer la exportación abierta, el cupo vuelve y la salida está completa.
+      expect((await abiertas[0]!.text()).trim().split('\n')).toHaveLength(3);
+      expect((await hastaEstado(() => kc('GET', `/v1/libro-ventas?${PERIODO}`), 200)).status).toBe(200);
+    } finally {
+      await chico.end();
+    }
+  }, 60_000);
+
+  it('plazo total: una exportación que nadie lee se corta con error y libera la conexión y el cupo', async () => {
+    const chico = new pg.Pool({ connectionString: URL_PG, max: 4 });
+    try {
+      const a = await tenantListo(sinLimite);
+      for (let i = 0; i < 3; i++) expect((await emitir(a.admin, venta('1.00', { documento: { lineas: lineasGrandes } }), `plazo-${i}`)).status).toBe(201);
+      const app = crearApp({ pool: chico, modo: 'local', rol: ROL, registrar: () => undefined, duracionMaxReporteMs: 300, ...sinLimite });
+      const ka = cliente(app, a.llaveAdmin);
+      const sinLeer = await ka('GET', `/v1/exportacion?${PERIODO}`);
+      expect(sinLeer.status).toBe(200);
+      expect((await ka('GET', `/v1/libro-ventas?${PERIODO}`)).status).toBe(429);
+      await new Promise((r) => setTimeout(r, 500));
+      expect(chico.totalCount - chico.idleCount).toBe(0); // ninguna conexión retenida
+      await expect(sinLeer.text()).rejects.toThrow(); // cortada con error, no truncada en silencio
+      const r = await hastaEstado(() => ka('GET', `/v1/exportacion?${PERIODO}&formato=txt`), 200);
+      expect(r.status).toBe(200);
+      expect((await r.text()).startsWith('#factura-hn|v1|3\n')).toBe(true);
+    } finally {
+      await chico.end();
     }
   }, 60_000);
 });

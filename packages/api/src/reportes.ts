@@ -1,29 +1,50 @@
 /**
  * Límites de los reportes de período (`libro-ventas`, `exportacion`, `no-utilizados`).
  *
- * Los reportes siguen completos por período, pero un período grande no puede tumbar el proceso, que comparten
- * todos los tenants:
+ * Los reportes siguen completos por período, pero un período grande no puede tumbar el proceso ni dejar sin
+ * conexiones a la base a los demás tenants:
  * - tope de documentos por reporte (`maxDocumentosReporte`, `FHN_MAX_DOCUMENTOS_REPORTE`, 50 000 por defecto):
- *   se cuenta antes de leer nada y, si se pasa, 422 `PERIODO_DEMASIADO_GRANDE`;
- * - reportes simultáneos por tenant en cada proceso (`reportesSimultaneos`, 2 por defecto): el siguiente
- *   recibe 429 `LIMITE_SOLICITUDES` con `Retry-After`. El cupo se libera cuando la respuesta termina de
- *   enviarse o el cliente la corta;
- * - la exportación se transmite por partes, página por página, con un plazo por escritura para que un cliente
- *   que deja de leer no retenga la conexión a la base.
+ *   se cuenta antes de enviar nada y, si se pasa, 422 `PERIODO_DEMASIADO_GRANDE`;
+ * - reportes en curso por tenant (`reportesSimultaneos`, 2) y en todo el proceso (`reportesSimultaneosProceso`,
+ *   `FHN_REPORTES_SIMULTANEOS_PROCESO`, por defecto un cuarto del pool): el siguiente recibe 429
+ *   `LIMITE_SOLICITUDES` con `Retry-After`. Un reporte transmitido retiene una conexión del pool mientras el
+ *   cliente lee; el límite del proceso deja siempre conexiones libres para el resto de la API;
+ * - el libro y la exportación se transmiten por partes (de unos 64 KB), con un plazo por parte (30 s: un
+ *   cliente que lee despacio pero avanza no se corta) y un plazo total (`duracionMaxReporteMs`, 5 minutos).
+ *   Al vencer cualquiera, la respuesta se corta con error y se libera todo.
  */
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { ErrorApi } from './errores';
 
 export const MAX_DOCUMENTOS_REPORTE = 50_000;
 export const REPORTES_SIMULTANEOS = 2;
 /** Plazo para que el cliente reciba cada parte de una respuesta transmitida. */
 export const ESPERA_ESCRITURA_MS = 30_000;
+/** Plazo total de una respuesta transmitida. */
+export const DURACION_MAX_REPORTE_MS = 5 * 60_000;
+/** Tamaño de cada parte escrita al cliente. */
+export const TAMANO_PARTE = 64 * 1024;
+
+type Entorno = Record<string, string | undefined>;
 
 /** Tope de documentos por reporte: la opción, o `FHN_MAX_DOCUMENTOS_REPORTE`, o 50 000. */
-export function maxDocumentosReporte(opcion: number | undefined, env: Record<string, string | undefined> = process.env): number {
-  if (opcion !== undefined) return entero(opcion, 'maxDocumentosReporte');
-  const texto = env.FHN_MAX_DOCUMENTOS_REPORTE;
-  return texto === undefined || texto.trim() === '' ? MAX_DOCUMENTOS_REPORTE : entero(Number(texto), 'FHN_MAX_DOCUMENTOS_REPORTE');
+export function maxDocumentosReporte(opcion: number | undefined, env: Entorno = process.env): number {
+  return desdeEntorno(opcion, 'maxDocumentosReporte', env, 'FHN_MAX_DOCUMENTOS_REPORTE', MAX_DOCUMENTOS_REPORTE);
+}
+
+/**
+ * Reportes en curso en todo el proceso: la opción, o `FHN_REPORTES_SIMULTANEOS_PROCESO`, o un cuarto del pool
+ * (al menos 1), para que los reportes nunca ocupen todas las conexiones.
+ */
+export function reportesSimultaneosProceso(opcion: number | undefined, tamanoPool: number, env: Entorno = process.env): number {
+  const porDefecto = Math.max(1, Math.floor(tamanoPool / 4));
+  return desdeEntorno(opcion, 'reportesSimultaneosProceso', env, 'FHN_REPORTES_SIMULTANEOS_PROCESO', porDefecto);
+}
+
+function desdeEntorno(opcion: number | undefined, nombre: string, env: Entorno, variable: string, porDefecto: number): number {
+  if (opcion !== undefined) return entero(opcion, nombre);
+  const texto = env[variable];
+  return texto === undefined || texto.trim() === '' ? porDefecto : entero(Number(texto), variable);
 }
 
 function entero(v: number, nombre: string): number {
@@ -43,7 +64,7 @@ export function exigirPeriodoAcotado(total: number, maximo: number): void {
   }
 }
 
-/** Cupos de reportes en curso por clave (tenant). */
+/** Cupos de reportes en curso por clave. */
 export class CuposSimultaneos {
   private readonly enCurso = new Map<string, number>();
   constructor(private readonly maximo: number) {
@@ -69,84 +90,117 @@ export class CuposSimultaneos {
   }
 }
 
-/** Un cuerpo que llama a `liberar` cuando termina de leerse, falla o el cliente lo cancela. */
-function liberarAlTerminar(cuerpo: ReadableStream<Uint8Array>, liberar: () => void): ReadableStream<Uint8Array> {
-  const lector = cuerpo.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(control) {
-      try {
-        const { done, value } = await lector.read();
-        if (done) {
-          liberar();
-          control.close();
-        } else {
-          control.enqueue(value);
-        }
-      } catch (e) {
-        liberar();
-        control.error(e);
+const muchos = () => new ErrorApi(429, 'LIMITE_SOLICITUDES', 'Ya hay demasiados reportes en curso. Espera a que terminen y reintenta.', { reintentarEn: 1 });
+
+/**
+ * Cupos de los reportes: por tenant y en todo el proceso. El middleware toma ambos antes de la ruta y los
+ * libera al terminar; una ruta que transmite su respuesta los reclama (`reclamar`) y los libera cuando
+ * termina la transmisión.
+ */
+export class ReportesEnCurso {
+  readonly porTenant: CuposSimultaneos;
+  readonly proceso: CuposSimultaneos;
+  private readonly cupos = new WeakMap<Request, { liberar: () => void; reclamado: boolean }>();
+
+  constructor(limites: { porTenant: number; proceso: number }) {
+    this.porTenant = new CuposSimultaneos(limites.porTenant);
+    this.proceso = new CuposSimultaneos(limites.proceso);
+  }
+
+  /**
+   * Middleware de las rutas de reportes. Va después de la autenticación: `clave` lee el tenant de la sesión.
+   * HEAD no se atiende (405): su cuerpo se descarta sin leerse.
+   */
+  middleware(clave: (c: Context) => string): MiddlewareHandler {
+    return async (c, next) => {
+      if (c.req.method === 'HEAD') {
+        return c.json({ error: { codigo: 'METODO_NO_PERMITIDO', mensaje: 'Usa GET para pedir este reporte.' } }, 405, { Allow: 'GET' });
       }
-    },
-    async cancel(motivo) {
-      liberar();
-      await lector.cancel(motivo);
-    },
-  });
+      const delTenant = this.porTenant.tomar(clave(c));
+      if (!delTenant) throw muchos();
+      const delProceso = this.proceso.tomar('');
+      if (!delProceso) {
+        delTenant();
+        throw muchos();
+      }
+      const cupo = {
+        liberar: () => {
+          delTenant();
+          delProceso();
+        },
+        reclamado: false,
+      };
+      this.cupos.set(c.req.raw, cupo);
+      try {
+        await next();
+      } finally {
+        if (!cupo.reclamado) cupo.liberar();
+      }
+    };
+  }
+
+  /** La ruta se hace cargo del cupo de la solicitud: devuelve con qué liberarlo. */
+  reclamar(solicitud: Request): () => void {
+    const cupo = this.cupos.get(solicitud);
+    if (!cupo) return () => undefined;
+    cupo.reclamado = true;
+    return cupo.liberar;
+  }
+}
+
+/** Escribe texto en la respuesta transmitida. Devuelve false si hay que parar (cliente cortó o venció un plazo). */
+export type Escribir = (texto: string) => Promise<boolean>;
+
+export interface OpcionesTransmision<X, P> {
+  /** Corre `fn` en una transacción (de solo lectura): conteo y páginas salen de la misma instantánea. */
+  ejecutar: (fn: (tx: X) => Promise<void>) => Promise<void>;
+  /** Antes de enviar nada: contar, aplicar el tope (puede lanzar 422), registrar. */
+  preparar: (tx: X) => Promise<P>;
+  /** Escribe la respuesta. Debe parar si `escribir` devuelve false. */
+  producir: (tx: X, preparado: P, escribir: Escribir) => Promise<void>;
+  /** Se llama una vez, cuando todo terminó (bien, con error o cortado). */
+  liberar: () => void;
+  registrar: (mensaje: string, error?: unknown) => void;
+  esperaEscrituraMs?: number;
+  duracionMaxMs?: number;
 }
 
 /**
- * Middleware de cupos para las rutas de reportes. Va después de la autenticación: `clave` lee el tenant de la
- * sesión. HEAD no se atiende (405): su cuerpo se descarta sin leerse y el cupo no se liberaría.
+ * Respuesta transmitida desde una transacción. `preparar` corre primero: si lanza, la promesa se rechaza y la
+ * ruta puede responder el error (422) porque todavía no se envió nada. Si no, se resuelve con el cuerpo y
+ * `producir` sigue en la misma transacción mientras el cliente lee.
+ *
+ * Lo escrito se junta en partes de `TAMANO_PARTE`; cada parte debe llegar al cliente en `esperaEscrituraMs` y la
+ * respuesta entera en `duracionMaxMs`. Si un plazo vence o `producir` falla, la respuesta se corta con error:
+ * el cliente nunca recibe un archivo truncado que parezca completo.
  */
-export function limitarReportes(cupos: CuposSimultaneos, clave: (c: Parameters<MiddlewareHandler>[0]) => string): MiddlewareHandler {
-  return async (c, next) => {
-    if (c.req.method === 'HEAD') return c.body(null, 405, { Allow: 'GET' });
-    const liberar = cupos.tomar(clave(c));
-    if (!liberar) {
-      throw new ErrorApi(429, 'LIMITE_SOLICITUDES', 'Ya hay reportes en curso para este negocio. Espera a que terminen y reintenta.', { reintentarEn: 1 });
-    }
-    try {
-      await next();
-    } catch (e) {
-      liberar();
-      throw e;
-    }
-    const cuerpo = c.res.body;
-    if (!cuerpo || c.res.status !== 200) {
-      liberar();
-      return;
-    }
-    c.res = new Response(liberarAlTerminar(cuerpo, liberar), c.res);
-  };
-}
-
-/**
- * Cuerpo transmitido: `producir` escribe las partes y cada `escribir` espera a que el cliente las reciba
- * (contrapresión). `escribir` devuelve false si el cliente cortó o no leyó en `esperaMs`: el productor debe
- * parar. Si `producir` falla, la respuesta se corta con error (el cliente no recibe un archivo truncado que
- * parezca completo).
- */
-export function cuerpoTransmitido(
-  producir: (escribir: (texto: string) => Promise<boolean>) => Promise<void>,
-  opciones: { registrar: (mensaje: string, error?: unknown) => void; esperaMs?: number },
-): ReadableStream<Uint8Array> {
+export function transmitir<X, P>(o: OpcionesTransmision<X, P>): Promise<{ preparado: P; cuerpo: ReadableStream<Uint8Array> }> {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const escritor = writable.getWriter();
   const codificador = new TextEncoder();
-  const esperaMs = opciones.esperaMs ?? ESPERA_ESCRITURA_MS;
+  const esperaMs = o.esperaEscrituraMs ?? ESPERA_ESCRITURA_MS;
   let cortado = false;
+  let pendiente = '';
+  let plazoTotal: ReturnType<typeof setTimeout> | undefined;
+  // Se resuelve al cortar: una escritura pendiente no espera a que el abort de la corriente la desbloquee.
+  let avisarCorte!: () => void;
+  const corte = new Promise<'cortado'>((r) => {
+    avisarCorte = () => r('cortado');
+  });
+
   const cortar = (motivo: unknown) => {
+    if (cortado) return;
     cortado = true;
+    avisarCorte();
     escritor.abort(motivo).catch(() => undefined);
   };
-  const escribir = async (texto: string): Promise<boolean> => {
-    if (cortado) return false;
+  const enviar = async (bytes: Uint8Array): Promise<boolean> => {
     let reloj: ReturnType<typeof setTimeout> | undefined;
     const vencido = new Promise<'vencido'>((r) => {
       reloj = setTimeout(() => r('vencido'), esperaMs);
     });
     try {
-      const r = await Promise.race([escritor.write(codificador.encode(texto)).then(() => 'ok' as const), vencido]);
+      const r = await Promise.race([escritor.write(bytes).then(() => 'ok' as const), vencido, corte]);
       if (r === 'vencido') cortar(new Error('El cliente no recibió la respuesta a tiempo.'));
     } catch {
       cortado = true; // el cliente canceló
@@ -155,21 +209,42 @@ export function cuerpoTransmitido(
     }
     return !cortado;
   };
-  void (async () => {
-    try {
-      await producir(escribir);
-      if (!cortado) await escritor.close().catch(() => undefined);
-    } catch (e) {
-      if (!cortado) {
-        opciones.registrar('Error al transmitir un reporte', e);
-        cortar(e);
-      }
+  const vaciar = async (): Promise<boolean> => {
+    if (cortado) return false;
+    const bytes = codificador.encode(pendiente);
+    pendiente = '';
+    for (let i = 0; i < bytes.length; i += TAMANO_PARTE) {
+      if (!(await enviar(bytes.subarray(i, i + TAMANO_PARTE)))) return false;
     }
-  })();
-  return readable;
-}
+    return true;
+  };
+  const escribir: Escribir = async (texto) => {
+    if (cortado) return false;
+    pendiente += texto;
+    return pendiente.length >= TAMANO_PARTE ? vaciar() : true;
+  };
 
-/** El texto de cada página: `linea` de cada documento, concatenadas. */
-export async function* textoPorPagina<D>(paginas: AsyncIterable<D[]>, linea: (d: D) => string): AsyncGenerator<string> {
-  for await (const pagina of paginas) yield pagina.map(linea).join('');
+  return new Promise((resolve, reject) => {
+    let iniciado = false;
+    o.ejecutar(async (tx) => {
+      const preparado = await o.preparar(tx);
+      iniciado = true;
+      plazoTotal = setTimeout(() => cortar(new Error('La respuesta superó el tiempo máximo.')), o.duracionMaxMs ?? DURACION_MAX_REPORTE_MS);
+      resolve({ preparado, cuerpo: readable });
+      await o.producir(tx, preparado, escribir);
+    })
+      // La transacción ya terminó: lo que queda pendiente (menos de una parte) se envía sin retener la conexión.
+      .then(async () => {
+        if (await vaciar()) escritor.close().catch(() => undefined);
+      }, (e: unknown) => {
+        if (!iniciado) return reject(e);
+        if (!cortado) o.registrar('Error al transmitir un reporte', e);
+        cortar(e);
+      })
+      .catch((e: unknown) => cortar(e))
+      .finally(() => {
+        clearTimeout(plazoTotal);
+        o.liberar();
+      });
+  });
 }

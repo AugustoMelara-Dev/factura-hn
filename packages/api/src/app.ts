@@ -13,6 +13,7 @@ import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
 import {
+  acumuladorResumenVentas,
   anular,
   contarDocumentos,
   corregirFechaAdelantada,
@@ -25,19 +26,18 @@ import {
   filaLibroVentas,
   identificadorDeNumero,
   inicioExportacion,
+  inicioLibroVentasCSV,
   lineaExportacion,
-  libroVentasCSV,
+  lineaLibroVentasCSV,
   noUtilizadosDelAlmacen,
   normalizarCAI,
   registrarAutorizacion,
   renderizarHTML,
   renderizarTexto,
-  resumenVentas,
   validarEntrada,
   type AutorizacionCAI,
   type DocumentoFiscal,
   type Emisor as EmisorCore,
-  type FilaLibroVentas,
   type LibroContable,
   type TransaccionFiscal,
 } from 'factura-hn';
@@ -48,7 +48,15 @@ import { ErrorApi, LimitadorSolicitudes, type CuerpoError } from './errores';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import { CofreSecretos, comoTransaccionPostgres, encolarEvento, problemaDeURL, type EventoWebhook } from './webhooks';
-import { CuposSimultaneos, cuerpoTransmitido, exigirPeriodoAcotado, limitarReportes, maxDocumentosReporte, REPORTES_SIMULTANEOS, textoPorPagina } from './reportes';
+import {
+  exigirPeriodoAcotado,
+  maxDocumentosReporte,
+  ReportesEnCurso,
+  REPORTES_SIMULTANEOS,
+  reportesSimultaneosProceso,
+  transmitir,
+  type Escribir,
+} from './reportes';
 
 export const VERSION_API = '0.2.0';
 
@@ -68,6 +76,14 @@ export interface ConfigApi {
   maxDocumentosReporte?: number;
   /** Reportes de período en curso a la vez por tenant en este proceso; más allá, 429. Por defecto 2. */
   reportesSimultaneos?: number;
+  /**
+   * Reportes de período en curso a la vez en todo el proceso, de cualquier tenant; más allá, 429. Cada reporte
+   * transmitido retiene una conexión del pool mientras el cliente lee. Por defecto
+   * `FHN_REPORTES_SIMULTANEOS_PROCESO` o un cuarto del tamaño del pool (al menos 1).
+   */
+  reportesSimultaneosProceso?: number;
+  /** Tiempo máximo de una respuesta transmitida (libro de ventas, exportación). Por defecto 5 minutos. */
+  duracionMaxReporteMs?: number;
   registrar?: (mensaje: string, error?: unknown) => void;
 }
 
@@ -676,11 +692,33 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Reportes de período: límites ------------------------------------------------------------------------
   // Los reportes (libro de ventas, exportación, no utilizados) son completos por período, pero acotados en
-  // memoria: se cuentan antes de leer (tope), se leen por páginas y cada tenant tiene un número fijo de
-  // reportes en curso a la vez (ver ./reportes). Los cupos se registran antes que las rutas.
+  // memoria y en conexiones: se cuentan antes de enviar nada (tope), se leen por páginas y se transmiten, con
+  // cupos por tenant y por proceso (ver ./reportes). Los cupos se registran antes que las rutas.
   const maxDocumentos = maxDocumentosReporte(cfg.maxDocumentosReporte);
-  const cupos = new CuposSimultaneos(cfg.reportesSimultaneos ?? REPORTES_SIMULTANEOS);
-  const limiteReportes = limitarReportes(cupos, (c) => (c.get('sesion') as Sesion).tenant);
+  const reportes = new ReportesEnCurso({
+    porTenant: cfg.reportesSimultaneos ?? REPORTES_SIMULTANEOS,
+    proceso: reportesSimultaneosProceso(cfg.reportesSimultaneosProceso, cfg.pool.options?.max ?? 10),
+  });
+  const limiteReportes = reportes.middleware((c) => (c.get('sesion') as Sesion).tenant);
+  /**
+   * Responde un reporte transmitido desde una transacción de solo lectura del tenant: `preparar` cuenta y aplica
+   * el tope antes de enviar nada (un 422 todavía es posible) y `producir` escribe en la misma instantánea.
+   */
+  const reporteTransmitido = async <P>(
+    c: Context<Env>,
+    preparar: (tx: TransaccionFiscal) => Promise<P>,
+    producir: (tx: TransaccionFiscal, preparado: P, escribir: Escribir) => Promise<void>,
+  ) => {
+    const almacen = almacenDe(c);
+    return transmitir({
+      ejecutar: (fn) => almacen.transaccion(fn, { soloLectura: true }),
+      preparar,
+      producir,
+      liberar: reportes.reclamar(c.req.raw),
+      registrar,
+      duracionMaxMs: cfg.duracionMaxReporteMs,
+    });
+  };
   app.use('/v1/libro-ventas', limiteReportes);
   app.use('/v1/exportacion', limiteReportes);
   app.use('/v1/series/:identificador/no-utilizados', limiteReportes);
@@ -737,20 +775,31 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     async (c) => {
       const q = c.req.valid('query');
       const filtro = { desde: q.desde, hasta: q.hasta };
-      // Sin las líneas de cada documento: el libro solo usa encabezado y totales.
-      const filas = await almacenDe(c).transaccion(async (tx) => {
-        exigirPeriodoAcotado(await contarDocumentos(tx, filtro), maxDocumentos);
-        const filas: FilaLibroVentas[] = [];
-        for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) for (const d of pagina) filas.push(filaLibroVentas(d));
-        return filas;
-      }, { soloLectura: true });
-      if (q.formato === 'csv') {
-        return c.body(libroVentasCSV(filas), 200, {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"`,
-        });
-      }
-      return c.json({ filas: filas as never, resumen: resumenVentas(filas) as never }, 200);
+      const csv = q.formato === 'csv';
+      // Fila por fila, sin las líneas de cada documento (el libro solo usa encabezado y totales). Mismos bytes
+      // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen })`, sin tener todas las filas a la vez.
+      const { cuerpo } = await reporteTransmitido(
+        c,
+        async (tx) => exigirPeriodoAcotado(await contarDocumentos(tx, filtro), maxDocumentos),
+        async (tx, _, escribir) => {
+          const resumen = acumuladorResumenVentas();
+          if (!(await escribir(csv ? inicioLibroVentasCSV() : '{"filas":['))) return;
+          let primera = true;
+          for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
+            for (const d of pagina) {
+              const fila = filaLibroVentas(d);
+              resumen.agregar(fila);
+              const texto = csv ? lineaLibroVentasCSV(fila) : (primera ? '' : ',') + JSON.stringify(fila);
+              primera = false;
+              if (!(await escribir(texto))) return;
+            }
+          }
+          if (!csv) await escribir(`],"resumen":${JSON.stringify(resumen.resumen())}}`);
+        },
+      );
+      return c.body(cuerpo, 200, csv
+        ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
+        : { 'Content-Type': 'application/json' }) as never;
     },
   );
 
@@ -766,21 +815,27 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const q = c.req.valid('query');
       const formato = q.formato ?? 'jsonl';
       const filtro = { desde: q.desde, hasta: q.hasta };
-      const almacen = almacenDe(c);
-      const total = await almacen.transaccion((tx) => contarDocumentos(tx, filtro), { soloLectura: true });
-      exigirPeriodoAcotado(total, maxDocumentos);
       const tipos = { jsonl: 'application/x-ndjson', csv: 'text/csv', txt: 'text/plain' } as const;
-      await enTenant(c, (tx) => bitacora(tx, actor(c), 'exportacion', { desde: q.desde, hasta: q.hasta, formato, documentos: total }));
-      // Mismo contenido que `exportarTexto`, transmitido página por página. Conteo y páginas salen de la misma
-      // instantánea (transacción de solo lectura), así el encabezado de `txt` coincide con las filas.
-      const cuerpo = cuerpoTransmitido((escribir) => almacen.transaccion(async (tx) => {
-        if (!(await escribir(inicioExportacion(formato, await contarDocumentos(tx, filtro))))) return;
-        // `jsonl` lleva el documento completo; `csv` y `txt`, solo encabezado y totales.
-        const partes = formato === 'jsonl'
-          ? textoPorPagina(documentosPorPaginas(tx, filtro), (d) => lineaExportacion(d, formato))
-          : textoPorPagina(documentosPorPaginas(tx, filtro, { sinLineas: true }), (d) => lineaExportacion(d, formato));
-        for await (const texto of partes) if (!(await escribir(texto))) return;
-      }, { soloLectura: true }), { registrar });
+      // Mismo contenido que `exportarTexto`, transmitido documento por documento. El tope, la bitácora y el
+      // encabezado de `txt` usan el mismo conteo, de la misma instantánea que las páginas.
+      const { cuerpo } = await reporteTransmitido(
+        c,
+        async (tx) => {
+          const total = await contarDocumentos(tx, filtro);
+          exigirPeriodoAcotado(total, maxDocumentos);
+          await enTenant(c, (t) => bitacora(t, actor(c), 'exportacion', { desde: q.desde, hasta: q.hasta, formato, documentos: total }));
+          return total;
+        },
+        async (tx, total, escribir) => {
+          if (!(await escribir(inicioExportacion(formato, total)))) return;
+          // `jsonl` lleva el documento completo; `csv` y `txt`, solo encabezado y totales.
+          if (formato === 'jsonl') {
+            for await (const p of documentosPorPaginas(tx, filtro)) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
+          } else {
+            for await (const p of documentosPorPaginas(tx, filtro, { sinLineas: true })) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
+          }
+        },
+      );
       return c.body(cuerpo, 200, {
         'Content-Type': `${tipos[formato]}; charset=utf-8`,
         'Content-Disposition': `attachment; filename="factura-hn_${q.desde}_${q.hasta}.${formato}"`,
