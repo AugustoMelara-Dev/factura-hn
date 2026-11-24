@@ -39,6 +39,11 @@ export interface OpcionesTienda {
   alRecibirAviso?: (aviso: AvisoWebhook) => Promise<void>;
 }
 
+/** Si el content-type es `application/json` (con o sin parámetros). Se lee la cabecera: el cuerpo puede venir vacío. */
+function esJSON(req: Request): boolean {
+  return (req.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase() === 'application/json';
+}
+
 /**
  * Crea la app de la tienda.
  *
@@ -50,11 +55,6 @@ export interface OpcionesTienda {
  * solo puede enviar `text/plain`, `application/x-www-form-urlencoded` o `multipart/form-data` sin preflight de
  * CORS; con JSON, el navegador pregunta antes y esta app no responde al preflight, así que no se envía.
  */
-/** Si el content-type es `application/json` (con o sin parámetros). Se lee la cabecera: el cuerpo puede venir vacío. */
-function esJSON(req: Request): boolean {
-  return (req.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase() === 'application/json';
-}
-
 export function crearTienda(o: OpcionesTienda): Express {
   const app = express();
   app.disable('x-powered-by');

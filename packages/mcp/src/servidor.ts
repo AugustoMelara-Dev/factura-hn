@@ -84,7 +84,7 @@ const ok = (texto: string, datos: Record<string, unknown>): CallToolResult => ({
  * `<datos_documento>`, igual que el texto. Así un `</datos_documento>` escrito en un nombre no cierra el bloque.
  */
 const okConDatos = (texto: string, datos: Record<string, unknown>): CallToolResult =>
-  ok(texto, { aviso: AVISO_DATOS, ...limpiarDatos(datos) });
+  ok(texto, { ...limpiarDatos(datos), aviso: AVISO_DATOS });
 
 function fallo(e: unknown): CallToolResult {
   if (e instanceof ErrorBackend) {
@@ -99,8 +99,8 @@ function fallo(e: unknown): CallToolResult {
 }
 
 const resumen = (d: DocumentoFiscal) =>
-  `${d.nombreDocumento} ${d.numero} (${d.estado}) · CAI ${d.cai} · ${d.fechaEmision} · total L ${d.totales.total.toFixed(2)}` +
-  (d.advertencias.length ? `\nAvisos:\n${d.advertencias.map((a) => `- [${a.codigo}] ${a.mensaje}`).join('\n')}` : '');
+  sinEtiquetas(`${d.nombreDocumento} ${d.numero} (${d.estado}) · CAI ${d.cai} · ${d.fechaEmision} · total L ${d.totales.total.toFixed(2)}` +
+  (d.advertencias.length ? `\nAvisos:\n${d.advertencias.map((a) => `- [${a.codigo}] ${a.mensaje}`).join('\n')}` : ''));
 
 export function crearServidorMCP(backend: Backend): McpServer {
   const s = new McpServer(

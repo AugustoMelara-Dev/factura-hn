@@ -102,4 +102,16 @@ describe('renderizarTexto no deja pasar caracteres de control a la impresora', (
     expect(texto).toContain('Pulpería?E?');
     expect(texto.split('\n').length).toBeGreaterThan(10);
   });
+
+  it('tabulador y fin de línea de Windows son espacio, no «?»', async () => {
+    const f = await emitir({
+      emisor: EMISOR,
+      cliente: { nombre: 'Cliente\tEjemplo' },
+      lineas: [{ descripcion: 'Cemento gris\r\nsaco 42.5 kg\tmarca X', cantidad: 1, precioUnitario: '20.00' }],
+    }, { almacen, ...caja });
+    const texto = renderizarTexto(f);
+    expect(texto).toContain('Cliente Ejemplo');
+    expect(texto).toContain('Cemento gris saco 42.5 kg marca X');
+    expect(texto).not.toContain('?');
+  });
 });

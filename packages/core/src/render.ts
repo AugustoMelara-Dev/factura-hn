@@ -305,7 +305,8 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
  * impresora ESC/POS en modo texto, esos bytes son comandos.
  */
 function sinControles(texto: string): string {
-  return texto.replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, '?');
+  // Tabulador, retorno de carro, VT y FF son espacio (texto pegado de una hoja o de Windows); el resto, «?».
+  return texto.replace(/[\t\v\f\r]/g, ' ').replace(/[\u0000-\u0008\u000e-\u001f\u007f-\u009f]/g, '?');
 }
 
 function envolver(texto: string, ancho: number): string[] {
