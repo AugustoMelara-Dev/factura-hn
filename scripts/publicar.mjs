@@ -3,14 +3,20 @@
  * Publica en npm los paquetes cuya versión aún no está en el registro, en orden de dependencias.
  *
  * Cada paquete se empaqueta con `pnpm pack` (reemplaza `workspace:` por versiones) y el tarball se sube con
- * `npm publish`. En el flujo Release, npm se autentica con la publicación de confianza (OIDC de GitHub, npm
- * >= 11.5.1) y firma la procedencia sin tokens. Lo ya publicado se salta, así que se puede volver a correr.
- * Correr después de `pnpm build` y `node scripts/verificar-dist.mjs` (`pnpm release` hace las tres cosas).
+ * `npm publish`. Lo ya publicado se salta, así que se puede volver a correr. Correr después de `pnpm build` y
+ * `node scripts/verificar-dist.mjs` (`pnpm release` hace las tres cosas).
+ *
+ * Autenticación:
+ * - En el flujo Release (CI), npm usa la publicación de confianza (OIDC de GitHub, npm >= 11.5.1) y firma la
+ *   procedencia sin tokens.
+ * - Desde la máquina del responsable, npm usa la autenticación web (`--auth-type=web`): cada `npm publish`
+ *   muestra un enlace, abre el navegador con Enter y espera la confirmación de la llave de seguridad (por
+ *   ejemplo, Windows Hello). No hay códigos OTP. Cada paquete pide su propia confirmación y el script avisa
+ *   antes de cada uno.
  *
  * Uso:
- *   node scripts/publicar.mjs --dry-run       ensayo: empaqueta y simula la subida
- *   node scripts/publicar.mjs --otp=123456    desde la máquina del responsable (código 2FA de npm)
- *   node scripts/publicar.mjs                 en la CI (OIDC)
+ *   node scripts/publicar.mjs --dry-run   ensayo: empaqueta y simula la subida, sin autenticarse
+ *   node scripts/publicar.mjs             publica (en la máquina del responsable, tras `npm login`; o en la CI)
  *
  * Por cada paquete publicado crea la etiqueta de git `nombre@versión` e imprime «New tag: nombre@versión»
  * (changesets/action la usa para las releases de GitHub).
@@ -26,11 +32,12 @@ const raiz = fileURLToPath(new URL('..', import.meta.url));
 const windows = process.platform === 'win32';
 const args = process.argv.slice(2);
 const ensayo = args.includes('--dry-run');
-const otp = args.find((a) => a.startsWith('--otp='))?.slice('--otp='.length);
 const enCI = process.env.GITHUB_ACTIONS === 'true';
-const desconocidos = args.filter((a) => a !== '--dry-run' && !a.startsWith('--otp='));
+if (args.some((a) => a.startsWith('--otp'))) {
+  salir('--otp ya no se usa: npm pide la confirmación en el navegador, con tu llave de seguridad.');
+}
+const desconocidos = args.filter((a) => a !== '--dry-run');
 if (desconocidos.length) salir(`argumentos desconocidos: ${desconocidos.join(' ')}`);
-if (otp !== undefined && !/^\d{6,8}$/.test(otp)) salir('--otp debe ser el código numérico de tu app de 2FA');
 
 function salir(mensaje) {
   console.error(`publicar: ${mensaje}`);
@@ -75,30 +82,64 @@ function publicada({ nombre, version }) {
   }
 }
 
+const pendientes = [];
+for (const p of paquetes) {
+  if (publicada(p)) console.log(`ya está en npm: ${p.nombre}@${p.version}`);
+  else pendientes.push(p);
+}
+if (!pendientes.length) {
+  console.log('Nada que publicar.');
+  process.exit(0);
+}
+
+// Desde la máquina del responsable: sesión abierta y aviso de cuántas confirmaciones hacen falta.
+const manual = !enCI && !ensayo;
+if (manual) {
+  let usuario;
+  try {
+    usuario = ejecutar('npm', ['whoami']);
+  } catch {
+    salir('no hay sesión de npm en esta máquina. Corre `npm login` (abre el navegador) y vuelve a intentarlo.');
+  }
+  const n = pendientes.length;
+  console.log(
+    [
+      '',
+      `Publicando como ${usuario}: ${n} paquete${n === 1 ? '' : 's'} (${pendientes.map((p) => p.nombre).join(', ')}).`,
+      `npm pide una confirmación por paquete: hasta ${n}, una antes de cada subida.`,
+      'En cada una: pulsa Enter para abrir el navegador (o abre el enlace que imprime npm), confirma con tu',
+      'llave de seguridad (Windows Hello) y vuelve a esta terminal; npm sigue solo.',
+      '',
+    ].join('\n'),
+  );
+  if (!process.stdin.isTTY) {
+    console.log('Aviso: esta terminal no es interactiva. npm no podrá abrir el navegador con Enter: abre a mano el enlace que imprima.\n');
+  }
+}
+
 const temporal = mkdtempSync(join(tmpdir(), 'fhn-publicar-'));
 const nuevas = [];
 try {
-  for (const p of paquetes) {
+  for (const [i, p] of pendientes.entries()) {
     const etiqueta = `${p.nombre}@${p.version}`;
-    if (publicada(p)) {
-      console.log(`ya está en npm: ${etiqueta}`);
-      continue;
-    }
     const destino = mkdtempSync(join(temporal, 'p-'));
     ejecutar('pnpm', ['pack', '--pack-destination', destino], { cwd: p.dir });
     const tarball = readdirSync(destino).find((f) => f.endsWith('.tgz'));
-    const r = spawnSync('npm', ['publish', tarball, '--access', 'public', ...(ensayo ? ['--dry-run'] : []), ...(otp ? [`--otp=${otp}`] : [])], {
-      cwd: destino,
-      stdio: ['inherit', 'inherit', 'pipe'],
-      encoding: 'utf8',
-      shell: windows,
-    });
-    process.stderr.write(r.stderr ?? '');
+    if (manual) {
+      console.log(`\n[${i + 1}/${pendientes.length}] ${etiqueta}: confirma en el navegador con Windows Hello cuando npm lo pida.`);
+    }
+    const r = spawnSync(
+      'npm',
+      ['publish', tarball, '--access', 'public', ...(ensayo ? ['--dry-run'] : []), ...(manual ? ['--auth-type=web'] : [])],
+      // Toda la salida va directo a la terminal: npm imprime ahí el enlace y espera el Enter.
+      { cwd: destino, stdio: 'inherit', shell: windows },
+    );
     if (r.status !== 0) {
-      if (/EOTP|one-time pass/i.test(r.stderr ?? '')) {
-        salir(`el código 2FA venció o no es válido en ${etiqueta}. Vuelve a correr con un código nuevo; lo ya publicado se salta.`);
-      }
-      salir(`falló npm publish de ${etiqueta}`);
+      salir(
+        manual
+          ? `falló npm publish de ${etiqueta}. Si la confirmación venció o se canceló, vuelve a correr el mismo comando: lo ya publicado se salta.`
+          : `falló npm publish de ${etiqueta}`,
+      );
     }
     if (ensayo) {
       console.log(`ensayo ok: ${etiqueta}`);
@@ -115,4 +156,4 @@ try {
 } finally {
   rmSync(temporal, { recursive: true, force: true });
 }
-console.log(ensayo ? 'Ensayo terminado: no se publicó nada.' : nuevas.length ? `Publicados: ${nuevas.join(', ')}` : 'Nada que publicar.');
+console.log(ensayo ? 'Ensayo terminado: no se publicó nada.' : `Publicados: ${nuevas.join(', ')}`);

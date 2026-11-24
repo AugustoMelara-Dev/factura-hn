@@ -84,7 +84,8 @@ JSON
 
 ## 3. Crear la organización `@factura-hn` en npm
 
-1. Activa la verificación en dos pasos de tu cuenta npm: <https://www.npmjs.com/settings/~/tfa>.
+1. Activa la verificación en dos pasos de tu cuenta npm con una llave de seguridad (por ejemplo, Windows
+   Hello): <https://www.npmjs.com/settings/~/tfa>. No hacen falta códigos OTP.
 2. Crea la organización **factura-hn** (gratis para paquetes públicos): <https://www.npmjs.com/org/create>.
 3. Comprueba que los nombres siguen libres (un 404 es lo esperado):
 
@@ -101,21 +102,30 @@ JSON
 
 La publicación de confianza (trusted publishing, OIDC) se configura en la página de cada paquete en npmjs.com,
 y esa página solo existe después de la primera publicación. Por eso la 0.2.0 sale de tu máquina, con tu
-código 2FA. Esa versión no lleva procedencia firmada (solo la firma la CI); las siguientes, sí.
+llave de seguridad. Esa versión no lleva procedencia firmada (solo la firma la CI); las siguientes, sí.
 
 Los paquetes ya están en 0.2.0 y el `CHANGELOG.md` describe la versión. `scripts/publicar.mjs` empaqueta cada
 paquete con `pnpm pack` (cambia `workspace:` por versiones) y lo sube con `npm publish`, en orden de
 dependencias: `factura-hn`, `@factura-hn/pdf`, `@factura-hn/postgres`, `@factura-hn/sqlite`,
-`@factura-hn/cliente`, `@factura-hn/mcp`. Lo que ya está en npm se salta: si el código 2FA vence a medias,
-vuelve a correrlo con un código nuevo.
+`@factura-hn/cliente`, `@factura-hn/mcp`.
+
+npm se autentica en el navegador (`--auth-type=web`), sin códigos OTP:
+- `npm login` abre el navegador una vez para iniciar la sesión en esta máquina.
+- Cada `npm publish` pide su propia confirmación. Antes de cada paquete el script avisa cuál es (`[1/6]`,
+  `[2/6]`…). npm imprime un enlace: pulsa Enter para abrir el navegador, confirma con Windows Hello y vuelve a
+  la terminal. Son hasta seis confirmaciones.
+- Corre el script en una terminal interactiva (PowerShell o Windows Terminal), no en un entorno sin entrada: sin
+  ella, npm no puede esperar el Enter y hay que abrir el enlace a mano.
+- Lo que ya está en npm se salta: si una confirmación vence o la cancelas, vuelve a correr el mismo comando.
 
 ```bash
 git checkout main && git pull --ff-only && git status   # limpio, en main
 pnpm install --frozen-lockfile
 pnpm build && node scripts/verificar-dist.mjs
 node scripts/publicar.mjs --dry-run                     # ensayo: no publica
-npm whoami                                              # tu usuario, miembro de la organización factura-hn
-node scripts/publicar.mjs --otp=CODIGO                  # CODIGO: el de tu app de 2FA, recién generado
+npm login                                               # abre el navegador; confirma con tu llave de seguridad
+npm whoami                                              # tu usuario, dueño o miembro de la organización factura-hn
+node scripts/publicar.mjs                               # una confirmación en el navegador por paquete
 git push origin --tags                                  # etiquetas factura-hn@0.2.0, @factura-hn/…@0.2.0
 ```
 
@@ -145,7 +155,7 @@ Una conexión no se puede editar: si cambia el repositorio, el archivo del flujo
 nuevo.
 
 Después, en cada paquete, **Settings** → **Publishing access** → «Require two-factor authentication and
-disallow tokens»: sin tokens, solo tú (con 2FA) y el flujo Release pueden publicar.
+disallow tokens»: sin tokens, solo tú (con tu llave de seguridad) y el flujo Release pueden publicar.
 
 El entorno `npm` del repositorio lleva tu aprobación obligatoria y solo acepta despliegues desde ramas
 protegidas (`main`):
