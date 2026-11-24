@@ -34,7 +34,7 @@ describe('factura-hn-mcp por stdio', () => {
     for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(dir, 'f.db'), FHN_EMISOR: emisorJson }]) {
       const cliente = new Client({ name: 'prueba', version: '1.0.0' });
       await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
-      expect((await cliente.listTools()).tools).toHaveLength(6);
+      expect((await cliente.listTools()).tools).toHaveLength(7);
       await cliente.close();
     }
     // Modo local sin archivo: no arranca (no hay almacén en memoria).
@@ -55,7 +55,9 @@ describe('factura-hn-mcp por stdio', () => {
       }
     };
     expect(arrancar(join(dir, 'no-existe.json'))).toMatch(/No se encontró el archivo del emisor/);
-    expect(arrancar(join(paquete, 'package.json'))).toMatch(/Datos del emisor incompletos[\s\S]*RTN del emisor/);
+    expect(arrancar(join(paquete, 'package.json'))).toMatch(/El archivo del emisor tiene 7 errores \(.*package\.json\):\r?\n- rtn: falta/);
+    // Sin configuración: dice cómo empezar.
+    expect(arrancar('')).toMatch(/Falta FHN_EMISOR/);
   }, 120_000);
 
   it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {

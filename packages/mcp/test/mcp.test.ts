@@ -8,6 +8,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { eventosAuditoria, registrarAutorizacion, type Emisor } from 'factura-hn';
+import { autorizacionesDemo, LEYENDA_PRUEBA } from '../src/demo';
 import { crearApp, crearTenant, migrarApi } from '@factura-hn/api';
 import { BackendApi, BackendLocal, crearServidorMCP, type Backend } from '../src';
 
@@ -18,7 +19,7 @@ const EMISOR: Emisor = {
   rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo',
   direccionCasaMatriz: 'Ciudad Ejemplo', direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
 };
-const aut = (tipoDocumento: '01' | '06', cai: string) => ({
+const aut = (tipoDocumento: '01' | '06' | '07', cai: string) => ({
   cai, tipoDocumento, establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
 });
 
@@ -36,7 +37,7 @@ async function conectar(backend: Backend) {
 async function recorrido(backend: Backend) {
   const { cliente, llamar } = await conectar(backend);
   const herramientas = (await cliente.listTools()).tools;
-  expect(herramientas.map((t) => t.name).sort()).toEqual(['anular_documento', 'consultar_documento', 'emitir_factura', 'emitir_nota_credito', 'estado_cai', 'libro_ventas']);
+  expect(herramientas.map((t) => t.name).sort()).toEqual(['anular_documento', 'consultar_documento', 'emitir_factura', 'emitir_nota_credito', 'estado_cai', 'libro_ventas', 'registrar_cai']);
   expect(herramientas.find((t) => t.name === 'anular_documento')!.annotations?.destructiveHint).toBe(true);
   expect(herramientas.find((t) => t.name === 'libro_ventas')!.annotations?.readOnlyHint).toBe(true);
 
@@ -46,8 +47,13 @@ async function recorrido(backend: Backend) {
   expect(f.error).toBe(false);
   expect(f.texto).toMatch(/^Emitida: Factura 000-001-01-00000001 \(EMITIDO\)/);
   expect(f.datos.documento.totales.total).toBe(179);
-  // Reintento del agente con la misma clave: el mismo documento.
-  expect((await llamar('emitir_factura', venta)).datos.documento.numero).toBe('000-001-01-00000001');
+  expect([f.datos.repetido, f.datos.prueba]).toEqual([false, false]);
+  expect(f.texto).not.toContain('PRUEBA');
+  // Reintento del agente con la misma clave: el mismo documento, y el resultado dice que no se emitió otro.
+  const otra = await llamar('emitir_factura', venta);
+  expect(otra.datos.documento.numero).toBe('000-001-01-00000001');
+  expect(otra.datos.repetido).toBe(true);
+  expect(otra.texto).toMatch(/^Ya estaba emitida: .*NO se emitió otro documento\. Es el mismo de antes: Factura 000-001-01-00000001/);
 
   // Sin clave de idempotencia no se emite: la exige el esquema.
   expect((await llamar('emitir_factura', { lineas: venta.lineas })).error).toBe(true);
@@ -60,6 +66,9 @@ async function recorrido(backend: Backend) {
   expect(malo.error).toBe(true);
   expect(malo.texto).toContain('Muestra estos mensajes al usuario');
   expect(malo.datos.errores.length).toBeGreaterThan(0);
+  // Cada error trae qué hacer y el enlace a la guía.
+  expect(malo.datos.errores[0]).toMatchObject({ codigo: 'LINEA_PRECIO', solucion: expect.stringMatching(/precio/), guia: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#linea_precio' });
+  expect(malo.texto).toContain(`] ${malo.datos.errores[0].mensaje} (${malo.datos.errores[0].campo})\n  Qué hacer: ${malo.datos.errores[0].solucion}\n  Guía: ${malo.datos.errores[0].guia}`);
 
   const nc = await llamar('emitir_nota_credito', { numeroOriginal: '000-001-01-00000001', motivo: 'Devolución de 1 unidad', preciosIncluyenISV: true, lineas: [{ descripcion: 'Arroz 5 lb', cantidad: 1, precioUnitario: '89.50' }], idempotencyKey: randomUUID() });
   expect(nc.error).toBe(false);
@@ -172,6 +181,112 @@ describe('servidor MCP con el SDK local', () => {
   });
 });
 
+const linea = [{ descripcion: 'Arroz 5 lb', cantidad: 1, precioUnitario: '89.50' }];
+
+describe('registrar_cai', () => {
+  it('sin CAI no se emite y el error dice qué hacer; con registrar_cai se emite', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
+    const { cliente, llamar } = await conectar(backend);
+    const herramienta = (await cliente.listTools()).tools.find((t) => t.name === 'registrar_cai')!;
+    // Con efecto, pero no destructiva; la descripción exige los datos de la resolución que dio el usuario.
+    expect(herramienta.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
+    expect(herramienta.description).toMatch(/resolución del SAR que el usuario te dio[\s\S]*NUNCA inventes/);
+
+    expect((await llamar('estado_cai')).texto).toMatch(/No hay autorizaciones registradas: no se puede emitir\. .*registrar_cai/);
+    const sin = await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() });
+    expect(sin.error).toBe(true);
+    expect(sin.datos.errores[0]).toMatchObject({ codigo: 'SIN_AUTORIZACION', solucion: expect.stringMatching(/registrar_cai[\s\S]*init --demo/), guia: expect.stringMatching(/errores\.md#sin_autorizacion$/) });
+
+    const r = await llamar('registrar_cai', aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
+    expect(r.error).toBe(false);
+    expect(r.texto).toBe('CAI registrado: A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01 · serie 000-001-01 · rango 1–100 · fecha límite 2027-10-31');
+    expect(r.datos.autorizacion).toMatchObject({ establecimiento: '000', puntoEmision: '001' });
+    expect((await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() })).datos.documento.numero).toBe('000-001-01-00000001');
+    // La bitácora registra quién lo hizo.
+    expect((await eventosAuditoria(backend.almacenFiscal)).find((e) => e.tipo === 'AUTORIZACION_REGISTRADA')).toMatchObject({ actor: 'mcp' });
+  });
+
+  it('aplica las validaciones del núcleo, con qué hacer y la guía', async () => {
+    const { llamar } = await conectar(await backendLocal());
+    const dup = await llamar('registrar_cai', aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
+    expect([dup.error, dup.datos.errores[0].codigo]).toEqual([true, 'AUTORIZACION_DUPLICADA']);
+    const solapado = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-99'), rangoInicial: 50, rangoFinal: 150 });
+    expect(solapado.datos.errores.map((p: { codigo: string }) => p.codigo)).toEqual(['RANGO_SOLAPADO']);
+    const malo = await llamar('registrar_cai', { ...aut('07', 'A1B2 C3'), rangoInicial: 9, rangoFinal: 3 });
+    expect(malo.datos.errores.map((p: { codigo: string }) => p.codigo).sort()).toEqual(['CAI_FORMATO', 'RANGO']);
+    expect(malo.texto).toContain('Qué hacer: Copia el CAI exactamente como viene en la resolución del SAR');
+    // El CAI ficticio no se registra a mano.
+    const demo = await llamar('registrar_cai', aut('07', 'DEMO00-NO-VALIDO-0000-0000-0000-07'));
+    expect(demo.datos.codigo).toBe('CAI_DEMO');
+    // Forma inválida: la rechaza el esquema.
+    expect((await llamar('registrar_cai', { ...aut('07', 'X'), fechaLimiteEmision: '31/10/2027' })).error).toBe(true);
+  });
+
+  it('avisa si la autorización es de otro punto de emisión, y da las advertencias del núcleo', async () => {
+    const { llamar } = await conectar(await backendLocal());
+    const r = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-02'), puntoEmision: '2', fechaAutorizacion: '2026-01-15' });
+    expect(r.error).toBe(false);
+    expect(r.texto).toMatch(/serie 000-002-01[\s\S]*este servidor emite en 000-001; esta autorización es de otro punto de emisión[\s\S]*\[AVISO_VIGENCIA_MAYOR_1_ANIO\]/);
+    expect(r.datos.advertencias[0].codigo).toBe('AVISO_VIGENCIA_MAYOR_1_ANIO');
+  });
+
+  it('una base de demostración no recibe CAI reales', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
+    for (const a of autorizacionesDemo()) await registrarAutorizacion(backend.almacenFiscal, a);
+    const { llamar } = await conectar(backend);
+    const r = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'), rangoInicial: 5001, rangoFinal: 6000 });
+    expect(r.datos.errores[0]).toMatchObject({ codigo: 'BASE_DEMO', solucion: expect.stringMatching(/init` \(sin --demo\)/) });
+  });
+});
+
+describe('cliente en notas de crédito', () => {
+  it('sobre una factura a CONSUMIDOR FINAL: sin cliente, NOTA_CLIENTE_RTN con qué hacer; con cliente, se emite', async () => {
+    const { llamar } = await conectar(await backendLocal());
+    const f = await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() });
+    expect(f.datos.documento.cliente.nombreImpreso).toBe('CONSUMIDOR FINAL');
+    const nota = { numeroOriginal: f.datos.documento.numero, motivo: 'Devolución', lineas: linea };
+    const sin = await llamar('emitir_nota_credito', { ...nota, idempotencyKey: randomUUID() });
+    expect(sin.error).toBe(true);
+    expect(sin.datos.errores.map((p: { codigo: string }) => p.codigo).sort()).toEqual(['CLIENTE_NOMBRE', 'NOTA_CLIENTE_RTN']);
+    expect(sin.datos.errores.find((p: { codigo: string }) => p.codigo === 'NOTA_CLIENTE_RTN').solucion).toMatch(/pásalos en `cliente`/);
+    const con = await llamar('emitir_nota_credito', { ...nota, cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, idempotencyKey: randomUUID() });
+    expect(con.error).toBe(false);
+    expect(con.datos.documento.cliente).toMatchObject({ nombreImpreso: 'Ferretería Pérez', rtn: '99990000000002' });
+  });
+
+  it('sobre una factura con RTN: el núcleo exige el mismo RTN (REFERENCIA_RTN_NO_COINCIDE); sin cliente usa el del original', async () => {
+    const { llamar } = await conectar(await backendLocal());
+    const f = await llamar('emitir_factura', { cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, lineas: [{ ...linea[0]!, cantidad: 3 }], idempotencyKey: randomUUID() });
+    const nota = { numeroOriginal: f.datos.documento.numero, motivo: 'Devolución', lineas: linea };
+    const otro = await llamar('emitir_nota_credito', { ...nota, cliente: { nombre: 'Otro', rtn: '99990000000003' }, idempotencyKey: randomUUID() });
+    expect(otro.datos.errores.map((p: { codigo: string }) => p.codigo)).toEqual(['REFERENCIA_RTN_NO_COINCIDE']);
+    expect(otro.texto).toContain('Qué hacer: La nota debe ir al mismo adquirente');
+    // El mismo RTN con guiones y otra dirección: se acepta; el nombre sale del original.
+    const mismo = await llamar('emitir_nota_credito', { ...nota, cliente: { rtn: '9999-0000-000002', direccion: 'Barrio El Centro, Ciudad Ejemplo' }, idempotencyKey: randomUUID() });
+    expect(mismo.error).toBe(false);
+    expect(mismo.datos.documento.cliente).toMatchObject({ nombreImpreso: 'Ferretería Pérez', direccion: 'Barrio El Centro, Ciudad Ejemplo' });
+    expect((await llamar('emitir_nota_credito', { ...nota, idempotencyKey: randomUUID() })).error).toBe(false);
+  });
+});
+
+describe('modo de prueba', () => {
+  it('con el CAI ficticio, emitir y consultar lo advierten en el texto y en structuredContent', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
+    for (const a of autorizacionesDemo()) await registrarAutorizacion(backend.almacenFiscal, a);
+    const { llamar } = await conectar(backend);
+    const venta = { lineas: linea, idempotencyKey: randomUUID() };
+    const f = await llamar('emitir_factura', venta);
+    expect(f.texto).toMatch(/^Emitida: Factura 000-001-01-00000001 \(EMITIDO\) · CAI DEMO00-NO-VALIDO-0000-0000-0000-01 \(DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\)/);
+    expect(f.texto).toContain(`\n${LEYENDA_PRUEBA}: se emitió con el CAI ficticio de la demostración.`);
+    expect(f.datos).toMatchObject({ prueba: true, leyenda: LEYENDA_PRUEBA, repetido: false });
+    const otra = await llamar('emitir_factura', venta);
+    expect(otra.datos).toMatchObject({ prueba: true, repetido: true });
+    expect(otra.texto).toMatch(/^Ya estaba emitida[\s\S]*SIN VALOR FISCAL/);
+    const c = await llamar('consultar_documento', { numero: '000-001-01-00000001' });
+    expect([c.datos.prueba, c.texto.includes(LEYENDA_PRUEBA)]).toEqual([true, true]);
+  });
+});
+
 const URL_PG = process.env.FHN_PG_URL;
 describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
   const pool = new pg.Pool({ connectionString: URL_PG, max: 5 });
@@ -199,6 +314,14 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
     const an = await llamar('anular_documento', { numero: f.datos.documento.numero, motivo: 'agente' });
     expect(an.error).toBe(true);
     expect(an.datos.codigo).toBe('SOLO_ADMIN');
+    expect(an.datos.errores[0]).toMatchObject({ solucion: expect.stringMatching(/llave admin/), guia: expect.stringMatching(/#solo_admin$/) });
+    // registrar_cai: POST /v1/autorizaciones; la llave de caja no puede, la admin sí.
+    const cai07 = aut('07', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-07') as never;
+    expect((await llamar('registrar_cai', cai07)).datos.codigo).toBe('SOLO_ADMIN');
+    const admin07 = await conectar(new BackendApi({ url: 'http://api.local', llave: llaveAdmin, establecimiento: '000', puntoEmision: '001', fetch: fetchApp }));
+    const reg = await admin07.llamar('registrar_cai', cai07);
+    expect([reg.error, reg.texto]).toEqual([false, 'CAI registrado: A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-07 · serie 000-001-07 · rango 1–100 · fecha límite 2027-10-31']);
+    expect((await admin07.llamar('registrar_cai', cai07)).datos.errores[0].codigo).toBe('AUTORIZACION_DUPLICADA');
     // DEC-031: el operador configurado llega a la bitácora de la API junto al id de la llave.
     const bit = (await (await app.request('/v1/bitacora', { headers: { authorization: `Bearer ${llaveAdmin}` } })).json()) as { eventos: { numero?: string; actor: string; operador?: string }[] };
     expect(bit.eventos.find((e) => e.numero === f.datos.documento.numero)).toMatchObject({ actor: expect.stringMatching(/^llave:[0-9a-f-]{36} \(caja: agente\)$/), operador: 'Agente de Rosa' });
