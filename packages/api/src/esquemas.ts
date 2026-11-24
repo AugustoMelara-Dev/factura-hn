@@ -12,10 +12,25 @@ const Texto = (max = 300) => z.string().max(max);
 
 export const Problema = z.object({ codigo: z.string(), mensaje: z.string(), campo: z.string().optional() }).openapi('Problema');
 
+const Solucion = z.string().optional().openapi({ description: 'Qué hacer para resolverlo, si se conoce.' });
+const Documentacion = z.string().optional().openapi({
+  description: 'Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).',
+  example: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion',
+});
+
+/** Un problema con su solución y el enlace a la guía de errores. */
+export const ProblemaConGuia = Problema.extend({ solucion: Solucion, documentacion: Documentacion }).openapi('ProblemaConGuia');
+
 export const ErrorRespuesta = z
   .object({
-    error: z.object({ codigo: z.string(), mensaje: z.string() }),
-    errores: z.array(Problema).optional(),
+    error: z.object({
+      codigo: z.string(),
+      mensaje: z.string(),
+      campo: z.string().optional().openapi({ description: 'En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`).' }),
+      solucion: Solucion,
+      documentacion: Documentacion,
+    }),
+    errores: z.array(ProblemaConGuia).optional().openapi({ description: 'En 400 y 422: la lista completa, cada uno con su código y campo.' }),
     advertencias: z.array(Problema).optional(),
   })
   .openapi('Error');
@@ -138,6 +153,15 @@ export const DocumentoFiscal = z
 
 export const RespuestaDocumento = z.object({ documento: DocumentoFiscal }).openapi('RespuestaDocumento');
 
+export const Enlaces = z
+  .object({
+    pdf: z.string().openapi({ example: '/v1/documentos/000-001-01-00000001.pdf' }),
+    html: z.string().openapi({ example: '/v1/documentos/000-001-01-00000001.html' }),
+    txt: z.string().openapi({ example: '/v1/documentos/000-001-01-00000001.txt' }),
+  })
+  .openapi('Enlaces', { description: 'Rutas de la representación impresa, relativas al servidor. Se piden con la misma llave.' });
+export const RespuestaEmision = z.object({ documento: DocumentoFiscal, enlaces: Enlaces }).openapi('RespuestaEmision');
+
 export const Autorizacion = z
   .object({
     cai: Texto(60),
@@ -221,6 +245,55 @@ export const WebhookNuevo = z
 export const Webhook = z
   .object({ id: z.string(), url: z.string(), eventos: z.array(z.string()), activo: z.boolean(), creado: z.string() })
   .openapi('Webhook');
+
+const AutorizacionVigente = z.object({
+  cai: z.string(),
+  rangoInicial: z.number().int(),
+  rangoFinal: z.number().int(),
+  fechaLimiteEmision: z.string(),
+  diasRestantes: z.number().int(),
+  correlativosRestantes: z.number().int(),
+  alertas: z.array(Problema),
+});
+
+export const Sesion = z
+  .object({
+    tenant: z.string(),
+    modo: z.enum(['local', 'alojado']),
+    demo: z.boolean().openapi({ description: 'true en el tenant de demostración (CAI ficticio, sin validez fiscal).' }),
+    llave: z.object({
+      id: z.string(),
+      prefijo: z.string(),
+      nombre: z.string(),
+      rol: z.enum(['caja', 'admin']),
+      establecimiento: z.string().nullable(),
+      puntoEmision: z.string().nullable(),
+    }),
+    emisor: z.object({ registrado: z.boolean(), rtn: z.string().nullable(), razonSocial: z.string().nullable() }),
+    puntos: z
+      .array(
+        z.object({
+          establecimiento: z.string(),
+          puntoEmision: z.string(),
+          tipos: z.array(
+            z.object({
+              tipoDocumento: z.enum(['01', '06', '07']),
+              listo: z.boolean().openapi({ description: 'Hay una autorización vigente con números disponibles para este tipo.' }),
+              siguienteNumero: z.string().nullable(),
+              autorizaciones: z.array(AutorizacionVigente).openapi({ description: 'Autorizaciones vigentes de este punto y tipo.' }),
+              problema: ProblemaConGuia.nullable(),
+            }),
+          ),
+        }),
+      )
+      .openapi({ description: 'Llave de caja: su punto de emisión. Llave admin: los puntos con alguna autorización registrada.' }),
+    documentosDelMes: z.number().int(),
+    limiteMensual: z.number().int().nullable(),
+    puedeEmitir: z.boolean().openapi({ description: 'Con esta llave ya se puede emitir una factura (tipo 01).' }),
+    pendientes: z.array(ProblemaConGuia).openapi({ description: 'Lo que falta para emitir una factura, con su solución.' }),
+  })
+  .openapi('Sesion');
+export const RespuestaSesion = z.object({ sesion: Sesion }).openapi('RespuestaSesion');
 
 export const RespuestaLlave = z.object({ llave: Llave }).openapi('RespuestaLlave');
 export const RespuestaLlaveNueva = z

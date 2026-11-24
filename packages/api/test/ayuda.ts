@@ -36,17 +36,22 @@ export async function cerrarPool(): Promise<void> {
 
 export type Cliente = (metodo: string, ruta: string, cuerpo?: unknown, cabeceras?: Record<string, string>) => Promise<Response>;
 
-export function cliente(app: ReturnType<typeof crearApp>, llave: string | null): Cliente {
+/** Cliente de prueba. Con `ip`, la solicitud llega como desde esa dirección (el socket de @hono/node-server). */
+export function cliente(app: ReturnType<typeof crearApp>, llave: string | null, o: { ip?: string } = {}): Cliente {
   return async (metodo, ruta, cuerpo, cabeceras = {}) =>
-    app.request(ruta, {
-      method: metodo,
-      headers: {
-        ...(llave ? { authorization: `Bearer ${llave}` } : {}),
-        ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),
-        ...cabeceras,
+    app.request(
+      ruta,
+      {
+        method: metodo,
+        headers: {
+          ...(llave ? { authorization: `Bearer ${llave}` } : {}),
+          ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),
+          ...cabeceras,
+        },
+        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
       },
-      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-    });
+      o.ip ? { incoming: { socket: { remoteAddress: o.ip } } } : undefined,
+    );
 }
 
 /** Tenant listo para emitir: emisor y autorizaciones de factura y NC en las cajas indicadas. */
