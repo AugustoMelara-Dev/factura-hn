@@ -1,6 +1,6 @@
 # @factura-hn/postgres
 
-`AlmacenFiscal` de [factura-hn](../core) sobre PostgreSQL 13 o superior con `pg`. Es el almacén de la API
+`AlmacenFiscal` de [factura-hn](https://www.npmjs.com/package/factura-hn) sobre PostgreSQL 13 o superior con `pg`. Es el almacén de la API
 y de instalaciones con varias cajas.
 
 ```ts

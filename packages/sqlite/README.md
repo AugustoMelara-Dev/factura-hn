@@ -1,6 +1,6 @@
 # @factura-hn/sqlite
 
-`AlmacenFiscal` de [factura-hn](../core) sobre SQLite. Sirve para el POS fuera de línea y para la
+`AlmacenFiscal` de [factura-hn](https://www.npmjs.com/package/factura-hn) sobre SQLite. Sirve para el POS fuera de línea y para la
 instalación local en el negocio.
 
 ```ts
