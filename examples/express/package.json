@@ -5,7 +5,7 @@
   "description": "Express 5: emitir por la API con el cliente tipado y recibir webhooks firmados.",
   "type": "module",
   "scripts": {
-    "start": "tsx src/servidor.ts",
+    "start": "pnpm --filter @factura-hn/cliente build && tsx src/servidor.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

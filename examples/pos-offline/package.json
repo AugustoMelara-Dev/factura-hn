@@ -8,7 +8,7 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "start": "tsx src/servidor.ts",
+    "start": "pnpm --filter factura-hn --filter @factura-hn/sqlite build && tsx src/servidor.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

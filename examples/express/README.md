@@ -3,12 +3,27 @@
 Una tienda que factura sus pedidos con el cliente tipado (`@factura-hn/cliente`) y recibe los webhooks
 firmados. Ver `src/app.ts`.
 
+Desde la raíz del repositorio, en tres comandos:
+
 ```bash
-docker compose up -d --build                       # API en 127.0.0.1:8787; la llave de caja demo está en el log
-FHN_LLAVE=fhn_… pnpm --filter @factura-hn/ejemplo-express start
-curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # dos veces: la misma factura (idempotencia)
+pnpm install
+docker compose up -d --build                                   # API en 127.0.0.1:8787 (Docker Compose v2)
+FHN_LLAVE=fhn_… pnpm --filter @factura-hn/ejemplo-express start  # compila el cliente y abre 127.0.0.1:3001
+```
+
+La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
+crea otra: `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "Tienda" --caja 000-001`.
+
+Pruébalo en otra terminal:
+
+```bash
+curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201 con el número
+curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 200: la misma factura
 curl -o factura.pdf http://127.0.0.1:3001/pedidos/1001/factura.pdf
 ```
+
+El número lo asigna la API y la tienda lo guarda con el pedido: el PDF se pide por pedido, no por número.
+Puedes reiniciar la tienda y repetir todo: el pedido 1001 vuelve a dar su misma factura.
 
 **Las rutas `/pedidos` no tienen autenticación propia.** El ejemplo no tiene sesión de usuario: en tu tienda,
 móntalas detrás del middleware de sesión, con la cookie de sesión en `SameSite=Lax` o `Strict` o con un token

@@ -161,3 +161,34 @@ describe('POS fuera de línea', () => {
     }
   });
 });
+
+describe('segunda corrida', () => {
+  it('arrancar otra vez sobre la misma base no vuelve a registrar el CAI y la numeración sigue', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { randomUUID } = await import('node:crypto');
+    const { prepararCaja } = await import('../src/arranque');
+    const dir = mkdtempSync(join(tmpdir(), 'pos-segunda-'));
+    const env = { POS_DEMO: '1', POS_DB: join(dir, 'pos.db'), PUERTO: '3000' };
+    try {
+      // Como en el navegador: una clave nueva por venta, nunca fija.
+      const claveA = randomUUID();
+      const primera = await prepararCaja(env);
+      expect(primera.demoRegistrado).toBe(true);
+      const a = await primera.pos.vender(claveA, venta);
+      primera.cerrar();
+
+      const segunda = await prepararCaja(env);
+      expect(segunda.demoRegistrado).toBe(false);
+      // El reintento de una venta de la corrida anterior devuelve su factura; una venta nueva toma el siguiente número.
+      expect((await segunda.pos.vender(claveA, venta)).documento.numero).toBe(a.documento.numero);
+      const b = await segunda.pos.vender(randomUUID(), venta);
+      expect(b.repetida).toBe(false);
+      expect(b.documento.correlativo).toBe(a.documento.correlativo + 1);
+      segunda.cerrar();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
