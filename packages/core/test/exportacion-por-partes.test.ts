@@ -4,8 +4,12 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  acumuladorResumenVentas,
   AlmacenFiscalMemoria,
   anular,
+  inicioLibroVentasCSV,
+  libroVentasCSV,
+  lineaLibroVentasCSV,
   documentosPorPaginas,
   emitir,
   exportarTexto,
@@ -20,6 +24,7 @@ import {
   type TransaccionFiscal,
 } from '../src';
 import { exportarTextoAnterior } from './exportacion-anterior';
+import { libroVentasCSVAnterior, resumenVentasAnterior } from './libro-anterior';
 
 const EMISOR = {
   rtn: '99990000000001', razonSocial: 'Pulpería La Esquina', nombreComercial: 'La Esquina',
@@ -86,6 +91,37 @@ describe('exportación por partes', () => {
     });
     expect(filas).toEqual(esperado);
     expect(resumenVentas(filas)).toEqual(resumenVentas(esperado));
+  });
+});
+
+describe('libro de ventas por partes', () => {
+  it('CSV y resumen incremental: iguales byte por byte a la implementación anterior', () => {
+    const filas = docs.map(filaLibroVentas);
+    const anterior = libroVentasCSVAnterior(filas);
+    expect(libroVentasCSV(filas)).toBe(anterior);
+    expect(inicioLibroVentasCSV() + filas.map(lineaLibroVentasCSV).join('')).toBe(anterior);
+    expect(inicioLibroVentasCSV()).toBe(libroVentasCSVAnterior([]));
+    const acc = acumuladorResumenVentas();
+    filas.forEach((f) => acc.agregar(f));
+    expect(JSON.stringify(acc.resumen())).toBe(JSON.stringify(resumenVentasAnterior(filas)));
+    expect(JSON.stringify(acumuladorResumenVentas().resumen())).toBe(JSON.stringify(resumenVentasAnterior([])));
+  });
+});
+
+describe('páginas de un adaptador que devuelve menos que el límite', () => {
+  it('se sigue hasta una página vacía: no se pierde ningún documento', async () => {
+    const todos = await almacen.transaccion((tx) => tx.documentos());
+    const leidos = await almacen.transaccion(async (tx) => {
+      const corto: TransaccionFiscal = {
+        ...tx,
+        // Nunca más de uno, aunque se pidan tres.
+        paginaDocumentos: async (filtro, p) => (await tx.documentos(filtro)).filter((d) => !p.despuesDe || d.numero > p.despuesDe).slice(0, 1),
+      };
+      const r: string[] = [];
+      for await (const p of documentosPorPaginas(corto, {}, { tamano: 3 })) r.push(...p.map((d) => d.numero));
+      return r;
+    });
+    expect(leidos).toEqual(todos.map((d) => d.numero));
   });
 });
 

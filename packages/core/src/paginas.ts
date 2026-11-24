@@ -54,9 +54,10 @@ export async function* documentosPorPaginas(
   }
   let despuesDe: string | undefined;
   for (;;) {
+    // `limite` es un máximo: un adaptador puede devolver menos sin haber terminado. Se sigue hasta una página vacía.
     const pagina = await tx.paginaDocumentos(filtro, { despuesDe, limite: tamano, sinLineas });
-    if (pagina.length) yield pagina;
-    if (pagina.length < tamano) return;
+    if (!pagina.length) return;
+    yield pagina;
     despuesDe = pagina[pagina.length - 1]!.numero;
   }
 }

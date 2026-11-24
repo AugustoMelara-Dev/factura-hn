@@ -122,5 +122,5 @@ export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';
 export { contarDocumentos, correlativosDe, documentosPorPaginas, TAMANO_PAGINA, TAMANO_PAGINA_COMPLETOS } from './paginas';
 export type { OpcionesPaginas } from './paginas';
-export { filaLibroVentas, resumenVentas, libroVentasCSV } from './reportes';
+export { acumuladorResumenVentas, filaLibroVentas, inicioLibroVentasCSV, libroVentasCSV, lineaLibroVentasCSV, resumenVentas } from './reportes';
 export type { FilaLibroVentas, ResumenVentas } from './reportes';

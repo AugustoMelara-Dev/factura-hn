@@ -1,6 +1,6 @@
 /**
- * Copia congelada de `exportarTexto` tal como estaba antes de escribirse por partes (lote de reportes
- * acotados). Las pruebas comparan la salida nueva con esta byte por byte; no se usa fuera de las pruebas.
+ * Copia congelada de `exportarTexto` tal como era cuando el archivo se armaba en memoria de una vez. Las pruebas
+ * comparan la salida por partes con esta, byte por byte; no se usa fuera de las pruebas.
  */
 import { centavosATexto, redondearDecimal, textoSeguroCSV } from '../src/dinero';
 import { VERSION_EXPORTACION, type DocumentoFiscal, type FormatoExportacion } from '../src';
