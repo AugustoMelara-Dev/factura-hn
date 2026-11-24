@@ -12,7 +12,7 @@ Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 git clone https://github.com/AugustoMelara-Dev/factura-hn.git
 cd factura-hn
 docker compose up -d --build --wait
-docker compose logs api        # llaves: se muestran UNA sola vez
+docker compose logs api        # llaves del demo (CAI ficticio): se muestran UNA sola vez
 ```
 
 Abre <http://127.0.0.1:8787/docs>, pulsa **Authorize** y pega la **llave de caja demo**. El tenant `demo` usa
@@ -46,6 +46,7 @@ Para empezar de cero (borra **todos** los datos): `docker compose down -v`.
    ```bash
    # .env (junto a docker-compose.yml; agrega .env a tu .gitignore)
    POSTGRES_PASSWORD=una-contraseña-larga-y-aleatoria
+   FHN_API_PASSWORD=otra-contraseña-larga-y-aleatoria
    ```
 
    ```yaml
@@ -57,10 +58,27 @@ Para empezar de cero (borra **todos** los datos): `docker compose down -v`.
          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
      api:
        environment:
-         DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
+         DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
+         FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
    ```
 
-3. **Arranca y guarda la llave admin** del log en un gestor de contraseñas.
+   La API corre como `fhn_api`, un rol que no es dueño de las tablas; `postgres` solo migra al arrancar. Con
+   contraseñas, crea `fhn_api` con la suya **antes** de arrancar la API (`\password` la pide sin dejarla en el
+   historial; escribe la misma de `FHN_API_PASSWORD`):
+
+   ```bash
+   docker compose up -d --wait db
+   docker compose exec db psql -U postgres -d factura_hn \
+     -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
+   docker compose up -d --build --wait
+   ```
+
+3. **Crea la llave admin** de tu negocio y guárdala en un gestor de contraseñas. No sale en el log del
+   servidor: la consola la imprime solo en tu terminal.
+
+   ```bash
+   docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración
+   ```
 4. **Configura con la llave admin** (desde `/docs` o con `curl`):
    - el emisor: `POST /v1/emisores` (los siete datos del Art. 10 num. 1);
    - cada CAI de tu resolución: `POST /v1/autorizaciones`, uno por tipo de documento y punto de emisión;
@@ -103,6 +121,7 @@ puede traer cambios incompatibles.
 | Ver las llaves (sin el secreto) | `GET /v1/llaves` con la llave admin |
 | Otra llave de caja | `POST /v1/llaves` |
 | Revocar una llave | `DELETE /v1/llaves/{prefijo}` |
+| La primera llave admin del negocio | `docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración` |
 | Perdí la llave admin | `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"` |
 | Perdí la llave de caja del demo | `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001` |
 
@@ -112,8 +131,10 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 
 | Variable | Por defecto | |
 |---|---|---|
-| `DATABASE_URL` | (obligatoria) | Conexión de Postgres (13 o más reciente) |
-| `FHN_MODO` | `local` | `local` (un negocio) o `alojado` (varios tenants) |
+| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres 13 o más reciente). En Compose, el rol `fhn_api`, que no es dueño de las tablas |
+| `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas, para migrar al arrancar y para la consola. Sin ella, la API corre como dueño de las tablas y lo avisa en el log |
+| `FHN_MODO` | `local` | `local` (un negocio) o `alojado` (varios tenants). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
+| `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo 7). La clave en sí no caduca |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de los webhooks. Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor |

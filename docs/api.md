@@ -14,7 +14,8 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 
 ```bash
 docker compose up --build        # API en http://127.0.0.1:8787 (Postgres solo en la red interna de Compose)
-docker compose logs api          # llaves: se muestran una sola vez, al primer arranque
+docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración   # llave admin de tu negocio
+docker compose logs api          # llaves del demo (CAI ficticio): se muestran una sola vez, al primer arranque
 ```
 
 Al primer arranque se crean dos tenants:
@@ -24,8 +25,11 @@ Al primer arranque se crean dos tenants:
 - `demo` (por `FHN_DEMO=1`): emisor «NEGOCIO DE DEMOSTRACIÓN» y **CAI ficticio** (`DEMO00-NO-VALIDO-…`), sin
   validez fiscal, con una llave de caja 000-001 lista para probar. Pon `FHN_DEMO: "0"` para no crearlo.
 
-La llave de caja del demo y la admin de `local` salen **una sola vez** en el log del primer arranque
-(`docker compose logs api`). Si las perdiste, crea otras (las anteriores siguen activas hasta que las revoques):
+La llave admin de `local` **no** sale en el log del servidor: la crea la consola del operador, que la imprime
+solo en tu terminal (el servidor recuerda el comando en cada arranque mientras `local` no tenga llave admin).
+Las llaves del demo, sin validez fiscal, sí salen **una sola vez** en el log del primer arranque
+(`docker compose logs api`). Si perdiste una llave, crea otra (las anteriores siguen activas hasta que las
+revoques):
 
 ```sh
 docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"
@@ -60,8 +64,10 @@ curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-0
 
 | Variable | Por defecto | |
 |---|---|---|
-| `DATABASE_URL` | (obligatoria) | Conexión de Postgres (≥ 13; sirve Supabase). Debe poder crear tablas y el rol de la aplicación |
-| `FHN_MODO` | `local` | `local` o `alojado` |
+| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13; sirve Supabase). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
+| `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas: migra y prepara el modo local al arrancar, y la usa la consola. Sin ella, la API usa `DATABASE_URL` para todo, corre como dueño de las tablas y lo avisa en el log |
+| `FHN_MODO` | `local` | `local` o `alojado`. Sin definir, la API avisa en el log que corre en modo local |
+| `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | |
@@ -76,7 +82,17 @@ factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 
 factura-hn-api openapi openapi.json
 ```
 
+La consola se conecta como dueño de las tablas: `FHN_MIGRAR_URL` si está definida, si no `DATABASE_URL`. Las
+llaves que crea se imprimen una sola vez, solo en la terminal de quien la usa.
+
 No hay registro público de tenants: en el modo alojado los crea el operador.
+
+### Modo local y modo alojado
+
+Sin `FHN_MODO`, la API arranca en modo local y lo avisa en el log: en ese modo los webhooks pueden llegar a la
+red interna y los secretos de firma no se cifran sin `FHN_CLAVE_CIFRADO`. Un servicio con varios negocios debe
+usar `FHN_MODO=alojado`. En modo local la API **no arranca** si la base tiene tenants distintos de `local` y
+`demo`: el error pide arrancar con `FHN_MODO=alojado`.
 
 ## Autenticación y roles
 
@@ -165,6 +181,13 @@ vez, uno emite y el otro espera, se revierte y devuelve el mismo documento. Una 
 guarda la clave: corregida, puede reintentarse con la misma. La respuesta repetida es la de la emisión: si el
 documento se anuló después, consulta `GET /v1/documentos/{numero}` para ver su estado actual.
 
+Una clave de idempotencia **no caduca**: nunca vuelve a servir para emitir otro documento, por tarde que llegue
+el reintento. Lo que caduca es la copia guardada de la respuesta: pasados `FHN_RETENCION_DIAS` días (30 por
+defecto, nunca menos de 7), se reduce al número del documento. La clave y la huella de la solicitud se quedan:
+un reintento con el mismo cuerpo devuelve `{ documento }` leído del almacén fiscal, con su estado actual y
+`Idempotency-Replayed: true`, y con otro cuerpo sigue siendo 422. El servidor hace este mantenimiento al
+arrancar y cada hora.
+
 ## Webhooks
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
@@ -173,7 +196,12 @@ y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (3
 6 h), unas 14 h y media entre el primero y el último. Después la entrega queda `FALLIDA`. Cada entrega se reclama
 en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
 máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
-webhook desactivado no se entrega.
+webhook desactivado no se entrega. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
+es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Las entregas `ENTREGADA` o `FALLIDA` se borran pasados
+`FHN_RETENCION_DIAS` días; las pendientes se quedan.
+
+El `id` de cada entrega es un UUID: va en la cabecera `X-FacturaHN-Entrega` y en el campo `id` del cuerpo, y
+es el mismo en cada reintento.
 
 ```ts
 import { verificarFirmaWebhook } from '@factura-hn/cliente'; // npm install @factura-hn/cliente
@@ -189,12 +217,16 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
 
 ## Seguridad
 
+- **Rol de conexión:** con `FHN_MIGRAR_URL`, la API se conecta con un rol LOGIN que no es dueño de las
+  tablas, ni superusuario, ni salta RLS, y con NOINHERIT: por sí solo no tiene ningún permiso sobre las tablas.
+  Aunque un SQL de la sesión hiciera `RESET ROLE`, no lee ni cambia nada. El `docker-compose.yml` usa así
+  `fhn_api`, y `postgres` solo para migrar.
 - **Aislamiento entre tenants:** cada transacción corre como `fhn_app` (NOLOGIN, NOBYPASSRLS) con
   `factura_hn.tenant` fijado. Todas las tablas `fhn_*` y `api_*` tienen la política `fhn_por_tenant`. Las
   pruebas (`packages/api/test/rls.test.ts`) intentan leer y escribir en las 12 tablas como otro tenant.
-- `api_llaves` y `api_entregas` no fuerzan RLS al dueño: dos funciones `SECURITY DEFINER` acotadas
-  (`fhn_api_autenticar(prefijo)`, `fhn_api_tenants_con_pendientes()`) las leen sin tenant. El rol de la
-  aplicación sigue sujeto a la política.
+- `api_llaves` y `api_entregas` no fuerzan RLS al dueño: funciones `SECURITY DEFINER` acotadas
+  (`fhn_api_autenticar(prefijo)`, `fhn_api_tenants_con_pendientes()`, `fhn_api_mantenimiento(dias)`) las leen
+  sin tenant. Solo el rol de la aplicación las ejecuta. El rol de la aplicación sigue sujeto a la política.
 - El rol no tiene DELETE en ninguna tabla. La bitácora de la API es de solo inserción (disparador). Las
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.
@@ -204,13 +236,15 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   secreto correcto.
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.
-- `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca.
+- `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca. Sin definir, avisa en el log; en
+  modo local, una base con tenants de otros negocios no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión
   completo, emitir con ella da 403 `CAJA_SIN_PUNTO`; la consola exige `--caja 000-001` con `--rol caja`.
 - `/docs` carga una versión fija de Swagger UI con Subresource Integrity, bajo una CSP que solo permite esos
   archivos y no deja enmarcar la página.
 - CSV (libro de ventas y exportación): el texto que empieza con `= + - @` lleva un apóstrofo delante para que
-  una hoja de cálculo no lo ejecute como fórmula.
+  una hoja de cálculo no lo ejecute como fórmula. TXT y JSONL son archivos de traslado y **no** se neutralizan
+  contra fórmulas: no los abras con el asistente de importación de una hoja de cálculo.
 - Montos: la notación científica admite exponentes de hasta ±30 y 40 dígitos; más allá es `ErrorMonto` (422), sin
   calcular nada.
 - El cuerpo debe ser UTF-8 válido (400 `CUERPO_NO_UTF8`): un byte en otra codificación no se convierte en «?»
@@ -219,10 +253,10 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   en la siguiente consulta. El `docker-compose.yml` reinicia los dos servicios (`restart: unless-stopped`).
 - Errores internos sin detalles para el cliente.
 
-**Pendientes conocidos:** las claves de idempotencia no caducan; el `docker-compose.yml` conecta la API como
-superusuario de Postgres (en producción usa un rol LOGIN que no sea dueño de las tablas); las llaves del
-primer arranque quedan en `docker compose logs` (cópialas y rota el log); el id de entrega viene de una
-secuencia global.
+**Retención y llaves:** las claves de idempotencia no caducan (su respuesta se compacta pasada la retención);
+las entregas terminadas se borran pasada la retención; el id de entrega es un UUID; la llave admin del negocio
+no pasa por el log del servidor.
 
-**Producción:** Postgres con contraseña y TLS, `FHN_CLAVE_CIFRADO`, la API detrás de un proxy con HTTPS. El
+**Producción:** Postgres con contraseña y TLS, `DATABASE_URL` con un rol LOGIN propio de la API (con su propia
+contraseña) y `FHN_MIGRAR_URL` con el dueño, `FHN_CLAVE_CIFRADO`, la API detrás de un proxy con HTTPS. El
 `docker-compose.yml` del repositorio es para probar en tu máquina (Postgres sin contraseña en 127.0.0.1).

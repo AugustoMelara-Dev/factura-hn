@@ -1,6 +1,8 @@
 # factura-hn local: API + PostgreSQL en el establecimiento del negocio (Art. 47).
 #   docker compose up --build
-# Al primer arranque la API imprime las llaves (admin y caja) una sola vez: docker compose logs api
+# La llave admin de tu negocio (tenant «local») no sale en el log: créala en tu terminal con
+#   docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración
+# Las llaves del demo (CAI ficticio, sin validez fiscal) sí salen una vez en el log: docker compose logs api
 # La API escucha solo en 127.0.0.1:8787. Postgres no publica su puerto: solo la API lo alcanza, por la red
 # interna de Compose (sin contraseñas en el repo). Para desarrollo y pruebas, docker-compose.dev.yml publica
 # la base en 127.0.0.1:54329. Para producción usa contraseñas y TLS (ver docs/api.md).
@@ -26,7 +28,11 @@ services:
     # Vuelve a arrancar si el proceso termina (también tras reiniciar Docker o el equipo).
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://postgres@db:5432/factura_hn
+      # La API corre como fhn_api: un rol LOGIN que no es dueño de las tablas ni superusuario. Al arrancar, la
+      # migración lo crea (sin contraseña: dentro de Compose rige trust) y le concede el rol de la aplicación.
+      DATABASE_URL: postgres://fhn_api@db:5432/factura_hn
+      # Dueño de las tablas: solo para migrar y preparar el modo local al arrancar, y para la consola (cli.cjs).
+      FHN_MIGRAR_URL: postgres://postgres@db:5432/factura_hn
       FHN_MODO: local
       # Tenant «demo» aparte, con CAI FICTICIO (sin validez fiscal). El tenant «local» del negocio queda limpio.
       # Pon "0" en un negocio real para no crearlo.
