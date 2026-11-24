@@ -4,7 +4,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
-import { mantenimientoApi } from '../src/esquema';
+import pg from 'pg';
+import { mantenimientoApi, migrarApi } from '../src/esquema';
 import { cerrarPool, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 afterAll(cerrarPool);
@@ -82,6 +83,53 @@ describe.skipIf(!URL_PG)('retención de idempotencia y entregas', () => {
     expect(r.entregasBorradas).toBeGreaterThanOrEqual(2);
     const quedan = await pool.query('SELECT id, estado FROM api_entregas WHERE tenant = $1 ORDER BY id', [tenant]);
     expect(quedan.rows).toEqual([{ id: ids[2], estado: 'PENDIENTE' }, { id: ids[3], estado: 'ENTREGADA' }]);
+  });
+
+  it('las entregas de autorizacion.* quedan como lápida (cuerpo vacío) para no avisar dos veces', async () => {
+    const { admin, tenant } = await tenantListo({}, { rangoFinal: 3 });
+    const pool = await poolPrueba();
+    await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido', 'autorizacion.agotada'] });
+    for (let i = 0; i < 3; i++) await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+    await pool.query("UPDATE api_entregas SET estado = 'ENTREGADA', creada = now() - interval '40 days' WHERE tenant = $1", [tenant]);
+    await mantenimientoApi(pool, ROL, 30);
+    const quedan = await pool.query('SELECT webhook_id, evento, clave, cuerpo FROM api_entregas WHERE tenant = $1', [tenant]);
+    expect(quedan.rows.map((f) => [f.evento, f.cuerpo])).toEqual([['autorizacion.agotada', {}]]);
+    // La lápida sigue ocupando su clave: el mismo aviso no se vuelve a encolar.
+    const f = quedan.rows[0];
+    const otra = await pool.query(
+      "INSERT INTO api_entregas (tenant, webhook_id, evento, clave, cuerpo) VALUES ($1, $2, $3, $4, '{}') ON CONFLICT (webhook_id, clave) DO NOTHING",
+      [tenant, f.webhook_id, f.evento, f.clave],
+    );
+    expect(otra.rowCount).toBe(0);
+  });
+
+  it('la compactación usa el índice parcial de lo que falta compactar (no recorre lo ya compactado)', async () => {
+    // Esquema propio para controlar los datos: muchas claves ya compactadas y pocas por compactar, como en un
+    // servicio que lleva tiempo corriendo.
+    const p = await poolPrueba();
+    const esquema = `prueba_retencion_${randomUUID().slice(0, 8)}`;
+    await p.query(`CREATE SCHEMA ${esquema}`);
+    const u = new URL(URL_PG!);
+    u.searchParams.set('options', `-c search_path=${esquema}`);
+    const propio = new pg.Pool({ connectionString: u.toString(), max: 2 });
+    try {
+      await migrarApi(propio, ROL);
+      await propio.query(
+        `INSERT INTO api_idempotencia (tenant, clave, huella, codigo, respuesta, creada)
+         SELECT 'x', 'c' || i, 'h', 201, CASE WHEN i % 1000 = 0 THEN '{"documento":{"numero":"1"}}'::jsonb ELSE '{"numero":"1"}'::jsonb END,
+                now() - interval '40 days'
+           FROM generate_series(1, 5000) i`,
+      );
+      await propio.query('ANALYZE api_idempotencia');
+      const plan = (await propio.query(
+        `EXPLAIN UPDATE api_idempotencia SET respuesta = jsonb_build_object('numero', respuesta->'documento'->>'numero')
+          WHERE tenant = 'x' AND creada < now() - interval '30 days' AND respuesta ? 'documento'`,
+      )).rows.map((f) => f['QUERY PLAN']).join('\n');
+      expect(plan).toContain('api_idempotencia_por_compactar');
+    } finally {
+      await propio.end();
+      await p.query(`DROP SCHEMA ${esquema} CASCADE`);
+    }
   });
 
   it('solo el rol de la aplicación ejecuta el mantenimiento y no deja fijado ningún tenant en la transacción', async () => {

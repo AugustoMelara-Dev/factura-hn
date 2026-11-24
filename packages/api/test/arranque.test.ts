@@ -8,6 +8,7 @@ import pg from 'pg';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mantenimientoApi, migrarApi, rolLoginApi } from '../src/esquema';
 import { COMANDO_LLAVE_ADMIN_LOCAL, crearLlaveOperador, crearTenant, TENANT_DEMO, TENANT_LOCAL } from '../src/operador';
+import { usuarioDeUrlSiHay } from '../src/pool';
 import { arrancar } from '../src/servidor';
 import { CofreSecretos, despacharWebhooks } from '../src/webhooks';
 import { caiAleatorio, cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG, venta } from './ayuda';
@@ -28,17 +29,18 @@ afterAll(async () => {
 const hex = () => randomBytes(4).toString('hex');
 
 /** URL de la base de pruebas con un esquema nuevo y, si se pide, otro usuario. */
-async function esquemaNuevo(): Promise<(usuario?: string) => string> {
+async function esquemaNuevo(dueno?: string): Promise<((usuario?: string) => string) & { esquema: string }> {
   const nombre = `prueba_arranque_${hex()}`;
   // Como el esquema public: cualquiera puede usarlo; los permisos están en cada tabla.
-  await (await poolPrueba()).query(`CREATE SCHEMA ${nombre}; GRANT USAGE ON SCHEMA ${nombre} TO PUBLIC`);
+  await (await poolPrueba()).query(`CREATE SCHEMA ${nombre}${dueno ? ` AUTHORIZATION ${dueno}` : ''}; GRANT USAGE ON SCHEMA ${nombre} TO PUBLIC`);
   esquemas.push(nombre);
-  return (usuario) => {
+  const url = (usuario?: string) => {
     const u = new URL(URL_PG!);
     if (usuario) u.username = usuario;
     u.searchParams.set('options', `-c search_path=${nombre}`);
     return u.toString();
   };
+  return Object.assign(url, { esquema: nombre });
 }
 const nuevoPool = (url: string) => {
   const p = new pg.Pool({ connectionString: url, max: 4 });
@@ -211,11 +213,113 @@ describe.skipIf(!URL_PG)('arranque', () => {
     const pool = nuevoPool(url());
     await migrarApi(pool, ROL);
     await crearTenant(pool, { tenant: 'otro-negocio', nombre: 'Otro negocio' });
-    await expect(arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/otro-negocio.*FHN_MODO=alojado/s);
+    const error = await arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' }).then(() => null, (e: Error) => e.message);
+    expect(error).toMatch(/otro-negocio.*FHN_MODO=alojado/s);
     await expect(arrancar({ ...base, DATABASE_URL: url() })).rejects.toThrow(/FHN_MODO=alojado/);
     // No dejó creado el tenant local.
     expect((await pool.query("SELECT 1 FROM api_tenants WHERE tenant = 'local'")).rowCount).toBe(0);
     const s = await arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'alojado', FHN_CLAVE_CIFRADO: randomBytes(32).toString('base64') });
     await s.cerrar();
+
+    // El error trae el SQL para desactivar el tenant que sobra; aplicado, el modo local arranca.
+    const sql = /-c "([^"]+)"/.exec(error!)![1]!;
+    expect(sql).toContain("UPDATE api_tenants SET activo = false WHERE tenant = 'otro-negocio'");
+    await pool.query(sql);
+    await (await arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' })).cerrar();
+    expect((await pool.query("SELECT activo FROM api_tenants WHERE tenant = 'otro-negocio'")).rows).toEqual([{ activo: false }]);
+    // Un tenant desactivado con una llave activa sigue contando.
+    await crearLlaveOperador(pool, { tenant: 'otro-negocio', rol: 'admin', nombre: 'otra' });
+    await expect(arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/otro-negocio/);
+  });
+
+  it('la consola no crea llaves para un tenant que no existe', async () => {
+    const p = await poolPrueba();
+    await expect(crearLlaveOperador(p, { tenant: `no-existe-${hex()}`, rol: 'admin', nombre: 'x' })).rejects.toThrow(/no existe: arranca la API una vez.*tenant crear/);
+  });
+
+  it('con FHN_MIGRAR_URL no arranca si DATABASE_URL usa el mismo usuario que el dueño', async () => {
+    const url = await esquemaNuevo();
+    expect(usuarioDeUrlSiHay(url())).toBe('postgres');
+    await expect(arrancar({ ...base, DATABASE_URL: url(), FHN_MIGRAR_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/mismo usuario/);
+  });
+
+  it('con FHN_MIGRAR_URL no arranca si DATABASE_URL salta RLS', async () => {
+    const url = await esquemaNuevo();
+    const poderoso = `fhn_poderoso_${hex()}`;
+    roles.push(poderoso);
+    await (await poolPrueba()).query(`CREATE ROLE ${poderoso} LOGIN BYPASSRLS`);
+    await expect(arrancar({ ...base, DATABASE_URL: url(poderoso), FHN_MIGRAR_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/BYPASSRLS.*rol LOGIN propio/s);
+  });
+
+  it('dueño sin superusuario (Postgres administrado): migra, arranca, mantiene y devuelve el tenant de quien llama, también con error', async () => {
+    const dueno = `fhn_dueno_${hex()}`;
+    const app = `fhn_app_${hex()}`;
+    const login = `fhn_api_${hex()}`;
+    const miembroDelDueno = `fhn_api_mal_${hex()}`;
+    roles.push(login, miembroDelDueno, app, dueno);
+    const p = await poolPrueba();
+    await p.query(`CREATE ROLE ${dueno} LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS`);
+    const url = await esquemaNuevo(dueno);
+    const claveCifrado = randomBytes(32).toString('base64');
+    const env = { ...base, DATABASE_URL: url(login), FHN_MIGRAR_URL: url(dueno), FHN_ROL: app, FHN_MODO: 'alojado', FHN_CLAVE_CIFRADO: claveCifrado };
+    await (await arrancar(env)).cerrar();
+    expect((await p.query('SELECT rolsuper FROM pg_roles WHERE rolname = $1', [dueno])).rows).toEqual([{ rolsuper: false }]);
+
+    // Un tenant que emite, con una clave vieja por compactar.
+    const duenoPool = nuevoPool(url(dueno));
+    const runtime = nuevoPool(url(login));
+    const s2 = await arrancar(env);
+    try {
+      const tenant = `t-${hex()}`;
+      const { llaveAdmin } = await crearTenant(duenoPool, { tenant, nombre: tenant });
+      const admin = cliente(s2.app, llaveAdmin);
+      expect((await admin('POST', '/v1/emisores', EMISOR)).status).toBe(201);
+      expect((await admin('POST', '/v1/autorizaciones', {
+        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
+      })).status).toBe(201);
+      expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': 'vieja' })).status).toBe(201);
+    } finally {
+      await s2.cerrar();
+    }
+    await p.query(`UPDATE ${url.esquema}.api_idempotencia SET creada = now() - interval '40 days'`);
+
+    const comoApp = async (fn: (c: pg.PoolClient) => Promise<void>) => {
+      const c = await runtime.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query(`SET LOCAL ROLE ${app}`);
+        await c.query("SELECT set_config('factura_hn.tenant', 'quien-llama', true)");
+        await fn(c);
+      } finally {
+        await c.query('ROLLBACK');
+        c.release();
+      }
+    };
+    const tenantActual = async (c: pg.PoolClient) => (await c.query("SELECT current_setting('factura_hn.tenant') AS t")).rows[0].t;
+
+    // Con error a mitad del recorrido (un disparador de la prueba), el tenant de quien llama se recupera.
+    await p.query(`CREATE FUNCTION ${url.esquema}.prueba_falla() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'falla de prueba'; END $$`);
+    await p.query(`CREATE TRIGGER prueba_falla BEFORE UPDATE ON ${url.esquema}.api_idempotencia FOR EACH ROW EXECUTE FUNCTION ${url.esquema}.prueba_falla()`);
+    await comoApp(async (c) => {
+      await c.query('SAVEPOINT s');
+      await expect(c.query('SELECT * FROM fhn_api_mantenimiento(30)')).rejects.toThrow(/falla de prueba/);
+      await c.query('ROLLBACK TO SAVEPOINT s');
+      expect(await tenantActual(c)).toBe('quien-llama');
+    });
+    await p.query(`DROP TRIGGER prueba_falla ON ${url.esquema}.api_idempotencia`);
+
+    // Sin error: compacta como el rol de la aplicación y también devuelve el tenant.
+    await comoApp(async (c) => {
+      const r = (await c.query('SELECT compactadas FROM fhn_api_mantenimiento(30)')).rows[0];
+      expect(Number(r.compactadas)).toBe(1);
+      expect(await tenantActual(c)).toBe('quien-llama');
+    });
+    await expect(mantenimientoApi(runtime, app, 30)).resolves.toMatchObject({ compactadas: 1 });
+    expect((await p.query(`SELECT respuesta FROM ${url.esquema}.api_idempotencia`)).rows[0].respuesta).toEqual({ numero: '000-001-01-00000001' });
+
+    // Un rol LOGIN miembro del dueño no se acepta como DATABASE_URL.
+    await p.query(`CREATE ROLE ${miembroDelDueno} LOGIN`);
+    await p.query(`GRANT ${dueno} TO ${miembroDelDueno}`);
+    await expect(arrancar({ ...env, DATABASE_URL: url(miembroDelDueno) })).rejects.toThrow(/dueño de las tablas/);
   });
 });

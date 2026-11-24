@@ -16,11 +16,29 @@ import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
-import { COMANDO_LLAVE_ADMIN_LOCAL, iniciarLocal, tenantsAjenosAlModoLocal } from './operador';
-import { crearPool, esperarBase, usuarioDeUrl } from './pool';
+import { COMANDO_LLAVE_ADMIN_LOCAL, errorTenantsAjenos, iniciarLocal, tenantsAjenosAlModoLocal } from './operador';
+import { crearPool, esperarBase, usuarioDeUrl, usuarioDeUrlSiHay } from './pool';
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
 const UNA_HORA = 3_600_000;
+
+/**
+ * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Mira si
+ * es superusuario, si salta RLS y si es (o puede volverse) el dueño de las tablas fiscales.
+ */
+export async function privilegiosDeConexion(pool: pg.Pool): Promise<string[]> {
+  const f = (await pool.query<{ usuario: string; rolsuper: boolean; rolbypassrls: boolean; dueno: boolean | null }>(
+    `SELECT r.rolname AS usuario, r.rolsuper, r.rolbypassrls,
+            (SELECT pg_has_role(current_user, c.relowner, 'MEMBER') FROM pg_class c WHERE c.oid = to_regclass('fhn_documentos')) AS dueno
+       FROM pg_roles r WHERE r.rolname = current_user`,
+  )).rows[0]!;
+  const motivos = [
+    ...(f.rolsuper ? ['es superusuario'] : []),
+    ...(f.rolbypassrls ? ['tiene BYPASSRLS'] : []),
+    ...(f.dueno ? ['es dueño de las tablas (o miembro del dueño)'] : []),
+  ];
+  return motivos.length ? [f.usuario, ...motivos] : [];
+}
 
 export interface ServidorEnMarcha {
   cerrar: () => Promise<void>;
@@ -43,6 +61,13 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const urlMigrar = env.FHN_MIGRAR_URL || null;
   const login = urlMigrar ? usuarioDeUrl(url) : undefined;
+  if (urlMigrar && login === usuarioDeUrlSiHay(urlMigrar)) {
+    throw new Error(
+      `DATABASE_URL y FHN_MIGRAR_URL usan el mismo usuario («${login}»): la API correría como dueño de las tablas. ` +
+        'Pon en DATABASE_URL el rol LOGIN propio de la API (p. ej. fhn_api) y deja el dueño solo en FHN_MIGRAR_URL, ' +
+        'o quita FHN_MIGRAR_URL para seguir como antes.',
+    );
+  }
 
   if (env.FHN_MODO === undefined) {
     console.warn(
@@ -68,12 +93,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     await migrarApi(poolDueno, rol, { login });
     if (modo === 'local') {
       const ajenos = await tenantsAjenosAlModoLocal(poolDueno);
-      if (ajenos.length) {
-        throw new Error(
-          `La base tiene tenants de otros negocios (${ajenos.join(', ')}…): el modo local es para un solo negocio. ` +
-            'Arranca con FHN_MODO=alojado (y FHN_CLAVE_CIFRADO).',
-        );
-      }
+      if (ajenos.length) throw new Error(errorTenantsAjenos(ajenos));
       const r = await iniciarLocal(poolDueno, { demo: env.FHN_DEMO === '1', rol });
       localSinLlaveAdmin = r.localSinLlaveAdmin;
       demo = r.demo;
@@ -85,8 +105,25 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     if (urlMigrar) await poolDueno.end().catch(() => undefined);
   }
   if (!pool) {
-    pool = crearPool(url, Number(env.FHN_POOL ?? 20));
-    await esperarBase(pool);
+    const nuevo = crearPool(url, Number(env.FHN_POOL ?? 20));
+    try {
+      await esperarBase(nuevo);
+      // Con FHN_MIGRAR_URL, la API no arranca con una conexión que salte RLS o tenga permisos de dueño: sería
+      // un despliegue que cree estar protegido y no lo está.
+      const p = await privilegiosDeConexion(nuevo);
+      if (p.length) {
+        throw new Error(
+          `DATABASE_URL se conecta como «${p[0]}», que ${p.slice(1).join(', ')}. Con FHN_MIGRAR_URL, DATABASE_URL debe ser un ` +
+            'rol LOGIN propio de la API, sin superusuario ni BYPASSRLS y sin ser dueño de las tablas (p. ej. ' +
+            'postgres://fhn_api:<contraseña>@host/base; ver la nota de actualización de docs/autoalojamiento.md), ' +
+            'o quita FHN_MIGRAR_URL para seguir como antes.',
+        );
+      }
+    } catch (e) {
+      await nuevo.end().catch(() => undefined);
+      throw e;
+    }
+    pool = nuevo;
   }
   const poolApi = pool;
 

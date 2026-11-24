@@ -57,6 +57,9 @@ export async function crearLlaveOperador(
   if (Boolean(est) !== Boolean(pto) || (o.rol === 'caja' && !est) || (est && !tresDigitos.test(est)) || (pto && !tresDigitos.test(pto))) {
     throw new Error('Una llave de caja se ata a un establecimiento y punto de emisión: --caja 000-001.');
   }
+  if (!TENANT.test(o.tenant) || !(await existeTenant(pool, o.tenant))) {
+    throw new Error(`El tenant «${o.tenant}» no existe: arranca la API una vez (crea «${TENANT_LOCAL}») o créalo con «tenant crear».`);
+  }
   const { llave, prefijo, hash } = generarLlave();
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
@@ -115,17 +118,55 @@ export async function iniciarLocal(
 }
 
 /**
- * Tenants distintos de `local` y `demo`, para negarse a arrancar en modo local con datos de varios negocios.
- * Corre con el dueño de las tablas. `api_tenants` fuerza RLS también al dueño (sin tenant fijado no ve filas,
- * salvo un superusuario); `api_llaves` no, y todo tenant creado con la consola tiene al menos una llave.
+ * Tenants distintos de `local` y `demo` que siguen en uso, para negarse a arrancar en modo local con datos de
+ * varios negocios. Se ignoran los desactivados (`activo = false`) sin llaves activas. Corre con el dueño de las
+ * tablas. `api_tenants` fuerza RLS también al dueño, así que cada tenant se revisa con su tenant fijado; los
+ * candidatos salen de `api_llaves` (no fuerza RLS al dueño, y todo tenant creado con la consola tiene al menos
+ * una llave) y de `api_tenants` (visible completa solo para un superusuario).
  */
-export async function tenantsAjenosAlModoLocal(pool: pg.Pool): Promise<string[]> {
-  const r = await pool.query<{ tenant: string }>(
-    `SELECT tenant FROM (SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_tenants) t
-      WHERE tenant NOT IN ($1, $2) ORDER BY tenant LIMIT 5`,
-    [TENANT_LOCAL, TENANT_DEMO],
-  );
-  return r.rows.map((f) => f.tenant);
+export async function tenantsAjenosAlModoLocal(pool: pg.Pool, maximo = 5): Promise<string[]> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const candidatos = (await c.query<{ tenant: string }>(
+      `SELECT tenant FROM (SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_tenants) t
+        WHERE tenant NOT IN ($1, $2) ORDER BY tenant`,
+      [TENANT_LOCAL, TENANT_DEMO],
+    )).rows.map((f) => f.tenant);
+    const ajenos: string[] = [];
+    for (const tenant of candidatos) {
+      await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      const f = (await c.query<{ activo: boolean | null; llaves: boolean }>(
+        `SELECT (SELECT activo FROM api_tenants WHERE tenant = $1) AS activo,
+                EXISTS (SELECT 1 FROM api_llaves WHERE tenant = $1 AND revocada IS NULL) AS llaves`,
+        [tenant],
+      )).rows[0]!;
+      if (f.activo === false && !f.llaves) continue;
+      ajenos.push(tenant);
+      if (ajenos.length >= maximo) break;
+    }
+    await c.query('COMMIT');
+    return ajenos;
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => undefined);
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** Mensaje de error del modo local con tenants ajenos: cómo arreglarlo, con el SQL para desactivarlos. */
+export function errorTenantsAjenos(ajenos: string[]): string {
+  const sql = ajenos
+    .map((t) => `SELECT set_config('factura_hn.tenant', '${t}', true); UPDATE api_tenants SET activo = false WHERE tenant = '${t}'; ` +
+      `UPDATE api_llaves SET revocada = now() WHERE tenant = '${t}' AND revocada IS NULL;`)
+    .join(' ');
+  return [
+    `La base tiene tenants de otros negocios (${ajenos.join(', ')}) y el modo local es para un solo negocio.`,
+    'Si la base sirve a varios negocios, arranca con FHN_MODO=alojado (y FHN_CLAVE_CIFRADO).',
+    'Si esos tenants sobran, desactívalos y revoca sus llaves con el dueño de las tablas (no se borra nada), por ejemplo:',
+    `  docker compose exec db psql -U postgres -d factura_hn -c "${sql}"`,
+  ].join('\n');
 }
 
 async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {

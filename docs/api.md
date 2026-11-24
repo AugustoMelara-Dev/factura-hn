@@ -92,7 +92,8 @@ No hay registro público de tenants: en el modo alojado los crea el operador.
 Sin `FHN_MODO`, la API arranca en modo local y lo avisa en el log: en ese modo los webhooks pueden llegar a la
 red interna y los secretos de firma no se cifran sin `FHN_CLAVE_CIFRADO`. Un servicio con varios negocios debe
 usar `FHN_MODO=alojado`. En modo local la API **no arranca** si la base tiene tenants distintos de `local` y
-`demo`: el error pide arrancar con `FHN_MODO=alojado`.
+`demo` en uso (se ignoran los desactivados sin llaves activas). El error dice cómo seguir: arrancar con
+`FHN_MODO=alojado`, o desactivar esos tenants y revocar sus llaves, con el SQL para hacerlo.
 
 ## Autenticación y roles
 
@@ -197,8 +198,9 @@ y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (3
 en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
 máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
 webhook desactivado no se entrega. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
-es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Las entregas `ENTREGADA` o `FALLIDA` se borran pasados
-`FHN_RETENCION_DIAS` días; las pendientes se quedan.
+es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Pasados `FHN_RETENCION_DIAS` días, las entregas `ENTREGADA` o
+`FALLIDA` de `documento.*` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío para que el mismo
+aviso no se repita; las pendientes no se tocan.
 
 El `id` de cada entrega es un UUID: va en la cabecera `X-FacturaHN-Entrega` y en el campo `id` del cuerpo, y
 es el mismo en cada reintento.
@@ -220,13 +222,19 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
 - **Rol de conexión:** con `FHN_MIGRAR_URL`, la API se conecta con un rol LOGIN que no es dueño de las
   tablas, ni superusuario, ni salta RLS, y con NOINHERIT: por sí solo no tiene ningún permiso sobre las tablas.
   Aunque un SQL de la sesión hiciera `RESET ROLE`, no lee ni cambia nada. El `docker-compose.yml` usa así
-  `fhn_api`, y `postgres` solo para migrar.
+  `fhn_api`, y `postgres` solo para migrar. Con `FHN_MIGRAR_URL` definida, la API **no arranca** si
+  `DATABASE_URL` usa el mismo usuario que el dueño, o si su rol es superusuario, tiene BYPASSRLS o es (o es
+  miembro de) el dueño de las tablas. El dueño de las tablas no necesita ser superusuario (sirve un Postgres
+  administrado con un rol CREATEROLE).
 - **Aislamiento entre tenants:** cada transacción corre como `fhn_app` (NOLOGIN, NOBYPASSRLS) con
   `factura_hn.tenant` fijado. Todas las tablas `fhn_*` y `api_*` tienen la política `fhn_por_tenant`. Las
   pruebas (`packages/api/test/rls.test.ts`) intentan leer y escribir en las 12 tablas como otro tenant.
-- `api_llaves` y `api_entregas` no fuerzan RLS al dueño: funciones `SECURITY DEFINER` acotadas
-  (`fhn_api_autenticar(prefijo)`, `fhn_api_tenants_con_pendientes()`, `fhn_api_mantenimiento(dias)`) las leen
-  sin tenant. Solo el rol de la aplicación las ejecuta. El rol de la aplicación sigue sujeto a la política.
+- `api_llaves` y `api_entregas` no fuerzan RLS al dueño. Tres funciones `SECURITY DEFINER` acotadas trabajan
+  sin el tenant de la sesión: `fhn_api_autenticar(prefijo)` busca una llave (y lee su tenant),
+  `fhn_api_tenants_con_pendientes()` lista los tenants con avisos por entregar, y `fhn_api_mantenimiento(dias)`
+  compacta las respuestas idempotentes viejas y borra (o deja como lápida) las entregas terminadas. Fijan el
+  tenant solo dentro de la función y lo devuelven al salir. Solo el rol de la aplicación las ejecuta, y sigue
+  sujeto a la política.
 - El rol no tiene DELETE en ninguna tabla. La bitácora de la API es de solo inserción (disparador). Las
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.

@@ -30,8 +30,11 @@ services:
     environment:
       # La API corre como fhn_api: un rol LOGIN que no es dueño de las tablas ni superusuario. Al arrancar, la
       # migración lo crea (sin contraseña: dentro de Compose rige trust) y le concede el rol de la aplicación.
+      # Con contraseñas (docker-compose.override.yml), define las DOS URL, cada una con su contraseña, y crea
+      # fhn_api con la suya antes: ver «Poner en marcha un negocio» y «Actualizar» en docs/autoalojamiento.md.
       DATABASE_URL: postgres://fhn_api@db:5432/factura_hn
       # Dueño de las tablas: solo para migrar y preparar el modo local al arrancar, y para la consola (cli.cjs).
+      # Debe ser otro usuario que el de DATABASE_URL; si no, la API no arranca.
       FHN_MIGRAR_URL: postgres://postgres@db:5432/factura_hn
       FHN_MODO: local
       # Tenant «demo» aparte, con CAI FICTICIO (sin validez fiscal). El tenant «local» del negocio queda limpio.

@@ -12,7 +12,7 @@
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 5;
+export const VERSION_ESQUEMA_API = 6;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS api_idempotencia (
   PRIMARY KEY (tenant, clave)
 );
 
+-- v5: lo que falta compactar (el mantenimiento de cada hora no recorre las filas ya compactadas).
+CREATE INDEX IF NOT EXISTS api_idempotencia_por_compactar ON api_idempotencia (tenant, creada) WHERE respuesta ? 'documento';
+
 CREATE TABLE IF NOT EXISTS api_webhooks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant text NOT NULL REFERENCES api_tenants(tenant),
@@ -138,12 +141,33 @@ CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacor
 DROP FUNCTION IF EXISTS fhn_api_autenticar(text);
 DO $do$ BEGIN
 EXECUTE format($f$
+-- v6: api_tenants fuerza RLS también al dueño; si el dueño no es superusuario (un Postgres administrado), el
+-- JOIN sin tenant no veía ninguna fila y ninguna llave autenticaba. Se busca la llave (api_llaves no fuerza RLS
+-- al dueño), se fija su tenant solo para leer api_tenants y se devuelve el valor anterior, también con error.
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
 RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
-  SELECT l.tenant, l.hash, l.rol, l.establecimiento, l.punto_emision, t.limite_mensual, l.id, l.nombre
-    FROM api_llaves l JOIN api_tenants t ON t.tenant = l.tenant
-   WHERE l.prefijo = p_prefijo AND l.revocada IS NULL AND t.activo
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+#variable_conflict use_column
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_llave api_llaves%%ROWTYPE;
+  v_limite integer;
+  v_activo boolean;
+BEGIN
+  SELECT * INTO v_llave FROM api_llaves l WHERE l.prefijo = p_prefijo AND l.revocada IS NULL;
+  IF NOT FOUND THEN RETURN; END IF;
+  BEGIN
+    PERFORM set_config('factura_hn.tenant', v_llave.tenant, true);
+    SELECT t.limite_mensual, t.activo INTO v_limite, v_activo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+    RAISE;
+  END;
+  IF v_activo IS NOT TRUE THEN RETURN; END IF;
+  RETURN QUERY SELECT v_llave.tenant, v_llave.hash, v_llave.rol, v_llave.establecimiento, v_llave.punto_emision,
+    v_limite, v_llave.id, v_llave.nombre;
+END
 $$$f$, current_schema());
 
 -- Solo después de comprobar el secreto (la API lo llama a lo sumo una vez por minuto y llave).
@@ -163,29 +187,43 @@ $$$f$, current_schema());
 
 -- v5: retención. (a) La copia guardada de la respuesta de una clave de idempotencia vieja se reduce al número
 -- del documento: la clave y su huella se quedan para siempre, así que un reintento tardío nunca emite otro
--- documento. (b) Las entregas ENTREGADA o FALLIDA viejas se borran; las PENDIENTE se quedan.
+-- documento. (b) Las entregas ENTREGADA o FALLIDA viejas de documento.* se borran (su clave lleva el número del
+-- documento: no se vuelve a encolar). Las de autorizacion.* se quedan como lápida, con el cuerpo vacío: su
+-- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan.
 -- api_idempotencia fuerza RLS también al dueño: se recorre tenant por tenant. Todo tenant con claves tiene
--- llaves (sin una no se emite y las llaves no se borran) y api_llaves no fuerza RLS al dueño. El SET de la
--- función devuelve factura_hn.tenant a su valor anterior al salir: no queda fijado en la transacción de quien llama.
+-- llaves (sin una no se emite y las llaves no se borran) y api_llaves no fuerza RLS al dueño.
+-- factura_hn.tenant se guarda al entrar y se devuelve al salir (también si hay error): no queda fijado en la
+-- transacción de quien llama. Sin cláusula SET en la función: en PostgreSQL 15+ fijar un parámetro propio en
+-- la definición exige superusuario, y el dueño de las tablas en un Postgres administrado no lo es.
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_mantenimiento(p_dias integer)
 RETURNS TABLE (compactadas bigint, entregas_borradas bigint)
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp SET factura_hn.tenant = '' AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
 DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
   v_limite timestamptz := now() - make_interval(days => greatest(coalesce(p_dias, 0), 7));
   v_tenant text;
   v_n bigint;
 BEGIN
   compactadas := 0;
-  FOR v_tenant IN SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_idempotencia LOOP
-    PERFORM set_config('factura_hn.tenant', v_tenant, true);
-    UPDATE api_idempotencia SET respuesta = jsonb_build_object('numero', respuesta->'documento'->>'numero')
-     WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
-    GET DIAGNOSTICS v_n = ROW_COUNT;
-    compactadas := compactadas + v_n;
-  END LOOP;
-  DELETE FROM api_entregas WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite;
-  GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
+  BEGIN
+    FOR v_tenant IN SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_idempotencia LOOP
+      PERFORM set_config('factura_hn.tenant', v_tenant, true);
+      UPDATE api_idempotencia SET respuesta = jsonb_build_object('numero', respuesta->'documento'->>'numero')
+       WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
+      GET DIAGNOSTICS v_n = ROW_COUNT;
+      compactadas := compactadas + v_n;
+    END LOOP;
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+    DELETE FROM api_entregas
+     WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'documento.%%';
+    GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
+    UPDATE api_entregas SET cuerpo = '{}'::jsonb
+     WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento NOT LIKE 'documento.%%' AND cuerpo <> '{}'::jsonb;
+  EXCEPTION WHEN OTHERS THEN
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+    RAISE;
+  END;
   RETURN NEXT;
 END
 $$$f$, current_schema());

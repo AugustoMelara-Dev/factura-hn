@@ -111,6 +111,33 @@ git pull
 docker compose up -d --build --wait   # las migraciones corren solas al arrancar y no borran datos
 ```
 
+**Si tienes un `docker-compose.override.yml` con contraseñas** (de una versión anterior de esta guía, con
+`DATABASE_URL: postgres://postgres:…`): desde esta versión el `docker-compose.yml` separa el dueño de las tablas
+(`FHN_MIGRAR_URL`) del rol con el que corre la API (`DATABASE_URL`, `fhn_api`). Antes de actualizar, elige una:
+
+- **Recomendado:** crea `fhn_api` con su contraseña y pon **las dos** URL en tu override, cada una con su
+  contraseña (como en el ejemplo de «Poner en marcha un negocio»):
+
+  ```bash
+  # agrega FHN_API_PASSWORD a tu .env; después:
+  docker compose exec db psql -U postgres -d factura_hn \
+    -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
+  ```
+
+  ```yaml
+  services:
+    api:
+      environment:
+        DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
+        FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
+  ```
+
+- **Seguir como antes:** en tu override, deja `DATABASE_URL` con `postgres` y anula la nueva variable con
+  `FHN_MIGRAR_URL: ""`. La API corre como dueño de las tablas y lo avisa en el log.
+
+Si solo cambias `FHN_MIGRAR_URL` y dejas `DATABASE_URL` con `postgres`, la API no arranca y el log dice qué
+cambiar: no corre como superusuario creyendo que no lo es.
+
 Antes de actualizar, haz un respaldo. Lee el `CHANGELOG.md`: mientras la versión sea 0.x, una versión menor
 puede traer cambios incompatibles.
 

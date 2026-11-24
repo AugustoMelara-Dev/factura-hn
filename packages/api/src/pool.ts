@@ -41,14 +41,18 @@ export async function esperarBase(
   }
 }
 
-/** Usuario de una URL de conexión `postgres://usuario@…`. */
-export function usuarioDeUrl(url: string): string {
-  let usuario = '';
+/** Usuario de una URL de conexión `postgres://usuario@…`, o '' si no lo lleva o no es una URL. */
+export function usuarioDeUrlSiHay(url: string): string {
   try {
-    usuario = decodeURIComponent(new URL(url).username);
+    return decodeURIComponent(new URL(url).username);
   } catch {
-    usuario = '';
+    return '';
   }
+}
+
+/** Usuario de una URL de conexión `postgres://usuario@…` (el rol LOGIN de la API). */
+export function usuarioDeUrl(url: string): string {
+  const usuario = usuarioDeUrlSiHay(url);
   if (!usuario) throw new Error('Con FHN_MIGRAR_URL, DATABASE_URL debe ser una URL postgres://usuario@host/base con el rol LOGIN de la API.');
   return usuario;
 }
