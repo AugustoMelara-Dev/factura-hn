@@ -14,13 +14,13 @@ export const REPOSITORIO = 'git+https://github.com/AugustoMelara-Dev/factura-hn.
  * proyecto (avance, lanzamiento, modelo de negocio, planes y análisis) y no se publica: verificar-dist falla si
  * el paquete trae algo fuera de esta lista.
  */
+// Solo lo que le sirve a quien integra la librería. Quedan fuera, en el repositorio: decisiones.md (registro de
+// decisiones del proyecto), investigacion.md (matriz interna con los pendientes B-xx y P-xx) y consulta-sar.md
+// (borrador de consulta al SAR, sin enviar).
 export const DOCS_PUBLICOS = [
   'api.md',
   'autoalojamiento.md',
-  'consulta-sar.md',
-  'decisiones.md',
   'guia-sdk.md',
-  'investigacion.md',
   'normativa.md',
   'persistencia.md',
 ];

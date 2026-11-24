@@ -130,7 +130,7 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       igual(await buscarDocumento(a, '000-001-01-00000099'), null, 'documento inexistente');
     }));
 
-    t.it('continúa la numeración en la siguiente autorización del mismo identificador (B-04)', conAlmacen(async (a) => {
+    t.it('continúa la numeración en la siguiente autorización del mismo identificador', conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 2));
       await registrarAutorizacion(a, D.autorizacion('CAI-B', 3, 4));
       const docs = [];
@@ -276,7 +276,7 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       igual((await a.transaccion((tx) => tx.documentos({ desde: '2026-11-19' }))).length, 0, 'filtro de fecha');
     }));
 
-    t.it('notas de crédito: el acumulado sobre un original no supera su total, ni con notas concurrentes (DEC-051)', conAlmacen(async (a) => {
+    t.it('notas de crédito: el acumulado sobre un original no supera su total, ni con notas concurrentes (Art. 4 num. 32)', conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-F', 1, 100));
       await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
       await registrarAutorizacion(a, D.autorizacion('CAI-NC2', 1, 100, { tipoDocumento: '06', puntoEmision: '002' }));

@@ -53,7 +53,7 @@ export interface EstadoCAI {
 }
 
 /**
- * Persona que opera (DEC-031): queda en la bitácora; con `imprimir`, también en el documento («Atendido por»).
+ * Persona que opera: queda en la bitácora; con `imprimir`, también en el documento («Atendido por»).
  * Si la herramienta no lo indica, se usa el operador configurado del servidor (`FHN_OPERADOR`).
  */
 export interface OpcionesOperador {
@@ -141,7 +141,7 @@ export class BackendLocal implements Backend {
       reloj?: () => Date;
       /** Quién opera el servidor MCP, para la bitácora. Por defecto `mcp`. */
       actor?: string;
-      /** Persona por defecto (DEC-031), p. ej. de `FHN_OPERADOR`. */
+      /** Persona por defecto, p. ej. de `FHN_OPERADOR`. */
       operador?: string;
     },
   ) {
@@ -229,7 +229,7 @@ export class BackendLocal implements Backend {
 export class BackendApi implements Backend {
   readonly nombre = 'api';
   private readonly c: ClienteFacturaHN;
-  /** `operador`: persona por defecto (DEC-031); va en la cabecera X-Operador de cada solicitud. */
+  /** `operador`: persona por defecto; va en la cabecera X-Operador de cada solicitud. */
   constructor(o: { url: string; llave: string; establecimiento?: string; puntoEmision?: string; operador?: string; fetch?: typeof fetch }) {
     this.c = crearCliente(o);
     this.punto = { establecimiento: o.establecimiento, puntoEmision: o.puntoEmision };

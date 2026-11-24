@@ -8,7 +8,7 @@
  *   FHN_SQLITE=./factura.db FHN_EMISOR=./emisor.json FHN_ESTABLECIMIENTO=000 FHN_PUNTO=001 factura-hn-mcp
  * `emisor.json` tiene los datos del Emisor (RTN, razón social, …). Las autorizaciones se registran antes
  * con el SDK o la API: el servidor MCP no registra CAI.
- * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora (DEC-031).
+ * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora.
  */
 import { createRequire } from 'node:module';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';

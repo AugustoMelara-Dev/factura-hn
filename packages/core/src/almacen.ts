@@ -1,7 +1,7 @@
 /**
  * Persistencia fiscal: series de correlativos, autorizaciones y documentos, con emisión atómica.
  *
- * Reglas (docs/investigacion.md, B-04 y B-18):
+ * Reglas:
  * - El correlativo se lleva por **identificador del documento** (`NNN-NNN-TT`: establecimiento, punto de
  *   emisión y tipo; Reglamento Art. 10 num. 7, C L.630-633), no por CAI. Un identificador acumula varias
  *   autorizaciones con el tiempo (Art. 59: una por punto de emisión y tipo, renovable), y la numeración

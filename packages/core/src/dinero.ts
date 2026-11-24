@@ -5,7 +5,7 @@
  * fracción menor de 0.005 de Lempira, deberá reducirse el recargo hasta la cifra de centavos próxima
  * inferior, en cambio, si la fracción citada es igual o mayor de 0.005 de Lempira, entonces podrá subirse
  * … El recargo del impuesto al consumidor fuera de la regla … se considerará como hurto.»
- * (docs/investigacion.md, ISV L.252-260).
+ * (Ley del Impuesto sobre Ventas, Art. 9).
  *
  * Un `number` binario no representa 0.10 exactamente, así que:
  * - Las entradas (`number` o `string`) se leen por su texto decimal y se convierten a `bigint` escalado.

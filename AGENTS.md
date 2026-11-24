@@ -112,7 +112,7 @@ Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustr
 `{ ordenCompraExenta, constanciaRegistroExonerado }` o `{ registroSAG }`.
 
 Si la Orden de Compra Exenta **no cubre todos los artículos**, emite dos facturas: una con `exoneracion` y
-los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo (DEC-019).
+los artículos cubiertos, y otra normal con el resto. La exoneración aplica al documento completo.
 
 En exportaciones usa `isv: 'GRAVADO0'` (tasa cero, Art. 12); no es lo mismo que `EXENTO`.
 
@@ -176,7 +176,7 @@ const nota = await emitir({
 ```
 
 Si la factura original se emitió en dólares, escribe las líneas de la nota en dólares: la nota se emite en
-lempiras con el tipo de cambio de la factura original, que se imprime como referencia (DEC-018). Si el
+lempiras con el tipo de cambio de la factura original, que se imprime como referencia. Si el
 original no está en el almacén, indica `referencia.moneda` y `referencia.tipoCambio`.
 
 ## Momento de emisión (Art. 14)

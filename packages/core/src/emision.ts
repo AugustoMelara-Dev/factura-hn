@@ -1,5 +1,5 @@
 /**
- * Emisión y anulación atómicas sobre un `AlmacenFiscal` (docs/investigacion.md, B-04 y B-18).
+ * Emisión y anulación atómicas sobre un `AlmacenFiscal`.
  */
 import type { LibroContable } from './exportacion';
 import { anularDocumento } from './anulacion';

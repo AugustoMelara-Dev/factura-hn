@@ -208,4 +208,4 @@ Pega este prompt en Claude Code, Cursor u otro agente, dentro de tu proyecto:
 Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
 ```
 
-Siguiente: [cumplimiento](investigacion.md) (qué artículo cubre cada regla y con qué prueba).
+Siguiente: [qué cubre la librería](normativa.md) (de qué artículo sale cada regla).

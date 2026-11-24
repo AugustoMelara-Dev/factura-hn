@@ -31,6 +31,7 @@
     "dist",
     "README.md",
     "AGENTS.md",
+    "docs/api.md",
     "LICENSE"
   ],
   "sideEffects": false,
@@ -42,7 +43,7 @@
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepack": "node ../../scripts/copiar-docs.mjs packages/cliente LICENSE AGENTS.md"
+    "prepack": "node ../../scripts/copiar-docs.mjs packages/cliente LICENSE AGENTS.md docs/api.md"
   },
   "dependencies": {
     "openapi-fetch": "0.17.0"

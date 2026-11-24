@@ -19,7 +19,7 @@ try {
 }
 ```
 
-**Quién opera (DEC-031).** Si varias personas usan la misma llave, crea el cliente con el cajero de la sesión:
+**Quién opera.** Si varias personas usan la misma llave, crea el cliente con el cajero de la sesión:
 `crearCliente({ url, llave, operador: 'María López' })`. Va en la cabecera `X-Operador` de cada solicitud y
 queda en la bitácora junto a la llave. Para imprimirlo en la factura, emite con `imprimirOperador: true`. Al
 anular: `fhn.anular(numero, motivo, { operador })`.

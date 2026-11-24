@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS fhn_documentos (
   UNIQUE (tenant, identificador, correlativo)
 );
 CREATE INDEX IF NOT EXISTS fhn_documentos_fecha ON fhn_documentos (tenant, fecha_emision, numero);
--- Notas de un documento (DEC-051: suma de notas de crédito sobre un original).
+-- Notas de un documento (suma de notas de crédito sobre un original).
 CREATE INDEX IF NOT EXISTS fhn_documentos_referencia ON fhn_documentos (tenant, (datos->'referencia'->>'numero'))
   WHERE datos->'referencia' IS NOT NULL;
 -- Bitácora de auditoría: solo inserción.

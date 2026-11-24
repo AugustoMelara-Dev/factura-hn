@@ -34,7 +34,7 @@ export function formatearDNI(dni: string): string {
 
 /**
  * Forma observada de los CAI: 32 caracteres hexadecimales en grupos 6-6-6-6-6-2 separados por guiones,
- * p. ej. "A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4". **No tiene fuente normativa** (B-09: el Reglamento define
+ * p. ej. "A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4". **No tiene fuente normativa** (el Reglamento define
  * el CAI en el Art. 4, C L.235-237, sin fijar su formato); solo se exige con `caiEstricto: true`.
  */
 export const PATRON_CAI = /^[0-9A-F]{6}(-[0-9A-F]{6}){4}-[0-9A-F]{2}$/;
@@ -44,7 +44,7 @@ export function normalizarCAI(cai: string): string {
 }
 
 /**
- * Forma mínima por defecto (DEC-013): solo letras, dígitos y guiones, después de recortar los espacios del
+ * Forma mínima por defecto: solo letras, dígitos y guiones, después de recortar los espacios del
  * inicio y del final (`normalizarCAI`). Un espacio u otro carácter en medio es error.
  */
 export const PATRON_CAI_BASICO = /^[0-9A-Z-]+$/;

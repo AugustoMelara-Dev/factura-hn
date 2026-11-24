@@ -305,8 +305,7 @@ pnpm sitio        # sitio de documentación en sitio/ (GitHub Pages)
 ```
 
 Guía para contribuir: [CONTRIBUTING.md](CONTRIBUTING.md). Seguridad: [SECURITY.md](SECURITY.md). Cada cambio a
-un paquete publicado lleva un changeset (`pnpm changeset`); el flujo de publicación está en
-[docs/lanzamiento.md](docs/lanzamiento.md).
+un paquete publicado lleva un changeset (`pnpm changeset`).
 
 La documentación (README, AGENTS.md, llms.txt, skills, docs) vive en la raíz y se copia a
 `packages/core` al empaquetar (`scripts/copiar-docs.mjs`).
@@ -334,7 +333,7 @@ sistema computarizado*, y el Reglamento reserva algunos documentos para otras mo
   autoimpresor (Art. 47).
 
 Los códigos se reconocen al parsear números y referencias, pero `validarEntrada` rechaza emitirlos.
-Detalle y citas en [docs/investigacion.md](docs/investigacion.md).
+Detalle y citas en [docs/normativa.md](docs/normativa.md).
 
 Las contribuciones son bienvenidas, sobre todo de contadores y de desarrolladores con sistemas ya autorizados.
 

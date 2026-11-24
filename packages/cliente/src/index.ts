@@ -33,7 +33,7 @@ export interface OpcionesCliente {
   llave: string;
   /**
    * Persona que opera con este cliente (p. ej. el cajero de la sesión). Se envía en la cabecera `X-Operador`
-   * de cada solicitud y queda en la bitácora junto a la llave (DEC-031). Para imprimirlo en el documento, usa
+   * de cada solicitud y queda en la bitácora junto a la llave. Para imprimirlo en el documento, usa
    * `imprimirOperador: true` al emitir.
    */
   operador?: string;

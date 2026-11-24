@@ -8,7 +8,7 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
 > **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») está
-> pendiente de la consulta P-02 al SAR (`docs/consulta-sar.md`), que aún no se ha enviado. Mientras tanto, la recomendación es el modo local.
+> pendiente de una consulta al SAR que aún no tiene respuesta. Mientras tanto, la recomendación es el modo local.
 
 ## Levantarla en tu máquina
 
@@ -83,7 +83,7 @@ No hay registro público de tenants: en el modo alojado los crea el operador.
 `Authorization: Bearer fhn_<prefijo>_<secreto>`. El prefijo (12 hexadecimales) identifica la llave en
 listados y para revocarla; la base guarda solo el SHA-256 de la llave completa.
 
-### Quién hizo cada operación (DEC-031)
+### Quién hizo cada operación
 
 En la bitácora (`GET /v1/bitacora`, fiscal y de la API), el `actor` es `llave:<id> (<rol>: <nombre>)`, con el
 id interno de la llave (`GET /v1/llaves`). Si varias personas usan la misma llave, indica el `operador` en
@@ -129,7 +129,7 @@ El esquema `Bearer` no distingue mayúsculas.
 
 Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
-### Forma de las respuestas (DEC-047)
+### Forma de las respuestas
 
 - Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
   `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`. Al crear una llave o un webhook,
@@ -141,7 +141,7 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
 
-### Montos (DEC-048)
+### Montos
 
 En la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número JSON en lempiras con a lo
 sumo 2 decimales. Se calcula en centavos enteros y se convierte con la representación decimal más corta, así que

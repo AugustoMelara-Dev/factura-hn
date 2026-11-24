@@ -10,7 +10,7 @@
  * los descuentos efectivos que consten en la factura»).
  *
  * El ISV se calcula sobre la suma de cada grupo de tasa, no línea por línea. Lectura elegida y
- * documentada (docs/investigacion.md, P-10): el Art. 11 h-i pide subtotales e impuestos por tarifa, y
+ * documentada, pendiente de consulta al SAR: el Art. 11 h-i pide subtotales e impuestos por tarifa, y
  * redondear por línea puede dar un ISV impreso que no es la tasa × la base impresa.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
@@ -19,7 +19,7 @@ import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, Tratamien
 
 /**
  * Tasas del ISV en porcentaje: 15 % general y 18 % para los bienes y servicios que fija el Decreto 278-2013
- * Art. 16 (La Gaceta 33,316). Ese texto no está en las fuentes primarias locales (P-11, B-14), así que el SDK
+ * Art. 16 (La Gaceta 33,316). Ese texto no está entre las fuentes primarias revisadas, así que el SDK
  * **no** decide qué producto va al 18 %: lo indica el integrador en cada línea (`isv: 'ISV18'`).
  */
 export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, number> = {
@@ -122,8 +122,7 @@ export function impuestoArt9(baseCentavos: bigint, tasa: number): bigint {
  * El ISV impreso siempre es `impuestoArt9(base, tasa)`: la tasa × la base impresa, redondeada con la
  * regla del Art. 9. Para un total T se busca la **mayor base b con b + ISV(b) ≤ T**. Si b + ISV(b) = T, el
  * precio se respeta exacto. Si no existe una base exacta (≈13 % de los montos al 15 % y ≈15 % al 18 %),
- * el total queda **1 centavo por debajo** del precio: se cobra de menos, nunca de más (decisión D-01,
- * docs/investigacion.md). `f(b) = b + ISV(b)` crece de 1 en 1 o de 2 en 2, así que el ajuste nunca pasa
+ * el total queda **1 centavo por debajo** del precio: se cobra de menos, nunca de más. `f(b) = b + ISV(b)` crece de 1 en 1 o de 2 en 2, así que el ajuste nunca pasa
  * de 1 centavo por tasa.
  */
 export function baseDesdePrecioConISV(totalCentavos: bigint, tasa: number): { base: bigint; isv: bigint; ajuste: bigint } {
@@ -149,7 +148,7 @@ export interface TotalesCentavos {
   isv15: bigint;
   isv18: bigint;
   total: bigint;
-  /** Centavos que el total queda por debajo de la suma de precios con ISV (D-01). 0 si no hubo ajuste. */
+  /** Centavos que el total queda por debajo de la suma de precios con ISV (Ley del ISV, Art. 9). 0 si no hubo ajuste. */
   ajustePorRedondeo: bigint;
 }
 
@@ -252,7 +251,7 @@ export function advertenciasDeCalculo(t: TotalesCentavos): Problema[] {
 }
 
 /**
- * Sugiere precios con ISV incluido que no requieren ajuste por redondeo (D-01), para configurar el
+ * Sugiere precios con ISV incluido que no requieren ajuste por redondeo (Ley del ISV, Art. 9), para configurar el
  * precio de góndola. Con `cantidad` > 1 verifica el importe de la línea (precio × cantidad).
  * La sugerencia es por línea: en un documento con varias líneas de la misma tasa cuenta la suma del grupo.
  * @example sugerirPrecioSinAjuste('0.27') // { requiereAjuste: true, anterior: 0.26, siguiente: 0.28 }

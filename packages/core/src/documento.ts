@@ -36,7 +36,7 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
 }
 
 /**
- * DEC-018: una nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Si el documento original está en
+ * Una nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Si el documento original está en
  * moneda extranjera, las líneas de la nota se escriben en esa moneda y aquí se convierten a lempiras con el
  * tipo de cambio del original (precio a 4 decimales, descuento a 2, redondeo del Art. 9 de la Ley del ISV).
  * Si las líneas no se pueden leer, se devuelven sin convertir para que la validación reporte el error.
@@ -87,7 +87,7 @@ export function hoyHonduras(opciones: Pick<OpcionesDocumento, 'reloj'> = {}): st
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
 
 /**
- * Documentos que un autoimpresor por sistema computarizado no puede emitir (B-15):
+ * Documentos que un autoimpresor por sistema computarizado no puede emitir:
  * - 09 Ticket: se emite «exclusivamente para consumidores finales a través de máquinas registradoras»
  *   (Reglamento Art. 4 num. 43, C L.448-450; Art. 17).
  * - 04 Recibo por Honorarios Profesionales y 10 Factura Prevalorada: «deben ser exclusivamente emitidos bajo
