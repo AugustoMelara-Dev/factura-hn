@@ -7,6 +7,7 @@ import {
   esperaReintento,
   firmar,
   MAX_INTENTOS,
+  MAX_WEBHOOKS_ACTIVOS,
   problemaDeURL,
   verificarFirmaWebhook,
 } from '../src/webhooks';
@@ -259,5 +260,109 @@ describe.skipIf(!URL_PG)('entregas', () => {
     const r = await admin('POST', '/v1/webhooks', { url: 'https://169.254.169.254/latest/meta-data', eventos: ['documento.emitido'] });
     expect(r.status).toBe(422);
     expect((await r.json()).error.codigo).toBe('WEBHOOK_URL');
+  });
+});
+
+describe.skipIf(!URL_PG)('entregas: id público, arrendamiento y límite de webhooks', () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+  it('X-FacturaHN-Entrega es un UUID por entrega, igual al id del cuerpo y el mismo en cada reintento', async () => {
+    const a = await tenantListo();
+    const b = await tenantListo();
+    const pool = await poolPrueba();
+    for (const t of [a, b]) {
+      expect((await t.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${t.tenant}`, eventos: ['documento.emitido'] })).status).toBe(201);
+      expect((await t.admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
+    }
+    const recibidas: { tenant: string; entrega: string | null; id: unknown }[] = [];
+    const correr = (estado: number) =>
+      despacharWebhooks({
+        pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [a.tenant, b.tenant],
+        fetch: (async (url: string, init: RequestInit) => {
+          recibidas.push({ tenant: String(url).split('hook-')[1]!, entrega: new Headers(init.headers).get('x-facturahn-entrega'), id: JSON.parse(String(init.body)).id });
+          return new Response(null, { status: estado });
+        }) as unknown as typeof fetch,
+      });
+    await correr(500);
+    expect(recibidas).toHaveLength(2);
+    for (const r of recibidas) {
+      expect(r.entrega).toMatch(UUID);
+      expect(r.id).toBe(r.entrega);
+    }
+    expect(new Set(recibidas.map((r) => r.entrega)).size).toBe(2);
+    const primeras = new Map(recibidas.map((r) => [r.tenant, r.entrega]));
+    // En la base: el UUID es la columna `entrega`; el id interno (bigserial) no sale.
+    const filas = await pool.query('SELECT tenant, id::text, entrega::text FROM api_entregas WHERE tenant = ANY($1)', [[a.tenant, b.tenant]]);
+    for (const f of filas.rows) {
+      expect(primeras.get(f.tenant)).toBe(f.entrega);
+      expect(recibidas.map((r) => r.entrega)).not.toContain(f.id);
+    }
+    // Reintento: el mismo id.
+    recibidas.length = 0;
+    await pool.query('UPDATE api_entregas SET proximo = now() WHERE tenant = ANY($1)', [[a.tenant, b.tenant]]);
+    await correr(200);
+    expect(new Map(recibidas.map((r) => [r.tenant, r.entrega]))).toEqual(primeras);
+  });
+
+  it('un resultado tardío (arrendamiento vencido) no devuelve a PENDIENTE una entrega que otra pasada ya entregó', async () => {
+    const { admin, tenant } = await tenantListo();
+    const pool = await poolPrueba();
+    await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido'] });
+    await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+    await despacharWebhooks({
+      pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant],
+      fetch: (async () => {
+        // Mientras este envío tarda, el arrendamiento vence y otra pasada reclama y entrega el aviso.
+        await pool.query(
+          "UPDATE api_entregas SET estado = 'ENTREGADA', intentos = intentos + 1, ultimo_codigo = 200, proximo = now() + interval '1 hour' WHERE tenant = $1",
+          [tenant],
+        );
+        return new Response(null, { status: 500 });
+      }) as unknown as typeof fetch,
+    });
+    const e = await pool.query('SELECT estado, intentos, ultimo_codigo FROM api_entregas WHERE tenant = $1', [tenant]);
+    expect(e.rows).toEqual([{ estado: 'ENTREGADA', intentos: 1, ultimo_codigo: 200 }]);
+  });
+
+  it('un resultado tardío tampoco pisa una entrega que otra pasada reclamó de nuevo', async () => {
+    const { admin, tenant } = await tenantListo();
+    const pool = await poolPrueba();
+    await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido'] });
+    await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
+    await despacharWebhooks({
+      pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant],
+      fetch: (async () => {
+        // Otra pasada reclamó la entrega: nuevo arrendamiento, sigue PENDIENTE.
+        await pool.query("UPDATE api_entregas SET proximo = now() + interval '7 minutes' WHERE tenant = $1", [tenant]);
+        return new Response(null, { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    const e = await pool.query('SELECT estado, intentos FROM api_entregas WHERE tenant = $1', [tenant]);
+    expect(e.rows).toEqual([{ estado: 'PENDIENTE', intentos: 0 }]);
+  });
+
+  it(`a lo sumo ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant, también con altas simultáneas`, async () => {
+    expect(MAX_WEBHOOKS_ACTIVOS).toBe(20);
+    const { admin, tenant } = await tenantListo();
+    const pool = await poolPrueba();
+    const altas = await Promise.all(
+      Array.from({ length: 25 }, (_, i) => admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}-${i}`, eventos: ['documento.emitido'] })),
+    );
+    const estados = altas.map((r) => r.status);
+    expect(estados.filter((e) => e === 201)).toHaveLength(20);
+    expect(estados.filter((e) => e === 409)).toHaveLength(5);
+    const rechazada = altas.find((r) => r.status === 409)!;
+    expect((await rechazada.json()).error.codigo).toBe('LIMITE_WEBHOOKS');
+    expect((await pool.query('SELECT count(*)::int AS n FROM api_webhooks WHERE tenant = $1 AND activo', [tenant])).rows[0].n).toBe(20);
+
+    // Una emisión encola a lo sumo 20 entregas.
+    expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
+    expect((await pool.query('SELECT count(*)::int AS n FROM api_entregas WHERE tenant = $1', [tenant])).rows[0].n).toBe(20);
+
+    // Desactivar uno libera un lugar.
+    const { webhooks } = (await (await admin('GET', '/v1/webhooks')).json()) as { webhooks: { id: string }[] };
+    expect((await admin('DELETE', `/v1/webhooks/${webhooks[0]!.id}`)).status).toBe(200);
+    expect((await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}-x`, eventos: ['documento.emitido'] })).status).toBe(201);
+    expect((await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}-y`, eventos: ['documento.emitido'] })).status).toBe(409);
   });
 });

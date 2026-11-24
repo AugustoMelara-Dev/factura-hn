@@ -47,7 +47,7 @@ import { ROL_POR_DEFECTO } from './esquema';
 import { ErrorApi, LimitadorSolicitudes, type CuerpoError } from './errores';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
-import { CofreSecretos, comoTransaccionPostgres, encolarEvento, problemaDeURL, type EventoWebhook } from './webhooks';
+import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
 import {
   exigirPeriodoAcotado,
   maxDocumentosReporte,
@@ -466,7 +466,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       description:
         'Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. ' +
         'La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento ' +
-        '(cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422.',
+        '(cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. ' +
+        'La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.',
       request: {
         headers: z.object({ 'idempotency-key': z.string().openapi({ description: 'Clave única por venta (p. ej. un UUID generado por el POS).' }) }),
         body: { content: { 'application/json': { schema: S.SolicitudEmision } }, required: true },
@@ -513,12 +514,21 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         .digest('hex');
       const almacen = almacenDe(c);
 
-      const repetir = (previa: { huella: string; codigo: number; respuesta: unknown }) => {
+      const repetir = async (previa: { huella: string; codigo: number; respuesta: unknown }) => {
         if (previa.huella !== huella) {
           throw new ErrorApi(422, 'IDEMPOTENCIA_CONFLICTO', 'Esta Idempotency-Key ya se usó con otra solicitud. Usa una clave nueva por venta.');
         }
+        let respuestaPrevia = previa.respuesta as { documento?: unknown; numero?: string };
+        // Pasada la retención, la copia de la respuesta se compacta a `{ numero }` (la clave y su huella se
+        // quedan): el documento se lee del almacén fiscal, con su estado actual.
+        if (!respuestaPrevia.documento && respuestaPrevia.numero) {
+          const numero = respuestaPrevia.numero;
+          const doc = await almacen.transaccion((tx) => tx.buscarDocumento(numero));
+          if (!doc) throw new Error(`Idempotencia: el documento ${numero} de una clave compactada no está en el almacén.`);
+          respuestaPrevia = { documento: doc };
+        }
         c.header('Idempotency-Replayed', 'true');
-        return c.json(previa.respuesta as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
+        return c.json(respuestaPrevia as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
       };
       const buscarPrevia = () =>
         enTenant(c, async (tx) => (await tx.consulta<{ huella: string; codigo: number; respuesta: unknown }>(
@@ -963,8 +973,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
       summary: 'Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)',
+      description: `Hasta ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant: con ${MAX_WEBHOOKS_ACTIVOS} activos, crear otro es 409 \`LIMITE_WEBHOOKS\`.`,
       request: { body: { content: { 'application/json': { schema: S.WebhookNuevo } }, required: true } },
-      responses: { 201: json(S.RespuestaWebhookNuevo, 'Creado'), ...respuestasError },
+      responses: { 201: json(S.RespuestaWebhookNuevo, 'Creado'), 409: json(S.ErrorRespuesta, `Límite de ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant (LIMITE_WEBHOOKS)`), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -973,6 +984,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (problema) throw new ErrorApi(422, 'WEBHOOK_URL', problema);
       const secreto = `whsec_${randomBytes(24).toString('base64url')}`;
       const fila = await enTenant(c, async (tx) => {
+        // Candado por tenant antes de contar: dos altas a la vez no pasan juntas del límite.
+        await tx.consulta("SELECT pg_advisory_xact_lock(4823191, hashtext('api_webhooks:' || $1))", [tx.tenant]);
+        const activos = await tx.consulta<{ n: number }>('SELECT count(*)::int AS n FROM api_webhooks WHERE tenant = $1 AND activo', [tx.tenant]);
+        if (activos.rows[0]!.n >= MAX_WEBHOOKS_ACTIVOS) {
+          throw new ErrorApi(409, 'LIMITE_WEBHOOKS', `Este tenant ya tiene ${MAX_WEBHOOKS_ACTIVOS} webhooks activos: desactiva uno (DELETE /v1/webhooks/{id}) antes de crear otro.`);
+        }
         const r = await tx.consulta<FilaWebhook>(
           'INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING id, url, eventos, activo, creado',
           [tx.tenant, b.url, cofre.guardar(secreto), [...new Set(b.eventos)]],
