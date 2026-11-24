@@ -334,7 +334,8 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   entorno `npm`, con revisor obligatorio, y en npmjs.com cada paquete acepta solo `release.yml` de este
   repositorio con ese entorno. `scripts/publicar.mjs` empaqueta con `pnpm pack` (cambia `workspace:` por
   versiones) y sube con `npm publish`, que es quien hace el intercambio OIDC; salta lo ya publicado. La 0.2.0
-  se publica desde la máquina del responsable con 2FA, porque la publicación de confianza se configura en
+  se publica desde la máquina del responsable con 2FA (autenticación web de npm con llave de seguridad, sin
+  códigos OTP), porque la publicación de confianza se configura en
   paquetes que ya existen: esa versión no lleva procedencia. Las acciones van fijadas por SHA. Los seis
   paquetes publicables van en un grupo `fixed` de changesets (misma versión); la API y los ejemplos no se
   publican.
