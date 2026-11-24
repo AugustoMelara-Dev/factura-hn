@@ -7,7 +7,7 @@
  * la regla del Art. 9 de la Ley del ISV. Así el resumen nunca suma dólares como si fueran lempiras.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, parsearDecimal, redondearDecimal, textoSeguroCSV } from './dinero';
-import type { DocumentoFiscal } from './tipos';
+import type { ResumenDocumento } from './tipos';
 
 export interface FilaLibroVentas {
   fecha: string;
@@ -37,7 +37,7 @@ export interface FilaLibroVentas {
  * Una fila por documento. Los anulados (Art. 41) se registran con su número y montos en cero, para que la
  * numeración del libro no tenga huecos. El estado se toma del propio documento.
  */
-export function filaLibroVentas(doc: DocumentoFiscal): FilaLibroVentas {
+export function filaLibroVentas(doc: ResumenDocumento): FilaLibroVentas {
   const anulado = doc.estado === 'ANULADO';
   const signo = doc.tipoDocumento === '06' ? -1 : 1;
   const extranjera = doc.moneda !== 'HNL' && doc.tipoCambio !== undefined;
@@ -74,30 +74,60 @@ export type ResumenVentas = Omit<
   documentos: number;
 };
 
-export function resumenVentas(filas: FilaLibroVentas[]): ResumenVentas {
-  const campos = ['importeExonerado', 'importeExento', 'importeGravado0', 'importeGravado15', 'importeGravado18', 'isv15', 'isv18', 'total'] as const;
-  const acc: Record<(typeof campos)[number], bigint> = {
+const CAMPOS_RESUMEN = ['importeExonerado', 'importeExento', 'importeGravado0', 'importeGravado15', 'importeGravado18', 'isv15', 'isv18', 'total'] as const;
+
+/**
+ * Acumula el resumen fila por fila, en centavos enteros, sin guardar las filas: para armar el libro de un
+ * período grande por partes. `resumen()` da lo mismo que `resumenVentas` con las mismas filas.
+ */
+export function acumuladorResumenVentas(): { agregar(fila: FilaLibroVentas): void; resumen(): ResumenVentas } {
+  const acc: Record<(typeof CAMPOS_RESUMEN)[number], bigint> = {
     importeExonerado: 0n, importeExento: 0n, importeGravado0: 0n, importeGravado15: 0n, importeGravado18: 0n, isv15: 0n, isv18: 0n, total: 0n,
   };
-  for (const f of filas) for (const c of campos) acc[c] += redondearDecimal(f[c], 2);
-  const r = { documentos: filas.length } as ResumenVentas;
-  for (const c of campos) r[c] = deCentavos(acc[c]);
-  return r;
+  let documentos = 0;
+  return {
+    agregar(f) {
+      documentos += 1;
+      for (const c of CAMPOS_RESUMEN) acc[c] += redondearDecimal(f[c], 2);
+    },
+    resumen() {
+      const r = { documentos } as ResumenVentas;
+      for (const c of CAMPOS_RESUMEN) r[c] = deCentavos(acc[c]);
+      return r;
+    },
+  };
 }
+
+export function resumenVentas(filas: FilaLibroVentas[]): ResumenVentas {
+  const a = acumuladorResumenVentas();
+  for (const f of filas) a.agregar(f);
+  return a.resumen();
+}
+
+const ENCABEZADO_CSV = ['Fecha', 'Tipo', 'Número', 'CAI', 'Cliente', 'RTN cliente', 'Exonerado', 'Exento', 'Gravado 0%', 'Gravado 15%', 'Gravado 18%', 'ISV 15%', 'ISV 18%', 'Total', 'Anulado', 'Moneda', 'Tipo de cambio', 'Total en moneda original'];
 
 /** CSV con separador coma y BOM para que Excel lo abra con acentos. Importes en lempiras. */
 export function libroVentasCSV(filas: FilaLibroVentas[]): string {
-  const enc = ['Fecha', 'Tipo', 'Número', 'CAI', 'Cliente', 'RTN cliente', 'Exonerado', 'Exento', 'Gravado 0%', 'Gravado 15%', 'Gravado 18%', 'ISV 15%', 'ISV 18%', 'Total', 'Anulado', 'Moneda', 'Tipo de cambio', 'Total en moneda original'];
+  return inicioLibroVentasCSV() + filas.map(lineaLibroVentasCSV).join('');
+}
+
+/**
+ * BOM y encabezado del CSV de `libroVentasCSV`. Con `lineaLibroVentasCSV` permite escribirlo por partes:
+ * `inicioLibroVentasCSV() + filas.map(lineaLibroVentasCSV).join('')` es igual a `libroVentasCSV(filas)`.
+ */
+export function inicioLibroVentasCSV(): string {
+  return '\uFEFF' + ENCABEZADO_CSV.join(',') + '\n';
+}
+
+/** Una fila del CSV de `libroVentasCSV`, con su salto de línea final. */
+export function lineaLibroVentasCSV(f: FilaLibroVentas): string {
   const q = (v: unknown) => {
     const s = String(v);
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const m = (v: number) => centavosATexto(redondearDecimal(v, 2));
-  const filasCsv = filas.map((f) =>
-    [f.fecha, f.tipoDocumento, f.numero, f.cai, textoSeguroCSV(f.clienteNombre), textoSeguroCSV(f.clienteRTN),
-      m(f.importeExonerado), m(f.importeExento), m(f.importeGravado0), m(f.importeGravado15), m(f.importeGravado18),
-      m(f.isv15), m(f.isv18), m(f.total), f.anulado ? 'SI' : 'NO',
-      f.moneda, f.tipoCambio === null ? '' : escaladoATexto(parsearDecimal(f.tipoCambio, 6), 6), m(f.totalMonedaOriginal)].map(q).join(','),
-  );
-  return '﻿' + [enc.join(','), ...filasCsv].join('\n') + '\n';
+  return [f.fecha, f.tipoDocumento, f.numero, f.cai, textoSeguroCSV(f.clienteNombre), textoSeguroCSV(f.clienteRTN),
+    m(f.importeExonerado), m(f.importeExento), m(f.importeGravado0), m(f.importeGravado15), m(f.importeGravado18),
+    m(f.isv15), m(f.isv18), m(f.total), f.anulado ? 'SI' : 'NO',
+    f.moneda, f.tipoCambio === null ? '' : escaladoATexto(parsearDecimal(f.tipoCambio, 6), 6), m(f.totalMonedaOriginal)].map(q).join(',') + '\n';
 }

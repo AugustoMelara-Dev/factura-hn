@@ -13,7 +13,7 @@
  *   otraConexion: async () => otraConexionAlMismoAlmacen(),
  * });
  */
-import { identificadorDe, type AlmacenFiscal } from '../almacen';
+import { identificadorDe, type AlmacenFiscal, type FiltroDocumentos } from '../almacen';
 import { ErrorValidacion } from '../documento';
 import {
   anular,
@@ -23,7 +23,8 @@ import {
   eventosAuditoria,
   registrarAutorizacion,
 } from '../emision';
-import type { AutorizacionCAI, DocumentoEntrada } from '../tipos';
+import { contarDocumentos, correlativosDe, documentosPorPaginas } from '../paginas';
+import type { AutorizacionCAI, DocumentoEntrada, DocumentoFiscal } from '../tipos';
 
 export interface FuncionesDePrueba {
   describe(nombre: string, fn: () => void): void;
@@ -274,6 +275,84 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       const lista = await a.transaccion((tx) => tx.documentos({ desde: '2026-11-18', hasta: '2026-11-18', identificador: '000-001-01' }));
       igual(lista.map((d) => d.correlativo), [1, 2, 3], 'listado');
       igual((await a.transaccion((tx) => tx.documentos({ desde: '2026-11-19' }))).length, 0, 'filtro de fecha');
+    }));
+
+    t.it('lee por páginas lo mismo que documentos(), cuenta y lista correlativos (reportes de período)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-P', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-P2', 1, 100, { puntoEmision: '002' }));
+      for (let i = 0; i < 5; i++) await emitir(D.entrada(), { almacen: a, ...base });
+      for (let i = 0; i < 2; i++) await emitir(D.entrada(), { almacen: a, ...base, puntoEmision: '002' });
+      const filtro = { desde: '2026-11-18', hasta: '2026-11-18' };
+      // Claves ordenadas: un adaptador puede devolver el documento sin líneas con otro orden de campos.
+      const canonico = (v: unknown): string => Array.isArray(v)
+        ? `[${v.map(canonico).join(',')}]`
+        : v && typeof v === 'object'
+          ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonico((v as Record<string, unknown>)[k])}`).join(',')}}`
+          : JSON.stringify(v);
+      await a.transaccion(async (tx) => {
+        const todos = await tx.documentos(filtro);
+        const completos: unknown[][] = [];
+        for await (const p of documentosPorPaginas(tx, filtro, { tamano: 3 })) completos.push(p);
+        igual(completos.map((p) => p.length), [3, 3, 1], 'tamaño de las páginas');
+        igual(completos.flat(), todos, 'páginas completas');
+        const resumenes: unknown[] = [];
+        for await (const p of documentosPorPaginas(tx, filtro, { tamano: 2, sinLineas: true })) resumenes.push(...p);
+        igual(resumenes.map(canonico), todos.map(({ lineas: _l, ...resto }) => canonico(resto)), 'páginas sin líneas');
+        const soloUno: unknown[] = [];
+        for await (const p of documentosPorPaginas(tx, { ...filtro, identificador: '000-002-01' }, { tamano: 2 })) soloUno.push(...p);
+        igual(soloUno, await tx.documentos({ ...filtro, identificador: '000-002-01' }), 'páginas por identificador');
+        igual(await contarDocumentos(tx, filtro), 7, 'conteo');
+        igual(await contarDocumentos(tx, { desde: '2026-11-19' }), 0, 'conteo vacío');
+        igual(await correlativosDe(tx, '000-001-01'), [1, 2, 3, 4, 5], 'correlativos');
+        igual(await correlativosDe(tx, '000-009-01'), [], 'correlativos de una serie vacía');
+      });
+    }));
+
+    t.it('páginas con filtros de fecha, tipo y referencia, y con el último documento justo en el borde de una página', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-F1', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-F2', 1, 100, { puntoEmision: '002' }));
+      await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
+      const dia = (d: string) => ({ ...opciones, reloj: () => new Date(`${d}T12:00:00-06:00`) });
+      // En orden de número, los días se intercalan: 001-01 (18, 18, 19, 20), 001-06 (20, 20), 002-01 (18, 19, 19).
+      const f: DocumentoFiscal[] = [];
+      for (const d of ['2026-11-18', '2026-11-18', '2026-11-19', '2026-11-20']) f.push(await emitir(D.entrada(), { almacen: a, ...base, opciones: dia(d) }));
+      for (const d of ['2026-11-18', '2026-11-19', '2026-11-19']) await emitir(D.entrada(), { almacen: a, ...base, puntoEmision: '002', opciones: dia(d) });
+      const nota = (original: DocumentoFiscal) => D.entrada({
+        tipoDocumento: '06', motivo: 'Devolución', cliente: { nombre: 'Cliente de Prueba', rtn: '99990000000002' },
+        referencia: { cai: original.cai, numero: original.numero, fecha: original.fechaEmision },
+        lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '1.00' }],
+      });
+      await emitir(nota(f[0]!), { almacen: a, ...base, opciones: dia('2026-11-20') });
+      await emitir(nota(f[2]!), { almacen: a, ...base, opciones: dia('2026-11-20') });
+      await a.transaccion(async (tx) => {
+        const leerPaginas = async (filtro: FiltroDocumentos, tamano: number) => {
+          const paginas: string[][] = [];
+          for await (const p of documentosPorPaginas(tx, filtro, { tamano, sinLineas: true })) paginas.push(p.map((d) => d.numero));
+          return paginas;
+        };
+        const casos: Array<[FiltroDocumentos, number]> = [
+          [{ desde: '2026-11-18', hasta: '2026-11-18' }, 1],
+          [{ desde: '2026-11-19', hasta: '2026-11-19' }, 2],
+          [{ desde: '2026-11-19' }, 2],
+          [{ hasta: '2026-11-19' }, 5],
+          [{ tipoDocumento: '06' }, 1],
+          [{ tipoDocumento: '01', desde: '2026-11-19' }, 2],
+          [{ referencia: f[0]!.numero }, 1],
+          [{ referencia: f[2]!.numero, tipoDocumento: '06' }, 3],
+          [{}, 3],
+        ];
+        for (const [filtro, tamano] of casos) {
+          const esperado = (await tx.documentos(filtro)).map((d) => d.numero);
+          const paginas = await leerPaginas(filtro, tamano);
+          igual(paginas.flat(), esperado, `páginas de ${JSON.stringify(filtro)}`);
+          if (paginas.some((p) => p.length > tamano)) throw new ErrorContrato(`página de más de ${tamano} con ${JSON.stringify(filtro)}`);
+          igual(await contarDocumentos(tx, filtro), esperado.length, `conteo de ${JSON.stringify(filtro)}`);
+        }
+        igual((await leerPaginas({ desde: '2026-11-18', hasta: '2026-11-18' }, 1)).length, 3, 'tres días 18 intercalados');
+        // 9 documentos en páginas de 3: la última página termina justo en el último documento.
+        igual((await leerPaginas({}, 3)).map((p) => p.length), [3, 3, 3], 'borde exacto');
+        igual((await leerPaginas({ referencia: f[0]!.numero }, 1)).flat().length, 1, 'referencia');
+      });
     }));
 
     t.it('notas de crédito: el acumulado sobre un original no supera su total, ni con notas concurrentes (Art. 4 num. 32)', conAlmacen(async (a) => {

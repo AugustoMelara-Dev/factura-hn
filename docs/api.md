@@ -66,6 +66,8 @@ curl -H "authorization: Bearer $LLAVE" http://127.0.0.1:8787/v1/documentos/000-0
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
+| `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
+| `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool (`FHN_POOL`, 20 por defecto) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
 
 ### Consola del operador
 
@@ -141,6 +143,36 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
 
+### Reportes de período
+
+`libro-ventas` y `exportacion` responden con el período completo, y `no-utilizados` con la serie completa, con
+estos límites para que un reporte grande no afecte al resto del servicio:
+
+- **Tope de documentos** (libro y exportación). Antes de enviar nada se cuentan los documentos del período. Si pasan de
+  `FHN_MAX_DOCUMENTOS_REPORTE` (50 000 por defecto; opción `maxDocumentosReporte` de `crearApp`), la respuesta
+  es 422 `PERIODO_DEMASIADO_GRANDE` con `documentos` y `maximo`: divide el período (p. ej. por mes) y pide cada
+  parte por separado.
+- **Reportes en curso limitados.** Cada reporte en curso ocupa una conexión del pool (`FHN_POOL`) mientras se
+  lee de la base y, si se transmite, mientras el cliente recibe la respuesta. Cada proceso atiende como mucho
+  2 de estos reportes a la vez por tenant (opción `reportesSimultaneos`) y, sumando todos los tenants, un
+  cuarto del pool, al menos 1 (`FHN_REPORTES_SIMULTANEOS_PROCESO`, opción `reportesSimultaneosProceso`). Ese
+  límite no puede pasar del tamaño del pool menos 1: la API no arranca si se configura más. Así los reportes
+  nunca ocupan todas las conexiones y el resto de la API sigue respondiendo (con un pool de 1, las demás
+  solicitudes esperan a que termine el reporte en curso). Más allá, 429 `LIMITE_SOLICITUDES`
+  con `Retry-After`. El cupo se libera cuando la respuesta termina de enviarse, el cliente la corta o vence un
+  plazo. `HEAD` no se atiende en estas rutas (405).
+- **El libro y la exportación se transmiten.** `GET /v1/libro-ventas` (JSON y CSV) y `GET /v1/exportacion`
+  envían la respuesta por partes de unos 64 KB, a medida que la leen de la base, sin `Content-Length`. El
+  contenido es el mismo, byte por byte. Si algo falla a mitad de camino, la conexión se corta con error en vez
+  de terminar normalmente: una respuesta cortada nunca parece completa. Cada parte debe llegar al cliente en
+  30 s (un cliente lento que avanza no se corta) y la respuesta entera en 5 minutos (opción
+  `duracionMaxReporteMs`); si no, se corta con error. Para períodos que tardan más, divídelos. El conteo, el
+  tope y el encabezado de `txt` (`#factura-hn|v1|N`) salen de la misma lectura que las filas enviadas.
+- **Bitácora de la exportación.** Cada exportación queda en la bitácora de la API (`accion: exportacion`) con
+  el período, el formato y los documentos contados. Se registra antes de enviar la última parte: si no se puede
+  registrar, la respuesta se corta con error. Una exportación cortada (cliente, plazo o error) queda con
+  `completo: false`.
+
 ### Montos
 
 En la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número JSON en lempiras con a lo
@@ -150,7 +182,8 @@ antes a centavos.
 
 Errores: `{ "error": { "codigo", "mensaje" }, "errores"?: [{ codigo, mensaje, campo }] }`.
 400 forma inválida · 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB ·
-**422 reglas fiscales** (lista completa de `errores`) · 429 límites (`Retry-After`).
+**422 reglas fiscales** (lista completa de `errores`; también `PERIODO_DEMASIADO_GRANDE`) · 429 límites
+(`DEMASIADAS_SOLICITUDES` por llave o `LIMITE_SOLICITUDES` de reportes en curso, con `Retry-After`).
 
 ## Emisión: una transacción
 

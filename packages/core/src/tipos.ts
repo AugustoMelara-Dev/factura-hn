@@ -268,6 +268,12 @@ export interface DocumentoFiscal {
   anulacion?: { motivo: string; fecha: string; hora: string };
 }
 
+/**
+ * Un documento sin sus líneas: lo que usan los reportes de resumen (libro de ventas, exportación CSV y TXT).
+ * Los reportes de período lo leen así para no cargar en memoria el detalle de cada documento.
+ */
+export type ResumenDocumento = Omit<DocumentoFiscal, 'lineas'>;
+
 export type EstadoDocumento = 'EMITIDO' | 'ANULADO';
 
 export interface Problema {

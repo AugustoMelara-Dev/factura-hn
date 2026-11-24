@@ -10,7 +10,8 @@ export function crearPool(
   max: number,
   registrar: (mensaje: string) => void = (m) => console.error(m),
 ): pg.Pool {
-  const pool = new pg.Pool({ connectionString: url, max, application_name: 'factura-hn-api' });
+  // connectionTimeoutMillis: si el pool está agotado, la solicitud falla en vez de esperar para siempre.
+  const pool = new pg.Pool({ connectionString: url, max, application_name: 'factura-hn-api', connectionTimeoutMillis: 30_000 });
   pool.on('error', (e) => registrar(`PostgreSQL cerró una conexión inactiva (${e.message}). Se abrirá otra en la siguiente consulta.`));
   return pool;
 }
