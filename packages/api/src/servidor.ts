@@ -11,12 +11,23 @@
  * - FHN_RETENCION_DIAS: días que se guarda la respuesta completa de una clave de idempotencia y una entrega
  *   terminada (por defecto 30, mínimo efectivo 7)
  * - FHN_DEMO=1: en modo local, carga datos de demostración con CAI ficticio
+ * - FHN_PROXIES_DE_CONFIANZA: proxies delante de la API (por defecto 0). Con 0, el límite de intentos fallidos
+ *   usa la dirección del socket e ignora X-Forwarded-For; con N, la N-ésima de X-Forwarded-For desde la derecha.
+ * - FHN_CONSOLA: cómo se invoca la consola en los mensajes (la imagen de Docker la define)
  */
 import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
-import { COMANDO_LLAVE_ADMIN_LOCAL, errorTenantsAjenos, iniciarLocal, tenantsAjenosAlModoLocal } from './operador';
+import {
+  bloqueLlavesDemo,
+  comandoLlaveAdminLocal,
+  comandoLlaveDemo,
+  consolaDe,
+  errorTenantsAjenos,
+  iniciarLocal,
+  tenantsAjenosAlModoLocal,
+} from './operador';
 import { crearPool, esperarBase, usuarioDeUrl, usuarioDeUrlSiHay } from './pool';
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
@@ -67,6 +78,9 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   const retencionTexto = env.FHN_RETENCION_DIAS ?? String(RETENCION_POR_DEFECTO);
   if (!/^\d{1,5}$/.test(retencionTexto)) throw new Error(`FHN_RETENCION_DIAS debe ser un número entero de días (no "${retencionTexto}").`);
   const retencion = Number(retencionTexto);
+  const proxiesTexto = env.FHN_PROXIES_DE_CONFIANZA || '0';
+  if (!/^\d{1,2}$/.test(proxiesTexto)) throw new Error(`FHN_PROXIES_DE_CONFIANZA debe ser un número entero de proxies (no "${proxiesTexto}").`);
+  const consola = consolaDe(env);
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const urlMigrar = env.FHN_MIGRAR_URL || null;
   const login = urlMigrar ? usuarioDeUrl(url) : undefined;
@@ -97,6 +111,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   let pool: pg.Pool | null = urlMigrar ? null : poolDueno;
   let demo: { llaveAdmin: string; llaveCaja: string } | undefined;
   let localSinLlaveAdmin = false;
+  let hayDemo = false;
   try {
     await esperarBase(poolDueno);
     await migrarApi(poolDueno, rol, { login });
@@ -105,6 +120,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
       if (ajenos.length) throw new Error(errorTenantsAjenos(ajenos));
       const r = await iniciarLocal(poolDueno, { demo: env.FHN_DEMO === '1', rol });
       localSinLlaveAdmin = r.localSinLlaveAdmin;
+      hayDemo = r.hayDemo;
       demo = r.demo;
     }
   } catch (e) {
@@ -138,21 +154,18 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
 
   if (localSinLlaveAdmin) {
     // La llave del negocio no pasa por este log: la consola la imprime solo en la terminal de quien la crea.
-    console.log(`factura-hn: el tenant «local» no tiene llave admin. Créala en tu terminal con: ${COMANDO_LLAVE_ADMIN_LOCAL}`);
+    console.log(`factura-hn: el tenant «local» no tiene llave admin. Créala en tu terminal con: ${comandoLlaveAdminLocal(consola)}`);
   }
-  if (demo) {
-    console.log('\n=== Demostración (tenant «demo», CAI FICTICIO: sin validez fiscal) ===');
-    console.log('Estas llaves son de una demostración sin validez fiscal: no sirven para el negocio.');
-    console.log(`Llave admin demo: ${demo.llaveAdmin}`);
-    console.log(`Llave caja demo 000-001: ${demo.llaveCaja}`);
-    console.log('Solo se muestran ahora.\n');
+  if (demo) console.log(bloqueLlavesDemo({ caja: demo.llaveCaja, admin: demo.llaveAdmin }, consola));
+  else if (hayDemo) {
+    console.log(`factura-hn: demostración activa (tenant «demo», CAI ficticio, sin validez fiscal). Otra llave de caja: ${comandoLlaveDemo(consola)}`);
   }
 
   const mantener = () =>
     mantenimientoApi(poolApi, rol, retencion).catch((e) => console.error('Mantenimiento de retención', e));
   await mantener();
 
-  const app = crearApp({ pool: poolApi, modo, rol, cofre });
+  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza: Number(proxiesTexto) });
   const puerto = Number(env.PUERTO ?? 8787);
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);
