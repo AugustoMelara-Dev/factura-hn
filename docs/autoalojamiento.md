@@ -135,8 +135,9 @@ docker compose up -d --build --wait   # las migraciones corren solas al arrancar
 - **Seguir como antes:** en tu override, deja `DATABASE_URL` con `postgres` y anula la nueva variable con
   `FHN_MIGRAR_URL: ""`. La API corre como dueño de las tablas y lo avisa en el log.
 
-Si solo cambias `FHN_MIGRAR_URL` y dejas `DATABASE_URL` con `postgres`, la API no arranca y el log dice qué
-cambiar: no corre como superusuario creyendo que no lo es.
+Si no cambias nada, o solo cambias `FHN_MIGRAR_URL` y dejas `DATABASE_URL` con `postgres`, la API no arranca
+y el log dice qué cambiar (tu override hereda `FHN_MIGRAR_URL` del `docker-compose.yml`, y las dos URL quedan con
+el mismo usuario): no corre como superusuario creyendo que no lo es.
 
 Antes de actualizar, haz un respaldo. Lee el `CHANGELOG.md`: mientras la versión sea 0.x, una versión menor
 puede traer cambios incompatibles.

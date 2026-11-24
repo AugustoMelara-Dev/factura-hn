@@ -223,18 +223,23 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   tablas, ni superusuario, ni salta RLS, y con NOINHERIT: por sí solo no tiene ningún permiso sobre las tablas.
   Aunque un SQL de la sesión hiciera `RESET ROLE`, no lee ni cambia nada. El `docker-compose.yml` usa así
   `fhn_api`, y `postgres` solo para migrar. Con `FHN_MIGRAR_URL` definida, la API **no arranca** si
-  `DATABASE_URL` usa el mismo usuario que el dueño, o si su rol es superusuario, tiene BYPASSRLS o es (o es
-  miembro de) el dueño de las tablas. El dueño de las tablas no necesita ser superusuario (sirve un Postgres
+  `DATABASE_URL` usa el mismo usuario que el dueño, o si su rol es superusuario, tiene BYPASSRLS, es
+  `pg_write_all_data` o `pg_read_all_data`, o es el dueño de las tablas, **o es miembro de un rol así** (aun con
+  NOINHERIT, podría pasar a él con `SET ROLE`). El dueño de las tablas no necesita ser superusuario (sirve un Postgres
   administrado con un rol CREATEROLE).
 - **Aislamiento entre tenants:** cada transacción corre como `fhn_app` (NOLOGIN, NOBYPASSRLS) con
   `factura_hn.tenant` fijado. Todas las tablas `fhn_*` y `api_*` tienen la política `fhn_por_tenant`. Las
   pruebas (`packages/api/test/rls.test.ts`) intentan leer y escribir en las 12 tablas como otro tenant.
 - `api_llaves` y `api_entregas` no fuerzan RLS al dueño. Tres funciones `SECURITY DEFINER` acotadas trabajan
-  sin el tenant de la sesión: `fhn_api_autenticar(prefijo)` busca una llave (y lee su tenant),
-  `fhn_api_tenants_con_pendientes()` lista los tenants con avisos por entregar, y `fhn_api_mantenimiento(dias)`
-  compacta las respuestas idempotentes viejas y borra (o deja como lápida) las entregas terminadas. Fijan el
-  tenant solo dentro de la función y lo devuelven al salir. Solo el rol de la aplicación las ejecuta, y sigue
-  sujeto a la política.
+  sin el tenant de la sesión:
+  - `fhn_api_autenticar(prefijo)` busca una llave y lee su tenant; fija ese tenant solo para esa lectura y
+    devuelve el anterior al salir.
+  - `fhn_api_tenants_con_pendientes()` solo lee `api_entregas` y lista los tenants con avisos por entregar; no
+    fija ningún tenant.
+  - `fhn_api_mantenimiento(dias)` compacta las respuestas idempotentes viejas, tenant por tenant, y borra (o deja
+    como lápida) las entregas terminadas; devuelve el tenant anterior al salir.
+
+  Solo el rol de la aplicación las ejecuta, y sigue sujeto a la política.
 - El rol no tiene DELETE en ninguna tabla. La bitácora de la API es de solo inserción (disparador). Las
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.

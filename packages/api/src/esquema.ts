@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS api_idempotencia (
   PRIMARY KEY (tenant, clave)
 );
 
--- v5: lo que falta compactar (el mantenimiento de cada hora no recorre las filas ya compactadas).
+-- v6: lo que falta compactar (el mantenimiento de cada hora no recorre las filas ya compactadas).
 CREATE INDEX IF NOT EXISTS api_idempotencia_por_compactar ON api_idempotencia (tenant, creada) WHERE respuesta ? 'documento';
 
 CREATE TABLE IF NOT EXISTS api_webhooks (
@@ -143,7 +143,8 @@ DO $do$ BEGIN
 EXECUTE format($f$
 -- v6: api_tenants fuerza RLS también al dueño; si el dueño no es superusuario (un Postgres administrado), el
 -- JOIN sin tenant no veía ninguna fila y ninguna llave autenticaba. Se busca la llave (api_llaves no fuerza RLS
--- al dueño), se fija su tenant solo para leer api_tenants y se devuelve el valor anterior, también con error.
+-- al dueño), se fija su tenant solo para leer api_tenants y se devuelve el valor anterior. Si algo falla, el
+-- error aborta la transacción (o la subtransacción) de quien llama, y con ella se deshace el set_config.
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
 RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
@@ -156,14 +157,9 @@ DECLARE
 BEGIN
   SELECT * INTO v_llave FROM api_llaves l WHERE l.prefijo = p_prefijo AND l.revocada IS NULL;
   IF NOT FOUND THEN RETURN; END IF;
-  BEGIN
-    PERFORM set_config('factura_hn.tenant', v_llave.tenant, true);
-    SELECT t.limite_mensual, t.activo INTO v_limite, v_activo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
-    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
-  EXCEPTION WHEN OTHERS THEN
-    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
-    RAISE;
-  END;
+  PERFORM set_config('factura_hn.tenant', v_llave.tenant, true);
+  SELECT t.limite_mensual, t.activo INTO v_limite, v_activo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   IF v_activo IS NOT TRUE THEN RETURN; END IF;
   RETURN QUERY SELECT v_llave.tenant, v_llave.hash, v_llave.rol, v_llave.establecimiento, v_llave.punto_emision,
     v_limite, v_llave.id, v_llave.nombre;
@@ -192,8 +188,9 @@ $$$f$, current_schema());
 -- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan.
 -- api_idempotencia fuerza RLS también al dueño: se recorre tenant por tenant. Todo tenant con claves tiene
 -- llaves (sin una no se emite y las llaves no se borran) y api_llaves no fuerza RLS al dueño.
--- factura_hn.tenant se guarda al entrar y se devuelve al salir (también si hay error): no queda fijado en la
--- transacción de quien llama. Sin cláusula SET en la función: en PostgreSQL 15+ fijar un parámetro propio en
+-- factura_hn.tenant se guarda al entrar y se devuelve al salir: no queda fijado en la transacción de quien
+-- llama. Si algo falla, el error aborta la transacción (o la subtransacción) de quien llama y con ella se
+-- deshace el set_config. Sin cláusula SET en la función: en PostgreSQL 15+ fijar un parámetro propio en
 -- la definición exige superusuario, y el dueño de las tablas en un Postgres administrado no lo es.
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_mantenimiento(p_dias integer)
@@ -206,24 +203,19 @@ DECLARE
   v_n bigint;
 BEGIN
   compactadas := 0;
-  BEGIN
-    FOR v_tenant IN SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_idempotencia LOOP
-      PERFORM set_config('factura_hn.tenant', v_tenant, true);
-      UPDATE api_idempotencia SET respuesta = jsonb_build_object('numero', respuesta->'documento'->>'numero')
-       WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
-      GET DIAGNOSTICS v_n = ROW_COUNT;
-      compactadas := compactadas + v_n;
-    END LOOP;
-    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
-    DELETE FROM api_entregas
-     WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'documento.%%';
-    GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
-    UPDATE api_entregas SET cuerpo = '{}'::jsonb
-     WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento NOT LIKE 'documento.%%' AND cuerpo <> '{}'::jsonb;
-  EXCEPTION WHEN OTHERS THEN
-    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
-    RAISE;
-  END;
+  FOR v_tenant IN SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_idempotencia LOOP
+    PERFORM set_config('factura_hn.tenant', v_tenant, true);
+    UPDATE api_idempotencia SET respuesta = jsonb_build_object('numero', respuesta->'documento'->>'numero')
+     WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    compactadas := compactadas + v_n;
+  END LOOP;
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  DELETE FROM api_entregas
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'documento.%%';
+  GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
+  UPDATE api_entregas SET cuerpo = '{}'::jsonb
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento NOT LIKE 'documento.%%' AND cuerpo <> '{}'::jsonb;
   RETURN NEXT;
 END
 $$$f$, current_schema());

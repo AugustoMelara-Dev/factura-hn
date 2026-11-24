@@ -14,7 +14,7 @@ import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import { crearLlaveOperador, crearTenant } from './operador';
-import { crearPool, urlDueno, usuarioDeUrl, usuarioDeUrlSiHay } from './pool';
+import { crearPool, urlDueno, usuarioDeUrl } from './pool';
 
 function opcion(args: string[], nombre: string): string | undefined {
   const i = args.indexOf(`--${nombre}`);
@@ -32,10 +32,9 @@ async function principal(args: string[]): Promise<void> {
   }
   const url = urlDueno(process.env);
   const rol = process.env.FHN_ROL ?? ROL_POR_DEFECTO;
-  // El rol LOGIN solo hace falta para `migrar`: los demás comandos no se bloquean si DATABASE_URL no lo trae.
-  const login = process.env.FHN_MIGRAR_URL && process.env.DATABASE_URL
-    ? (cmd === 'migrar' ? usuarioDeUrl(process.env.DATABASE_URL) : usuarioDeUrlSiHay(process.env.DATABASE_URL) || undefined)
-    : undefined;
+  // El rol LOGIN solo se prepara con `migrar`: los demás comandos no dependen de cómo se llame el usuario de
+  // DATABASE_URL (p. ej. «usuario@servidor» o con mayúsculas).
+  const login = cmd === 'migrar' && process.env.FHN_MIGRAR_URL && process.env.DATABASE_URL ? usuarioDeUrl(process.env.DATABASE_URL) : undefined;
   const pool = crearPool(url, 2);
   try {
     await migrarApi(pool, rol, { login });

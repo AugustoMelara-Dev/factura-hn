@@ -251,6 +251,23 @@ describe.skipIf(!URL_PG)('arranque', () => {
     await expect(arrancar({ ...base, DATABASE_URL: url(poderoso), FHN_MIGRAR_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/BYPASSRLS.*rol LOGIN propio/s);
   });
 
+  it('con FHN_MIGRAR_URL no arranca si DATABASE_URL puede pasar (SET ROLE) a un rol superusuario, con BYPASSRLS o pg_write_all_data', async () => {
+    const url = await esquemaNuevo();
+    const p = await poolPrueba();
+    const conBypass = `fhn_con_bypass_${hex()}`;
+    const casos: [string, string, RegExp][] = [
+      [`fhn_miembro_bypass_${hex()}`, `NOINHERIT IN ROLE ${conBypass}`, /miembro de un rol con BYPASSRLS/],
+      [`fhn_miembro_super_${hex()}`, 'NOINHERIT IN ROLE postgres', /miembro de un rol superusuario/],
+      [`fhn_miembro_escritura_${hex()}`, 'IN ROLE pg_write_all_data', /pg_write_all_data/],
+    ];
+    roles.push(...casos.map((c) => c[0]), conBypass);
+    await p.query(`CREATE ROLE ${conBypass} NOLOGIN BYPASSRLS`);
+    for (const [login, miembro, motivo] of casos) {
+      await p.query(`CREATE ROLE ${login} LOGIN ${miembro}`);
+      await expect(arrancar({ ...base, DATABASE_URL: url(login), FHN_MIGRAR_URL: url(), FHN_MODO: 'local' }), login).rejects.toThrow(motivo);
+    }
+  });
+
   it('dueño sin superusuario (Postgres administrado): migra, arranca, mantiene y devuelve el tenant de quien llama, también con error', async () => {
     const dueno = `fhn_dueno_${hex()}`;
     const app = `fhn_app_${hex()}`;

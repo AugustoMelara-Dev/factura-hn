@@ -23,19 +23,28 @@ import { CofreSecretos, despacharWebhooks } from './webhooks';
 const UNA_HORA = 3_600_000;
 
 /**
- * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Mira si
- * es superusuario, si salta RLS y si es (o puede volverse) el dueño de las tablas fiscales.
+ * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Recorre
+ * el rol de la conexión y **todos** los roles de los que es miembro (aun con NOINHERIT, puede pasar a ellos con
+ * `SET ROLE`): ninguno puede ser superusuario, tener BYPASSRLS, ser `pg_write_all_data` o `pg_read_all_data`,
+ * ni ser dueño de una tabla `fhn_*` o `api_*` del esquema.
  */
 export async function privilegiosDeConexion(pool: pg.Pool): Promise<string[]> {
-  const f = (await pool.query<{ usuario: string; rolsuper: boolean; rolbypassrls: boolean; dueno: boolean | null }>(
-    `SELECT r.rolname AS usuario, r.rolsuper, r.rolbypassrls,
-            (SELECT pg_has_role(current_user, c.relowner, 'MEMBER') FROM pg_class c WHERE c.oid = to_regclass('fhn_documentos')) AS dueno
-       FROM pg_roles r WHERE r.rolname = current_user`,
+  const f = (await pool.query<{ usuario: string; superusuario: boolean; bypassrls: boolean; todos_los_datos: boolean; dueno: boolean }>(
+    `SELECT current_user AS usuario,
+            coalesce(bool_or(m.rolsuper), false) AS superusuario,
+            coalesce(bool_or(m.rolbypassrls), false) AS bypassrls,
+            coalesce(bool_or(m.rolname IN ('pg_write_all_data', 'pg_read_all_data')), false) AS todos_los_datos,
+            EXISTS (SELECT 1 FROM pg_class c
+                     WHERE c.relnamespace = current_schema()::regnamespace
+                       AND (c.relname LIKE 'fhn\\_%' OR c.relname LIKE 'api\\_%')
+                       AND pg_has_role(current_user, c.relowner, 'MEMBER')) AS dueno
+       FROM pg_roles m WHERE pg_has_role(current_user, m.oid, 'MEMBER')`,
   )).rows[0]!;
   const motivos = [
-    ...(f.rolsuper ? ['es superusuario'] : []),
-    ...(f.rolbypassrls ? ['tiene BYPASSRLS'] : []),
-    ...(f.dueno ? ['es dueño de las tablas (o miembro del dueño)'] : []),
+    ...(f.superusuario ? ['es superusuario o miembro de un rol superusuario'] : []),
+    ...(f.bypassrls ? ['tiene BYPASSRLS o es miembro de un rol con BYPASSRLS'] : []),
+    ...(f.todos_los_datos ? ['es miembro de pg_write_all_data o pg_read_all_data'] : []),
+    ...(f.dueno ? ['es dueño de las tablas o miembro del dueño'] : []),
   ];
   return motivos.length ? [f.usuario, ...motivos] : [];
 }
@@ -65,7 +74,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     throw new Error(
       `DATABASE_URL y FHN_MIGRAR_URL usan el mismo usuario («${login}»): la API correría como dueño de las tablas. ` +
         'Pon en DATABASE_URL el rol LOGIN propio de la API (p. ej. fhn_api) y deja el dueño solo en FHN_MIGRAR_URL, ' +
-        'o quita FHN_MIGRAR_URL para seguir como antes.',
+        'o, para seguir como antes, deja FHN_MIGRAR_URL vacía (en Compose, FHN_MIGRAR_URL: "" en docker-compose.override.yml).',
     );
   }
 
@@ -114,9 +123,9 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
       if (p.length) {
         throw new Error(
           `DATABASE_URL se conecta como «${p[0]}», que ${p.slice(1).join(', ')}. Con FHN_MIGRAR_URL, DATABASE_URL debe ser un ` +
-            'rol LOGIN propio de la API, sin superusuario ni BYPASSRLS y sin ser dueño de las tablas (p. ej. ' +
+            'rol LOGIN propio de la API, que no sea ni pueda volverse superusuario, BYPASSRLS ni dueño de las tablas (p. ej. ' +
             'postgres://fhn_api:<contraseña>@host/base; ver la nota de actualización de docs/autoalojamiento.md), ' +
-            'o quita FHN_MIGRAR_URL para seguir como antes.',
+            'o, para seguir como antes, deja FHN_MIGRAR_URL vacía (en Compose, FHN_MIGRAR_URL: "" en docker-compose.override.yml).',
         );
       }
     } catch (e) {
