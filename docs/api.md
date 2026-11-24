@@ -206,13 +206,13 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.
 - `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión
-  completo, emitir con ella da 403 `CAJA_SIN_PUNTO` (DEC-052); la consola exige `--caja 000-001` con `--rol caja`.
+  completo, emitir con ella da 403 `CAJA_SIN_PUNTO`; la consola exige `--caja 000-001` con `--rol caja`.
 - `/docs` carga una versión fija de Swagger UI con Subresource Integrity, bajo una CSP que solo permite esos
-  archivos y no deja enmarcar la página (DEC-052).
+  archivos y no deja enmarcar la página.
 - CSV (libro de ventas y exportación): el texto que empieza con `= + - @` lleva un apóstrofo delante para que
   una hoja de cálculo no lo ejecute como fórmula.
 - Montos: la notación científica admite exponentes de hasta ±30 y 40 dígitos; más allá es `ErrorMonto` (422), sin
-  calcular nada (DEC-052).
+  calcular nada.
 - El cuerpo debe ser UTF-8 válido (400 `CUERPO_NO_UTF8`): un byte en otra codificación no se convierte en «?»
   dentro de un documento inmutable. Tamaño máximo: 512 KB (413 `CUERPO_DEMASIADO_GRANDE`).
 - Si Postgres se reinicia o cierra una conexión inactiva, la API lo registra en una línea y abre otra conexión
