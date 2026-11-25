@@ -118,7 +118,7 @@ El destino (la contabilidad o la oficina central) debe tolerar repetidos: si el 
   navegador no puede emitir ni anular.
 - **Respaldos.** Copia la base con `VACUUM INTO` o `.backup`; no copies el archivo mientras está abierto en modo
   WAL. El Código Tributario pide conservar la información 5 años en el domicilio fiscal (Arts. 58.4 y 63.3, según
-  la compilación de 2024; P-06).
+  la compilación de 2024; confírmalo con tu contador).
 
 Para varias cajas en red que comparten una serie, usa la API REST: ver [Varias cajas y sucursales](/guias/varias-cajas/).
 

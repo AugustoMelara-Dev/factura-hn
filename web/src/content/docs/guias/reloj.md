@@ -17,13 +17,12 @@ equivocada. Esta guía explica cómo lo previene el SDK y cómo se corrige sin b
 
 A partir de ahí, el proyecto adopta tres reglas:
 
-1. **La fecha la pone el reloj.** Enviar una `fechaEmision` distinta de la de hoy es `FECHA_EMISION_NO_ES_HOY`
-   (DEC-022, aprobada).
+1. **La fecha la pone el reloj.** Enviar una `fechaEmision` distinta de la de hoy es `FECHA_EMISION_NO_ES_HOY`.
 2. **Un documento válido no tiene fecha anterior al último válido de su serie**: `FECHA_ANTERIOR_AL_ULTIMO`. El
    Reglamento no dice «bloquear la emisión»; es la forma en que el SDK mantiene el archivo en orden cronológico
-   sin depender de que alguien lo ordene después. Los anulados no cuentan (DEC-003, aprobada).
+   sin depender de que alguien lo ordene después. Los anulados no cuentan.
 3. **Un salto grande del reloj se confirma**: `RELOJ_ADELANTADO_SOSPECHOSO`. El umbral de 7 días es una decisión
-   operativa, no una regla fiscal (DEC-002, aprobada).
+   operativa, no una regla fiscal.
 
 ## Los dos casos
 
@@ -111,8 +110,7 @@ El SDK no tiene con qué detectarlo: revisa el reloj de una caja nueva antes de 
 
 :::caution[Por confirmar con fuente]
 No se sabe si existe una fecha mínima válida para la primera emisión de una serie, por ejemplo la fecha de la
-resolución que otorga el CAI. Es la pregunta P-13 de la [consulta al SAR](/produccion/consulta-sar/), aún sin
-respuesta.
+resolución que otorga el CAI. factura-hn no pone piso: la fecha es siempre la de hoy. Confírmalo con tu contador.
 :::
 
 ## En las pruebas
@@ -137,4 +135,4 @@ Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y 
   [cumplimiento](/referencia/cumplimiento/), filas 14, 41 y 43.
 - `corregirFechaAdelantada` y `eventosAuditoria` en el núcleo; sección «Reloj del dispositivo» de
   `AGENTS.md`.
-- DEC-002, DEC-003 y DEC-022 en [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

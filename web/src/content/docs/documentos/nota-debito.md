@@ -20,19 +20,19 @@ Crédito.
 | CAI, número y fecha del «Comprobante Fiscal o el documento» que se modifica | Art. 28 num. 3 | `referencia: { cai, numero, fecha }` |
 | Motivo | Art. 28 num. 4 | `motivo` obligatorio |
 | Importe en números y letras, impuestos por tarifa, fecha, descripción y unidades | Art. 28 num. 5-7 y 9 | Igual que en la factura |
-| Moneda nacional | Art. 28 num. 8 | Solo en lempiras (`NOTA_MONEDA`; DEC-018) |
+| Moneda nacional | Art. 28 num. 8 | Solo en lempiras (`NOTA_MONEDA`) |
 
 ## En qué se diferencia de la Nota de Crédito
 
 - **Puede referir cualquier documento.** El Art. 4 num. 31 la vincula a un comprobante fiscal, pero el Art. 28
   num. 3 b dice «Comprobante Fiscal **o el documento**». El proyecto adopta la lectura amplia: una Nota de Débito
-  puede modificar una factura, otra Nota de Débito o una Nota de Crédito (DEC-016, aprobada).
+  puede modificar una factura, otra Nota de Débito o una Nota de Crédito.
 - **No lleva firma de quien la recibe.** Ese dato lo pide el Art. 26 num. 7 solo para la Nota de Crédito.
 - **No tiene saldo.** `NOTA_SUPERA_ORIGINAL` y `NOTA_TASA_DISTINTA` se aplican solo a la Nota de Crédito, y una
-  Nota de Débito no amplía el saldo disponible para notas de crédito (DEC-051, marcada [REVISAR]).
+  Nota de Débito no amplía el saldo disponible para notas de crédito (lectura de factura-hn del Art. 4 num. 32).
 
 Lo demás es igual que en la [Nota de Crédito](/documentos/nota-credito/): la coherencia con el original guardado
-(CAI, fecha, RTN, no anulado; DEC-004), la fecha no anterior al original (DEC-017), el aviso para originales de
+(CAI, fecha, RTN, no anulado), la fecha no anterior al original, el aviso para originales de
 otro sistema y la conversión de dólares a lempiras.
 
 ## Campos obligatorios
@@ -77,8 +77,7 @@ El motivo del ejemplo ilustra la API. No es una lista de casos admitidos: ver el
 :::caution[Por confirmar con fuente]
 El Reglamento solo dice que la Nota de Débito respalda «ajustes» (Art. 4 num. 31). El repositorio no tiene una
 fuente que diga qué ajustes concretos admite: intereses, fletes o diferencias de precio. Confírmalo con tu
-contador antes de usarla. Este tema aún no tiene pregunta propia en la
-[consulta al SAR](/produccion/consulta-sar/).
+contador antes de usarla.
 :::
 
 ## Errores frecuentes
@@ -100,5 +99,4 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 ## Fuentes
 
 - Reglamento, Arts. 4 num. 31, 27 y 28: matriz de [cumplimiento](/referencia/cumplimiento/), filas 4.31-32 y 25-28.
-- Interpretaciones: DEC-004, DEC-016, DEC-017, DEC-018 y DEC-051 (marcada [REVISAR]) en
-  [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

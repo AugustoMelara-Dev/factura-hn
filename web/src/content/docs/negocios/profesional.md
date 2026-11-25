@@ -97,8 +97,7 @@ cambia `isv` en la línea; factura-hn no decide cuál corresponde.
 - **Retenciones sobre honorarios** y el Comprobante de Retención (05), que factura-hn no emite.
 - **Qué modalidad le corresponde** según su actividad: sistema, imprenta o máquina registradora.
 
-Ninguna de estas preguntas está todavía en la [consulta al SAR](/produccion/consulta-sar/), que además aún no se ha
-enviado. Si tienes la fuente (un artículo o una respuesta escrita del SAR), apórtala con la plantilla «Regla
+El repositorio no tiene fuente para estos puntos: confírmalos con tu contador. Si tienes la fuente (un artículo o una respuesta escrita del SAR), apórtala con la plantilla «Regla
 fiscal»: ver [Contribuir](/ayuda/contribuir/).
 :::
 

@@ -22,7 +22,7 @@ Nada. El SDK, los almacenes, el PDF, el modo local de la API, el cliente, el MCP
 de código abierto (licencia MIT). El proyecto no pone ninguna función fiscal detrás de un pago.
 
 El modo alojado de la API (varios negocios en un servidor) existe en el código, pero no se ofrece como servicio
-mientras el SAR no responda la consulta P-02. Ver [¿Puedo usarlo en la nube?](#puedo-usarlo-en-la-nube)
+mientras no esté claro cómo encaja con el Art. 47. Ver [¿Puedo usarlo en la nube?](#puedo-usarlo-en-la-nube)
 
 ### ¿Es factura electrónica?
 
@@ -35,8 +35,7 @@ num. 9 y Art. 54). Prevé un calendario y una documentación técnica (Arts. 57 
 ninguna publicación oficial. factura-hn no implementa el CAEE. Ver [Normativa](/referencia/normativa/).
 
 :::caution[Por confirmar con fuente]
-Calendario y especificación técnica de la emisión electrónica (Arts. 57-58). Es la pregunta P-12 de la
-[consulta al SAR](/produccion/consulta-sar/).
+Calendario y especificación técnica de la emisión electrónica (Arts. 57-58): no se encontraron publicados.
 :::
 
 ### ¿El proveedor del software tiene que estar registrado o certificado?
@@ -46,8 +45,8 @@ a quien imprime formularios, no a un software. El proyecto no encontró un regis
 Eso no prueba que no exista. La Declaración Jurada del sistema la firma el negocio (Art. 53).
 
 :::caution[Por confirmar con fuente]
-Si existe un registro, homologación o certificación de proveedores de software. Es la pregunta P-01 de la
-[consulta al SAR](/produccion/consulta-sar/).
+Si existe un registro, homologación o certificación de proveedores de software: no se encontró en el Reglamento.
+Confírmalo con tu contador.
 :::
 
 ## Antes de facturar
@@ -66,8 +65,7 @@ Sí. Para emitir con un sistema, el negocio:
 Ver [Pasos ante la autoridad tributaria](/produccion/tramites/).
 
 :::caution[Por confirmar con fuente]
-Formularios, medio y plazos de la inscripción y de la Declaración Jurada. Es la pregunta P-03 de la
-[consulta al SAR](/produccion/consulta-sar/).
+Formularios, medio y plazos de la inscripción y de la Declaración Jurada. Confírmalos con tu contador.
 :::
 
 ### ¿Puedo probar sin un CAI real?
@@ -83,14 +81,13 @@ Sí, el de **tu** resolución del SAR. Se registra una vez por tipo de documento
 
 Si ya emitiste documentos con ese CAI (en talonario o en otro sistema), indica el último número usado
 (`ultimoEmitidoAntes`): la serie sigue en el siguiente. Sin ese dato, empieza en el rango inicial y esos números
-se repetirían. Este campo es una lectura del proyecto pendiente de confirmar (DEC-008, en revisión). Ver
+se repetirían. Este campo es una lectura del proyecto: el Reglamento no regula la migración de una serie. Ver
 [CAI y rangos](/produccion/cai-y-rangos/).
 
 :::caution[Por confirmar con fuente]
 La autorización se otorga por sistema y por tipo de documento (Art. 61). El repositorio no tiene fuente sobre si
 un CAI solicitado para otro sistema o para talonarios de imprenta puede seguir usándose al cambiar a factura-hn.
-Es la pregunta P-15 de la consulta, aún sin respuesta: confírmalo con tu contador o con el SAR antes de registrarlo. Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+Confírmalo con tu contador o con el SAR antes de registrarlo.
 :::
 
 ### ¿Necesito internet?
@@ -109,8 +106,8 @@ pide registrar «el establecimiento donde se encuentre el servidor», y un servi
 encaja literalmente en esa definición. Ver [Autoalojamiento](/guias/autoalojar/).
 
 :::caution[Por confirmar con fuente]
-Si un sistema alojado en la nube por un tercero cumple el Art. 47 y qué establecimiento se declara. Es la pregunta
-P-02 de la [consulta al SAR](/produccion/consulta-sar/).
+Si un sistema alojado en la nube por un tercero cumple el Art. 47 y qué establecimiento se declara: el Reglamento
+no lo dice de forma literal. Confírmalo con tu contador.
 :::
 
 ### ¿Qué productos van al 18 % o son exentos?
@@ -119,9 +116,7 @@ Lo decide el negocio con su contador: la librería no trae listas de productos. 
 (`ISV15`, `ISV18`, `GRAVADO0` o `EXENTO`). Ver [ISV y montos](/conceptos/isv-y-montos/).
 
 :::caution[Por confirmar con fuente]
-La tasa del 18 % viene del Decreto 278-2013, Art. 16, que el proyecto no tiene en texto primario (P-11; DEC-069, en
-revisión). El repositorio tampoco tiene la lista de bienes exentos. Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+La tasa del 18 % viene del Decreto 278-2013, Art. 16, que el proyecto no tiene en texto primario. El repositorio tampoco tiene la lista de bienes exentos.
 :::
 
 ## Al emitir
@@ -143,7 +138,7 @@ consumidor final, el sistema le emite Factura. Ver [Documentos no emitibles](/do
 ### ¿Puedo cambiar la fecha de una factura?
 
 No. La fecha de emisión la pone el reloj en hora de Honduras: no se puede retrofechar ni adelantar
-(`FECHA_EMISION_NO_ES_HOY`). Es la decisión DEC-022, que se apoya en el momento de emisión (Art. 14) y en el archivo
+(`FECHA_EMISION_NO_ES_HOY`). Es una decisión de factura-hn que se apoya en el momento de emisión (Art. 14) y en el archivo
 en orden cronológico (Art. 43). Si el reloj del equipo está mal, ver [Reloj](/guias/reloj/).
 
 ### ¿Qué pasa si se va la luz a mitad de una venta?
@@ -165,7 +160,7 @@ reiniciar: es solo para pruebas. Ver [Almacén fiscal](/conceptos/almacen/) y
 ### Un cliente exonerado trae una Orden de Compra Exenta que no cubre todo. ¿Qué hago?
 
 Emite dos facturas: una con `exoneracion` y los artículos cubiertos por la OCE, y otra normal con el resto. La
-exoneración aplica al documento completo: es una decisión del proyecto (DEC-019), porque el Reglamento no regula
+exoneración aplica al documento completo: es una decisión del proyecto, porque el Reglamento no regula
 una exoneración parcial. Los documentos que acreditan la exoneración son los del Art. 11 num. 4. Ver
 [Exonerado](/conceptos/isv-y-montos/#exonerado).
 
@@ -183,7 +178,7 @@ Ver [Documentos inmutables](/conceptos/inmutables/).
 
 ### ¿Cómo hago una nota sobre una factura en dólares?
 
-La nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8; DEC-018). Escribe sus líneas en dólares: se
+La nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8). Escribe sus líneas en dólares: se
 convierten con el tipo de cambio de la factura original, que la nota imprime como referencia. Ver
 [Nota de Crédito](/documentos/nota-credito/).
 
@@ -192,8 +187,8 @@ convierten con el tipo de cambio de la factura original, que la nota imprime com
 ### ¿Por qué la factura de prueba no sale en el libro de ventas?
 
 Porque no tiene valor fiscal. `libroVentas` y `exportarTexto` dejan fuera los documentos de prueba, y el libro
-dice cuántos quedaron fuera (`excluidos`). Es la decisión DEC-064. La leyenda de prueba es una marca del
-producto, no una regla fiscal (DEC-063). Para probar, usa otro almacén: un punto de emisión no mezcla documentos
+dice cuántos quedaron fuera (`excluidos`). La leyenda de prueba es una marca del
+producto, no una regla fiscal. Para probar, usa otro almacén: un punto de emisión no mezcla documentos
 de prueba y reales. Ver [Reportes](/guias/reportes/).
 
 ### ¿Cuánto tiempo guardo los documentos?
@@ -205,7 +200,7 @@ nunca de forma automática. Ver [Operación mensual](/produccion/operacion-mensu
 
 :::caution[Por confirmar con fuente]
 La cita sale de una compilación del Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas
-posteriores (P-06 de la [consulta al SAR](/produccion/consulta-sar/)).
+posteriores.
 :::
 
 ### Al instalar con pnpm aparece «Agent skills awaiting approval: factura-hn (tarball)». ¿Qué es?

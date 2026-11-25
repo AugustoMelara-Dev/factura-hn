@@ -1,5 +1,5 @@
 /*
- * Tema de factura-hn sobre Starlight: una referencia técnica sobria (docs/analisis/sitio-web.md §5).
+ * Tema de factura-hn sobre Starlight: una referencia técnica sobria.
  *
  * Las paletas clara y oscura se asignan a las variables de Starlight. Cada par texto/fondo que se usa pasa AA
  * (4,5:1 para texto, 3:1 para bordes de componentes): lo comprueba `scripts/contraste.test.mjs` leyendo este

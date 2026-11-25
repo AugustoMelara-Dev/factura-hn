@@ -34,7 +34,7 @@ El CAI, el rango y la fecha límite se imprimen en cada documento (Art. 10 num. 
 **Formato del CAI.** Como el Reglamento no fija un formato, el SDK acepta letras, dígitos y guiones, y recorta
 los espacios del inicio y del final. Un espacio o un signo en medio da
 [`CAI_FORMATO`](/referencia/errores/#cai_formato): suele ser un error al copiarlo. La forma `6-6-6-6-6-2` que se
-observa en los CAI solo se exige con la opción `caiEstricto`, y no es normativa (DEC-013).
+observa en los CAI solo se exige con la opción `caiEstricto`, y no es normativa.
 
 ## Registrar una autorización
 
@@ -120,8 +120,8 @@ El aviso de vencimiento sigue al Art. 59: la nueva autorización se solicita «d
 previos» a la fecha límite.
 
 :::note[Interpretación pendiente]
-Contar esos dos meses como meses de calendario (y no como 60 días) es una lectura del proyecto que espera
-revisión: DEC-025 [REVISAR]. Ver [Decisiones](/referencia/decisiones/).
+Contar esos dos meses como meses de calendario (y no como 60 días) es la lectura que aplica factura-hn: el
+Art. 59 no dice cómo se cuentan.
 :::
 
 La API expone lo mismo en `GET /v1/autorizaciones/{cai}/estado` y el MCP en la herramienta `estado_cai`.
@@ -156,8 +156,8 @@ Con eso:
 Omite el campo en una autorización nueva.
 
 :::note[Interpretación pendiente]
-`ultimoEmitidoAntes` es una decisión del proyecto para no reutilizar números en una migración, y espera
-revisión: DEC-008 [REVISAR].
+`ultimoEmitidoAntes` es una decisión del proyecto para no reutilizar números en una migración: el Reglamento no
+regula la migración de una serie. Confírmalo con tu contador.
 :::
 
 ## Siguientes pasos

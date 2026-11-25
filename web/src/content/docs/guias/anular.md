@@ -23,7 +23,7 @@ copia, en orden cronológico. En factura-hn:
 - `anular` guarda el documento con `estado: 'ANULADO'`, el motivo y la fecha de la anulación;
 - **el número sigue consumido**: no se reutiliza ni se borra, y la serie no tiene huecos;
 - el documento conserva su contenido, su fecha y su CAI; al imprimirse lleva «ANULADA» al inicio y al final;
-- el motivo es obligatorio (DEC-001, aprobada) y queda en el documento y en la bitácora, con quién anuló.
+- el motivo es obligatorio y queda en el documento y en la bitácora, con quién anuló.
 
 ```ts
 import { crearFacturadorDemo } from 'factura-hn/demo';
@@ -57,7 +57,7 @@ anula por su cuenta. Con `@factura-hn/cliente`: `fhn.anular(numero, motivo, { op
 **Después de anular:**
 
 - Si la venta fue real, emite un documento nuevo con los datos correctos. La fecha será la de hoy: no se
-  retrofecha (DEC-022, aprobada).
+  retrofecha.
 - Recupera el original del cliente cuando sea posible: el Art. 41 pide resguardar el original y la copia.
 - En el libro de ventas, el anulado sale con su número y montos en cero. En la exportación de texto, con sus
   importes originales y `estado = ANULADO`. Ver [Reportes del mes](/guias/reportes/).
@@ -94,14 +94,14 @@ const nota = await caja.notaCredito({
 ```
 
 Una Nota de Crédito necesita el RTN del adquirente (Art. 26 num. 1-2) y no puede superar el saldo del original
-(DEC-051, marcada [REVISAR]).
+(lectura de factura-hn del Art. 4 num. 32: la nota ajusta el comprobante correspondiente).
 Los detalles están en [Nota de Crédito](/documentos/nota-credito/).
 
 ## Lo que no se puede hacer
 
 - **Anular dos veces.** Da `YA_ANULADO`. No hace falta hacer nada.
 - **Emitir una nota sobre un documento anulado.** Da `REFERENCIA_ANULADA`: un anulado no respalda una operación
-  que ajustar (DEC-004, aprobada; el Art. 41 trata el anulado como un documento con errores). Si la venta sigue vigente, refiere al documento que la respalda.
+  que ajustar (el Art. 41 trata el anulado como un documento con errores). Si la venta sigue vigente, refiere al documento que la respalda.
 - **Editar o borrar.** Los almacenes de SQLite y Postgres lo impiden con disparadores en la base, aunque alguien
   la edite a mano: un documento emitido solo puede pasar a ANULADO.
 
@@ -110,7 +110,7 @@ Anular una Nota de Crédito libera su importe: el saldo del original vuelve a es
 :::caution[Por confirmar con fuente]
 - **Devolución de una venta a consumidor final.** La Nota de Crédito exige el RTN del adquirente, y una factura a
   «CONSUMIDOR FINAL» no lo tiene. Si en ese caso se emite la nota con los datos que dé el cliente es una
-  interpretación pendiente (DEC-079, marcada [REVISAR]). Anular no es la salida: una devolución no es un error de
+  lectura de factura-hn de los Arts. 26 y 28, que no lo dicen de forma literal. Anular no es la salida: una devolución no es un error de
   emisión.
 - **Plazo para anular.** El repositorio no tiene una fuente sobre un plazo máximo para anular un documento ya
   entregado al cliente.
@@ -133,5 +133,4 @@ Consulta los dos casos con tu contador.
 - Reglamento, Arts. 4 num. 31-32, 14, 26, 41 y 43: matriz de [cumplimiento](/referencia/cumplimiento/), filas
   4.31-32, 26 y 41.
 - `anular` y `corregirFechaAdelantada` en el núcleo; [Documentos inmutables](/conceptos/inmutables/).
-- DEC-001, DEC-004, DEC-022, DEC-051 (marcada [REVISAR]) y DEC-079 (marcada [REVISAR]) en
-  [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

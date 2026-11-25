@@ -66,9 +66,8 @@ contenido da `IDEMPOTENCIA_CONFLICTO`.
 a CONSUMIDOR FINAL), pasa `cliente` con el nombre y el RTN del comprador: el núcleo pide nombre y RTN del adquirente en
 toda nota (`NOTA_CLIENTE_RTN`). Si el original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
 
-:::note[Interpretación pendiente]
-Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28 que espera revisión
-(DEC-079 [REVISAR]). La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Ver [Decisiones](/referencia/decisiones/).
+:::note[Lectura de factura-hn]
+Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28: no lo dicen de forma literal. La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Confírmalo con tu contador.
 :::
 
 ### `registrar_cai`
@@ -88,8 +87,8 @@ emitiste con ese CAI y no indicas `ultimoEmitidoAntes`, la serie empieza en el r
 repetirían.
 :::
 
-`ultimoEmitidoAntes` es una lectura del proyecto pendiente de confirmar (DEC-008, en revisión). Ver
-[Decisiones](/referencia/decisiones/).
+`ultimoEmitidoAntes` es una lectura del proyecto: el Reglamento no regula la migración de una serie. Ver
+[CAI y rangos](/produccion/cai-y-rangos/).
 
 ## Seguridad
 
@@ -106,7 +105,7 @@ repetirían.
 ## Base de prueba aparte
 
 La base de prueba y la real son archivos distintos, para que los documentos de prueba no se mezclen con la
-numeración fiscal (DEC-074).
+numeración fiscal.
 
 | | Prueba | Real |
 |---|---|---|

@@ -36,11 +36,10 @@ El [ejemplo de Express](https://github.com/AugustoMelara-Dev/factura-hn/tree/mai
 - **Arriba de L 10,000** a consumidor final, nombre e identificación del cliente (Art. 11, párrafo final). Pídelos
   en el formulario de compra; si faltan, la API responde 422 con `CONSUMIDOR_FINAL_IDENTIFICACION`.
 - **Crédito fiscal**: el cliente que lo necesita da su RTN al comprar (Art. 11 num. 1 a-c).
-- **Precios con ISV incluido**: factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01). Cobra el total que devuelve la API, o cotiza antes de cobrar.
+- **Precios con ISV incluido**: factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn). Cobra el total que devuelve la API, o cotiza antes de cobrar.
 
 :::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
-(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
 :::
 
 ## Ejemplo: facturar un pedido pagado
@@ -85,7 +84,7 @@ await facturarPedido({ id: '1001', lineas: [{ descripcion: 'Audífonos inalámbr
 await facturarPedido({ id: '1002', lineas: [{ descripcion: 'Televisor 55 pulgadas', cantidad: '1', precioUnitario: '12500.00' }] });
 // → { ok: false, errores: ['Ventas a consumidor final mayores de L 10,000.00 requieren nombre e identificación del cliente (Art. 11).'] }
 
-// Con nombre y DNI (ficticios). Sin base exacta, el total queda 1 centavo por debajo (D-01, P-10).
+// Con nombre y DNI (ficticios). Sin base exacta, el total queda 1 centavo por debajo (Ley del ISV, Art. 9).
 await facturarPedido({
   id: '1003',
   cliente: { nombre: 'Persona Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } },
@@ -123,15 +122,14 @@ No son reglas fiscales: son la forma segura de integrar.
 :::caution[Por confirmar con fuente]
 - **Entrega del original.** Si el cliente no está presente, el emisor debe hacerle llegar el original. El
   repositorio sugiere el PDF por correo, pero sin artículo: no se sabe si la entrega electrónica cumple la
-  obligación de entregar el original (Arts. 5 y 14) (aún sin pregunta propia en la consulta).
+  obligación de entregar el original (Arts. 5 y 14).
 - **Compradores en el extranjero**: si una venta en línea a alguien fuera de Honduras es una exportación con tasa
-  cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento» (pregunta P-09).
+  cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento».
 - **Moneda de cobro frente a moneda del documento**: si la tienda cobra en dólares, qué moneda y qué tipo de cambio
   lleva la factura. El repositorio solo cubre el tipo de cambio vigente a la fecha (Art. 11, párrafo final).
-- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
-- **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio (pregunta P-05), y el encaje de una API alojada con los Arts. 47 y 61 (pregunta P-02).
-
-Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
+- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos.
+- **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio, y el encaje de una API alojada con los Arts. 47 y 61.
+Confírmalo con tu contador antes de emitir.
 :::
 
 ## Qué confirmar con tu contador

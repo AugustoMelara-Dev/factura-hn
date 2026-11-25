@@ -30,8 +30,7 @@ horaHonduras(instante);  // "23:30"
 
 `emitir` toma la fecha del reloj. Si envías `fechaEmision` con otra fecha, falla con
 [`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. Que la fecha sea
-siempre la de hoy es una decisión aprobada del proyecto, porque los Arts. 14 y 43 no lo prohíben literalmente
-([DEC-022](/referencia/decisiones/#dec-022--la-fecha-de-emisión-es-la-de-hoy-en-honduras--aprobada-2026-11-18)).
+siempre la de hoy es una decisión aprobada del proyecto, porque los Arts. 14 y 43 no lo prohíben literalmente.
 
 Un documento con la fecha equivocada no se edita: se anula y se emite otro. Ver
 [Documentos inmutables](/conceptos/inmutables/).
@@ -62,7 +61,7 @@ Un reloj mal puesto rompe ese orden. Dos errores lo detectan:
 | [`RELOJ_ADELANTADO_SOSPECHOSO`](/referencia/errores/#reloj_adelantado_sospechoso) | La fecha de hoy está más de 7 días después de la última emisión de la serie | Corregir el reloj. Si la fecha es correcta (el negocio estuvo cerrado), reintentar con `confirmarSaltoDeFecha: true`; queda en la bitácora |
 | [`FECHA_ANTERIOR_AL_ULTIMO`](/referencia/errores/#fecha_anterior_al_ultimo) | El último documento válido tiene una fecha posterior a hoy | Si el reloj de esta caja está atrasado, corregirlo. Si un documento anterior salió con el reloj adelantado, anularlo con `corregirFechaAdelantada` |
 
-El umbral de 7 días es una decisión operativa, no una regla fiscal: ningún artículo lo fija ([DEC-002](/referencia/decisiones/#dec-002--umbral-de-salto-de-fecha-7-días--aprobada-2026-11-18)). Se cambia
+El umbral de 7 días es una decisión operativa, no una regla fiscal: ningún artículo lo fija. Se cambia
 con `saltoMaximoDias`.
 
 `corregirFechaAdelantada` anula en una transacción los documentos de la serie con fecha futura, sin borrar ni
@@ -72,8 +71,8 @@ documentos nuevos con la fecha correcta. El procedimiento paso a paso está en
 
 :::caution[Por confirmar con fuente]
 Un reloj **atrasado** en la primera emisión de una serie no se detecta: no hay una emisión anterior con la cual
-comparar, y la autorización no trae una fecha que sirva de piso. Falta saber si existe esa fecha mínima (P-13).
-Revisa el reloj de cada caja antes de su primera venta. Ver la [consulta al SAR](/produccion/consulta-sar/).
+comparar, y la autorización no trae una fecha que sirva de piso. Falta saber si existe esa fecha mínima.
+Revisa el reloj de cada caja antes de su primera venta.
 :::
 
 Las funciones de fecha y `corregirFechaAdelantada` están en la [referencia del SDK](/referencia/sdk/).

@@ -53,7 +53,7 @@ SDK: `AutorizacionCAI.cai`. Ver [Cómo funciona](/conceptos/como-funciona/).
 
 Los documentos que respaldan una operación (Art. 6): Factura (01), Recibo por Honorarios (04), Ticket (09),
 Factura Prevalorada (10), Boleta de Compra (11) y Constancia de Donación (12). Una Nota de Crédito solo se vincula a
-uno de ellos (Art. 4 num. 32 y Art. 6; DEC-016).
+uno de ellos (Art. 4 num. 32 y Art. 6).
 SDK: `COMPROBANTES_FISCALES`. Ver [Documentos](/documentos/).
 
 ### Consumidor final
@@ -81,7 +81,7 @@ Ver [Pasos ante la autoridad tributaria](/produccion/tramites/).
 ### Crédito fiscal (base de)
 
 En una venta con partes exentas y gravadas, el crédito fiscal se reconoce solo sobre lo gravado (Art. 11 num. 3).
-factura-hn no incluye lo gravado al 0 % en esa base (DEC-020).
+factura-hn no incluye lo gravado al 0 % en esa base.
 SDK: `totales.baseCreditoFiscal`, aviso `AVISO_VENTA_MIXTA`. Ver [ISV y montos](/conceptos/isv-y-montos/).
 
 ## D
@@ -120,8 +120,7 @@ SDK: `isv: 'EXENTO'`, `totales.importeExento`. Ver [ISV y montos](/conceptos/isv
 ### Exonerado
 
 Un adquirente con derecho a no pagar el ISV, que lo acredita con la Orden de Compra Exenta y la Constancia del
-Registro de Exonerados, o con el registro SAG/RUPNSA (Art. 11 num. 4). La exoneración aplica al documento completo
-(DEC-019).
+Registro de Exonerados, o con el registro SAG/RUPNSA (Art. 11 num. 4). La exoneración aplica al documento completo.
 SDK: `exoneracion`, `totales.importeExonerado`. Ver [Exonerado](/conceptos/isv-y-montos/#exonerado).
 
 ## F
@@ -148,8 +147,8 @@ discrimina aparte (Art. 11 num. 1 g).
 SDK: `isv: 'GRAVADO0'`, `totales.importeGravado0`. Ver [Factura](/documentos/factura/).
 
 :::caution[Por confirmar con fuente]
-La Ley del ISV dice que las exportaciones quedan «exentas». El proyecto sigue al Reglamento (Art. 12) a la espera de
-la pregunta P-09 de la [consulta al SAR](/produccion/consulta-sar/).
+La Ley del ISV dice que las exportaciones quedan «exentas». El proyecto sigue al Reglamento (Art. 12): es la
+lectura que aplica factura-hn. Confírmalo con tu contador.
 :::
 
 ## I
@@ -174,8 +173,7 @@ SDK: `isv: 'ISV15' | 'ISV18'`, `totales.isv15`, `totales.isv18`. Ver [ISV y mont
 
 :::caution[Por confirmar con fuente]
 Las tasas vigentes vienen del Decreto 278-2013, Art. 16, que el proyecto no tiene en texto primario. Falta también
-la lista oficial de bienes y servicios al 18 % (P-11; DEC-069, en revisión). Ver la
-[consulta al SAR](/produccion/consulta-sar/) y [Decisiones](/referencia/decisiones/).
+la lista oficial de bienes y servicios al 18 %. Confírmalo con tu contador.
 :::
 
 ## L
@@ -190,9 +188,9 @@ Ver [Referencia de la API](/referencia/api/).
 
 ### Modo de prueba
 
-Término técnico, no una regla fiscal (DEC-063). Lo que se emite con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva
+Término técnico, no una regla fiscal. Lo que se emite con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva
 `modo: 'prueba'`, la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y queda fuera del libro de ventas y de la
-exportación (DEC-064).
+exportación.
 SDK: `factura-hn/demo`, `esDocumentoDePrueba`. Ver [Tu primera factura](/empezar/primera-factura/).
 
 ### Momento de emisión
@@ -212,7 +210,7 @@ SDK: `tipoDocumento: '06'`. Ver [Nota de Crédito](/documentos/nota-credito/).
 ### Nota de Débito
 
 Documento que registra ajustes sobre un Comprobante Fiscal o sobre otro documento (Art. 4 num. 31 y Art. 28
-num. 3 b; DEC-016). Código 07, con su propia autorización y serie (Art. 27 num. 5).
+num. 3 b). Código 07, con su propia autorización y serie (Art. 27 num. 5).
 SDK: `tipoDocumento: '07'`. Ver [Nota de Débito](/documentos/nota-debito/).
 
 ### Número del documento
@@ -227,13 +225,13 @@ SDK: `formatearNumero`, `parsearNumero`, `esNumeroValido`. Ver [Cómo funciona](
 
 Uno de los documentos con que un adquirente exonerado acredita la exoneración, junto con la Constancia del
 Registro de Exonerados. El sector agroindustrial puede presentar en su lugar el registro SAG/RUPNSA (Art. 11
-num. 4; DEC-021).
+num. 4).
 SDK: `exoneracion.ordenCompraExenta`, `exoneracion.constanciaRegistroExonerado`, `exoneracion.registroSAG`.
 Ver [Exonerado](/conceptos/isv-y-montos/#exonerado).
 
 :::caution[Por confirmar con fuente]
-Si el registro SAG/RUPNSA basta sin OCE ni constancia es la pregunta P-08 de la
-[consulta al SAR](/produccion/consulta-sar/).
+Si el registro SAG/RUPNSA basta sin OCE ni constancia: el Art. 11 num. 4 no es literal. factura-hn lo acepta;
+confírmalo con tu contador.
 :::
 
 ## P
@@ -274,7 +272,7 @@ Ver [Preguntas frecuentes](/ayuda/preguntas-frecuentes/#el-proveedor-del-softwar
 ### RTN
 
 El Registro Tributario Nacional. factura-hn valida el RTN con 14 dígitos y el DNI con 13. El Reglamento no fija
-esas longitudes: son una decisión del proyecto (DEC-024).
+esas longitudes: son una decisión del proyecto.
 SDK: `esRTNValido`, `esDNIValido`, `formatearRTN`, `formatearDNI`.
 
 ## S

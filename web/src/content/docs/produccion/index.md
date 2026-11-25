@@ -15,10 +15,9 @@ otra cosa. La lista de pasos ante el SAR, con sus fuentes, está en [Trámites a
 
 :::caution[Por confirmar con fuente]
 El repositorio tiene los artículos de cada trámite, pero no el procedimiento actual: qué formulario se usa, por
-qué medio de la Oficina Virtual se presenta y cuánto tarda (pregunta P-03). Tampoco sabe qué modalidad
-corresponde a cada negocio según su tamaño o giro: sistema, imprenta o máquina registradora (aún sin pregunta propia en la consulta). Ambas cosas
-las confirma tu contador. La consulta formal está en [Consulta al SAR](/produccion/consulta-sar/) y aún no se ha
-enviado.
+qué medio de la Oficina Virtual se presenta y cuánto tarda. Tampoco sabe qué modalidad
+corresponde a cada negocio según su tamaño o giro: sistema, imprenta o máquina registradora. Ambas cosas
+las confirma tu contador.
 :::
 
 ## El orden, de un vistazo
@@ -49,7 +48,7 @@ enviado.
 6. **Solicitud del CAI**: una autorización por punto de emisión y por tipo de documento (Art. 59), y por cada
    sistema (Art. 61). Ver [CAI y rangos](/produccion/cai-y-rangos/).
 7. **Papel térmico**, si va a imprimir tickets en ese papel: la certificación del proveedor del papel de que la
-   impresión dura al menos 5 años (Art. 38). El trámite exacto está por confirmar (P-07).
+   impresión dura al menos 5 años (Art. 38). El trámite exacto está por confirmar.
 8. **Talonarios de contingencia** de una imprenta, para vender si el sistema no está disponible. Vender sin
    documento se sanciona (Art. 55).
 9. **Respaldos**: decidir quién los hace, dónde se guardan y quién prueba la restauración.
@@ -64,12 +63,12 @@ enviado.
    registradora (Art. 4 num. 43); ni la Constancia de Donación (12), que el Art. 47 excluye.
 2. **Tratamiento de ISV de cada producto o servicio**: 15 %, 18 %, exento, exonerado o gravado 0 %. El SDK no trae
    listas de productos; la clasificación la pone el negocio. La tasa del 18 % no tiene texto primario en el
-   repositorio (P-11, DEC-069 [REVISAR]); ver [Estado legal](/produccion/estado-legal/).
+   repositorio (falta el Decreto 278-2013, Art. 16); ver [Estado legal](/produccion/estado-legal/).
 3. **Clientes especiales**, si los hay: exonerados (Art. 11 num. 4), ventas en moneda extranjera (Art. 11,
-   párrafo final), exportaciones (Art. 12, con la reserva de P-09). Ver [exonerados](/conceptos/isv-y-montos/#exonerado) y
+   párrafo final), exportaciones (Art. 12; la Ley del ISV las llama exentas, factura-hn sigue al Reglamento). Ver [exonerados](/conceptos/isv-y-montos/#exonerado) y
    [Factura](/documentos/factura/) para la moneda extranjera y la exportación.
-4. **Revisar las interpretaciones pendientes** que afectan al negocio: la lista está en
-   [Estado legal](/produccion/estado-legal/#interpretaciones-pendientes).
+4. **Revisar los puntos que el Reglamento no dice de forma literal** y que afectan al negocio: la lista está en
+   [Estado legal](/produccion/estado-legal/#puntos-que-el-reglamento-no-dice-de-forma-literal).
 5. **Revisar la primera factura real** contra los requisitos del Art. 10 y del Art. 11.
 6. **Acordar la rutina mensual**: documentos no utilizados (Art. 42), libro de ventas y respaldos. Ver
    [Operación mensual](/produccion/operacion-mensual/).
@@ -77,7 +76,7 @@ enviado.
 ## El desarrollador
 
 1. **Probar fuera del almacén real.** La demo y las pruebas van en otro almacén: otra base de datos o
-   `AlmacenFiscalMemoria`. Un punto de emisión no mezcla documentos de prueba y reales (DEC-063, DEC-091).
+   `AlmacenFiscalMemoria`. Un punto de emisión no mezcla documentos de prueba y reales.
 2. **Almacén persistente**: `@factura-hn/postgres` o `@factura-hn/sqlite`. `AlmacenFiscalMemoria` pierde todo al
    reiniciar y es solo para pruebas.
 3. **Datos del emisor completos.** Los siete datos del Art. 10 num. 1: RTN, razón social, nombre comercial,
@@ -110,11 +109,10 @@ Antes de entregarla al cliente, los tres revisan el impreso:
 - El número tiene la forma `NNN-NNN-NN-NNNNNNNN`, con el establecimiento, el punto de emisión y el tipo
   correctos, y empieza en el primer número del rango (Art. 10 num. 7).
 - Los datos del emisor coinciden con el RTN (Art. 10 num. 1).
-- El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido, factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01).
+- El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido, factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn).
 
 :::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
-(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
 :::
 
 Desde ahí, la rutina está en [Operación mensual](/produccion/operacion-mensual/).

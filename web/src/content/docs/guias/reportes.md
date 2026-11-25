@@ -51,9 +51,9 @@ Una fila por documento, con estas reglas:
 - **Texto seguro en hojas de cálculo.** Un nombre de cliente que empieza con `=`, `+`, `-` o `@` lleva un
   apóstrofo delante para que la hoja no lo ejecute como fórmula.
 
-:::caution[Interpretación pendiente de revisión]
+:::caution[Lectura de factura-hn]
 El repositorio no tiene una norma que fije el formato del libro de ventas ni cómo convertir los documentos en
-moneda extranjera. La conversión a lempiras es la DEC-050, marcada [REVISAR].
+moneda extranjera. La conversión a lempiras es la lectura que aplica factura-hn; confírmala con tu contador.
 :::
 
 `resumenVentas(filas)` da los totales del período: exonerado, exento, gravado al 0 %, al 15 % y al 18 %, ISV 15 %,
@@ -61,7 +61,7 @@ ISV 18 % y total. Sirve de apoyo para la declaración mensual del ISV, pero fact
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene la fuente del formulario de la declaración mensual ni de su relación con el libro de
-ventas. Este tema aún no tiene pregunta propia en la [consulta al SAR](/produccion/consulta-sar/). Confírmalo
+ventas. Confírmalo
 con tu contador.
 :::
 
@@ -92,9 +92,8 @@ el archivo refleja lo emitido, y quien lo procese decide cómo contarlo. `VERSIO
 columnas.
 
 :::caution[Por confirmar con fuente]
-No se encontró un formato oficial para estos archivos. Los tres formatos son propios del proyecto (DEC-011,
-marcada [REVISAR]). Si el SAR publica uno, se agregará como un formato más. Son las preguntas P-04 y P-14 de la
-[consulta al SAR](/produccion/consulta-sar/).
+No se encontró un formato oficial para estos archivos. Los tres formatos son propios del proyecto. Si el SAR
+publica uno, se agregará como un formato más.
 :::
 
 TXT y JSONL son archivos de traslado: no se protegen contra fórmulas. No los abras con el asistente de importación
@@ -124,16 +123,16 @@ Cada rango trae el CAI, los números sin usar, la causal del Art. 42 (`CAUSALES_
 12), la fecha del acontecimiento y la fecha límite del aviso.
 
 - **Causal 1 (vencimiento).** Se calcula sola. El acontecimiento es la fecha límite misma, no el día siguiente:
-  así el aviso nunca queda tarde (DEC-009, aprobada).
+  así el aviso nunca queda tarde.
 - **Otras causales.** Si das de baja un punto de emisión o cierra un establecimiento, pásalo como `evento`, por
   ejemplo `{ causal: 5, fecha: '2026-11-18' }` para la baja de un punto de emisión.
 - **Feriados.** Solo se descuentan sábados y domingos. Sin `feriados`, la fecha límite puede quedar uno o dos días
-  después de la real (DEC-010, marcada [REVISAR]).
+  después de la real.
 - **La comunicación la haces tú**, en el sistema que establezca el SAR. El SDK no la envía.
 
 :::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados tampoco está publicado en las fuentes revisadas (P-04 de la
-[consulta al SAR](/produccion/consulta-sar/)).
+El formato de la comunicación de no utilizados tampoco está publicado en las fuentes revisadas. Confírmalo con tu
+contador.
 :::
 
 ## Los documentos de prueba quedan fuera
@@ -146,7 +145,7 @@ Un documento de prueba (CAI ficticio `DEMO00-NO-VALIDO-…`, `modo: 'prueba'`) n
 - la API lo indica en la cabecera `Documentos-Prueba-Excluidos` y, en el libro JSON, en `excluidos`.
 
 `filaLibroVentas` y `lineaExportacion` trabajan documento por documento y **no filtran**. Si armas el archivo por
-partes con ellas, pasa antes los documentos por `separarDocumentosDePrueba` (DEC-064).
+partes con ellas, pasa antes los documentos por `separarDocumentosDePrueba`.
 
 ## Con la API REST
 
@@ -177,4 +176,4 @@ Detalle en la [referencia de la API](/referencia/api/).
 - Reglamento, Arts. 11, 41, 42 y 53: matriz de [cumplimiento](/referencia/cumplimiento/), filas 41, 42 y 53.
 - `reportes.ts`, `exportacion.ts` y `no-utilizados.ts` del núcleo; [referencia de la API](/referencia/api/),
   «Reportes de período».
-- DEC-009, DEC-010, DEC-011, DEC-050 y DEC-064 en [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

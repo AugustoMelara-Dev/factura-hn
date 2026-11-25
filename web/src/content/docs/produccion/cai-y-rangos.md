@@ -33,9 +33,8 @@ para el tipo 01 y otra para el 06 en el mismo punto de emisión. Con tres cajas,
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene el procedimiento actual de la solicitud: el formulario, la pantalla de la Oficina Virtual,
-los anexos y el tiempo de respuesta (pregunta P-03). Tampoco sabe qué es «un Sistema» para el Art. 61 cuando
-la API está alojada por un tercero para varios negocios (pregunta P-02). Confírmalo con tu contador. La
-consulta está en [Consulta al SAR](/produccion/consulta-sar/) y aún no se ha enviado.
+los anexos y el tiempo de respuesta. Tampoco sabe qué es «un Sistema» para el Art. 61 cuando
+la API está alojada por un tercero para varios negocios. Confírmalo con tu contador.
 :::
 
 ## Qué trae la resolución y dónde va cada dato
@@ -45,7 +44,7 @@ C L.600-605). Por eso factura-hn los guarda en la autorización y los copia en c
 
 | Dato de la resolución | Campo en factura-hn | Nota |
 |---|---|---|
-| CAI | `cai` | Se copia tal cual. Se aceptan letras, dígitos y guiones (DEC-013). El Reglamento no publica un formato (Art. 4 num. 7) |
+| CAI | `cai` | Se copia tal cual. Se aceptan letras, dígitos y guiones. El Reglamento no publica un formato (Art. 4 num. 7) |
 | Tipo de documento | `tipoDocumento` | `'01'`, `'06'` o `'07'` |
 | Establecimiento y punto de emisión | `establecimiento`, `puntoEmision` | Tres dígitos cada uno. Casa matriz = `000` |
 | Rango autorizado | `rangoInicial`, `rangoFinal` | El correlativo de 8 dígitos, sin el resto del número |
@@ -125,7 +124,7 @@ npx -y @factura-hn/mcp registrar-cai --base C:/negocio/factura.db --cai A1B2C3-D
 
 La herramienta `registrar_cai` hace lo mismo desde el asistente. Está marcada como destructiva porque no se puede
 deshacer, y su descripción le exige al asistente no inventar ningún dato y confirmarlos contigo antes de
-registrar (DEC-081).
+registrar.
 
 ### Si ya emitiste con ese CAI en otro sistema
 
@@ -149,19 +148,19 @@ await registrarAutorizacion(almacen, {
 });
 ```
 
-En la API es el mismo campo; en el MCP, `--ultimo-emitido-antes 120`. Es una decisión pendiente de revisión
-(DEC-008 [REVISAR]).
+En la API es el mismo campo; en el MCP, `--ultimo-emitido-antes 120`. El Reglamento no regula la migración de una
+serie: es la lectura que aplica factura-hn. Confírmala con tu contador.
 
 ## Pasar de la demo al CAI real
 
 La demo (`crearFacturadorDemo`, el tenant `demo` de la API o `init --demo` del MCP) usa CAI ficticios
 `DEMO00-NO-VALIDO-…`. Todo lo que emite lleva la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y queda fuera del
-libro de ventas y de la exportación (DEC-063, DEC-064).
+libro de ventas y de la exportación.
 
 **Lo recomendado: una base nueva para producción.** Prueba en un almacén y emite de verdad en otro. Así la serie
 real empieza en el primer número de tu resolución y no comparte historia con la demo.
 
-Si aun así registras el CAI real en el almacén donde probaste, estas son las reglas (DEC-091):
+Si aun así registras el CAI real en el almacén donde probaste, estas son las reglas:
 
 - **Un punto de emisión pasa de prueba a real, nunca al revés.** Registrar un CAI real en un punto que solo tiene
   autorizaciones de prueba se acepta. Desde ese momento, la demo de ese punto queda retirada en todos los tipos:
@@ -186,7 +185,7 @@ factura-hn avisa en estos casos:
 
 | Alerta | Cuándo | Fuente |
 |---|---|---|
-| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59; la forma de contar los dos meses es DEC-025 [REVISAR] |
+| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59 («dentro de los dos (2) meses previos»); contarlos como meses de calendario es la lectura de factura-hn |
 | `AVISO_RANGO` | Al usar el 90 % del rango (configurable con `porcentajeAviso`) | Decisión operativa, no fiscal |
 | `AUTORIZACION_VENCIDA` | Pasó la fecha límite: no se emite más con ese CAI | Art. 62 |
 | `RANGO_AGOTADO` | Se usó el último número del rango | Art. 59 |
@@ -224,9 +223,7 @@ Con la API: `GET /v1/autorizaciones/{cai}/estado`, o los webhooks `autorizacion.
 por identificador `NNN-NNN-TT`, no por CAI, y rechaza rangos que se solapan.
 
 :::caution[Por confirmar con fuente]
-No se sabe si hay una fecha mínima para la primera emisión de una serie, por ejemplo la fecha de la resolución
-(pregunta P-13). factura-hn no pone piso: la fecha de emisión es siempre la de hoy en Honduras (DEC-022). Ver
-[Consulta al SAR](/produccion/consulta-sar/).
+No se sabe si hay una fecha mínima para la primera emisión de una serie, por ejemplo la fecha de la resolución. factura-hn no pone piso: la fecha de emisión es siempre la de hoy en Honduras.
 :::
 
 ## Rangos no utilizados

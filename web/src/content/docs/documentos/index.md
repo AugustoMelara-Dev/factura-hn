@@ -70,7 +70,7 @@ Recibo por Honorarios (`04`), la Boleta de Compra (`11`) y la Constancia de Dona
 
 - una Nota de Crédito solo puede modificar un comprobante fiscal (Art. 4 num. 32); si no, `REFERENCIA_TIPO`;
 - una Nota de Débito puede referir «el Comprobante Fiscal o el documento» (Art. 28 num. 3 b). El proyecto lo lee
-  como cualquier tipo de documento (DEC-016, aprobada).
+  como cualquier tipo de documento.
 
 ## Errores de esta página
 
@@ -87,4 +87,4 @@ Recibo por Honorarios (`04`), la Boleta de Compra (`11`) y la Constancia de Dona
 - Tabla de códigos: `TIPOS_DOCUMENTO` y `CodigoTipoDocumento` en el núcleo; matriz de cumplimiento, filas 4.43,
   17, 25-28, 46 y 47 ([cumplimiento](/referencia/cumplimiento/)).
 - Tipos no emitibles: `TIPOS_NO_EMITIBLES_POR_SISTEMA`; [normativa](/referencia/normativa/), «Fuera de alcance».
-- Interpretaciones: DEC-016 en [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

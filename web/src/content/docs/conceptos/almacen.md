@@ -112,8 +112,7 @@ Haz respaldos del almacén: es tu archivo fiscal.
 
 :::caution[Por confirmar con fuente]
 El plazo de conservación de 5 años (Código Tributario, Arts. 58.4 y 63.3) sale de una compilación de 2024 del
-Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores (P-06). Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores.
 :::
 
 ## Escribir tu propio almacén

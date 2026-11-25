@@ -29,11 +29,6 @@ comprueba que las funciones y los tipos que nombra existan.
 El texto completo está en
 [GitHub](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/AGENTS.md).
 
-:::note
-El repositorio tiene también un `CLAUDE.md`. Ese archivo es para quien **desarrolla** factura-hn, no para quien
-la integra en otro proyecto.
-:::
-
 ## Qué dice
 
 **Dos caminos.** El SDK, si el proyecto es JS/TS y emite contra su propia base. La API, si el proyecto es de otro

@@ -9,20 +9,19 @@ Estos son los pasos que el Reglamento del Régimen de Facturación (Acuerdo 481-
 negocio que factura con un sistema computarizado. Los hace el negocio, normalmente con su contador. factura-hn no
 presenta nada ante el SAR.
 
-Cada paso cita su artículo y la línea del texto consolidado («C L.n») con el que trabaja el proyecto. La fuente es
-la sección 3a de la investigación normativa del repositorio (ver [Normativa](/referencia/normativa/)).
+Cada paso cita su artículo y la línea del texto consolidado («C L.n») con el que trabaja el proyecto. Las fuentes
+están en [Normativa](/referencia/normativa/).
 
 :::caution[Por confirmar con fuente]
 Esta página tiene los artículos, no el procedimiento. Falta lo siguiente:
 
 - **Formularios, medio y plazos** de la inscripción como autoimpresor y de la Declaración Jurada del Art. 53: qué
-  pantalla de la Oficina Virtual, qué anexos y cuánto tarda (pregunta P-03).
-- **Qué modalidad corresponde a cada negocio** según su tamaño o giro: sistema, imprenta o máquina registradora
-  (aún sin pregunta propia en la consulta). Los Arts. 46, 47 y 52 mencionan las modalidades, pero el repositorio no dice cuál le toca a cada uno.
+  pantalla de la Oficina Virtual, qué anexos y cuánto tarda.
+- **Qué modalidad corresponde a cada negocio** según su tamaño o giro: sistema, imprenta o máquina registradora. Los Arts. 46, 47 y 52 mencionan las modalidades, pero el repositorio no dice cuál le toca a cada uno.
 - **Registro de proveedores de software**: el repositorio no encontró uno en el Reglamento, lo que no prueba que no
-  exista (pregunta P-01).
+  exista.
 
-Las preguntas están redactadas en [Consulta al SAR](/produccion/consulta-sar/). Aún no se ha enviado.
+Confírmalo con tu contador antes de empezar.
 :::
 
 ## Antes de emitir
@@ -44,8 +43,7 @@ certificación del proveedor del papel de que la impresión dura al menos 5 año
 
 :::caution[Por confirmar con fuente]
 No se sabe si la certificación del papel térmico la gestiona y presenta el negocio, ni qué son los «resúmenes de
-ventas» del Art. 38, en qué formato ni en qué plazo se entregan (pregunta P-07). Ver
-[Consulta al SAR](/produccion/consulta-sar/).
+ventas» del Art. 38, en qué formato ni en qué plazo se entregan.
 :::
 
 ## Mientras emite
@@ -63,9 +61,7 @@ ventas» del Art. 38, en qué formato ni en qué plazo se entregan (pregunta P-0
 Los pasos 7, 9 y 13 tienen su rutina en [Operación mensual](/produccion/operacion-mensual/).
 
 :::caution[Por confirmar con fuente]
-El formato del aviso de no utilizados (paso 9) no está publicado en las fuentes del repositorio (pregunta
-P-04). factura-hn calcula los rangos y la fecha límite, pero el aviso se hace en el sistema del SAR. Ver
-[Consulta al SAR](/produccion/consulta-sar/).
+El formato del aviso de no utilizados (paso 9) no está publicado en las fuentes del repositorio. factura-hn calcula los rangos y la fecha límite, pero el aviso se hace en el sistema del SAR.
 :::
 
 ## Contingencia: si el sistema no está disponible
@@ -75,20 +71,19 @@ permite vender sin documento. Lo que eso significa en la práctica:
 
 - Los talonarios se tienen **antes** de necesitarlos, impresos por una imprenta certificada. El Reglamento regula
   a las imprentas en el Registro Fiscal de Imprentas (Arts. 66-70).
-- La contingencia **no justifica retrofechar**. Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy (DEC-022). factura-hn no permite una fecha de emisión distinta de la
+- La contingencia **no justifica retrofechar**. Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy. factura-hn no permite una fecha de emisión distinta de la
   de hoy (`FECHA_EMISION_NO_ES_HOY`).
 - Si una nota de crédito o débito modifica un documento del talonario, el original no está en el almacén: la nota
-  sale con el aviso `AVISO_ORIGINAL_EXTERNO` (DEC-004), y con la API la emite una llave admin
-  (DEC-051 [REVISAR]; es una política de seguridad de la API, no fiscal).
+  sale con el aviso `AVISO_ORIGINAL_EXTERNO`, y con la API la emite una llave admin
+  (es una política de seguridad de la API, no fiscal).
 
 :::caution[Por confirmar con fuente]
 Cómo se reportan las ventas del talonario en el libro de ventas y en la declaración: confírmalo con tu contador.
 El repositorio no lo trata.
 
 Las sanciones concretas por vender sin documento (montos y tipos de falta) están en el Código Tributario, que el
-repositorio no ha analizado para este fin (aún sin pregunta propia en la consulta). Tampoco está la fuente de la declaración mensual (formulario,
-nombre y campos) ni su relación con el libro de ventas (aún sin pregunta propia en la consulta). Confírmalo con tu contador.
-Ver [Consulta al SAR](/produccion/consulta-sar/).
+repositorio no ha analizado para este fin. Tampoco está la fuente de la declaración mensual (formulario,
+nombre y campos) ni su relación con el libro de ventas. Confírmalo con tu contador.
 :::
 
 ## Lo que hace el proveedor del software
@@ -100,8 +95,7 @@ cómo cumple cada numeral del Art. 53, la versión del software y dónde está e
 
 :::caution[Por confirmar con fuente]
 Si la API corre en la nube de un tercero, no se sabe cómo encaja con el Art. 47 («el establecimiento donde se
-encuentre el servidor») ni con el Art. 61 («por cada Sistema») (pregunta P-02). El modo recomendado,
+encuentre el servidor») ni con el Art. 61 («por cada Sistema»). El modo recomendado,
 mientras tanto, es instalar la API en un equipo del negocio. Tampoco se sabe qué normativa de protección de datos
-aplica a los datos del cliente guardados por un tercero (pregunta P-05). Ver
-[Consulta al SAR](/produccion/consulta-sar/).
+aplica a los datos del cliente guardados por un tercero.
 :::

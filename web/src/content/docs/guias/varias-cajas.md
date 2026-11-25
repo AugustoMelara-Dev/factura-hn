@@ -101,9 +101,8 @@ Si varias personas usan la misma caja, envía el nombre de quien cobra en `opera
 
 :::caution[Por confirmar con fuente]
 El Art. 47 pide registrar el establecimiento donde se encuentra el servidor del sistema. Si un servidor en la nube
-operado por un tercero encaja en esa regla no está resuelto (P-02). Mientras tanto, el proyecto recomienda el modo
-local: la API en un servidor del propio negocio. Ver la [consulta al SAR](/produccion/consulta-sar/) y
-[Autoalojar la API](/guias/autoalojar/).
+operado por un tercero encaja en esa regla no está resuelto. Mientras tanto, el proyecto recomienda el modo
+local: la API en un servidor del propio negocio. Ver [Autoalojar la API](/guias/autoalojar/).
 :::
 
 ## Errores frecuentes

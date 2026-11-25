@@ -52,7 +52,7 @@ formatearNumero({ establecimiento: '000', puntoEmision: '002', tipoDocumento: '0
 ```
 
 El Art. 10 num. 7 dice que la serie se reinicia después del `99999999`. El SDK no modela ese reinicio: rechaza
-un rango que lo cruce (decisión D-07 de la investigación normativa).
+un rango que lo cruce (decisión de diseño de factura-hn).
 
 ## Una autorización por punto de emisión y tipo
 
