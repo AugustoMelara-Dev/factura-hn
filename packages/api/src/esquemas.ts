@@ -3,10 +3,16 @@
  * el núcleo (`emitir`, `validarEntrada`) y vuelven como 422 con la lista de `errores`.
  */
 import { z } from '@hono/zod-openapi';
+import { esFechaValida } from 'factura-hn';
 
 /** Montos como texto decimal ("19.99") para no perder precisión; también se aceptan números. */
 export const Monto = z.union([z.string().max(32), z.number()]).openapi({ example: '115.00', description: 'Decimal como texto (recomendado) o número.' });
 const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ example: '2026-11-18' });
+/**
+ * Fecha de un período de consulta: además de la forma, un día que existe. «2026-02-30» llegaba a Postgres y daba 500
+ * (lo encontró el fuzzing, test/fuzz.test.ts). En la emisión no se usa: allí la fecha la revisa el núcleo (422).
+ */
+const FechaDelCalendario = Fecha.refine(esFechaValida, { message: 'La fecha no existe en el calendario (AAAA-MM-DD).' });
 const Codigo3 = z.string().regex(/^\d{3}$/);
 const Texto = (max = 300) => z.string().max(max);
 
@@ -245,7 +251,7 @@ export const Motivo = z.object({ motivo: z.string().min(1).max(500), operador: O
 
 /** Período de consulta: como máximo un año, para no cargar todo el historial en una solicitud. */
 export const periodo = <T extends z.ZodRawShape>(extra: T) => z
-  .object({ desde: Fecha, hasta: Fecha, ...extra })
+  .object({ desde: FechaDelCalendario, hasta: FechaDelCalendario, ...extra })
   .refine((p) => fechas(p).desde <= fechas(p).hasta, { message: 'desde debe ser anterior o igual a hasta.', path: ['desde'] })
   .refine((p) => (Date.parse(fechas(p).hasta) - Date.parse(fechas(p).desde)) / 86_400_000 <= 366, { message: 'El período no puede pasar de 366 días.', path: ['hasta'] });
 const fechas = (p: unknown) => p as { desde: string; hasta: string };

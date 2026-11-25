@@ -9,7 +9,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { bodyLimit } from 'hono/body-limit';
 import { CABECERAS_DOCS, HTML_DOCS } from './docs';
-import { conCabecerasComunes, SOLICITUD_ID } from './contrato';
+import { conCabecerasComunes, conErrorDeTipoDeContenido, SOLICITUD_ID } from './contrato';
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
@@ -411,6 +411,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         const cuerpo: CuerpoError = { error: { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es JSON válido: revisa comillas, comas y llaves.' } };
         return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
       }
+      // El validador de Hono responde 415 en texto plano a un cuerpo sin `Content-Type: application/json`: también con
+      // la forma de error de la API (lo encontró el fuzzing, test/fuzz.test.ts).
+      if (e.status === 415) {
+        const cuerpo: CuerpoError = { error: { codigo: 'TIPO_DE_CONTENIDO', mensaje: 'El cuerpo debe ser JSON: envía la cabecera Content-Type: application/json.' } };
+        return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 415);
+      }
       return e.getResponse();
     }
     registrar(`Error interno (solicitud ${c.get('idLog')})`, e);
@@ -770,6 +776,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
+      // Un NUL no cabe en un texto de Postgres (la consulta fallaba con 500; lo encontró test/fuzz.test.ts): ese CAI no
+      // puede estar registrado.
+      if (cai.includes('\u0000')) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Autorización no encontrada.');
       const r = await enTenant(c, async (tx) => {
         const a = (await tx.consulta<{ datos: AutorizacionCAI; identificador: string }>('SELECT datos, identificador FROM fhn_autorizaciones WHERE tenant = $1 AND cai = $2', [tx.tenant, cai])).rows[0];
         if (!a) return null;
@@ -908,7 +917,16 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         headers: z.object({ 'idempotency-key': z.string().openapi({ description: 'Clave única por venta (p. ej. un UUID generado por el POS).' }) }),
         body: { content: { 'application/json': { schema: S.SolicitudEmision } }, required: true },
       },
-      responses: { 201: json(S.RespuestaEmision, 'Emitido'), 409: json(S.ErrorRespuesta, 'Falta registrar el emisor'), ...respuestasError },
+      responses: {
+        201: {
+          ...json(S.RespuestaEmision, 'Emitido'),
+          headers: z.object({
+            'Idempotency-Replayed': z.string().optional().openapi({ description: '`true` si la respuesta repite la de una solicitud anterior con la misma `Idempotency-Key` (no se emitió otro documento).', example: 'true' }),
+          }),
+        },
+        409: json(S.ErrorRespuesta, 'Falta registrar el emisor'),
+        ...respuestasError,
+      },
     }),
     async (c) => {
       const s = sesion(c);
@@ -1296,7 +1314,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
             'text/csv': { schema: z.string() },
           },
         },
-        ...respuestasDe(400, 401, 422, 429, 500),
+        ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
     async (c) => {
@@ -1359,7 +1377,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       summary: 'Archivo de texto de un período para el SAR (Art. 53 num. 5)',
       request: { query: S.periodo({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
       responses: {
-        200: { description: 'Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).', headers: cabecerasExcluidos, content: { 'text/plain': { schema: z.string() } } },
+        200: {
+          description: 'Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`). `jsonl` en `application/x-ndjson`, `csv` en `text/csv` y `txt` en `text/plain`.',
+          headers: cabecerasExcluidos,
+          content: { 'application/x-ndjson': { schema: z.string() }, 'text/csv': { schema: z.string() }, 'text/plain': { schema: z.string() } },
+        },
         ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
@@ -1814,7 +1836,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     },
   };
   // Como `app.doc31`, más las cabeceras que la API pone en todas las respuestas (./contrato).
-  app.get('/openapi.json', (c) => c.json(conCabecerasComunes(app.getOpenAPI31Document(especificacion))));
+  app.get('/openapi.json', (c) => c.json(conCabecerasComunes(conErrorDeTipoDeContenido(app.getOpenAPI31Document(especificacion)))));
   app.get('/docs', (c) => {
     for (const [k, v] of Object.entries(CABECERAS_DOCS)) c.header(k, v);
     return c.html(HTML_DOCS);

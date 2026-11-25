@@ -403,6 +403,14 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Solución:** usa `'ISV15'`, `'ISV18'`, `'GRAVADO0'` o `'EXENTO'`, u omite el campo (ISV15). Qué producto va
   al 18 % lo decide el negocio: el SDK no lo infiere.
 
+### MONTO_FUERA_DE_RANGO
+
+- **Qué significa:** la suma de las líneas da un total, con el ISV, mayor que L 9,999,999,999,999.99
+  (`MONTO_MAXIMO_CENTAVOS`). No es una regla fiscal: es el mayor total que el SDK representa con exactitud
+  (los importes salen como `number` con 15 cifras y el total en letras). En la API es un 422.
+- **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
+  centavos, o la cantidad y el precio intercambiados.
+
 ### TIPO_CAMBIO
 
 - **Qué significa:** el documento está en moneda extranjera y no trae un tipo de cambio válido.
@@ -659,6 +667,12 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 - **Qué significa (400):** el cuerpo no es JSON válido (comillas, comas o llaves de más o de menos).
 - **Solución:** genera el cuerpo con `JSON.stringify` (o el equivalente de tu lenguaje) en lugar de armarlo a mano.
+
+### TIPO_DE_CONTENIDO
+
+- **Qué significa (415):** la operación espera un cuerpo JSON y la solicitud no trae `Content-Type: application/json`
+  (curl sin `-H`, por ejemplo, manda `application/x-www-form-urlencoded`).
+- **Solución:** agrega la cabecera `Content-Type: application/json` y envía el cuerpo como JSON.
 
 ### NO_AUTENTICADO
 

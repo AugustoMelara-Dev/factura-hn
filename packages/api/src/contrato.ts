@@ -23,7 +23,8 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
   'FacturaHN-Modo': {
     description:
       'Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). ' +
-      'Solo después de validar la llave: nunca en un 401, un 413 ni un 429.',
+      'Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; ' +
+      'sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `DEMASIADOS_REPORTES`).',
     schema: { type: 'string', example: 'prueba' },
   },
   'RateLimit-Policy': {
@@ -56,6 +57,25 @@ type Especificacion = {
 };
 
 /**
+ * Agrega el 415 `TIPO_DE_CONTENIDO` a cada operación con cuerpo JSON: el validador lo da si la solicitud no trae
+ * `Content-Type: application/json`. Va antes de `conCabecerasComunes`, que le pone las cabeceras.
+ */
+export function conErrorDeTipoDeContenido<T>(doc: T): T {
+  const d = doc as Especificacion & { paths?: Record<string, Partial<Record<(typeof METODOS)[number], { requestBody?: unknown }>>> };
+  for (const item of Object.values(d.paths ?? {})) {
+    for (const metodo of METODOS) {
+      const op = item[metodo] as { requestBody?: unknown; responses?: Record<string, Respuesta> } | undefined;
+      if (!op?.requestBody || !op.responses || op.responses['415']) continue;
+      op.responses['415'] = {
+        description: 'El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).',
+        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+      } as Respuesta;
+    }
+  }
+  return doc;
+}
+
+/**
  * Agrega a cada respuesta de la especificación las cabeceras que la API siempre envía: `Solicitud-Id` y
  * `FacturaHN-Version` en todas; `RateLimit-Policy` y `RateLimit` en las de `/v1` que pueden llegar después de
  * validar la llave (no en 401 ni 413, que se responden antes); `Retry-After` en los 429.
@@ -74,7 +94,7 @@ export function conCabecerasComunes<T>(doc: T): T {
           'Solicitud-Id',
           'FacturaHN-Version',
           ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
-          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) && estado !== '429' ? ['FacturaHN-Modo'] : []),
+          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['FacturaHN-Modo'] : []),
           ...(estado === '429' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };
