@@ -24,6 +24,11 @@ import { BASE, DOCS, RAIZ, REPO, SALIDA } from '../sitio.config.mjs';
  * enlace a ellas es un aviso y no un error. Cuando todas las ramas estén integradas, esta lista queda vacía.
  */
 const PENDIENTES = new Set(['/empezar/primera-factura/', '/produccion/']);
+/**
+ * Con FHN_SITIO_ENLACES_PENDIENTES=aviso, un enlace a una página del sitio que no existe es un aviso. Sirve a una
+ * rama de contenido que enlaza páginas de otra rama aún sin integrar; la CI no lo usa.
+ */
+const TODO_PENDIENTE = process.env.FHN_SITIO_ENLACES_PENDIENTES === 'aviso';
 
 const errores = [];
 const avisos = [];
@@ -71,8 +76,8 @@ for (const pagina of html) {
     const enSitio = ruta.slice(BASE.length) || '/';
     const destino = archivoDe(enSitio);
     if (!destino) {
-      if (PENDIENTES.has(enSitio)) avisos.push(`${pagina}: enlaza ${enSitio}, que escribe otra rama y aún no existe`);
-      else if (/\.md$/i.test(enSitio)) errores.push(`${pagina}: enlace a un .md sin reescribir: ${url}`);
+      if (/\.md$/i.test(enSitio)) errores.push(`${pagina}: enlace a un .md sin reescribir: ${url}`);
+      else if (PENDIENTES.has(enSitio) || (TODO_PENDIENTE && enSitio.endsWith('/'))) avisos.push(`${pagina}: enlaza ${enSitio}, que escribe otra rama y aún no existe`);
       else errores.push(`${pagina}: no existe ${url}`);
       continue;
     }
