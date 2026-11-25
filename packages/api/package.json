@@ -20,7 +20,8 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "openapi": "tsx src/cli.ts openapi openapi.json",
-    "build:docker": "tsup --config tsup.docker.config.ts"
+    "build:docker": "tsup --config tsup.docker.config.ts",
+    "carga": "tsx carga/emitir.ts"
   },
   "dependencies": {
     "@factura-hn/pdf": "workspace:*",
@@ -33,7 +34,9 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/pg": "8.23.1"
+    "@types/autocannon": "7.12.7",
+    "@types/pg": "8.23.1",
+    "autocannon": "9.0.0"
   },
   "exports": {
     ".": {

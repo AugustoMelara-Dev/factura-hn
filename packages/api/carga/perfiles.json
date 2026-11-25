@@ -1,0 +1,36 @@
+{
+  "$comentario": "Perfiles de la medición de carga (pnpm carga [perfil] [campo=valor ...]). La latencia se exige en la fase a tasa fija (tasa solicitudes/s, lazo abierto); el rendimiento, en la fase de saturación (conexiones sin pausa). Umbrales y por qué: docs/calidad/carga.md. Una medición que no los cumple termina con código 1.",
+  "ci": {
+    "duracionS": 20,
+    "conexiones": 16,
+    "cajas": 4,
+    "llavesPorCaja": 2,
+    "repetidas": 0.05,
+    "rafagas": 20,
+    "webhook": 1,
+    "tasa": 25,
+    "umbrales": { "p50Ms": 100, "p95Ms": 300, "p99Ms": 600, "minDocumentosPorS": 40, "maxErrores": 0 }
+  },
+  "local": {
+    "duracionS": 30,
+    "conexiones": 32,
+    "cajas": 8,
+    "llavesPorCaja": 2,
+    "repetidas": 0.05,
+    "rafagas": 50,
+    "webhook": 1,
+    "tasa": 30,
+    "umbrales": { "p50Ms": 100, "p95Ms": 300, "p99Ms": 600, "minDocumentosPorS": 40, "maxErrores": 0 }
+  },
+  "nocturno": {
+    "duracionS": 300,
+    "conexiones": 64,
+    "cajas": 16,
+    "llavesPorCaja": 2,
+    "repetidas": 0.05,
+    "rafagas": 200,
+    "webhook": 1,
+    "tasa": 30,
+    "umbrales": { "p50Ms": 100, "p95Ms": 300, "p99Ms": 600, "minDocumentosPorS": 40, "maxErrores": 0 }
+  }
+}
