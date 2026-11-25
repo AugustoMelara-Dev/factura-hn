@@ -31,8 +31,24 @@ export async function existeTenant(pool: pg.Pool, tenant: string): Promise<boole
   return enTenant(pool, tenant, async (c) => Boolean((await c.query('SELECT 1 FROM api_tenants WHERE tenant = $1', [tenant])).rowCount));
 }
 
+/**
+ * Nombres que crea el propio servidor en modo local (`local` y el demo): el operador no los usa para un negocio,
+ * para que un tenant real nunca se confunda con el de demostración.
+ */
+export const TENANTS_RESERVADOS: readonly string[] = ['local', 'demo'];
+
 /** Crea un tenant y su primera llave admin. Devuelve la llave: se muestra una sola vez. */
 export async function crearTenant(
+  pool: pg.Pool,
+  o: { tenant: string; nombre: string; limiteMensual?: number | null },
+): Promise<{ tenant: string; llaveAdmin: string }> {
+  if (TENANTS_RESERVADOS.includes(o.tenant)) {
+    throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
+  }
+  return crearTenantSinReserva(pool, o);
+}
+
+async function crearTenantSinReserva(
   pool: pg.Pool,
   o: { tenant: string; nombre: string; limiteMensual?: number | null },
 ): Promise<{ tenant: string; llaveAdmin: string }> {
@@ -113,7 +129,9 @@ export function bloqueLlavesDemo(llaves: { caja?: string; admin?: string }, cons
     '',
     linea,
     `  DEMOSTRACIÓN · CAI FICTICIO · ${LEYENDA_PRUEBA}`,
-    '  Tenant «demo», punto de emisión 000-001. Nada de lo que emitas aquí tiene validez fiscal.',
+    llaves.caja
+      ? '  Tenant «demo», punto de emisión 000-001. Nada de lo que emitas aquí tiene validez fiscal.'
+      : '  Tenant «demo». Nada de lo que emitas aquí tiene validez fiscal.',
     '',
     ...(llaves.caja ? [`  Llave de caja (para emitir): ${llaves.caja}`] : []),
     ...(llaves.admin ? [`  Llave admin del demo:        ${llaves.admin}`] : []),
@@ -165,10 +183,26 @@ export async function crearLlaveDemo(pool: pg.Pool, o: { rol?: RolLlave } = {}):
   if (!(await existeTenant(pool, TENANT_DEMO))) {
     throw new Error('El tenant «demo» no existe: arranca la API una vez en modo local con FHN_DEMO=1 (el docker-compose.yml lo trae).');
   }
+  if (!(await esDemoFicticio(pool))) {
+    throw new Error('El tenant «demo» de esta base no es el de demostración (no tiene el emisor ni el CAI ficticios): «demo llave» no le crea llaves. Usa «llave crear».');
+  }
   const rol = o.rol ?? 'caja';
   return crearLlaveOperador(pool, rol === 'caja'
     ? { tenant: TENANT_DEMO, rol, nombre: 'Caja demo (consola)', establecimiento: '000', puntoEmision: '001' }
     : { tenant: TENANT_DEMO, rol, nombre: 'Admin demo (consola)' });
+}
+
+/** Si el tenant `demo` es el de demostración: tiene el emisor ficticio o algún CAI ficticio (`DEMO00-NO-VALIDO-…`). */
+export async function esDemoFicticio(pool: pg.Pool): Promise<boolean> {
+  const prefijoCai = CAI_DEMO.slice(0, CAI_DEMO.indexOf('NO-VALIDO-') + 'NO-VALIDO-'.length);
+  return enTenant(pool, TENANT_DEMO, async (c) => {
+    const r = await c.query<{ demo: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM api_emisores WHERE tenant = $1 AND datos->>'rtn' = $2)
+           OR EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND starts_with(cai, $3)) AS demo`,
+      [TENANT_DEMO, EMISOR_DEMO.rtn, prefijoCai],
+    );
+    return r.rows[0]?.demo === true;
+  });
 }
 
 /**
@@ -224,7 +258,7 @@ export function errorTenantsAjenos(ajenos: string[]): string {
 }
 
 async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {
-  const { llaveAdmin } = await crearTenant(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
+  const { llaveAdmin } = await crearTenantSinReserva(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
   await enTenant(pool, TENANT_DEMO, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_DEMO, JSON.stringify(EMISOR_DEMO)]));
   const hoy = o.hoy ?? new Date();
   const limite = new Date(hoy.getTime() + 180 * 86_400_000).toISOString().slice(0, 10);

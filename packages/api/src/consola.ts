@@ -224,7 +224,8 @@ export async function ejecutarConsola(
         const llave = await crearLlaveDemo(pool, { rol: rolLlave });
         const bloque = bloqueLlavesDemo(rolLlave === 'caja' ? { caja: llave } : { admin: llave }, consola);
         if (banderas.has('solo-llave')) {
-          salida.error(`Llave ${rolLlave} del demo (tenant «demo», 000-001): CAI FICTICIO · ${LEYENDA_PRUEBA}. Se muestra solo esta vez.`);
+          const donde = rolLlave === 'caja' ? 'tenant «demo», caja 000-001' : 'tenant «demo»';
+          salida.error(`Llave ${rolLlave} del demo (${donde}): CAI FICTICIO · ${LEYENDA_PRUEBA}. Se muestra solo esta vez.`);
           salida.log(llave);
         } else salida.log(bloque);
         return 0;

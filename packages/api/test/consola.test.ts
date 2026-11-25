@@ -1,12 +1,15 @@
 /**
  * Consola del operador: ayuda, errores de uso en español con código 1, y `demo llave` contra PostgreSQL real.
  */
+import { randomBytes } from 'node:crypto';
+import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
 import { ejecutarConsola } from '../src/consola';
 import { iniciarLocal, TENANT_DEMO } from '../src/operador';
 import { arrancar } from '../src/servidor';
-import { cerrarPool, cliente, poolPrueba, ROL, URL_PG } from './ayuda';
+import { migrarApi } from '../src/esquema';
+import { cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -93,5 +96,46 @@ conBase('consola: demo llave', () => {
     expect(sola.codigo).toBe(0);
     expect(sola.log).toMatch(/^fhn_[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/);
     expect(sola.error).toContain('CAI FICTICIO');
+    expect(sola.error).toContain('caja 000-001');
+
+    // La llave admin no está atada a un punto: el aviso no dice 000-001.
+    const admin = await correr(['demo', 'llave', '--rol', 'admin'], env);
+    expect(admin.codigo).toBe(0);
+    expect(admin.log).toContain('Llave admin del demo:');
+    expect(admin.log).not.toContain('000-001');
+    const adminSola = await correr(['demo', 'llave', '--rol', 'admin', '--solo-llave'], env);
+    expect(adminSola.error).toContain('tenant «demo»');
+    expect(adminSola.error).not.toContain('000-001');
+  });
+
+  it('«tenant crear» no acepta los nombres reservados local y demo', async () => {
+    const env = { DATABASE_URL: URL_PG, FHN_ROL: ROL };
+    for (const nombre of ['demo', 'local']) {
+      const r = await correr(['tenant', 'crear', nombre], env);
+      expect(r.codigo).toBe(1);
+      expect(r.error).toMatch(/reservado/);
+    }
+  });
+
+  it('«demo llave» se niega si el tenant demo no es el de demostración', async () => {
+    const p = await poolPrueba();
+    const esquema = `prueba_demo_${randomBytes(4).toString('hex')}`;
+    await p.query(`CREATE SCHEMA ${esquema}`);
+    const u = new URL(URL_PG!);
+    u.searchParams.set('options', `-c search_path=${esquema}`);
+    const propio = new pg.Pool({ connectionString: u.toString(), max: 2 });
+    try {
+      await migrarApi(propio, ROL);
+      // Un tenant real que se llama «demo» (p. ej. creado antes de reservar el nombre), con su propio emisor.
+      await propio.query("INSERT INTO api_tenants (tenant, nombre) VALUES ('demo', 'Negocio real')");
+      await propio.query("INSERT INTO api_emisores (tenant, datos) VALUES ('demo', $1)", [JSON.stringify({ ...EMISOR, rtn: '99990000000002' })]);
+      const r = await correr(['demo', 'llave'], { DATABASE_URL: u.toString(), FHN_ROL: ROL });
+      expect(r.codigo).toBe(1);
+      expect(r.error).toMatch(/no es el de demostración/);
+      expect((await propio.query("SELECT count(*)::int AS n FROM api_llaves WHERE tenant = 'demo'")).rows[0].n).toBe(0);
+    } finally {
+      await propio.end();
+      await p.query(`DROP SCHEMA ${esquema} CASCADE`);
+    }
   });
 });

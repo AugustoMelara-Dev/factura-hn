@@ -130,7 +130,9 @@ correcto, y termina con código 1. La consola se conecta como dueño de las tabl
 definida, si no `DATABASE_URL`. Las llaves que crea se imprimen una sola vez, solo en la terminal de quien la
 usa. En la imagen de Docker, `node cli.cjs <comando>` sigue funcionando.
 
-No hay registro público de tenants: en el modo alojado los crea el operador.
+No hay registro público de tenants: en el modo alojado los crea el operador. Los nombres `local` y `demo` están
+reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
+(el del emisor y el CAI ficticios).
 
 ### Modo local y modo alojado
 
