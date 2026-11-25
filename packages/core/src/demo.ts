@@ -10,6 +10,7 @@ import { esFechaValida, fechaHonduras } from './autorizacion';
 import { ErrorValidacion } from './documento';
 import { crearFacturador, type ConfigFacturador, type Facturador } from './facturador';
 import { esCAIDemo, LEYENDA_PRUEBA } from './modo';
+import { CORRELATIVO_MAXIMO } from './numeracion';
 import type { AutorizacionCAI, Emisor, TipoDocumentoSoportado } from './tipos';
 
 export { esCAIDemo, LEYENDA_PRUEBA };
@@ -126,7 +127,19 @@ export async function crearFacturadorDemo(opciones: OpcionesFacturadorDemo = {})
     if (demos.some((a) => a.fechaLimiteEmision >= hoy)) continue;
     // Todas vencidas: una demo nueva, con otro CAI y el rango a continuación (los rangos no se solapan).
     const desde = Math.max(...ya.map((a) => a.rangoFinal)) + 1;
-    const renovada = autorizacionDemo({ ...base, renovacion: true, rangoInicial: desde, rangoFinal: Math.min(desde + 999_999, 99_999_999) });
+    if (desde > CORRELATIVO_MAXIMO) {
+      const caja = `${base.establecimiento}-${base.puntoEmision}`;
+      throw new ErrorValidacion([
+        {
+          codigo: 'DEMO_SIN_NUMEROS',
+          mensaje:
+            `crearFacturadorDemo: la caja ${caja} ya usó todos los correlativos posibles (hasta ${CORRELATIVO_MAXIMO}) para el tipo ` +
+            `${tipoDocumento}: no se puede renovar la autorización de prueba.`,
+          campo: 'almacen',
+        },
+      ]);
+    }
+    const renovada = autorizacionDemo({ ...base, renovacion: true, rangoInicial: desde, rangoFinal: Math.min(desde + 999_999, CORRELATIVO_MAXIMO) });
     if (ya.some((a) => a.cai === renovada.cai)) continue;
     await facturador.registrarAutorizacion(renovada);
   }

@@ -40,6 +40,8 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
     'Quita `prueba: true` si el CAI es real. Para probar, usa `autorizacionDemo()` de `factura-hn/demo`, con un CAI `DEMO00-NO-VALIDO-…`, en otro almacén.',
   REFERENCIA_MODO_MEZCLADO:
     'Emite la nota en el mismo modo que el documento: una nota de prueba sobre un documento de prueba, una real sobre uno real.',
+  DEMO_SIN_NUMEROS:
+    'Usa otro almacén para la demo (p. ej. un `AlmacenFiscalMemoria` nuevo) u otro punto de emisión con `crearFacturadorDemo({ puntoEmision })`.',
   FECHA_DEMO: 'Pasa en «hoy» un `Date` válido o un texto `YYYY-MM-DD` (p. ej. `2026-11-24`), u omítelo para usar la fecha actual.',
   AUTORIZACION_TIPO: 'Usa la autorización del mismo tipo de documento que emites (01 factura, 06 nota de crédito, 07 nota de débito).',
   CAI_REQUERIDO: `Indica el CAI de la autorización. ${RESOLUCION}`,

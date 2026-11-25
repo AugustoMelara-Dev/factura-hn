@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { AlmacenFiscalMemoria, documentosNoUtilizados, emitir, registrarAutorizacion, type AutorizacionCAI } from '../src';
-import { autorizacionDemo, EMISOR_DEMO } from '../src/demo';
+import { autorizacionDemo, crearFacturadorDemo, EMISOR_DEMO } from '../src/demo';
 
 const venta = { emisor: EMISOR_DEMO, lineas: [{ descripcion: 'Café 1 lb', cantidad: '1', precioUnitario: '100.00' }] };
 const caja = { establecimiento: '000', puntoEmision: '001' };
@@ -73,5 +73,16 @@ describe('no utilizados (Art. 42): las autorizaciones de prueba no se reportan a
     expect(documentosNoUtilizados([{ ...demo, prueba: true }], 10, { hoy: '2026-11-24' })).toEqual([]);
     const vencida = { ...real('01', 5001, 6000), fechaLimiteEmision: '2026-10-31' };
     expect(documentosNoUtilizados([demo, vencida], () => null, { hoy: '2026-11-24' }).map((r) => r.cai)).toEqual([vencida.cai]);
+  });
+});
+
+describe('crearFacturadorDemo: renovación sin correlativos libres', () => {
+  it('si el rango ya llega a 99 999 999, error DEMO_SIN_NUMEROS en vez de un rango invertido', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    const vieja = { ...autorizacionDemo({ hoy: '2025-01-10', rangoInicial: 99_000_001, rangoFinal: 99_999_999 }), fechaLimiteEmision: '2025-07-09' };
+    await comoEn020(almacen, vieja);
+    const e = await crearFacturadorDemo({ almacen, tipos: ['01'] }).catch((x: unknown) => x);
+    expect(e).toMatchObject({ errores: [{ codigo: 'DEMO_SIN_NUMEROS', solucion: expect.stringContaining('otro almacén') }] });
+    expect((e as Error).message).toContain('99999999');
   });
 });

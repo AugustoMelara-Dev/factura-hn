@@ -213,6 +213,14 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Solución:** indica el último correlativo de esa autorización que emitiste fuera de este sistema; si no
   emitiste ninguno, omite el campo.
 
+### DEMO_SIN_NUMEROS
+
+- **Qué significa:** `crearFacturadorDemo` no puede renovar la autorización de prueba de una caja: sus rangos ya
+  llegan al correlativo 99 999 999, el máximo del número de 8 dígitos.
+- **Causa:** un almacén persistente que lleva muchas renovaciones de la demo en la misma caja.
+- **Solución:** usa otro almacén para la demo (p. ej. un `AlmacenFiscalMemoria` nuevo) u otro punto de emisión.
+- **Base:** ninguna fiscal: solo afecta a la demo.
+
 ### FECHA_DEMO
 
 - **Qué significa:** `autorizacionDemo({ hoy })` recibió una fecha que no se puede leer, por ejemplo
