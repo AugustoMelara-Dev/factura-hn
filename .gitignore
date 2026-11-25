@@ -20,3 +20,9 @@ packages/core/test/.generado/
 examples/nextjs/AGENTS.md
 pos.db
 pos.db-*
+# Cliente de Python: el entorno virtual y el código generado no se versionan (ver clientes/python).
+.venv-python/
+clientes/python/generado/
+!clientes/python/requirements.txt
+__pycache__/
+.pytest_cache/
