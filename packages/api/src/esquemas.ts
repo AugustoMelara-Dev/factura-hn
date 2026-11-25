@@ -5,6 +5,20 @@
 import { z } from '@hono/zod-openapi';
 import { esFechaValida } from 'factura-hn';
 
+/**
+ * Entero de `min` a `max` (o desde `min`) con un mensaje propio en español para cualquier falla de tipo, decimal o
+ * rango: «Debe ser un número entero de 0 a 168». Sin él, Zod traduce «Demasiado grande: se esperaba que número
+ * fuera <=168». Un campo que falta conserva el mensaje de campo obligatorio. Con `texto`, el valor llega como texto
+ * (parámetros de la consulta) y se convierte.
+ */
+export function Entero(min: number, max?: number, o: { texto?: boolean } = {}) {
+  const mensaje = max === undefined ? `Debe ser un número entero mayor o igual que ${min}.` : `Debe ser un número entero de ${min} a ${max}.`;
+  const error = (i: { input?: unknown }) => (i.input === undefined ? undefined : mensaje);
+  const base = o.texto ? z.coerce.number({ error }) : z.number({ error });
+  const conMinimo = base.int({ error: mensaje }).min(min, { error: mensaje });
+  return max === undefined ? conMinimo : conMinimo.max(max, { error: mensaje });
+}
+
 /** Montos como texto decimal ("19.99") para no perder precisión; también se aceptan números. */
 export const Monto = z.union([z.string().max(32), z.number()]).openapi({ example: '115.00', description: 'Decimal como texto (recomendado) o número.' });
 const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ example: '2026-11-18' });
@@ -49,7 +63,7 @@ export const ErrorRespuesta = z
       documentacion: Documentacion,
       solicitud: z.string().optional().openapi({
         description:
-          'Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 ' +
+          'Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.3.0 ' +
           'la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.',
         example: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42',
       }),
@@ -201,11 +215,11 @@ export const Autorizacion = z
     tipoDocumento: z.enum(['01', '06', '07']),
     establecimiento: Codigo3,
     puntoEmision: Codigo3,
-    rangoInicial: z.number().int().min(1),
-    rangoFinal: z.number().int().min(1),
+    rangoInicial: Entero(1),
+    rangoFinal: Entero(1),
     fechaLimiteEmision: Fecha,
     fechaAutorizacion: Fecha.optional(),
-    ultimoEmitidoAntes: z.number().int().min(0).optional(),
+    ultimoEmitidoAntes: Entero(0).optional(),
     prueba: z.boolean().optional().openapi({
       description:
         'true: autorización de prueba, con CAI ficticio `DEMO00-NO-VALIDO-…`. Sus documentos llevan la leyenda ' +
@@ -234,7 +248,7 @@ export const EstadoAutorizacion = z
 
 /** Parámetros de una lista paginada: `limite` (1-500, 100 por defecto) y el `cursor` de la página anterior. */
 export const Paginacion = {
-  limite: z.coerce.number().int().min(1).max(500).optional().openapi({ description: 'Elementos por página (1-500). Por defecto 100.' }),
+  limite: Entero(1, 500, { texto: true }).optional().openapi({ description: 'Elementos por página (1-500). Por defecto 100.' }),
   cursor: z.string().min(1).max(200).optional().openapi({ description: 'El valor `siguiente` de la página anterior.' }),
 };
 
@@ -320,7 +334,7 @@ export const RespuestaEntregaWebhook = z.object({ entrega: EntregaWebhook }).ope
 export const GRACIA_MAXIMA_HORAS = 168;
 export const RotacionSecreto = z
   .object({
-    graciaHoras: z.number().int().min(0).max(GRACIA_MAXIMA_HORAS).optional().openapi({
+    graciaHoras: Entero(0, GRACIA_MAXIMA_HORAS).optional().openapi({
       description: `Horas en que cada entrega se firma con los dos secretos (0 a ${GRACIA_MAXIMA_HORAS}, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto.`,
     }),
   })

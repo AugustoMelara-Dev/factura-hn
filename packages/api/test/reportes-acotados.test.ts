@@ -53,12 +53,15 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
   }, 60_000);
 
   it('429 mientras dos exportaciones transmitidas siguen abiertas; al leerlas, el cupo vuelve', async () => {
-    const { admin } = await tenantListo(sinLimite);
+    const { app, admin } = await tenantListo(sinLimite);
+    // Una llave tiene un solo reporte en curso a la vez (REPORTES_POR_LLAVE): cada reporte, con su llave admin.
+    const admin2 = cliente(app, await crearCaja(admin, null, 'admin'));
+    const admin3 = cliente(app, await crearCaja(admin, null, 'admin'));
     for (let i = 0; i < 3; i++) expect((await emitir(admin, venta(), `exp-${i}`)).status).toBe(201);
     const a = await admin('GET', `/v1/exportacion?${PERIODO}&formato=csv`);
-    const b = await admin('GET', `/v1/exportacion?${PERIODO}&formato=txt`);
+    const b = await admin2('GET', `/v1/exportacion?${PERIODO}&formato=txt`);
     expect([a.status, b.status]).toEqual([200, 200]);
-    const tercera = await admin('GET', `/v1/series/000-001-01/no-utilizados`);
+    const tercera = await admin3('GET', `/v1/series/000-001-01/no-utilizados`);
     expect(tercera.status).toBe(429);
     expect(tercera.headers.get('retry-after')).toBe('1');
     expect((await json(tercera)).error.codigo).toBe('LIMITE_SOLICITUDES');
@@ -67,7 +70,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     expect((await otro.admin('GET', `/v1/libro-ventas?${PERIODO}`)).status).toBe(200);
     expect((await a.text()).split('\n')).toHaveLength(5); // encabezado, 3 filas y la línea vacía final
     await b.body!.cancel(); // el cliente corta: también libera
-    expect((await hastaEstado(() => admin('GET', `/v1/series/000-001-01/no-utilizados`), 200)).status).toBe(200);
+    expect((await hastaEstado(() => admin3('GET', `/v1/series/000-001-01/no-utilizados`), 200)).status).toBe(200);
     expect((await admin('GET', `/v1/exportacion?${PERIODO}`)).status).toBe(200);
   }, 60_000);
 
@@ -127,7 +130,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     // Libro: los mismos bytes que `c.json({ filas, resumen })` y que `libroVentasCSV(filas)` de antes.
     const filas = docs.map(filaLibroVentas);
     const libro = await admin('GET', `/v1/libro-ventas?${PERIODO}`);
-    expect(libro.headers.get('content-type')).toBe('application/json');
+    expect(libro.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas), excluidos: 0 }));
     const csv = await admin('GET', `/v1/libro-ventas?${PERIODO}&formato=csv`);
     expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8');

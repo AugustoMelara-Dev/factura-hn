@@ -8,7 +8,7 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
 > **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») está
-> pendiente de una consulta al SAR que aún no tiene respuesta. Mientras tanto, la recomendación es el modo local.
+> pendiente de una consulta al SAR que todavía no se ha enviado. Mientras tanto, la recomendación es el modo local.
 
 ## La primera factura (3 pasos)
 
@@ -39,13 +39,14 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro pue
 3. **Descarga el PDF** del enlace:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787${PDF:?el paso 2 no emitió: revisa su salida}"
    ```
 
 Reenviar la misma venta con la misma clave (`$VENTA`) devuelve la misma factura; repetir el paso 2 completo
 genera otra clave y emite otra factura. El número sale de la respuesta: no lo escribas a mano.
 Con `-f`, curl termina con error si la API responde un error, en vez de seguir con un enlace vacío; para leer el
-cuerpo del error (con su `solucion`), repite el paso sin `-f`.
+cuerpo del error (con su `solucion`), repite el paso sin `-f`. Si el paso 2 no emitió, `$PDF` queda vacío y el
+paso 3 se detiene con «el paso 2 no emitió» en vez de dejar un `factura.pdf` vacío.
 
 En PowerShell (Windows PowerShell 5.1 o PowerShell 7), los mismos tres pasos:
 
@@ -54,8 +55,12 @@ $LLAVE = docker compose exec -T api factura-hn-api demo llave --solo-llave
 $VENTA = "venta-$([guid]::NewGuid())"
 $r = Invoke-RestMethod -UseBasicParsing -Method Post http://127.0.0.1:8787/v1/documentos -ContentType 'application/json' `
   -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = $VENTA } -InFile (Resolve-Path packages/api/ejemplos/factura.json)
+if (-not $r.enlaces.pdf) { throw 'El paso 2 no emitió: revisa su salida.' }
 Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8787$($r.enlaces.pdf)" -Headers @{ authorization = "Bearer $LLAVE" } -OutFile factura.pdf
 ```
+
+Toda respuesta JSON de la API declara `Content-Type: application/json; charset=utf-8`: Windows PowerShell 5.1 la
+lee entonces en UTF-8 y los acentos llegan bien («Café», no «CafÃ©»).
 
 Escribe tu propio cuerpo siempre en un archivo UTF-8 y envíalo con `--data-binary @archivo.json` (o `-InFile`):
 escrito en la línea de comandos, una consola de Windows puede mandar la «é» en otra codificación, y la API lo
@@ -167,7 +172,8 @@ Python contra la imagen de Docker en cada cambio.
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
 | `FHN_CONSOLA` | `node packages/api/dist/cli.js` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
 | `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
-| `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool (`FHN_POOL`, 20 por defecto) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
+| `FHN_POOL` | `20` | Conexiones del pool de la API a Postgres (`DATABASE_URL`) |
+| `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool, redondeado hacia arriba (`FHN_POOL`, 20 por defecto: 5) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
 
 ### Consola del operador
 
@@ -184,8 +190,8 @@ aparece la forma de Docker Compose; los mensajes del servidor usan la de su desp
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
 docker compose exec api factura-hn-api migrar
-docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin (fhn_live_…)
-docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # sandbox: llaves fhn_test_…, solo CAI ficticios
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # modo alojado: imprime la llave admin (fhn_live_…)
+docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # modo alojado, sandbox: llaves fhn_test_…, solo CAI ficticios
 docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
 docker compose exec api factura-hn-api openapi openapi.json
@@ -196,7 +202,9 @@ correcto, y termina con código 1. La consola se conecta como dueño de las tabl
 definida, si no `DATABASE_URL`. Las llaves que crea se imprimen una sola vez, solo en la terminal de quien la
 usa. En la imagen de Docker, `node cli.cjs <comando>` sigue funcionando.
 
-No hay registro público de tenants: en el modo alojado los crea el operador. Los nombres `local` y `demo` están
+No hay registro público de tenants: en el modo alojado los crea el operador. `tenant crear` solo funciona con
+`FHN_MODO=alojado`: en modo local (o sin `FHN_MODO`, como en el `docker-compose.yml`) se niega, porque el modo
+local es de un solo negocio (para el tuyo, `llave crear local --rol admin`). Los nombres `local` y `demo` están
 reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
 (el del emisor y el CAI ficticios). `tenant crear --modo prueba|produccion` (por defecto `produccion`) fija el
 modo del tenant, que no cambia después (ver «Tenants de prueba y de producción»). `llave crear` y `demo llave`
@@ -208,7 +216,9 @@ Sin `FHN_MODO`, la API arranca en modo local y lo avisa en el log: en ese modo l
 red interna y los secretos de firma no se cifran sin `FHN_CLAVE_CIFRADO`. Un servicio con varios negocios debe
 usar `FHN_MODO=alojado`. En modo local la API **no arranca** si la base tiene tenants distintos de `local` y
 `demo` en uso (se ignoran los desactivados sin llaves activas). El error dice cómo seguir: arrancar con
-`FHN_MODO=alojado`, o desactivar esos tenants y revocar sus llaves, con el SQL para hacerlo.
+`FHN_MODO=alojado`, o desactivar esos tenants y revocar sus llaves, con el SQL para hacerlo. Ya en marcha, la
+API en modo local responde 403 `TENANT_FUERA_DEL_MODO_LOCAL` a una llave de otro tenant (p. ej. uno creado por
+fuera de la consola), en cualquier operación de `/v1`.
 
 ## Autenticación y roles
 
@@ -341,8 +351,11 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   parte por separado.
 - **Reportes en curso limitados.** Cada reporte en curso ocupa una conexión del pool (`FHN_POOL`) mientras se
   lee de la base y, si se transmite, mientras el cliente recibe la respuesta. Cada proceso atiende como mucho
-  2 de estos reportes a la vez por tenant (opción `reportesSimultaneos`) y, sumando todos los tenants, un
-  cuarto del pool, al menos 1 (`FHN_REPORTES_SIMULTANEOS_PROCESO`, opción `reportesSimultaneosProceso`). Ese
+  1 de estos reportes a la vez por llave (opción `reportesPorLlave`), 2 por tenant (opción `reportesSimultaneos`)
+  y, sumando todos los tenants, un cuarto del pool redondeado hacia arriba, al menos 1
+  (`FHN_REPORTES_SIMULTANEOS_PROCESO`, opción `reportesSimultaneosProceso`; con el pool por omisión de `pg`, 10,
+  son 3, más que los 2 de un tenant). Así una caja que lee despacio el libro de ventas ocupa un solo cupo de su
+  tenant y la exportación del admin sigue entrando. Ese
   límite no puede pasar del tamaño del pool menos 1: la API no arranca si se configura más. Así los reportes
   nunca ocupan todas las conexiones y el resto de la API sigue respondiendo (con un pool de 1, las demás
   solicitudes esperan a que termine el reporte en curso). Más allá, 429 `LIMITE_SOLICITUDES`
@@ -396,7 +409,7 @@ antes a centavos.
   él se encuentra la línea del log del servidor. Un 500 se registra con un id que genera el servidor, que es el
   que va en la respuesta si no mandaste el tuyo: «solicitud <uuid>». Si mandaste tu `Solicitud-Id`, la respuesta
   repite el tuyo y el log lleva los dos: «solicitud <uuid> (cliente <tu id>)», porque el del cliente no tiene por
-  qué ser único. La API lo envía siempre desde la 0.2.0; en el esquema es opcional, para leer sin fallar el error
+  qué ser único. La API lo envía siempre desde la 0.3.0; en el esquema es opcional, para leer sin fallar el error
   de un proxy o de un servidor anterior.
 - `solucion` dice qué hacer, y `documentacion` enlaza el código en la guía de errores (`docs/errores.md`). Los
   traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
@@ -415,14 +428,17 @@ antes a centavos.
   enlace; el código que importa es `errores[].codigo`. El error principal toma la solución del primero que la
   tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`, y `MONTO_FUERA_DE_RANGO` cuando el total del documento pasaría
   de L 9,999,999,999,999.99 (un tope técnico, no fiscal: ver `docs/errores.md`); no consume número.
-- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
+- **Sin `Idempotency-Key`** al emitir (o vacía, o con más de 255 caracteres): 400 `IDEMPOTENCY_KEY`, con su
+  `solucion` (envía `Idempotency-Key` con un valor único por venta y reutilízalo si reintentas esa venta), no
+  `SOLICITUD_INVALIDA`. En la especificación la cabecera sigue siendo obligatoria.
+- Los demás: 401 llave · 403 rol, caja o `TENANT_FUERA_DEL_MODO_LOCAL` · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
   `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
   espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO` · 503
   `BASE_NO_DISPONIBLE`, con `Retry-After`: PostgreSQL se reinicia o no responde. La API se recupera sola cuando
   la base vuelve; reintenta (al emitir, con la misma `Idempotency-Key`: si el documento alcanzó a emitirse
   recibes el mismo, y si no, se emite una sola vez).
 - Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
-  401, 429, 500 y 503; las que tienen cuerpo, 415; `libro-ventas`, 403 (llave de caja sin punto de emisión); las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  401, 403 (al menos `TENANT_FUERA_DEL_MODO_LOCAL`), 429, 500 y 503; las que tienen cuerpo, 415; `libro-ventas`, 403 (llave de caja sin punto de emisión); las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
   operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
   reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 
@@ -453,7 +469,7 @@ Solo lee datos del tenant de la llave (RLS).
   `RateLimit-Policy: "llave";q=40;w=2` (la ráfaga, `q`, se recupera entera en `w` segundos) y
   `RateLimit: "llave";r=39;t=1` (`r` solicitudes que quedan y `t` segundos hasta recuperar la ráfaga completa).
   Van también en el 429 de la llave, pero no en los 429 `DEMASIADOS_INTENTOS` (otra cubeta, por dirección).
-- **Documentos del mes:** el límite mensual de la llave (consola, `--limite`) es 429 `LIMITE_MENSUAL` con
+- **Documentos del mes:** el límite mensual del tenant (`tenant crear … --limite`) es 429 `LIMITE_MENSUAL` con
   `Retry-After` hasta el primer día del mes siguiente a las 00:00 de Honduras. El documento no se emite y el
   número no se consume.
 - **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
@@ -469,6 +485,13 @@ Solo lee datos del tenant de la llave (RLS).
 - **Consultas a la vez:** a lo sumo 4 consultas de llaves no validadas en todo el proceso
   (`limiteIntentos.consultasSimultaneas`); las demás esperan su turno en cola. Esto acota la carga sobre
   Postgres sin dar 429 a nadie.
+- **Después de reiniciar la API** el proceso no recuerda ninguna llave validada. Si más de unas 20 cajas detrás de
+  la misma dirección (una NAT, la puerta de enlace de Docker) llegan a la vez con la cola de consultas llena, las
+  que pasan de la ráfaga reciben 429 `DEMASIADOS_INTENTOS` con un `Retry-After` de pocos segundos, aunque sus llaves sean válidas:
+  la API todavía no sabe si lo son (eso es lo que protege contra la fuerza bruta). Al reintentar después de
+  `Retry-After` entran, y desde ahí ya no pasan por este límite. Un cliente que reintenta después de `Retry-After`
+  no tiene que hacer nada más; uno que arranca muchas cajas a la vez puede validar cada llave
+  con `GET /v1/sesion` de a pocas.
 - **Dirección del cliente:** la del socket. `X-Forwarded-For` se ignora, porque lo escribe el cliente. Las
   direcciones IPv6 se agrupan por /64 y la IPv4 mapeada en IPv6 cuenta como IPv4. Detrás de proxies de
   confianza (Caddy, nginx), `FHN_PROXIES_DE_CONFIANZA` (opción `proxiesDeConfianza`) acepta dos formas:
@@ -520,7 +543,11 @@ Entre el primer intento y el último pasan unas 74 h y media de media (con la fl
 en el peor caso). Después la entrega queda `FALLIDA` y se puede reenviar a mano (abajo). Cada entrega se reclama
 en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
 máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
-webhook desactivado no se entrega. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
+webhook desactivado no se entrega. Lo pendiente de un tenant desactivado se queda `PENDIENTE` sin entregarse y
+sale si el tenant se reactiva. Si el secreto guardado de un webhook no se puede descifrar (`FHN_CLAVE_CIFRADO`
+falta o no es la que lo cifró), esa entrega queda `FALLIDA` en el acto con el motivo en `ultimoError`, sin
+frenar ni repetir las demás del lote: arranca con la clave original o rota el secreto con `graciaHoras: 0` y
+reenvíala. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
 es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Pasados `FHN_RETENCION_DIAS` días, las entregas `ENTREGADA` o
 `FALLIDA` de `documento.*` y `webhook.prueba` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío
 para que el mismo aviso no se repita; las pendientes no se tocan.
@@ -590,12 +617,18 @@ tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se
 - **Aislamiento entre tenants:** cada transacción corre como `fhn_app` (NOLOGIN, NOBYPASSRLS) con
   `factura_hn.tenant` fijado. Todas las tablas `fhn_*` y `api_*` tienen la política `fhn_por_tenant`. Las
   pruebas (`packages/api/test/rls.test.ts`) intentan leer y escribir en las 12 tablas como otro tenant.
-- `api_llaves` y `api_entregas` no fuerzan RLS al dueño. Tres funciones `SECURITY DEFINER` acotadas trabajan
-  sin el tenant de la sesión:
+- `api_llaves` y `api_entregas` no fuerzan RLS al dueño. Seis funciones `SECURITY DEFINER` acotadas trabajan
+  sin el tenant de la sesión (`select proname from pg_proc where prosecdef` las lista):
   - `fhn_api_autenticar(prefijo)` busca una llave y lee su tenant; fija ese tenant solo para esa lectura y
     devuelve el anterior al salir.
-  - `fhn_api_tenants_con_pendientes()` solo lee `api_entregas` y lista los tenants con avisos por entregar; no
-    fija ningún tenant.
+  - `fhn_api_prefijo_registrado(prefijo)` dice solo si un prefijo existe (aunque su llave esté revocada), para
+    cobrar el intento fallido a esa llave y no a la dirección; la respuesta HTTP es el mismo 401.
+  - `fhn_api_marcar_uso(prefijo, hash)` anota el último uso de una llave, solo si el hash coincide y no está
+    revocada; la API la llama después de comprobar el secreto.
+  - `fhn_api_modo_tenant(tenant)` lee el modo (`prueba` o `produccion`) de un tenant para el disparador que decide
+    qué CAI acepta; fija ese tenant solo para esa lectura y devuelve el anterior.
+  - `fhn_api_tenants_con_pendientes()` lista los tenants activos con avisos por entregar; fija cada tenant solo
+    para leer si está activo y devuelve el anterior al salir.
   - `fhn_api_mantenimiento(dias)` compacta las respuestas idempotentes viejas, tenant por tenant, y borra (o deja
     como lápida) las entregas terminadas; devuelve el tenant anterior al salir.
 
@@ -635,4 +668,9 @@ no pasa por el log del servidor.
 
 **Producción:** Postgres con contraseña y TLS, `DATABASE_URL` con un rol LOGIN propio de la API (con su propia
 contraseña) y `FHN_MIGRAR_URL` con el dueño, `FHN_CLAVE_CIFRADO`, la API detrás de un proxy con HTTPS. El
-`docker-compose.yml` del repositorio es para probar en tu máquina (Postgres sin contraseña en 127.0.0.1).
+`docker-compose.yml` del repositorio es para probar en tu máquina y usa `trust` (sin contraseña): la base no
+publica ningún puerto y solo la alcanzan los contenedores del proyecto, y quien llega a ellos ya puede correr
+`docker compose exec` en ese equipo. Por eso `docker compose up -d --build --wait` funciona sin crear nada antes.
+En un equipo compartido o un servidor, pon contraseñas con un `docker-compose.override.yml` y un `.env` que no se
+versiona (`docs/autoalojamiento.md`, «Contraseña de la base»); la imagen nunca incluye `.env*` ni ese override
+(`.dockerignore`).

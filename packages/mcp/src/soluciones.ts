@@ -61,10 +61,29 @@ const SOLUCIONES: Record<string, string> = {
   NO_AUTENTICADO: 'La llave de API (FHN_LLAVE) no es válida o fue revocada. Pide una nueva al administrador.',
   SIN_EMISOR: 'La API no tiene los datos del emisor. El administrador los registra con POST /v1/emisores.',
   API_INACCESIBLE: 'No se pudo conectar con la API de factura-hn. Revisa que esté en marcha y que FHN_API_URL sea correcta.',
+  SOLICITUD_INVALIDA: 'Corrige el argumento de `campo` según el mensaje y vuelve a llamar la herramienta. Si el dato viene del usuario, pregúntaselo.',
+  CONFIRMACION_NO_DISPONIBLE:
+    'Esta herramienta pide la confirmación del usuario en el cliente MCP (elicitación) y este cliente no la ofrece. Díselo al ' +
+    'usuario: un CAI lo puede registrar él con `npx -y @factura-hn/mcp registrar-cai` y, si acepta que el asistente anule o registre CAI sin esa confirmación, ' +
+    'agregue FHN_MCP_PERMITIR_DESTRUCTIVAS=1 a la configuración del servidor MCP y lo reinicie.',
+  CONFIRMACION_RECHAZADA:
+    'El usuario no confirmó, así que no se hizo nada. No reintentes por tu cuenta: pregúntale qué quiere hacer y, si lo pide de ' +
+    'nuevo, revisa con él los datos antes de llamar otra vez.',
+};
+
+/** Qué hacer con un argumento inválido (`SOLICITUD_INVALIDA`), por campo; los demás, la solución del código. */
+const SOLUCION_CAMPO: Record<string, string> = {
+  idempotencyKey:
+    'Genera una idempotencyKey de 8 a 255 caracteres (p. ej. un UUID) una sola vez para esta venta y pásala en la llamada. ' +
+    'Si reintentas esta misma venta, reutiliza la misma clave: así no se emiten dos documentos.',
+  numero: 'El número tiene 16 dígitos con guiones, p. ej. 000-001-01-00000001. Verifícalo con el usuario.',
+  numeroOriginal: 'El número del original tiene 16 dígitos con guiones, p. ej. 000-001-01-00000001. Verifícalo con el usuario.',
 };
 
 /** Texto de solución del código: el propio o, si no hay, uno general que remite a la guía. */
 export function solucionPara(p: Pick<Problema, 'codigo' | 'campo'>): string {
+  const delCampo = p.codigo === 'SOLICITUD_INVALIDA' && p.campo ? SOLUCION_CAMPO[p.campo.split('.')[0]!] : undefined;
+  if (delCampo) return delCampo;
   const propia = SOLUCIONES[p.codigo];
   if (propia) return propia;
   if (p.codigo.startsWith('EMISOR_')) return 'Corrige ese dato en emisor.json (FHN_EMISOR) y reinicia el servidor MCP.';

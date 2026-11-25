@@ -66,6 +66,9 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
   const violaciones: string[] = [];
   const cabeceras = (r.headers as Headers);
   for (const h of SIEMPRE) if (!cabeceras.has(h)) violaciones.push(`falta la cabecera ${h}`);
+  // Todo JSON declara su codificación: sin ella, Windows PowerShell 5.1 lo lee como Latin-1.
+  const tipoCompleto = cabeceras.get('content-type') ?? '';
+  if (/^application\/json(?:\s*;|\s*$)/i.test(tipoCompleto) && !/;\s*charset=utf-8\s*$/i.test(tipoCompleto)) violaciones.push(`${metodo} ${ruta}: JSON sin charset=utf-8 («${tipoCompleto}»)`);
 
   const hallada = rutas.find((x) => x.patron.test(ruta) && SPEC.paths[x.plantilla]![m]);
   if (!hallada) {

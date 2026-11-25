@@ -5,7 +5,9 @@ consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Proyecto ind
 
 ## Pruébalo en 3 pasos
 
-Requiere Node 22.13 o más reciente.
+Requiere Node 22.13 o más reciente: la base local es SQLite (`node:sqlite`), que llega en esa versión. Con un Node
+anterior, `init`, `registrar-cai` y el servidor en modo SQLite se niegan con «Necesitas Node 22.13 o más reciente
+(tienes …)». Instala la versión LTS de [nodejs.org](https://nodejs.org).
 
 **1.** En una carpeta vacía:
 
@@ -149,6 +151,19 @@ VALOR FISCAL» y `structuredContent.prueba` es `true`.
   que pida confirmación cada vez. Vía la API, usa una llave de caja y el agente no podrá anular (403).
 - `registrar_cai` también es destructiva (`destructiveHint`): no borra nada, pero un CAI registrado no se quita y
   fija la numeración. Que tu cliente pida confirmación y revisa los datos contra la resolución.
+- **Confirmación del usuario.** Antes de anular o de registrar un CAI, el servidor le pregunta al usuario por
+  elicitación MCP, en una ventana de tu cliente, con los datos exactos: el número y el motivo, o el CAI, el tipo, el
+  establecimiento, el punto, el rango y las fechas. Solo si marca «Confirmo» y acepta, la herramienta actúa; si
+  rechaza o cancela, responde `CONFIRMACION_RECHAZADA` y no hace nada. Así, un texto escrito dentro de un documento
+  (un nombre, una descripción) no puede llevar al asistente a anular por su cuenta.
+- **Clientes sin elicitación.** Si tu cliente MCP no la ofrece, esas dos herramientas se niegan con
+  `CONFIRMACION_NO_DISPONIBLE`. Si aceptas que el asistente anule y registre CAI sin esa ventana (con la confirmación
+  de tu cliente como única barrera), agrega `"FHN_MCP_PERMITIR_DESTRUCTIVAS": "1"` al `env` del servidor y
+  reinícialo. Con una llave admin de la API, piénsalo dos veces.
+- **Datos de prueba.** Sin elicitación, anular un documento de prueba y registrar el CAI ficticio
+  (`DEMO00-NO-VALIDO-…`) funcionan sin esa variable: no tienen valor fiscal. Con elicitación, también preguntan.
+- Si un argumento no tiene la forma esperada (p. ej. falta `idempotencyKey` o tiene menos de 8 caracteres), el
+  error es `SOLICITUD_INVALIDA`, en español, con el campo, qué hacer y la guía.
 
 ## Modo SQLite (en este equipo)
 
@@ -201,6 +216,14 @@ Contra la API de factura-hn (local con Docker, o alojada). En Windows, usa `"com
 En ambos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el agente: queda en la bitácora. Las
 herramientas de emitir y anular aceptan además `operador` (si el usuario dice quién atiende) e `imprimirOperador`
 para imprimir «Atendido por» en el documento.
+
+| Variable | |
+|---|---|
+| `FHN_SQLITE`, `FHN_EMISOR` | Modo SQLite: la base y el archivo del emisor. |
+| `FHN_ESTABLECIMIENTO`, `FHN_PUNTO` | Dónde emite este servidor (por defecto `000` y `001`). |
+| `FHN_API_URL`, `FHN_LLAVE` | Modo API: la dirección de la API y la llave. |
+| `FHN_OPERADOR` | Opcional. Quién opera con el agente, para la bitácora. |
+| `FHN_MCP_PERMITIR_DESTRUCTIVAS` | Opcional. `1` deja anular y registrar CAI con un cliente MCP que no ofrece elicitación (ver «Seguridad»). Sin ella, esas herramientas se niegan en esos clientes. |
 
 ## Comandos
 

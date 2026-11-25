@@ -66,6 +66,16 @@ describe('consola: ayuda y uso', () => {
     expect(await correr(['migrar'])).toMatchObject({ codigo: 1, error: expect.stringContaining('FHN_MIGRAR_URL') });
   });
 
+  it('«tenant crear» se niega en modo local o sin FHN_MODO, sin tocar la base', async () => {
+    for (const env of [{}, { FHN_MODO: 'local' }]) {
+      const r = await correr(['tenant', 'crear', 'otro-negocio'], { ...env, DATABASE_URL: 'postgres://nadie@127.0.0.1:1/x' });
+      expect(r.codigo).toBe(1);
+      expect(r.error).toContain('No se crea «otro-negocio»: el modo local es para un solo negocio');
+      expect(r.error).toContain('FHN_MODO=alojado');
+      expect(r.error).not.toContain('no se pudo conectar');
+    }
+  });
+
   it('openapi imprime la especificación sin base', async () => {
     const r = await correr(['openapi']);
     expect(r.codigo).toBe(0);

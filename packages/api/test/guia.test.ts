@@ -124,6 +124,15 @@ conBase('errores con solución', () => {
 
     const sinClave = await json(await caja('POST', '/v1/documentos', venta(), { 'idempotency-key': ' ' }));
     expect(sinClave.error).toMatchObject({ codigo: 'IDEMPOTENCY_KEY', solucion: expect.any(String) });
+    // Sin la cabecera: el mismo código y su solución propia, no SOLICITUD_INVALIDA.
+    const sinCabecera = await caja('POST', '/v1/documentos', venta());
+    expect(sinCabecera.status).toBe(400);
+    const faltante = await json(sinCabecera);
+    expect(faltante.error).toMatchObject({ codigo: 'IDEMPOTENCY_KEY', documentacion: documentacionDe('IDEMPOTENCY_KEY') });
+    expect(faltante.error.solucion).toContain('Idempotency-Key` con un valor único por venta');
+    // Windows PowerShell 5.1 borra de ErrorDetails.Message lo que parece una etiqueta («<…>»).
+    expect(faltante.error.solucion).not.toMatch(/[<>]/);
+    expect(faltante.error.solucion).toContain('reutiliza el mismo valor');
 
     const grande = await caja('POST', '/v1/documentos', { relleno: 'x'.repeat(600 * 1024) }, { 'idempotency-key': 'k' });
     expect(grande.status).toBe(413);
@@ -134,6 +143,17 @@ conBase('errores con solución', () => {
     const { llaveAdmin } = await crearTenant(p, { tenant, nombre: tenant });
     const sinEmisor = await json(await emitir(cliente(crearApp({ pool: p, modo: 'local', rol: ROL }), llaveAdmin), venta()));
     expect(sinEmisor.error).toMatchObject({ codigo: 'SIN_EMISOR', solucion: expect.stringContaining('POST /v1/emisores') });
+  });
+
+  it('un 422 fuera de la emisión no pide reintentar con la Idempotency-Key (corregir-fecha sin nada que corregir)', async () => {
+    const { admin } = await tenantListo();
+    const r = await admin('POST', '/v1/series/000-001-01/corregir-fecha', { motivo: 'Reloj revisado' });
+    expect(r.status).toBe(422);
+    const cuerpo = await json(r);
+    expect(cuerpo.errores[0].codigo).toBe('SIN_DOCUMENTOS_ADELANTADOS');
+    expect(cuerpo.error.solucion).toBe('Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta.');
+    // En la emisión, sí: un 422 no consume número y la misma clave no emite dos veces.
+    expect(soluciones({ consola: 'factura-hn-api', modo: 'local' }).VALIDACION).toContain('misma Idempotency-Key');
   });
 
   it('CUERPO_NO_UTF8 trae la solución con --data-binary', async () => {

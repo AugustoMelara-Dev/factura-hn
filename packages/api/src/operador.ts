@@ -253,6 +253,19 @@ export async function tenantsAjenosAlModoLocal(pool: pg.Pool, maximo = 5): Promi
   }
 }
 
+/**
+ * Mensaje de `tenant crear` en modo local (o sin FHN_MODO): el modo local es de un solo negocio. Si se creara el
+ * tenant, tendría webhooks del modo local (sin el filtro de la red interna) hasta el próximo arranque, que se negaría
+ * a seguir (ver `errorTenantsAjenos`).
+ */
+export function errorTenantEnModoLocal(tenant: string): string {
+  return [
+    `No se crea «${tenant}»: el modo local es para un solo negocio (el tenant «${TENANT_LOCAL}»; «${TENANT_DEMO}» es el de demostración).`,
+    'Si la base sirve a varios negocios, arranca con FHN_MODO=alojado (y FHN_CLAVE_CIFRADO), y corre esta consola también con FHN_MODO=alojado.',
+    `Para tu propio negocio no hace falta otro tenant: crea su llave con «llave crear ${TENANT_LOCAL} --rol admin».`,
+  ].join('\n');
+}
+
 /** Mensaje de error del modo local con tenants ajenos: cómo arreglarlo, con el SQL para desactivarlos. */
 export function errorTenantsAjenos(ajenos: string[]): string {
   const sql = ajenos

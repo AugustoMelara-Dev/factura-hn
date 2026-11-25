@@ -254,7 +254,7 @@ conBase('modo del tenant', () => {
   });
 
   it('consola: tenant crear --modo prueba y llave crear dan llaves fhn_test_; --modo inválido es un error de uso', async () => {
-    const env = { DATABASE_URL: URL_PG, FHN_ROL: ROL };
+    const env = { DATABASE_URL: URL_PG, FHN_ROL: ROL, FHN_MODO: 'alojado' };
     const correr = async (args: string[]) => {
       const log: string[] = [];
       const error: string[] = [];
