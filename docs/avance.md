@@ -9,9 +9,9 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 - **Fase actual:** plan «terminar factura-hn», en lotes 1 a 6 (24-11-2026).
   - **Lote 1 (seguridad y 0.2.0):** hecho y publicado. Falta que el responsable confirme Trusted Publisher en los
     seis paquetes.
-  - **Lote 2 (Etapa 1, los primeros 5 minutos):** en el PR `lote2/integracion`.
-  - **Después:** Lote 3 (sitio Starlight), Lote 4 (API para integradores), Lote 5 (calidad
-    medida) y Lote 6 (cierre).
+  - **Lote 2 (Etapa 1, los primeros 5 minutos):** hecho (74a8eea, PR #9).
+  - **Lote 3 (sitio Starlight):** en el PR `lote3/integracion`.
+  - **Después:** Lote 4 (API para integradores), Lote 5 (calidad medida) y Lote 6 (cierre).
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
   - **Subagentes** (opus, esfuerzo medio) para el trabajo paralelo. Cada revisión la hace quien no escribió el
@@ -147,18 +147,45 @@ un subagente que no la escribió; la rama integrada pasó dos revisiones más (s
 - **Decisiones:** DEC-062 a DEC-096. [REVISAR]: DEC-066 (`preciosIncluyenISV` en la fachada), DEC-068
   (equivalente en USD), DEC-069 (tasa del 18 %), DEC-079 (NC con `cliente` sobre CONSUMIDOR FINAL).
 
+## Hecho (Lote 3)
+
+Rama `lote3/integracion`, que une `lote3/sitio`, `lote3/contenido-a`, `-b`, `-c` y `-d`. Cada rama de contenido la
+revisó un subagente que no la escribió (exactitud fiscal, enlaces y código).
+
+- **Sitio en `web/`** (Astro Starlight, salida en `sitio/`, base `/factura-hn`): 58 páginas, portada propia, modo
+  oscuro y claro con contraste AA probado, buscador Pagefind en español, playground embebido.
+- **Páginas generadas al construir** desde el repositorio: referencia del SDK y de la API, rutas y esquemas desde
+  `openapi.json`, catálogo de errores, normativa, decisiones, consulta al SAR, autoalojamiento y cambios. La matriz de
+  cumplimiento sale de las pruebas: la construcción falla si una fila cubierta pierde su prueba.
+- **Páginas escritas:** empezar, conceptos, los cuatro documentos, ocho guías, seis negocios, siete de producción
+  («ir a producción ante el SAR»), IA y agentes, ayuda y glosario.
+- **Para IA:** cada página en `.md`, `llms.txt` y `llms-full.txt`.
+- **Comprobaciones:** `verificar.mjs` revisa enlaces internos y anclas, recursos para IA, buscador y portada.
+  `readme.test.ts` compila cada bloque `ts` de las páginas versionadas y compara los prompts de `/ia/prompts/`.
+- **Revisión en el navegador** de cada página en escritorio (1280 px) y móvil (375 px). Se corrigió el código partido
+  letra por letra en las tablas en móvil, y los bloques sin índice (`/empezar/`, `/conceptos/`, `/guias/`, `/ayuda/`)
+  ahora redirigen a su primera página.
+- **Decisiones:** DEC-097 a DEC-103. [REVISAR]: DEC-101 (la guía de profesional se publica con aviso de peligro),
+  DEC-102 (CAI pedido para otro sistema o talonarios, pregunta nueva P-15 de la consulta) y DEC-103 (instalación de
+  la skill en `.claude/skills/`).
+
 ## Sigue
 
-1. Fusionar el PR del Lote 2 con la CI en verde.
+1. Fusionar el PR del Lote 3 con la CI en verde.
 2. El responsable confirma Trusted Publisher en los seis paquetes.
-3. Lote 3 (Etapa 2): sitio en Astro Starlight.
-4. Pendiente menor: `datos::jsonb - 'lineas'` falla con un escape NUL dentro de un documento. Por la API no se llega
-   (emitir con NUL ya da 500); conviene rechazar los controles al emitir.
-5. Lotes 4 a 6. Pendientes anotados: `GET /v1/libro-ventas` con llave de caja (Lote 4). Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
+3. Lote 4: API para integradores. Incluye `GET /v1/libro-ventas` con llave de caja.
+4. Pendientes menores:
+   - `datos::jsonb - 'lineas'` falla con un escape NUL dentro de un documento. Por la API no se llega (emitir con NUL
+     ya da 500); conviene rechazar los controles al emitir.
+   - `AVISO_VIGENCIA_MAYOR_1_ANIO` no sale al registrar la autorización, solo al validarla y al emitir.
+   - `@hono/swagger-ui` quedó en las dependencias de la API sin usarse.
+   - Dos notas sobre documentos de puntos distintos pueden bloquearse entre sí en Postgres (orden de los bloqueos).
+5. Lotes 5 y 6. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
 
 ## Cómo correr
 
 ```bash
 pnpm install && pnpm test && pnpm test:ejemplos && pnpm typecheck
 pnpm test:pg      # levanta el Postgres de factura-hn (con docker-compose.dev.yml) y corre lo que lo usa
+pnpm sitio        # genera, construye y verifica el sitio en sitio/; pnpm sitio:ver lo sirve en :4321
 ```

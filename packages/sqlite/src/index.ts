@@ -3,7 +3,7 @@
  * en el negocio (docs/investigacion.md, «Modos de despliegue»).
  *
  * Funciona con cualquier driver síncrono con `exec` y `prepare().run/get/all`: `better-sqlite3` o
- * `node:sqlite` (`DatabaseSync`, Node ≥ 22.5). El adaptador no instala ni elige el driver.
+ * `node:sqlite` (`DatabaseSync`, Node ≥ 22.13 sin bandera experimental). El adaptador no instala ni elige el driver.
  *
  * Garantías:
  * - Cada transacción abre con `BEGIN IMMEDIATE` (bloqueo de escritura desde el inicio), así que dos

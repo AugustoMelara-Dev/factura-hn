@@ -39,7 +39,7 @@ FISCAL» (`LEYENDA_PRUEBA`) en el HTML, el texto y el PDF. Para facturar de verd
 ## 1. Instala
 
 ```bash
-npm install factura-hn @factura-hn/sqlite      # una caja, fuera de línea (Node 22.13+)
+npm install factura-hn @factura-hn/sqlite      # una caja, fuera de línea (Node 18+ con better-sqlite3; 22.13+ con node:sqlite)
 npm install factura-hn @factura-hn/postgres pg # un servidor con varias cajas
 npm install @factura-hn/pdf                    # opcional: PDF carta y ticket
 ```

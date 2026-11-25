@@ -1,0 +1,112 @@
+---
+title: Facturación para Honduras
+description: Facturación conforme al Acuerdo 481-2017 de Honduras. SDK de TypeScript, API REST y servidor MCP de código abierto, con cada regla citada y probada.
+template: splash
+pagefind: false
+hero:
+  title: Facturación para Honduras, sin inventar reglas
+  tagline: SDK de TypeScript, API REST y servidor MCP de código abierto para emitir facturas, notas de crédito y notas de débito conforme al Reglamento del Régimen de Facturación (Acuerdo 481-2017). Cada regla cita su artículo y tiene una prueba.
+  actions:
+    - text: Empezar
+      link: /empezar/primera-factura/
+      variant: primary
+    - text: Probar en el navegador
+      link: /empezar/playground/
+      variant: secondary
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Estado from '../../components/Estado.astro';
+
+```bash
+npm install factura-hn
+```
+
+Sin dependencias · TypeScript · licencia MIT.
+
+## La primera factura en 3 pasos
+
+Elige un camino. Los tres empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor ficticio.
+Todo lo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+
+<Tabs syncKey="camino">
+<TabItem label="SDK">
+
+Para proyectos JavaScript o TypeScript que emiten con su propia base (PostgreSQL o SQLite). Node 18 o más
+reciente, en la carpeta de tu proyecto o en una nueva:
+
+```bash
+npm install factura-hn
+npx factura-hn init     # crea emitir.mjs y emisor.json
+node emitir.mjs         # emite la factura de prueba
+```
+
+Verás el ticket en la consola y el número (`000-001-01-00000001`). En la carpeta queda `factura.html`.
+Sigue con la [guía del SDK](/referencia/sdk/).
+
+</TabItem>
+<TabItem label="API REST">
+
+Para cualquier lenguaje, o varias cajas contra un servidor del negocio. Con Docker y Compose v2, desde un clon
+del repositorio:
+
+```bash
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git && cd factura-hn
+docker compose up -d --build --wait     # API en http://127.0.0.1:8787
+```
+
+1. La dirección de la API y la llave de caja del tenant `demo`:
+
+   ```bash
+   API=http://127.0.0.1:8787
+   LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+   ```
+
+2. Emite, con una clave de idempotencia nueva para esta venta:
+
+   ```bash
+   VENTA="venta-$(date +%s)"
+   RESPUESTA=$(curl -s -X POST "$API/v1/documentos" \
+     -H "authorization: Bearer $LLAVE" -H "idempotency-key: $VENTA" -H "content-type: application/json" \
+     --data-binary @packages/api/ejemplos/factura.json)
+   PDF=$(printf '%s' "$RESPUESTA" | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
+   ```
+
+3. Descarga el PDF:
+
+   ```bash
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
+   ```
+
+Sigue con la [guía de la API REST](/referencia/api/) o [autoaloja la API](/guias/autoalojar/).
+
+</TabItem>
+<TabItem label="MCP">
+
+Para agentes de IA (Claude Desktop, Claude Code, Cursor) que emiten, consultan y anulan. Con Node 22.13 o más
+reciente, en una carpeta vacía:
+
+1. `npx -y @factura-hn/mcp init --demo`: crea la base de prueba y el emisor ficticio, e imprime el bloque
+   `mcpServers`.
+2. Pega el bloque en la configuración de tu cliente MCP y reinícialo.
+3. Pídele al asistente: «emite una factura de prueba».
+
+Dónde va el bloque en cada cliente: [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md).
+
+</TabItem>
+</Tabs>
+
+Para facturar de verdad hacen falta los datos reales del emisor y el CAI de tu resolución del SAR: ver
+[ir a producción](/produccion/).
+
+## Lo que resuelve
+
+- **Numeración atómica y sin huecos.** Cada número se reserva en la misma transacción que guarda el documento,
+  y nunca se borra ni se reutiliza.
+- **Dinero exacto.** Sin punto flotante. El ISV sigue el redondeo del Art. 9 de la Ley del ISV.
+- **Documentos inmutables.** Se anulan (Art. 41) o se corrigen con notas de crédito o de débito.
+- **Bitácora de auditoría** con quién hizo cada operación (Art. 53 num. 2).
+
+## Estado del proyecto
+
+<Estado />
