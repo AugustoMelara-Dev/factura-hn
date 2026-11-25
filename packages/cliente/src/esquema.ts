@@ -122,7 +122,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Documentos de un período, por fecha de emisión y número (paginado) */
+        /**
+         * Documentos de un período, por fecha de emisión y número (paginado)
+         * @description Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con `hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.
+         */
         get: operations["listarDocumentos"];
         put?: never;
         /**

@@ -345,6 +345,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
   const maxBytesPagina = cfg.maxBytesPagina ?? MAX_BYTES_PAGINA;
+  if (!Number.isSafeInteger(maxBytesPagina) || maxBytesPagina < 1) throw new Error('maxBytesPagina debe ser un entero mayor que 0.');
   const ultimoUso = new Map<string, number>();
 
   const app = new OpenAPIHono<Env>({
@@ -1056,6 +1057,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/documentos', operationId: 'listarDocumentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
+      description:
+        'Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con ' +
+        '`hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.',
       request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
       responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 429, 500) },
     }),
