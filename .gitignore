@@ -28,3 +28,7 @@ __pycache__/
 .pytest_cache/
 # La llave del demo para Bruno (FHN_LLAVE=…): no se versiona.
 colecciones/bruno/.env
+# Clúster desechable de PostgreSQL de las pruebas de resiliencia (scripts/pg-temporal.mjs).
+.pg-temporal/
+# Resultados de la medición de carga (pnpm carga).
+packages/api/carga/resultados/
