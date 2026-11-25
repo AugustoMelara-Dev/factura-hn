@@ -129,21 +129,7 @@ body {
 	gap: 2rem;
 	height: 4rem;
 }
-.marca {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	color: var(--fhn-texto);
-	font-family: var(--fhn-fuente-mono);
-	font-weight: 600;
-	font-size: 1.0625rem;
-	letter-spacing: -0.02em;
-	text-decoration: none;
-}
-.marca-icono {
-	color: var(--fhn-acento);
-	flex: none;
-}
+/* La marca tiene sus estilos en components/Marca.astro (la comparten la documentación y el producto). */
 .cab-nav {
 	display: none;
 	gap: 1.75rem;
@@ -180,8 +166,8 @@ body {
 .cab-menu summary {
 	display: grid;
 	place-items: center;
-	width: 2.5rem;
-	height: 2.5rem;
+	width: 2.75rem;
+	height: 2.75rem;
 	border-radius: 8px;
 	color: var(--fhn-texto);
 	cursor: pointer;
@@ -207,7 +193,10 @@ body {
 	box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.18);
 }
 .cab-menu-panel a {
-	padding: 0.625rem 0.75rem;
+	display: flex;
+	align-items: center;
+	min-height: 2.75rem;
+	padding: 0 0.75rem;
 	border-radius: 8px;
 }
 .cab-menu-panel a:hover {
@@ -390,6 +379,8 @@ body {
 }
 .tarjeta {
 	position: relative;
+	/* Sin esto, un comando largo (que no se parte) ensancha la tarjeta y la página. */
+	min-width: 0;
 	display: flex;
 	flex-direction: column;
 	gap: 0.625rem;
@@ -442,11 +433,9 @@ a.tarjeta:hover {
 	overflow-x: auto;
 	white-space: nowrap;
 }
+/* En las tarjetas, el comando va en una sola línea (se desplaza si no cabe): partido a la mitad se lee mal. */
 .tarjeta .comando {
-	display: block;
-	white-space: normal;
-	overflow-wrap: break-word;
-	overflow: visible;
+	display: flex;
 	line-height: 1.5;
 }
 .tarjeta .comando::before {
@@ -462,10 +451,12 @@ a.tarjeta:hover {
 }
 
 /* Bloque de código con barra de título (sin JavaScript: el texto se selecciona y se copia a mano). */
+/* El código va sobre el fondo de la página (los temas de Shiki pasan AA ahí; ver contraste.test.mjs) y la barra de
+   título, sobre la superficie gris. */
 .codigo {
 	border: 1px solid var(--fhn-borde);
 	border-radius: 12px;
-	background: var(--fhn-superficie);
+	background: var(--fhn-fondo);
 	overflow: hidden;
 }
 .codigo-barra {
@@ -475,6 +466,7 @@ a.tarjeta:hover {
 	gap: 1rem;
 	padding: 0.625rem 1rem;
 	border-bottom: 1px solid var(--fhn-borde);
+	background: var(--fhn-superficie);
 	color: var(--fhn-gris-3);
 	font-family: var(--fhn-fuente-mono);
 	font-size: 0.75rem;
@@ -560,9 +552,12 @@ a.tarjeta:hover {
 }
 .pie ul {
 	display: grid;
-	gap: 0.625rem;
 }
+/* Cada enlace ocupa 44 px de alto: se toca bien con el dedo. */
 .pie ul a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.75rem;
 	color: var(--fhn-gris-3);
 	text-decoration: none;
 }
@@ -617,7 +612,8 @@ starlight-theme-select .icon svg {
 }
 starlight-theme-select select {
 	width: 6.5rem;
-	padding: 0.5rem 1.375rem 0.5rem 1.375rem;
+	min-height: 2.75rem;
+	padding: 0 1.375rem;
 	border: 0;
 	background: transparent;
 	color: inherit;
