@@ -56,24 +56,24 @@ describe('B-10 · Art. 53 num. 5: archivos tipo texto', () => {
     const [, f1, f2, nc] = csv.slice(1).trim().split('\n');
     expect(f1).toContain('"Constructora ""El Roble"", S. de R.L. | Ciudad Ejemplo"');
     expect(f1).toContain(',0.30,'); // 3 × 0.10, sin error de punto flotante
-    expect(f1!.endsWith(',0.30,,')).toBe(true); // total, sin referencia ni anulación
+    expect(f1!.endsWith(',0.30,,,,')).toBe(true); // total, sin referencia, anulación ni tipo de cambio (v2)
     expect(f2).toContain(',ANULADO,');
-    expect(f2!.endsWith(',19.99,0.00,3.00,0.00,0.00,22.99,,Error de precio')).toBe(true); // conserva lo emitido y el motivo
+    expect(f2!.endsWith(`,19.99,0.00,3.00,0.00,0.00,22.99,,Error de precio,,${docs[1]!.anulacion!.fecha}`)).toBe(true); // conserva lo emitido, el motivo y la fecha de anulación
     expect(nc).toContain(',06,');
-    expect(nc!.endsWith(',0.10,000-001-01-00000001,')).toBe(true);
+    expect(nc!.endsWith(',0.10,000-001-01-00000001,,,')).toBe(true);
   });
 
   it('txt: separador |, encabezado con versión y conteo; el | de los datos se limpia', () => {
     const lineas = exportarTexto(docs, { formato: 'txt' }).trim().split('\n');
-    expect(lineas[0]).toBe('#factura-hn|v1|3');
-    expect(lineas[1]!.split('|')).toHaveLength(21);
-    for (const l of lineas.slice(2)) expect(l.split('|')).toHaveLength(21);
+    expect(lineas[0]).toBe('#factura-hn|v2|3');
+    expect(lineas[1]!.split('|')).toHaveLength(23); // v2: 21 columnas de la v1 + tipoCambio y fechaAnulacion
+    for (const l of lineas.slice(2)) expect(l.split('|')).toHaveLength(23);
     expect(lineas[2]).toContain('S. de R.L.   Ciudad Ejemplo');
   });
 
   it('sin documentos: archivos válidos y vacíos', () => {
     expect(exportarTexto([], { formato: 'jsonl' })).toBe('');
-    expect(exportarTexto([], { formato: 'txt' }).split('\n')[0]).toBe('#factura-hn|v1|0');
+    expect(exportarTexto([], { formato: 'txt' }).split('\n')[0]).toBe('#factura-hn|v2|0');
   });
 
   it('el módulo no usa toFixed ni parseFloat (importes desde centavos enteros)', () => {

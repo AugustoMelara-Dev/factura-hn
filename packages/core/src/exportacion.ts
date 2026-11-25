@@ -20,13 +20,19 @@ import type { DocumentoFiscal, ResumenDocumento } from './tipos';
 
 export type FormatoExportacion = 'jsonl' | 'csv' | 'txt';
 
-/** Versión del formato de exportación; cambia si cambian las columnas. */
-export const VERSION_EXPORTACION = 1;
+/**
+ * Versión del formato de exportación; cambia si cambian las columnas. La 2 agrega al final `tipoCambio` y
+ * `fechaAnulacion`; las columnas de la 1 no cambian de nombre ni de orden, así que un lector de la 1 que lee por
+ * nombre (o las primeras 21) sigue funcionando.
+ */
+export const VERSION_EXPORTACION = 2;
 
 const COLUMNAS = [
   'numero', 'tipo', 'fecha', 'hora', 'cai', 'estado', 'emisorRTN', 'clienteRTN', 'clienteNombre', 'moneda',
   'exonerado', 'exento', 'gravado0', 'gravado15', 'gravado18', 'isv15', 'isv18', 'descuentos', 'total',
   'referencia', 'motivoAnulacion',
+  // Versión 2: al final, para no mover las columnas de la 1.
+  'tipoCambio', 'fechaAnulacion',
 ] as const;
 
 const monto = (v: number) => centavosATexto(redondearDecimal(v, 2));
@@ -55,6 +61,8 @@ function fila(d: ResumenDocumento): Record<(typeof COLUMNAS)[number], string> {
     total: monto(t.total),
     referencia: d.referencia?.numero ?? '',
     motivoAnulacion: d.anulacion?.motivo ?? '',
+    tipoCambio: d.tipoCambio !== undefined ? String(d.tipoCambio) : '',
+    fechaAnulacion: d.anulacion?.fecha ?? '',
   };
 }
 
@@ -64,7 +72,7 @@ function fila(d: ResumenDocumento): Record<(typeof COLUMNAS)[number], string> {
  * - `jsonl`: un documento completo por línea (JSON). Sirve para respaldo y traslado sin pérdida: se lee
  *   con `leerExportacionJSONL`.
  * - `csv`: una fila por documento (resumen fiscal), separador coma, UTF-8 con BOM para Excel.
- * - `txt`: lo mismo con separador `|`, sin BOM, con una línea de encabezado `#factura-hn|v1|…`.
+ * - `txt`: lo mismo con separador `|`, sin BOM, con una línea de encabezado `#factura-hn|v2|…` (versión, `VERSION_EXPORTACION`).
  *
  * Los anulados se exportan con sus importes originales y `estado = ANULADO`: el archivo conserva lo que se
  * emitió; quien lo procese decide cómo contarlo (el libro de ventas los pone en cero).
