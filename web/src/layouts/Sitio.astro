@@ -1,0 +1,61 @@
+---
+// Diseño de las páginas del producto (portada, Pruébalo, cumplimiento, precios, contacto), fuera de Starlight.
+//
+// - Estilos: las fuentes, el reset de Astryx con su tema neutral, y encima los tokens del sitio (tokens.css) con el
+//   puente que los asigna a Astryx. El reset de Astryx solo se carga aquí: la documentación sigue con el de
+//   Starlight. Los estilos de los componentes de Astryx (astryx.css, unos 50 KB comprimidos) los importa solo la
+//   página que los usa (Pruébalo); las demás son HTML y CSS propios sobre los mismos tokens.
+// - JavaScript: solo el del selector de tema de Starlight (el mismo de la documentación). Una página que necesita
+//   más (Pruébalo) lo trae en su propia isla.
+import '../styles/fuentes.css';
+import '@astryxdesign/core/reset.css';
+import '@astryxdesign/theme-neutral/theme.css';
+import '../styles/tokens.css';
+import '../styles/tema.css';
+import '../styles/astryx-puente.css';
+import '../styles/sitio.css';
+import ProveedorTema from '../components/ProveedorTema.astro';
+import Cabecera from '../components/producto/Cabecera.astro';
+import PieSitio from '../components/producto/PieSitio.astro';
+import { BASE, SITIO_URL } from '../../sitio.config.mjs';
+
+interface Props {
+  /** Título de la pestaña, sin « | factura-hn» (la portada lo lleva completo). */
+  titulo: string;
+  descripcion: string;
+  /** Ruta sin la base, con barras: '/', '/precios/'. */
+  ruta: string;
+}
+const { titulo, descripcion, ruta } = Astro.props;
+const tituloCompleto = ruta === '/' ? titulo : `${titulo} | factura-hn`;
+const canonica = `${SITIO_URL}${BASE}${ruta}`;
+---
+
+<!doctype html>
+<html lang="es" dir="ltr" data-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{tituloCompleto}</title>
+		<meta name="description" content={descripcion} />
+		<link rel="canonical" href={canonica} />
+		<link rel="icon" href={`${BASE}/favicon.svg`} type="image/svg+xml" />
+		<link rel="alternate" type="text/markdown" href={`${BASE}${ruta === '/' ? '/index' : ruta.replace(/\/$/, '')}.md`} />
+		<meta property="og:title" content={tituloCompleto} />
+		<meta property="og:description" content={descripcion} />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content={canonica} />
+		<meta property="og:locale" content="es_HN" />
+		<meta name="theme-color" content="#ffffff" />
+		<ProveedorTema />
+		<slot name="head" />
+	</head>
+	<body data-astryx-theme="neutral">
+		<a class="saltar" href="#contenido">Ir al contenido</a>
+		<Cabecera ruta={ruta} />
+		<main id="contenido">
+			<slot />
+		</main>
+		<PieSitio />
+	</body>
+</html>
