@@ -6,7 +6,7 @@ informe en `docs/calidad/`, con el detalle, los hallazgos y la fecha de la medic
 | Tema | Resultado | Dónde corre | Informe |
 |---|---|---|---|
 | Propiedades del núcleo (fast-check) | 60 propiedades, 12 620 casos en el CI y 1 262 000 de noche, 0 fallos. Cada propiedad fiscal cita su artículo. | CI y nocturno | [propiedades.md](calidad/propiedades.md) |
-| Contrato OpenAPI | Cada respuesta de las pruebas de la API se valida contra `openapi.json` (estado, cuerpo y cabeceras): 1 868 respuestas, 0 fuera del contrato. 28 de 28 operaciones vistas. | CI | [propiedades.md](calidad/propiedades.md) |
+| Contrato OpenAPI | Cada respuesta de las pruebas de la API se valida contra `openapi.json` (estado, cuerpo y cabeceras): 2 760 respuestas, 0 fuera del contrato. 28 de 28 operaciones y 137 de 229 combinaciones operación + estado. | CI | [propiedades.md](calidad/propiedades.md) |
 | Fuzzing | 300 solicitudes generadas desde la especificación en el CI y 20 000 de noche, ninguna 500. Los analizadores del núcleo solo lanzan sus propios errores. | CI y nocturno | [propiedades.md](calidad/propiedades.md) |
 | Mutación (Stryker) | 99,11 % en total (antes 67,94 %). Cálculo 97,13 %, dinero 97,30 %, numeración 100 %, validación (documento 99,74 %, autorización 99,32 %, identificación 100 %), letras 100 %, modo 100 %. Falla si un módulo baja de 85 %. | Nocturno (unos 15 min) | [mutacion.md](calidad/mutacion.md) |
 | Carga | A 30 emisiones/s: p50 19 ms, p95 37 ms, p99 56 ms. Saturación: unos 130 documentos/s. 0 números repetidos, 0 huecos, una emisión por `Idempotency-Key`. | CI (corta) y nocturno (5 min) | [carga.md](calidad/carga.md) |
