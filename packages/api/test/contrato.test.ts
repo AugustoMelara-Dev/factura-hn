@@ -90,13 +90,15 @@ describe('OpenAPI: estados de error', () => {
     for (const o of await especificacion()) {
       const estados = Object.keys(o.op.responses);
       expect(estados, o.nombre).toContain('500');
+      // Toda operación que puede dar 500 también puede dar 503 BASE_NO_DISPONIBLE (la base se reinicia).
+      expect(estados, o.nombre).toContain('503');
       if (o.ruta.startsWith('/v1/')) expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '429']));
       // bodyLimit cubre todo /v1/*: una operación sin cuerpo esperado (DELETE, POST sin cuerpo) también puede dar 413.
       expect(estados.includes('413'), o.nombre).toBe(o.metodo !== 'get');
     }
   });
 
-  it('cada respuesta declara Solicitud-Id y FacturaHN-Version; las de /v1, RateLimit salvo 401 y 413; los 429, Retry-After', async () => {
+  it('cada respuesta declara Solicitud-Id y FacturaHN-Version; las de /v1, RateLimit salvo 401 y 413; los 429 y los 503, Retry-After', async () => {
     for (const o of await especificacion()) {
       for (const [estado, r] of Object.entries(o.op.responses)) {
         const cabeceras = Object.keys(r.headers ?? {});
@@ -105,7 +107,7 @@ describe('OpenAPI: estados de error', () => {
         expect(cabeceras.includes('RateLimit-Policy') && cabeceras.includes('RateLimit'), `${o.nombre} ${estado}`).toBe(conLimite);
         // La llave aún no se validó: un 401 nunca declara RateLimit.
         if (estado === '401') expect(cabeceras.filter((n) => n.startsWith('RateLimit')), `${o.nombre} 401`).toEqual([]);
-        expect(cabeceras.includes('Retry-After'), `${o.nombre} ${estado}`).toBe(estado === '429');
+        expect(cabeceras.includes('Retry-After'), `${o.nombre} ${estado}`).toBe(estado === '429' || estado === '503');
       }
     }
   });

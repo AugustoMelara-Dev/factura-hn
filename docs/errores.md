@@ -824,6 +824,14 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Solución:** espera a que se entreguen o fallen (cada prueba se intenta a lo sumo 3 veces) y revisa su estado
   con `GET /v1/webhooks/{id}/entregas`.
 
+### BASE_NO_DISPONIBLE
+
+- **Qué significa (503):** la base de datos se está reiniciando, se cayó o no tiene conexiones libres. La API
+  sigue en pie y se recupera sola cuando la base vuelve. Trae `Retry-After`.
+- **Solución:** reintenta después de los segundos de `Retry-After`. Al emitir, usa la misma `Idempotency-Key`:
+  si el documento alcanzó a emitirse recibes el mismo (con `Idempotency-Replayed: true`), y si no, se emite una
+  sola vez. Ningún número se pierde ni se repite.
+
 ### ERROR_INTERNO
 
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.

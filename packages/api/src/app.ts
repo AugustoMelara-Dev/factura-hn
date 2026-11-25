@@ -55,8 +55,10 @@ import {
   CONSOLA_POR_DEFECTO,
   conSolucion,
   ErrorApi,
+  esBaseNoDisponible,
   ipDeSolicitud,
   LimitadorSolicitudes,
+  REINTENTAR_BASE_SEGUNDOS,
   Semaforo,
   SemaforoSaturado,
   soluciones,
@@ -233,9 +235,14 @@ const CATALOGO_ERRORES = {
   422: conError('Reglas fiscales: lista de errores'),
   429: conError('Límite de solicitudes (con `Retry-After`)'),
   500: conError('Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.'),
+  503: conError('La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.'),
 } as const;
-const respuestasDe = <K extends keyof typeof CATALOGO_ERRORES>(...estados: K[]) =>
-  Object.fromEntries(estados.map((e) => [e, CATALOGO_ERRORES[e]])) as Pick<typeof CATALOGO_ERRORES, K>;
+/** Toda operación que puede dar 500 consulta la base: también puede dar 503 `BASE_NO_DISPONIBLE`. */
+const respuestasDe = <K extends Exclude<keyof typeof CATALOGO_ERRORES, 503>>(...estados: K[]) =>
+  Object.fromEntries(estados.flatMap((e) => (e === 500 ? [500, 503] : [e])).map((e) => [e, CATALOGO_ERRORES[e as keyof typeof CATALOGO_ERRORES]])) as Pick<
+    typeof CATALOGO_ERRORES,
+    K | (500 extends K ? 503 : never)
+  >;
 /** Las de una operación con cuerpo que valida reglas fiscales y exige rol admin. */
 const respuestasError = respuestasDe(400, 401, 403, 413, 422, 429, 500);
 const json = <T extends z.ZodTypeAny>(schema: T, description: string) => ({ description, content: { 'application/json': { schema } } });
@@ -388,9 +395,18 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.use('/v1/*', bodyLimit({ maxSize: 512 * 1024, onError: () => { throw new ErrorApi(413, 'CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 512 KB.'); } }));
 
-  app.onError((e, c) => {
+  app.onError((error, c) => {
+    let e = error;
+    // La base se reinicia o se cayó: un 503 reintentable, no un 500. La transacción se revirtió o su resultado
+    // es incierto; la misma Idempotency-Key lo resuelve sin emitir dos veces.
+    if (!(e instanceof ErrorApi) && esBaseNoDisponible(e)) {
+      registrar(`Base de datos no disponible (solicitud ${c.get('idLog')}): ${e.message}`);
+      e = new ErrorApi(503, 'BASE_NO_DISPONIBLE', 'La base de datos no está disponible en este momento. Reintenta en unos segundos.', {
+        reintentarEn: REINTENTAR_BASE_SEGUNDOS,
+      });
+    }
     if (e instanceof ErrorApi) {
-      if (e.estado === 429 && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
+      if ((e.estado === 429 || e.estado === 503) && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
       const { reintentarEn: _r, ...extra } = e.extra;
       return c.json<CuerpoError>(conSolicitud(c, conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia)), e.estado);
     }
