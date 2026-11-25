@@ -46,11 +46,17 @@ export function enteroALetras(n: number): string {
   if (n === 0) return 'CERO';
   if (n >= 1e15) throw new RangeError('Monto demasiado grande para convertir a letras');
 
-  const millones = Math.floor(n / 1_000_000);
+  // Escala larga del español: 10^12 es un billón («mil millones» es 10^9). Antes de esto, 10^12 salía «UN MILLÓN
+  // MILLONES», que no dice el número (lo encontró test/propiedades/letras.prop.test.ts).
+  const billones = Math.floor(n / 1e12);
+  const millones = Math.floor((n % 1e12) / 1_000_000);
   const miles = Math.floor((n % 1_000_000) / 1000);
   const resto = n % 1000;
   const partes: string[] = [];
 
+  if (billones > 0) {
+    partes.push(billones === 1 ? 'UN BILLÓN' : `${apocopar(menorQueMil(billones))} BILLONES`);
+  }
   if (millones > 0) {
     partes.push(millones === 1 ? 'UN MILLÓN' : `${apocopar(enteroALetras(millones))} MILLONES`);
   }
@@ -81,8 +87,8 @@ export function centavosEnLetras(centavos: bigint, moneda: Moneda = 'HNL'): stri
   const fraccion = (centavos % 100n).toString().padStart(2, '0');
   const nombre = NOMBRE_MONEDA[moneda];
   const palabras = enteros === 0 ? 'CERO' : apocopar(enteroALetras(enteros));
-  // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS"
-  const conDe = /MILLÓN$|MILLONES$/.test(palabras) ? ' DE' : '';
+  // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS", "UN BILLÓN DE LEMPIRAS"
+  const conDe = /(?:MILLÓN|MILLONES|BILLÓN|BILLONES)$/.test(palabras) ? ' DE' : '';
   const sustantivo = enteros === 1 ? nombre.singular : nombre.plural;
   return `${palabras}${conDe} ${sustantivo} CON ${fraccion}/100`;
 }
