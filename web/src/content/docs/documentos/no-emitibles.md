@@ -47,7 +47,7 @@ contador.
 
 - **Lo regula:** Art. 17.
 - **Por qué no:** el Ticket se emite «exclusivamente para consumidores finales a través de máquinas registradoras»
-  (Art. 4 num. 43), con memoria fiscal inamovible (Art. 52).
+  (Art. 4 num. 43).
 - **Qué haría falta:** una máquina registradora autorizada. Un sistema computarizado emite **Factura** también a
   consumidor final: omite `cliente` y el documento sale a nombre de «CONSUMIDOR FINAL» (Art. 11 num. 2 a).
 
