@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   diasEntre,
   esAdvertencia,
+  esFechaValida,
   estadoAutorizacion,
   fechaHonduras,
   horaHonduras,
@@ -137,6 +138,13 @@ describe('esAdvertencia', () => {
 });
 
 describe('fechas', () => {
+  it('esFechaValida: exactamente AAAA-MM-DD; un año extendido de toISOString no pasa', () => {
+    expect(esFechaValida('2026-11-18')).toBe(true);
+    expect(esFechaValida('2024-02-29')).toBe(true);
+    expect(esFechaValida('2026-02-29')).toBe(false);
+    expect(esFechaValida('+010000-01')).toBe(false);
+    expect(esFechaValida('-000001-01')).toBe(false);
+  });
   it('fecha y hora en Honduras (UTC-6), no en la zona del equipo', () => {
     const casiMedianoche = new Date('2026-11-19T03:30:00Z');
     expect(fechaHonduras(casiMedianoche)).toBe('2026-11-18');
