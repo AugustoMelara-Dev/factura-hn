@@ -18,7 +18,7 @@ import {
   verificarFirmaWebhook,
 } from '../src/webhooks';
 import pg from 'pg';
-import { exigirEsquemaApi, mantenimientoApi, migrarApi, VERSION_ESQUEMA_API } from '../src/esquema';
+import { exigirEsquemaApi, mantenimientoApi, MARCA_PENDIENTES_V9, migrarApi, VERSION_ESQUEMA_API } from '../src/esquema';
 import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 afterAll(cerrarPool);
@@ -810,5 +810,65 @@ describe.skipIf(!URL_PG)('un secreto que no se descifra', () => {
     await pool.query("UPDATE api_entregas SET proximo = now() - interval '1 minute' WHERE tenant = $1", [tenant]);
     await correr();
     expect(enviadas).toHaveLength(1);
+  });
+});
+
+describe.skipIf(!URL_PG)('webhooks de un tenant inactivo', () => {
+  it('no se despachan mientras el tenant está inactivo; siguen PENDIENTE y salen al reactivarlo', async () => {
+    const { admin, tenant, pool } = await tenantListo();
+    await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/inactivo-${tenant}`, eventos: ['documento.emitido'] });
+    expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
+    // El pool de prueba es superusuario: salta la RLS forzada de api_tenants.
+    await pool.query('UPDATE api_tenants SET activo = false WHERE tenant = $1', [tenant]);
+    const enviadas: string[] = [];
+    const correr = () =>
+      despacharWebhooks({
+        pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant],
+        fetch: (async (url: string) => {
+          enviadas.push(String(url));
+          return new Response(null, { status: 200 });
+        }) as unknown as typeof fetch,
+      });
+    // soloTenants solo filtra la lista que da fhn_api_tenants_con_pendientes(), que ya no lo incluye.
+    await correr();
+    expect(enviadas.filter((u) => u.endsWith(tenant))).toEqual([]);
+    expect((await pool.query('SELECT estado, intentos FROM api_entregas WHERE tenant = $1', [tenant])).rows).toEqual([{ estado: 'PENDIENTE', intentos: 0 }]);
+    // La función no deja fijado el tenant en la transacción de quien llama.
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query(`SET LOCAL ROLE ${ROL}`);
+      await c.query("SELECT set_config('factura_hn.tenant', 'otro', true)");
+      await c.query('SELECT fhn_api_tenants_con_pendientes()');
+      expect((await c.query("SELECT current_setting('factura_hn.tenant', true) AS t")).rows[0].t).toBe('otro');
+      await c.query('ROLLBACK');
+    } finally {
+      c.release();
+    }
+    await pool.query('UPDATE api_tenants SET activo = true WHERE tenant = $1', [tenant]);
+    await correr();
+    expect(enviadas.filter((u) => u.endsWith(tenant))).toHaveLength(1);
+  });
+
+  it('migración v9: sin la marca de fhn_api_tenants_con_pendientes() la base no arranca hasta migrar', async () => {
+    const p = await poolPrueba();
+    const esquema = `prueba_v9_${randomUUID().slice(0, 8)}`;
+    await p.query(`CREATE SCHEMA ${esquema}`);
+    const u = new URL(URL_PG!);
+    u.searchParams.set('options', `-c search_path=${esquema}`);
+    const propio = new pg.Pool({ connectionString: u.toString(), max: 2 });
+    try {
+      await migrarApi(propio, ROL);
+      expect((await propio.query("SELECT obj_description('fhn_api_tenants_con_pendientes()'::regprocedure, 'pg_proc') AS d")).rows[0].d).toBe(MARCA_PENDIENTES_V9);
+      // Como quedó una base en v8: la función sin la marca.
+      await propio.query('COMMENT ON FUNCTION fhn_api_tenants_con_pendientes() IS NULL');
+      await propio.query('DELETE FROM fhn_migraciones WHERE clave = $1', [`api-v${VERSION_ESQUEMA_API}-${ROL}`]);
+      await expect(exigirEsquemaApi(propio, ROL)).rejects.toThrow(/v9 de fhn_api_tenants_con_pendientes/);
+      await migrarApi(propio, ROL);
+      await exigirEsquemaApi(propio, ROL);
+    } finally {
+      await propio.end();
+      await p.query(`DROP SCHEMA ${esquema} CASCADE`);
+    }
   });
 });
