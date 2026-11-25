@@ -6,7 +6,8 @@
  *    de esa página. Los enlaces a GitHub (`blob/main/…`, `tree/main/…`) apuntan a archivos del repositorio.
  * 2. Ningún enlace interno termina en `.md` salvo las versiones para IA que existen: un `../docs/api.md` sin
  *    reescribir es un error.
- * 3. Cada página tiene su `.md`, y existen `llms.txt` y `llms-full.txt`.
+ * 3. Cada página tiene su `.md`, y existen `llms.txt` y `llms-full.txt`. Ningún `.md`, `.html` ni `llms*.txt`
+ *    generado contiene U+0000 ni U+FFFD.
  * 4. El buscador (el índice de Pagefind generado, consultado con su propia API) encuentra «CAI», «nota de
  *    crédito» y «rango».
  * 5. Los comandos de la portada son los del README (la portada no puede desincronizarse de los pasos probados).
@@ -91,6 +92,14 @@ for (const f of readdirSync(DOCS, { recursive: true }).map((x) => String(x).repl
   if (!/\.mdx?$/.test(f) || f.split('/').some((p) => p.startsWith('_')) || f.endsWith('/muestra.md') || f === '404.md') continue;
   const md = `${f.replace(/\.mdx?$/, '').replace(/(^|\/)index$/, '') || 'index'}.md`;
   if (!existsSync(join(SALIDA, md))) errores.push(`falta la versión para IA ${md} de ${f}`);
+}
+
+// --- 3b. Sin caracteres de control ni de reemplazo ---------------------------------------------------------
+// Un U+0000 o un U+FFFD en lo generado es una marca interna que se escapó (o un texto mal decodificado).
+for (const f of archivos.filter((x) => /\.(md|html)$/.test(x) || /(^|\/)llms[^/]*\.txt$/.test(x))) {
+  const texto = readFileSync(join(SALIDA, f), 'utf8');
+  if (texto.includes('\u0000')) errores.push(`${f}: contiene U+0000 (NUL)`);
+  if (texto.includes('�')) errores.push(`${f}: contiene U+FFFD (carácter de reemplazo)`);
 }
 
 // --- 4. Buscador --------------------------------------------------------------------------------------------

@@ -7,7 +7,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp, crearTenant, firmar, migrarApi } from '@factura-hn/api';
 import { crearCliente } from '@factura-hn/cliente';
 import { POST as webhook } from '../app/api/webhooks/factura-hn/route';
-import { firmaValida } from '../lib/enlaces';
+import { enlacePDF, firmaValida } from '../lib/enlaces';
+import { fhn } from '../lib/fhn';
 import { facturarVenta } from '../lib/ventas';
 
 describe('server-only', () => {
@@ -23,6 +24,21 @@ describe('server-only', () => {
     for (const f of clientes) {
       // Los tipos (`import type`) se borran al compilar; un import de valor de lib/ llevaría la llave al navegador.
       expect(readFileSync(join(raiz, f), 'utf8'), f).not.toMatch(/^import (?!type )[^;]*from '\.\.?\/(\.\.\/)*lib\//m);
+    }
+  });
+});
+
+describe('variables que faltan', () => {
+  it('el error dice el comando que las crea', () => {
+    const antes = { llave: process.env.FHN_LLAVE, secreto: process.env.FHN_SECRETO_ENLACES };
+    delete process.env.FHN_LLAVE;
+    delete process.env.FHN_SECRETO_ENLACES;
+    try {
+      expect(() => fhn()).toThrow('docker compose exec -T api factura-hn-api demo llave --solo-llave');
+      expect(() => enlacePDF('000-001-01-00000001')).toThrow('crypto.randomUUID()+crypto.randomUUID()');
+    } finally {
+      if (antes.llave !== undefined) process.env.FHN_LLAVE = antes.llave;
+      if (antes.secreto !== undefined) process.env.FHN_SECRETO_ENLACES = antes.secreto;
     }
   });
 });

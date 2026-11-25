@@ -1,11 +1,11 @@
 ---
 title: Facturación para Honduras
-description: Facturación conforme al Acuerdo 481-2017 de Honduras. SDK de TypeScript, API REST y servidor MCP de código abierto, con cada regla citada y probada.
+description: Facturación según el Acuerdo 481-2017 de Honduras. SDK de TypeScript, API REST y servidor MCP de código abierto, con cada regla citada y probada.
 template: splash
 pagefind: false
 hero:
   title: Facturación para Honduras, sin inventar reglas
-  tagline: SDK de TypeScript, API REST y servidor MCP de código abierto para emitir facturas, notas de crédito y notas de débito conforme al Reglamento del Régimen de Facturación (Acuerdo 481-2017). Cada regla cita su artículo y tiene una prueba.
+  tagline: SDK de TypeScript, API REST y servidor MCP de código abierto para emitir facturas, notas de crédito y notas de débito según el Reglamento del Régimen de Facturación (Acuerdo 481-2017). Cada regla cita su artículo y tiene una prueba.
   actions:
     - text: Empezar
       link: /empezar/primera-factura/
@@ -26,7 +26,7 @@ Sin dependencias · TypeScript · licencia MIT.
 
 ## La primera factura en 3 pasos
 
-Elige un camino. Los tres empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor ficticio.
+Elige un camino. Los cuatro empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor ficticio.
 Todo lo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
 
 <Tabs syncKey="camino">
@@ -70,13 +70,19 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787
      -H "authorization: Bearer $LLAVE" -H "idempotency-key: $VENTA" -H "content-type: application/json" \
      --data-binary @packages/api/ejemplos/factura.json)
    PDF=$(printf '%s' "$RESPUESTA" | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
+   if [ -n "$PDF" ]; then echo "Emitida: $(printf '%s' "$RESPUESTA" | sed -n 's/.*"numero":"\([^"]*\)".*/\1/p')"
+   else echo "No se emitió: $RESPUESTA"; fi
    ```
+
+   Si dice «No se emitió», la respuesta trae el error con su `solucion`.
 
 3. Descarga el PDF:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API${PDF:?el paso 2 no emitió: revisa su salida}"
    ```
+
+La venta del ejemplo es de 2 × L 57.50 con ISV incluido: total L 115.00.
 
 Sigue con la [guía de la API REST](/referencia/api/) o [autoaloja la API](/guias/autoalojar/).
 
@@ -92,6 +98,21 @@ reciente, en una carpeta vacía:
 3. Pídele al asistente: «emite una factura de prueba».
 
 Dónde va el bloque en cada cliente: [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md).
+
+</TabItem>
+<TabItem label="Next.js">
+
+Para una aplicación de Next.js que emite desde el servidor, primero en modo de prueba y sin base de datos:
+
+```bash
+npm install factura-hn
+```
+
+1. Crea `lib/facturador.ts`, que exporta `crearFacturadorDemo()` de `factura-hn/demo` (una vez por proceso).
+2. Crea `app/factura/route.ts`, que emite con ese facturador y devuelve `renderizarHTML(factura)`.
+3. `npm run dev` y abre `http://localhost:3000/factura`: cada recarga emite la siguiente factura de prueba.
+
+El código de los dos archivos está en [Tu primera factura](/empezar/primera-factura/#nextjs).
 
 </TabItem>
 </Tabs>

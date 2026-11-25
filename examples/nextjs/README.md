@@ -10,23 +10,26 @@
 - `app/api/webhooks/factura-hn/route.ts`: receptor de webhooks con la firma verificada sobre el texto crudo
   (Web Crypto: sirve también en el runtime edge).
 
-Desde la raíz del repositorio, en tres comandos:
+Desde la raíz del repositorio, en tres comandos (bash: Linux, macOS o Git Bash en Windows):
 
 ```bash
 pnpm install
-docker compose up -d --build                      # API en 127.0.0.1:8787 (Docker Compose v2)
-FHN_LLAVE=fhn_test_… FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") \
+docker compose up -d --build --wait               # API en 127.0.0.1:8787 (Docker Compose v2)
+FHN_LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave) \
+FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") \
   pnpm --filter @factura-hn/ejemplo-nextjs dev     # compila el cliente y abre http://localhost:3002
 ```
 
 En PowerShell, el tercer comando es:
 
 ```powershell
-$env:FHN_LLAVE = 'fhn_test_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
+$env:FHN_LLAVE = docker compose exec -T api factura-hn-api demo llave --solo-llave; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
 ```
 
-La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
-crea otra: `docker compose exec api factura-hn-api demo llave`.
+`demo llave --solo-llave` crea una llave de caja nueva del tenant de demostración (CAI ficticio, sin validez
+fiscal) y la imprime sola en la salida estándar. El aviso «Se muestra solo esta vez» va a la salida de errores:
+es normal. Cada vez que lo corres crea otra llave; las anteriores siguen sirviendo.
+
 Cada carga del formulario trae una clave nueva y el número sale de la respuesta: puedes emitir, reiniciar y
 volver a emitir sin chocar con lo anterior.
 

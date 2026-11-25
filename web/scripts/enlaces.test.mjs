@@ -67,3 +67,11 @@ test('conBase y rehype-base: solo los enlaces internos absolutos, una vez', () =
   assert.equal(arbol.children[1].properties.src, '/factura-hn/logo.svg');
   assert.equal(arbol.children[2].value, '<iframe src="/factura-hn/playground/index.html"></iframe>');
 });
+
+test('reescribirEnlaces: un tramo protegido dentro de otro se restaura entero (sin U+0000)', () => {
+  // El comentario se protege primero; luego un código en línea que lo abarca guarda su marca dentro.
+  const md = 'Antes `a <!-- (rama lote4/x) --> b` y [x](api.md).\n\n<!-- (rama lote4/y) -->\n\nUsa `c` y `d`.';
+  const r = reescribirEnlaces(md, (d) => `!${d}`);
+  assert.ok(!r.includes('\u0000'), 'quedó una marca interna');
+  assert.equal(r, md.replace('](api.md)', '](!api.md)'));
+});

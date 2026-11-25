@@ -52,7 +52,7 @@ Qué pasa al anular:
 - queda en la bitácora un `DOCUMENTO_ANULADO`, con `actor` y `operador` si los pasas.
 
 El motivo es obligatorio. No lo exige el Art. 41, que solo pide la leyenda: lo pide el SDK para la bitácora de
-auditoría (Art. 53 num. 2; DEC-001). Anular dos veces da
+auditoría (Art. 53 num. 2; [DEC-001](/referencia/decisiones/#dec-001--motivo-obligatorio-al-anular--aprobada-2026-11-18)). Anular dos veces da
 [`YA_ANULADO`](/referencia/errores/#ya_anulado), y un número que no existe,
 [`DOCUMENTO_NO_ENCONTRADO`](/referencia/errores/#documento_no_encontrado).
 
@@ -87,10 +87,10 @@ Lo que exige una nota:
 - **el nombre y el RTN del adquirente**, sin la opción de CONSUMIDOR FINAL (Arts. 26 y 28 num. 1-2);
 - **el CAI, el número y la fecha** del documento que modifica, y el motivo (Arts. 26 y 28 num. 3-4);
 - **moneda nacional** (Arts. 26 num. 9 y 28 num. 8). Si la factura fue en dólares, escribe las líneas en dólares:
-  la nota se emite en lempiras con el tipo de cambio de la factura (DEC-018).
+  la nota se emite en lempiras con el tipo de cambio de la factura ([DEC-018](/referencia/decisiones/#dec-018--las-notas-se-emiten-solo-en-lempiras--aprobada-2026-11-18)).
 
 Si el original está en el almacén, el SDK comprueba además que no esté anulado y que su CAI, su fecha y su RTN
-coincidan con los de la nota (DEC-004). Si no está (un talonario, otro sistema), la nota se emite con la
+coincidan con los de la nota ([DEC-004](/referencia/decisiones/#dec-004--coherencia-de-notas-b-13--aprobada-2026-11-18)). Si no está (un talonario, otro sistema), la nota se emite con la
 referencia completa y el aviso [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo).
 
 La suma de las notas de crédito sobre un documento no puede superar su total
