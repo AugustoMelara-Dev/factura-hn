@@ -1,0 +1,29 @@
+{
+  "name": "@factura-hn/sitio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sitio de documentación de factura-hn (Astro Starlight), publicado en GitHub Pages.",
+  "type": "module",
+  "scripts": {
+    "construir": "node --test scripts/*.test.mjs && node scripts/generar.mjs && astro build && node scripts/para-ia.mjs && node scripts/verificar.mjs",
+    "generar": "node scripts/generar.mjs",
+    "build": "astro build",
+    "para-ia": "node scripts/para-ia.mjs",
+    "verificar": "node scripts/verificar.mjs",
+    "test": "node --test scripts/*.test.mjs",
+    "dev": "astro dev",
+    "preview": "astro preview"
+  },
+  "devDependencies": {
+    "@astrojs/markdown-remark": "7.3.10",
+    "@astrojs/starlight": "0.43.1",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans": "5.3.0",
+    "astro": "7.4.13",
+    "github-slugger": "2.0.0",
+    "pagefind": "1.6.0"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  }
+}

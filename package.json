@@ -23,13 +23,13 @@
     "auditar:datos": "node scripts/auditar-datos.mjs",
     "changeset": "changeset",
     "release": "pnpm build && node scripts/verificar-dist.mjs && node scripts/publicar.mjs",
-    "sitio": "pnpm playground && node scripts/sitio.mjs",
-    "version": "changeset version && node scripts/fijar-version-mcp.mjs"
+    "sitio": "pnpm playground && pnpm --filter @factura-hn/sitio construir",
+    "version": "changeset version && node scripts/fijar-version-mcp.mjs",
+    "sitio:ver": "pnpm --filter @factura-hn/sitio preview"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3",
     "@types/node": "^22.0.0",
-    "marked": "18.1.3",
     "tsup": "^8.0.0",
     "tsx": "^4.23.15",
     "typescript": "^5.0.0",

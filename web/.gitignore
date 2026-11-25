@@ -1,0 +1,16 @@
+# Lo genera scripts/generar.mjs al construir (la lista exacta queda en .generado.json).
+.generado.json
+.astro/
+public/playground/
+src/content/docs/*/muestra.md
+src/content/docs/referencia/index.md
+src/content/docs/referencia/sdk.md
+src/content/docs/referencia/api.md
+src/content/docs/referencia/openapi.md
+src/content/docs/referencia/errores.md
+src/content/docs/referencia/cumplimiento.md
+src/content/docs/referencia/normativa.md
+src/content/docs/referencia/decisiones.md
+src/content/docs/produccion/consulta-sar.md
+src/content/docs/guias/autoalojar.md
+src/content/docs/ayuda/cambios.md

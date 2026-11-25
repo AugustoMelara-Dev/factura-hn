@@ -1,0 +1,40 @@
+---
+// Pie de cada página: la paginación de Starlight, el aviso legal y, en las páginas generadas, el archivo del
+// repositorio del que salen.
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { REPO } from '../../sitio.config.mjs';
+
+const { entry } = Astro.locals.starlightRoute;
+const fuente = entry.data.fuente;
+const archivo = entry.filePath?.replace(/^.*?src\/content\/docs\//, 'web/src/content/docs/');
+const enlaceFuente = fuente ? `${REPO}/blob/main/${fuente}` : archivo && !archivo.includes('/muestra.md') ? `${REPO}/blob/main/${archivo}` : undefined;
+---
+
+<Default><slot /></Default>
+<div class="fhn-pie">
+  <p>
+    Proyecto independiente, no afiliado al SAR. factura-hn no es asesoría fiscal ni un sistema autorizado por el
+    SAR: quien emite sigue siendo responsable de cumplir el Reglamento. Código abierto con licencia MIT.
+  </p>
+  {enlaceFuente && (
+    <p>
+      Fuente de esta página: <a href={enlaceFuente}><code>{fuente ?? archivo}</code></a>
+    </p>
+  )}
+</div>
+
+<style>
+  .fhn-pie {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline-light);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .fhn-pie p + p {
+    margin-top: 0.5rem;
+  }
+  .fhn-pie a {
+    color: var(--sl-color-gray-3);
+  }
+</style>
