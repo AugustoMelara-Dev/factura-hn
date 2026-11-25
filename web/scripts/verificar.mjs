@@ -23,7 +23,7 @@ import { BASE, DOCS, RAIZ, REPO, SALIDA } from '../sitio.config.mjs';
  * Páginas que escriben las ramas de contenido y que las páginas de esta rama ya enlazan. Mientras no existan, un
  * enlace a ellas es un aviso y no un error. Cuando todas las ramas estén integradas, esta lista queda vacía.
  */
-const PENDIENTES = new Set(['/empezar/primera-factura/', '/produccion/']);
+const PENDIENTES = new Set();
 /**
  * Con FHN_SITIO_ENLACES_PENDIENTES=aviso, un enlace a una página del sitio que no existe es un aviso. Sirve a una
  * rama de contenido que enlaza páginas de otra rama aún sin integrar; la CI no lo usa.
