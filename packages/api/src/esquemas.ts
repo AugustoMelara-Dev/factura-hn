@@ -153,6 +153,15 @@ export const DocumentoFiscal = z
     advertencias: z.array(Problema),
     estado: z.enum(['EMITIDO', 'ANULADO']),
     anulacion: z.object({ motivo: z.string(), fecha: z.string(), hora: z.string() }).optional(),
+    modo: z.literal('prueba').optional().openapi({
+      description:
+        '«prueba» si se emitió con una autorización de prueba: sin valor fiscal, impreso con la leyenda «DOCUMENTO DE PRUEBA — ' +
+        'SIN VALOR FISCAL» y fuera del libro de ventas y de la exportación. Ausente en un documento real.',
+    }),
+    equivalenteLempiras: z
+      .object({ isv15: z.number().optional(), isv18: z.number().optional(), total: z.number() })
+      .optional()
+      .openapi({ description: 'Solo en moneda extranjera: ISV y total en lempiras con `tipoCambio`, calculados al emitir.' }),
   })
   .openapi('DocumentoFiscal');
 
@@ -178,6 +187,11 @@ export const Autorizacion = z
     fechaLimiteEmision: Fecha,
     fechaAutorizacion: Fecha.optional(),
     ultimoEmitidoAntes: z.number().int().min(0).optional(),
+    prueba: z.boolean().optional().openapi({
+      description:
+        'true: autorización de prueba, con CAI ficticio `DEMO00-NO-VALIDO-…`. Sus documentos llevan la leyenda ' +
+        '«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y no entran en el libro de ventas ni en la exportación. Omítelo en una real.',
+    }),
   })
   .openapi('Autorizacion');
 

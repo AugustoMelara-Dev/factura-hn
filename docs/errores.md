@@ -119,6 +119,25 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
   `factura-hn/demo` en otro almacén. Así un CAI real nunca gasta números en documentos sin valor fiscal.
 - **Base:** ninguna fiscal: el modo de prueba es del producto.
 
+### AUTORIZACION_DEMO_SIN_PRUEBA
+
+- **Qué significa (API, 422):** `POST /v1/autorizaciones` recibió un CAI ficticio (`DEMO00-NO-VALIDO-…`) sin
+  `"prueba": true`, en un tenant que no es el de demostración.
+- **Causa:** se pegó el CAI de la demostración en lugar del CAI real, o se quiso registrar una autorización de
+  prueba sin decirlo.
+- **Solución:** para una autorización de prueba, agrega `"prueba": true` al cuerpo. Si es tu CAI real, cópialo de
+  la resolución del SAR: un CAI real no empieza con `DEMO00-NO-VALIDO-`.
+- **Base:** ninguna fiscal: un punto de emisión de prueba no consume números de una serie real.
+
+### AUTORIZACION_REAL_EN_DEMO
+
+- **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en el tenant `demo` de la
+  demostración.
+- **Causa:** se usó la llave admin de la demostración para registrar el CAI del negocio.
+- **Solución:** registra tu CAI en el tenant de tu negocio, con su llave admin. El tenant `demo` solo emite
+  documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+- **Base:** ninguna fiscal: separa la demostración de la facturación real.
+
 ### AUTORIZACION_TIPO
 
 - **Qué significa:** la autorización es de un tipo de documento distinto al que se emite.

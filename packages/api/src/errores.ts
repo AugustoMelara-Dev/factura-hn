@@ -79,6 +79,11 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     RANGO_AGOTADO:
       'Se usaron todos los números autorizados de este punto y tipo. Registra la nueva autorización del SAR con `POST /v1/autorizaciones`; ' +
       '`GET /v1/autorizaciones/{cai}/estado` avisa antes de que se agote.',
+    AUTORIZACION_REAL_EN_DEMO:
+      'El tenant «demo» solo sirve para probar: no le registres CAI reales. Registra tu CAI en el tenant de tu negocio, con su llave admin.',
+    AUTORIZACION_DEMO_SIN_PRUEBA:
+      'Si quieres una autorización de prueba, agrega `"prueba": true` al cuerpo; sus documentos llevan la leyenda y no van al libro ' +
+      'de ventas. Si es tu CAI real, cópialo de la resolución del SAR: un CAI real no empieza con DEMO00-NO-VALIDO-.',
     CUERPO_NO_UTF8: 'Guarda el JSON en un archivo UTF-8 y envíalo tal cual: con curl, `--data-binary @factura.json`.',
     CUERPO_DEMASIADO_GRANDE: 'El cuerpo admite hasta 512 KB: divide la venta en varios documentos o acorta los textos.',
     SOLICITUD_INVALIDA: 'Corrige el campo de `error.campo` (la lista completa está en `errores`). La forma de cada ruta está en /docs.',

@@ -20,6 +20,7 @@ import {
   documentosPorPaginas,
   elegirAutorizacion,
   emitir,
+  esCAIDemo,
   esDocumentoDePrueba,
   LEYENDA_PRUEBA,
   ErrorValidacion,
@@ -60,7 +61,7 @@ import {
   type CuerpoError,
   type ProblemaApi,
 } from './errores';
-import { TENANT_DEMO } from './operador';
+import { EMISOR_DEMO, TENANT_DEMO } from './operador';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
@@ -624,7 +625,30 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       exigirAdmin(c);
-      const a = await registrarAutorizacion(almacenDe(c), c.req.valid('json') as AutorizacionCAI, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
+      const cuerpo = c.req.valid('json') as AutorizacionCAI;
+      const caiDemo = esCAIDemo(cuerpo.cai);
+      // El tenant de demostración solo recibe CAI ficticios; los demás, un CAI ficticio solo con `prueba: true`
+      // explícito: un DEMO00 pegado por error no convierte en «de prueba» un punto de emisión real.
+      if (c.get('sesion').tenant === TENANT_DEMO && !caiDemo) {
+        const ficticio = await enTenant(c, async (tx) =>
+          (
+            await tx.consulta<{ demo: boolean }>(
+              `SELECT EXISTS (SELECT 1 FROM api_emisores WHERE tenant = $1 AND datos->>'rtn' = $2)
+                   OR EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND starts_with(cai, $3)) AS demo`,
+              [tx.tenant, EMISOR_DEMO.rtn, 'DEMO00-NO-VALIDO-'],
+            )
+          ).rows[0]?.demo === true,
+        );
+        if (ficticio) {
+          const mensaje = 'El tenant «demo» es de demostración: solo acepta CAI ficticios (DEMO00-NO-VALIDO-…).';
+          throw new ErrorApi(422, 'AUTORIZACION_REAL_EN_DEMO', mensaje, { errores: [{ codigo: 'AUTORIZACION_REAL_EN_DEMO', mensaje, campo: 'cai' }] });
+        }
+      }
+      if (caiDemo && cuerpo.prueba !== true && c.get('sesion').tenant !== TENANT_DEMO) {
+        const mensaje = `El CAI ${cuerpo.cai} es ficticio: para registrarlo como autorización de prueba, envía «prueba: true».`;
+        throw new ErrorApi(422, 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, { errores: [{ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, campo: 'prueba' }] });
+      }
+      const a = await registrarAutorizacion(almacenDe(c), cuerpo, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
       return c.json({ autorizacion: a as unknown as z.infer<typeof S.Autorizacion> }, 201);
     },
   );

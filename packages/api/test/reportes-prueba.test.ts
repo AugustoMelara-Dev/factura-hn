@@ -23,7 +23,7 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     const t = await tenantListo({ ...sinLimite, ...config });
     const a = await t.admin('POST', '/v1/autorizaciones', {
       cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '002',
-      rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE,
+      rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE, prueba: true,
     });
     expect(a.status).toBe(201);
     const docs: DocumentoFiscal[] = [];
@@ -121,5 +121,27 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     expect(libro.filas).toEqual([]);
     expect(libro.excluidos).toBeGreaterThanOrEqual(1);
     expect(libro.aviso).toContain(LEYENDA_PRUEBA);
+  });
+
+  it('POST /v1/autorizaciones: un CAI ficticio necesita prueba: true; el tenant demo no acepta CAI reales', async () => {
+    const { admin } = await tenantListo(sinLimite);
+    const aut = { cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '003', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE };
+    const sin = await admin('POST', '/v1/autorizaciones', aut);
+    expect(sin.status).toBe(422);
+    const e = await json(sin);
+    expect(e.error).toMatchObject({ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', solucion: expect.stringContaining('"prueba": true') });
+    expect(e.error.documentacion).toMatch(/errores\.md#autorizacion_demo_sin_prueba$/);
+    expect(e.errores).toMatchObject([{ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', campo: 'prueba' }]);
+    const con = await admin('POST', '/v1/autorizaciones', { ...aut, prueba: true });
+    expect(con.status).toBe(201);
+    expect((await json(con)).autorizacion.prueba).toBe(true);
+
+    const pool = await poolPrueba();
+    await iniciarLocal(pool, { demo: true, rol: ROL });
+    const app = crearApp({ pool, modo: 'local', rol: ROL, registrar: () => undefined, ...sinLimite });
+    const demo = cliente(app, await crearLlaveDemo(pool, { rol: 'admin' }));
+    const real = await demo('POST', '/v1/autorizaciones', { ...aut, cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', puntoEmision: '009' });
+    expect(real.status).toBe(422);
+    expect((await json(real)).error).toMatchObject({ codigo: 'AUTORIZACION_REAL_EN_DEMO', documentacion: expect.stringMatching(/#autorizacion_real_en_demo$/) });
   });
 });

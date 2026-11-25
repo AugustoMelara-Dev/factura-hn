@@ -2149,6 +2149,8 @@ export interface components {
             /** @example 2026-11-18 */
             fechaAutorizacion?: string;
             ultimoEmitidoAntes?: number;
+            /** @description true: autorización de prueba, con CAI ficticio `DEMO00-NO-VALIDO-…`. Sus documentos llevan la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y no entran en el libro de ventas ni en la exportación. Omítelo en una real. */
+            prueba?: boolean;
         };
         RespuestaEstado: {
             autorizacion: components["schemas"]["Autorizacion"];
@@ -2273,6 +2275,17 @@ export interface components {
                 motivo: string;
                 fecha: string;
                 hora: string;
+            };
+            /**
+             * @description «prueba» si se emitió con una autorización de prueba: sin valor fiscal, impreso con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y fuera del libro de ventas y de la exportación. Ausente en un documento real.
+             * @enum {string}
+             */
+            modo?: "prueba";
+            /** @description Solo en moneda extranjera: ISV y total en lempiras con `tipoCambio`, calculados al emitir. */
+            equivalenteLempiras?: {
+                isv15?: number;
+                isv18?: number;
+                total: number;
             };
         } & {
             [key: string]: unknown;

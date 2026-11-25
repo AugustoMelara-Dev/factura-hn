@@ -266,6 +266,10 @@
           "ultimoEmitidoAntes": {
             "type": "integer",
             "minimum": 0
+          },
+          "prueba": {
+            "type": "boolean",
+            "description": "true: autorización de prueba, con CAI ficticio `DEMO00-NO-VALIDO-…`. Sus documentos llevan la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y no entran en el libro de ventas ni en la exportación. Omítelo en una real."
           }
         },
         "required": [
@@ -758,6 +762,31 @@
               "fecha",
               "hora"
             ]
+          },
+          "modo": {
+            "type": "string",
+            "enum": [
+              "prueba"
+            ],
+            "description": "«prueba» si se emitió con una autorización de prueba: sin valor fiscal, impreso con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y fuera del libro de ventas y de la exportación. Ausente en un documento real."
+          },
+          "equivalenteLempiras": {
+            "type": "object",
+            "properties": {
+              "isv15": {
+                "type": "number"
+              },
+              "isv18": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "total"
+            ],
+            "description": "Solo en moneda extranjera: ISV y total en lempiras con `tipoCambio`, calculados al emitir."
           }
         },
         "required": [
