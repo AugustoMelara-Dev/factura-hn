@@ -285,13 +285,17 @@ los incluye, así que un log o una consola ya dicen cómo resolverlo. Usa `esErr
 
 ## 10. Modo de prueba
 
-Una autorización con `prueba: true` (como la de `autorizacionDemo()`) marca cada documento que emite con
-`modo: 'prueba'`. Ese campo no cambia nunca, ni al anular, y viaja en la exportación JSONL. `renderizarHTML`,
-`renderizarTexto` y `@factura-hn/pdf` imprimen la leyenda `LEYENDA_PRUEBA` al inicio y al final. Un documento sin
-`modo` es real y se imprime igual que siempre, incluidos los guardados antes de que existiera el campo.
+Una autorización es de prueba si tiene un CAI ficticio, que empieza con `DEMO00-NO-VALIDO-` (`esCAIDemo`), como
+la de `autorizacionDemo()`. Con `prueba: true` y un CAI real, el registro falla (`AUTORIZACION_PRUEBA_CAI_REAL`).
+Cada documento que emite lleva `modo: 'prueba'`; ese campo no cambia nunca, ni al anular. `renderizarHTML`,
+`renderizarTexto` y `@factura-hn/pdf` imprimen la leyenda `LEYENDA_PRUEBA` al inicio y al final. Un documento real
+se imprime igual que siempre.
 
-Una serie no mezcla autorizaciones de prueba y reales (`AUTORIZACION_MODO_MEZCLADO`): prueba en otro almacén o
-en otro punto de emisión.
+- Un punto de emisión es entero de prueba o entero real (`AUTORIZACION_MODO_MEZCLADO`). Una nota no cruza de un
+  modo a otro (`REFERENCIA_MODO_MEZCLADO`).
+- Prueba en **otro almacén** (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.
+- `exportarTexto` y `libroVentas` dejan fuera los documentos de prueba. `separarDocumentosDePrueba(docs)` dice
+  cuántos quedaron fuera; úsala también si armas el archivo por partes con `lineaExportacion` o `filaLibroVentas`.
 
 ## Con un agente de IA
 

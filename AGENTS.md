@@ -83,6 +83,8 @@ Para ver una factura sin CAI real ni base: `npx factura-hn demo` (escribe `factu
 `crearFacturadorDemo()` de `factura-hn/demo` devuelve un facturador en memoria con CAI ficticios de prueba
 (`autorizacionDemo()`). Todo lo que emite lleva `modo: 'prueba'` y la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
 FISCAL» en todo impreso. **No uses `factura-hn/demo` en producción**: ahí el CAI viene de la resolución del SAR.
+Prueba en otro almacén (otra base), nunca en el de producción. `exportarTexto` y `libroVentas` dejan fuera los
+documentos de prueba; `esCAIDemo(cai)` reconoce un CAI ficticio.
 
 `crearFacturador({ almacen, emisor, establecimiento, puntoEmision })` guarda la configuración del negocio y
 expone `registrarAutorizacion`, `cotizar`, `emitir`, `notaCredito`, `notaDebito`, `anular`, `documento` y
@@ -341,7 +343,9 @@ Cada error del SDK trae su `solucion` y un enlace (`documentacion`) a su explica
 |---|---|
 | `ALMACEN_REQUERIDO` | Pasar `almacen` (un `AlmacenFiscal`) a la llamada o a `crearFacturador` |
 | `SIN_AUTORIZACION` | Registrar el CAI de ese punto de emisión y tipo |
-| `AUTORIZACION_MODO_MEZCLADO` | No mezclar CAI de prueba y reales en una serie: probar en otro almacén o caja |
+| `AUTORIZACION_MODO_MEZCLADO` | No mezclar CAI de prueba y reales en un punto de emisión: probar en otro almacén (otra base) |
+| `AUTORIZACION_PRUEBA_CAI_REAL` | `prueba: true` solo con un CAI ficticio (`DEMO00-NO-VALIDO-…`); con un CAI real, quitarlo |
+| `REFERENCIA_MODO_MEZCLADO` | La nota va en el mismo modo (prueba o real) que su documento |
 | `AUTORIZACION_VENCIDA` / `RANGO_AGOTADO` | Pedir al usuario que registre un nuevo CAI |
 | `RANGO_SOLAPADO` / `AUTORIZACION_DUPLICADA` | Revisar los datos de la resolución: el rango ya está registrado |
 | `FECHA_EMISION_NO_ES_HOY` | No enviar `fechaEmision`: la pone el reloj |
