@@ -11,7 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { emitir, type AlmacenFiscalMemoria, type DocumentoFiscal } from '../src';
+import { emitir, renderizarHTML, type AlmacenFiscalMemoria, type DocumentoFiscal } from '../src';
 
 const RAIZ = join(__dirname, '..', '..', '..');
 const INDICE = join(__dirname, '..', 'src', 'index.ts');
@@ -122,6 +122,9 @@ it('el ejemplo «En 30 segundos» del README corre tal cual, con el reloj real, 
   expect(f.totales.total).toBe(371);
   expect(f.totales.totalEnLetras).toBe('TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100');
   expect(f.advertencias).toEqual([]);
+  // «Los cuatro empiezan en modo de prueba»: el CAI del ejemplo es ficticio y lo impreso lo dice.
+  expect(f.modo).toBe('prueba');
+  expect(renderizarHTML(f)).toContain('DOCUMENTO DE PRUEBA');
 
   // «Avisos que verás»: venta mixta.
   const mixta = await emitir({
