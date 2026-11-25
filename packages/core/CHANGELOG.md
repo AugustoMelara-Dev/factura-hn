@@ -1,5 +1,18 @@
 # factura-hn
 
+## 0.4.0
+
+### Patch Changes
+
+- f9fbe7c: `npx factura-hn demo` empieza sus «Siguientes pasos» con `npm install factura-hn`: el `emitir.mjs` que crea
+  `npx factura-hn init` importa el SDK, y sin instalarlo Node no lo encuentra. El ejemplo «El SDK paso a paso» del
+  README registra un CAI ficticio de prueba (`prueba: true`), así que lo que emite lleva la leyenda «DOCUMENTO DE
+  PRUEBA — SIN VALOR FISCAL», como los demás caminos de inicio.
+- c683c6c: Documentación publicada más clara: las reglas citan su artículo del Reglamento. Donde el texto no es literal, la
+  documentación dice qué lectura aplica factura-hn. El paquete `factura-hn` trae ahora `docs/cumplimiento.md`, la
+  matriz de cumplimiento: cada requisito con su artículo, cómo lo cumple la librería y la prueba que lo verifica. El
+  código no cambia.
+
 ## 0.3.0
 
 ### Minor Changes

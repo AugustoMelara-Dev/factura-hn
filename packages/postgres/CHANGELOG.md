@@ -1,5 +1,21 @@
 # @factura-hn/postgres
 
+## 0.4.0
+
+### Minor Changes
+
+- bbe5ce9: Esquema 4: los datos de un tenant solo de prueba se pueden borrar, y solo así. Dentro de una transacción que fija
+  `factura_hn.purga_prueba` con ese tenant, y solo si el tenant no tiene ninguna autorización con CAI real, la base
+  deja borrar sus documentos y autorizaciones con CAI ficticio (`DEMO00-NO-VALIDO-…`), sus series y su bitácora. Todo
+  lo demás sigue siendo imborrable, como antes. Lo usa la limpieza de la demostración pública de la API. La migración
+  es automática al arrancar.
+
+### Patch Changes
+
+- Updated dependencies [f9fbe7c]
+- Updated dependencies [c683c6c]
+  - factura-hn@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

@@ -452,11 +452,11 @@ herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `an
   [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md#mcp-remoto-streamable-http).
 
 ```json
-{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.3.0"],
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.4.0"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
 ```
 
-En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.3.0"]`.
+En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.4.0"]`.
 
 ## Ejemplos
 

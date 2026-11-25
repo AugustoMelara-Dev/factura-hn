@@ -1,5 +1,13 @@
 # @factura-hn/sqlite
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [f9fbe7c]
+- Updated dependencies [c683c6c]
+  - factura-hn@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

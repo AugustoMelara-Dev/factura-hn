@@ -4,6 +4,10 @@ La API REST no se publica en npm (se distribuye como imagen Docker) y sigue la v
 cambios, incompatibles incluidos, van en el CHANGELOG de `@factura-hn/cliente`
 (`packages/cliente/CHANGELOG.md`).
 
+## 0.4.0
+
+Ver `packages/cliente/CHANGELOG.md`, sección 0.4.0.
+
 ## 0.3.0
 
 Ver `packages/cliente/CHANGELOG.md`, sección 0.3.0.

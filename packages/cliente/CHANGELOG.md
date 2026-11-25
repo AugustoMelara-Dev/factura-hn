@@ -1,5 +1,21 @@
 # @factura-hn/cliente
 
+## 0.4.0
+
+### Minor Changes
+
+- bbe5ce9: Tipos de la API al día con la demostración pública: `POST /v1/demo/entornos` (entorno de prueba con llave
+  `fhn_test_`, URL del MCP remoto y ejemplos), `modo: 'demo'` en `GET /v1/sesion` y los códigos de error
+  `DEMO_PAUSADO`, `DEMO_LIMITE_ENTORNOS`, `ORIGEN_NO_PERMITIDO`, `DEMO_SOLO_PRUEBA`, `ENTORNO_VENCIDO`, `DEMO_NO_DISPONIBLE`,
+  `DEMO_LIMITE_SOLICITUDES` y `DEMO_LIMITE_DOCUMENTOS`.
+
+### Patch Changes
+
+- c683c6c: Documentación publicada más clara: las reglas citan su artículo del Reglamento. Donde el texto no es literal, la
+  documentación dice qué lectura aplica factura-hn. El paquete `factura-hn` trae ahora `docs/cumplimiento.md`, la
+  matriz de cumplimiento: cada requisito con su artículo, cómo lo cumple la librería y la prueba que lo verifica. El
+  código no cambia.
+
 ## 0.3.0
 
 **Cambios incompatibles de la API en la 0.3.0** (el detalle sigue abajo):

@@ -1,6 +1,6 @@
 {
   "name": "@factura-hn/api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "API REST de factura-hn: alojada multi-tenant o local single-tenant con Docker (Art. 47).",
   "license": "MIT",
