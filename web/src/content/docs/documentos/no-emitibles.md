@@ -39,7 +39,8 @@ problemaDeTipo('01');         // null: se emite
 :::caution[Por confirmar con fuente]
 El repositorio no dice si un profesional independiente puede facturar sus servicios con una Factura (`01`) como
 autoimpresor en lugar del Recibo por Honorarios, ni cómo se tratan el ISV y las retenciones sobre honorarios
-(punto F-16 del análisis de la documentación). Consulta con tu contador.
+Este tema aún no tiene pregunta propia en la [consulta al SAR](/produccion/consulta-sar/). Consulta con tu
+contador.
 :::
 
 ### 09 · Ticket
@@ -96,7 +97,8 @@ Para emitir cualquiera de los tres haría falta, en este orden:
 
 :::caution[Por confirmar con fuente]
 Los requisitos de contenido de estos tres documentos y los casos en que son obligatorios no están analizados en
-el repositorio (punto F-15 del análisis de la documentación). Esta página no los resume para no inventarlos.
+el repositorio, y el tema aún no tiene pregunta propia en la [consulta al SAR](/produccion/consulta-sar/). Esta
+página no los resume para no inventarlos.
 Mientras factura-hn no los emita, qué hacer con cada uno es una pregunta para tu contador.
 :::
 

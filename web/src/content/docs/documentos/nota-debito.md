@@ -77,7 +77,8 @@ El motivo del ejemplo ilustra la API. No es una lista de casos admitidos: ver el
 :::caution[Por confirmar con fuente]
 El Reglamento solo dice que la Nota de Débito respalda «ajustes» (Art. 4 num. 31). El repositorio no tiene una
 fuente que diga qué ajustes concretos admite: intereses, fletes o diferencias de precio. Confírmalo con tu
-contador antes de usarla (punto F-19 del análisis de la documentación).
+contador antes de usarla. Este tema aún no tiene pregunta propia en la
+[consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Errores frecuentes

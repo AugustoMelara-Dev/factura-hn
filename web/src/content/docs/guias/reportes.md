@@ -61,7 +61,8 @@ ISV 18 % y total. Sirve de apoyo para la declaración mensual del ISV, pero fact
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene la fuente del formulario de la declaración mensual ni de su relación con el libro de
-ventas (punto F-21 del análisis de la documentación). Confírmalo con tu contador.
+ventas. Este tema aún no tiene pregunta propia en la [consulta al SAR](/produccion/consulta-sar/). Confírmalo
+con tu contador.
 :::
 
 ## Exportación a texto (Art. 53 num. 5)
