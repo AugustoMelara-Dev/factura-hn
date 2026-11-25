@@ -2,6 +2,7 @@
  * Errores que orientan (400 en español, `solucion` y `documentacion`) y enlaces en la respuesta de emisión.
  */
 import { randomUUID } from 'node:crypto';
+import { z } from '@hono/zod-openapi';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
 import { conSolucion, documentacionDe, soluciones } from '../src/errores';
@@ -86,6 +87,16 @@ conBase('errores con solución', () => {
     expect(vacia.error.campo).toBe('documento.lineas');
     expect(vacia.error.mensaje).toMatch(/Demasiado pequeño/);
     expect(JSON.stringify(vacia)).not.toMatch(/Invalid input|Too small|expected/);
+
+    // El tipo recibido sale de lo que se mandó, y un mensaje propio del esquema se respeta.
+    const texto = await json(await emitir(admin, { documento: 'hola' }));
+    expect(texto.error.mensaje).toBe('La solicitud no tiene la forma esperada. documento: Entrada inválida: se esperaba objeto, recibido texto');
+    const periodo = await json(await admin('GET', '/v1/libro-ventas?desde=2026-01-01&hasta=2027-06-01'));
+    expect(JSON.stringify(periodo)).toContain('El período no puede pasar de 366 días.');
+  });
+
+  it('el español es solo de la API: no cambia la configuración global de Zod', () => {
+    expect(z.string().safeParse(1).error!.issues[0]!.message).toBe('Invalid input: expected string, received number');
   });
 
   it('422 SIN_AUTORIZACION: solución y enlace en el error y en cada problema', async () => {
