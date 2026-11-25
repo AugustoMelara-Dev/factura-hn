@@ -177,3 +177,40 @@ describe('sugerirPrecioSinAjuste', () => {
     expect(() => sugerirPrecioSinAjuste('1', { cantidad: '1.00001' })).toThrow('La cantidad admite como máximo 4 decimales: "1.00001"');
   });
 });
+
+describe('validarLineas: tope técnico del total (MONTO_FUERA_DE_RANGO) por grupo de tasa', () => {
+  // 869,565,217,391,300 centavos al 15 %: total 999,999,999,999,995, justo bajo el máximo (10^15 − 1).
+  const CERCA_15 = '8695652173913.00';
+  // 862,068,965,517,241 centavos: cabe al 15 % (991,379,310,344,827) y no al 18 % (1,017,241,379,310,344).
+  const CABE_15_NO_18 = '8620689655172.41';
+  const codigos = (lineas: LineaEntrada[]) => validarLineas(lineas).map((p) => p.codigo);
+
+  it('mensaje y campo exactos', () => {
+    expect(validarLineas([{ descripcion: 'x', cantidad: '1', precioUnitario: '8695652173914.00' }])).toEqual([
+      {
+        codigo: 'MONTO_FUERA_DE_RANGO',
+        mensaje: 'El total de las líneas con su ISV sería L 10000000000001.10: supera el máximo que se puede emitir, L 9999999999999.99.',
+        campo: 'lineas',
+      },
+    ]);
+  });
+
+  it('sin tasa o con ISV15 cuenta al 15 %, no al 18 %; con ISV18, al 18 %', () => {
+    expect(codigos([{ descripcion: 'x', cantidad: '1', precioUnitario: CABE_15_NO_18 }])).toEqual([]);
+    expect(codigos([{ descripcion: 'x', cantidad: '1', precioUnitario: CABE_15_NO_18, isv: 'ISV15' }])).toEqual([]);
+    expect(codigos([{ descripcion: 'x', cantidad: '1', precioUnitario: CABE_15_NO_18, isv: 'ISV18' }])).toEqual(['MONTO_FUERA_DE_RANGO']);
+  });
+
+  it('el descuento resta del importe antes del tope', () => {
+    expect(codigos([{ descripcion: 'x', cantidad: '1', precioUnitario: CERCA_15, descuento: '1.00' }])).toEqual([]);
+    expect(codigos([{ descripcion: 'x', cantidad: '1', precioUnitario: '8695652173914.00', descuento: '1.00' }])).toEqual([]);
+  });
+
+  it('con una línea ilegible no se mide el tope (ya hay un error de esa línea)', () => {
+    const lineas: LineaEntrada[] = [
+      { descripcion: 'x', cantidad: '1', precioUnitario: '9999999999999.00' },
+      { descripcion: 'y', cantidad: '1', precioUnitario: 'abc' },
+    ];
+    expect(codigos(lineas)).toEqual(['LINEA_PRECIO']);
+  });
+});

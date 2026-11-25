@@ -192,6 +192,8 @@ export function estadoAutorizacion(
   const total = aut.rangoFinal - aut.rangoInicial + 1;
   // Una serie que viene de un CAI anterior puede tener su último número antes de este rango: entonces sigue en el
   // primero del rango, sin números usados (y no más restantes que el rango ni un porcentaje negativo).
+  // La condición `=== null` → `false` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): en JS
+  // `null + 1` es 1 y `rangoInicial` es ≥ 1, así que `Math.max` da el mismo `rangoInicial`.
   const siguiente = ultimoCorrelativoEmitido === null ? aut.rangoInicial : Math.max(aut.rangoInicial, ultimoCorrelativoEmitido + 1);
   const restantes = Math.max(0, aut.rangoFinal - siguiente + 1);
   const usados = total - restantes;
