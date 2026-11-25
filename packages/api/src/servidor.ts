@@ -21,7 +21,7 @@ import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { leerProxiesDeConfianza } from './errores';
-import { mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
+import { exigirEsquemaApi, mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
 import {
   bloqueLlavesDemo,
   comandoLlaveAdminLocal,
@@ -100,6 +100,13 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
         'y sin bóveda de secretos. Un servicio con varios negocios debe usar FHN_MODO=alojado.',
     );
   }
+  if (modo === 'alojado' && env.FHN_PROXIES_DE_CONFIANZA === undefined) {
+    console.warn(
+      'AVISO: modo alojado sin FHN_PROXIES_DE_CONFIANZA. Si la API está detrás de un proxy o balanceador, todas las ' +
+        'solicitudes cuentan como una sola dirección para el límite de intentos. Define cuántos proxies hay o sus direcciones ' +
+        '(0 si los clientes llegan directo).',
+    );
+  }
   if (!urlMigrar) {
     console.warn(
       'AVISO: sin FHN_MIGRAR_URL la API corre como dueño de las tablas (DATABASE_URL). Define FHN_MIGRAR_URL con el dueño y ' +
@@ -153,6 +160,12 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     pool = nuevo;
   }
   const poolApi = pool;
+  try {
+    await exigirEsquemaApi(poolApi, rol, consola);
+  } catch (e) {
+    await poolApi.end().catch(() => undefined);
+    throw e;
+  }
 
   if (localSinLlaveAdmin) {
     // La llave del negocio no pasa por este log: la consola la imprime solo en la terminal de quien la crea.

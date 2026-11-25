@@ -54,6 +54,7 @@ import {
   ipDeSolicitud,
   LimitadorSolicitudes,
   Semaforo,
+  SemaforoSaturado,
   soluciones,
   type ProxiesDeConfianza,
   type CuerpoError,
@@ -103,15 +104,28 @@ export interface ConfigApi {
   limiteSolicitudes?: { porSegundo: number; rafaga: number };
   /**
    * Intentos de autenticación con llaves que este proceso aún no validó.
-   * - `porSegundo`, `rafaga` (por defecto 2 y 20): fichas por dirección (IPv6 por su /64). Cada consulta en curso
-   *   reserva una; sin fichas libres, 429 `DEMASIADOS_INTENTOS` sin consultar la base. Un prefijo inexistente
-   *   gasta la ficha; una llave válida no gasta nada.
+   * - `consultasSimultaneas` (por defecto 4): consultas a la base de llaves no validadas a la vez en el proceso;
+   *   las demás esperan su turno en una cola de a lo sumo `maxEnCola` (por defecto 256) durante a lo sumo
+   *   `esperaMaxMs` (por defecto 5000). Más allá, 429 `DEMASIADOS_INTENTOS` con `Retry-After`.
+   * - `porSegundo`, `rafaga` (por defecto 2 y 20): fichas por dirección (IPv6 por su /64). Un prefijo inexistente
+   *   gasta una; una llave válida no gasta nada. Solo cuentan con el semáforo saturado: entonces cada consulta en
+   *   curso de la dirección reserva una ficha y, sin fichas libres, 429 `DEMASIADOS_INTENTOS` sin consultar la
+   *   base. Con lugares libres, la consulta corre aunque la dirección no tenga fichas (todas las cajas de una
+   *   instalación con Docker llegan desde la misma puerta de enlace).
    * - Las mismas tasas, por prefijo, para los fallos de un prefijo que existe (secreto equivocado, llave revocada
    *   o tenant inactivo): una caja que reintenta con su llave revocada se frena solo a sí misma.
-   * - `consultasSimultaneas` (por defecto 4): consultas a la base de llaves no validadas a la vez en el proceso;
-   *   las demás esperan su turno en cola (no reciben 429).
+   * - `memoriaInactivaMs` (por defecto 15 000): cuánto recuerda el proceso que un prefijo existe sin llave activa
+   *   (revocada o tenant inactivo). Mientras tanto responde 401 o 429 sin consultar la base; un tenant
+   *   reactivado vuelve a entrar al pasar ese tiempo.
    */
-  limiteIntentos?: { porSegundo?: number; rafaga?: number; consultasSimultaneas?: number };
+  limiteIntentos?: {
+    porSegundo?: number;
+    rafaga?: number;
+    consultasSimultaneas?: number;
+    maxEnCola?: number;
+    esperaMaxMs?: number;
+    memoriaInactivaMs?: number;
+  };
   /**
    * Proxies de confianza delante de la API (por defecto 0: la dirección del cliente es la del socket y
    * `X-Forwarded-For` se ignora). Ver `ProxiesDeConfianza`.
@@ -243,7 +257,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const li = cfg.limiteIntentos ?? {};
   const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
   const fallosPorPrefijo = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
-  const consultasNuevas = new Semaforo(li.consultasSimultaneas ?? 4);
+  const consultasNuevas = new Semaforo(li.consultasSimultaneas ?? 4, li.maxEnCola ?? 256, li.esperaMaxMs ?? 5000);
+  const memoriaInactivaMs = li.memoriaInactivaMs ?? 15_000;
+  /** Prefijos registrados sin llave activa (revocada o tenant inactivo), con el instante hasta el que se recuerdan. */
+  const inactivos = new Map<string, number>();
   /** Consultas en curso de llaves no validadas, por dirección: cada una reserva una ficha de su cubeta. */
   const enVueloPorIp = new Map<string, number>();
   /** Una sola consulta en curso por prefijo: las solicitudes con el mismo prefijo esperan su resultado. */
@@ -335,10 +352,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     };
     // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
     // dejarla en 429. Una llave que este proceso ya validó (mismo hash, en memoria) no pasa por el límite de
-    // intentos. Las demás: (1) la dirección necesita una ficha libre además de las reservadas por sus consultas
-    // en curso, o recibe 429 sin consultar la base; (2) una sola consulta por prefijo a la vez y a lo sumo
-    // `consultasSimultaneas` en el proceso (las demás esperan en cola); (3) el fallo de un prefijo que existe se
-    // cobra a ese prefijo y el de un prefijo inexistente, a la dirección. Una llave válida no gasta fichas.
+    // intentos. Las demás: (1) una sola consulta por prefijo a la vez y a lo sumo `consultasSimultaneas` en el
+    // proceso; las demás esperan en una cola acotada en tamaño y tiempo; (2) solo si hay que hacer cola, la
+    // dirección necesita una ficha libre además de las reservadas por sus consultas en curso, o recibe 429 sin
+    // consultar la base; (3) el fallo de un prefijo que existe se cobra a ese prefijo y el de un prefijo
+    // inexistente, a la dirección; (4) un prefijo registrado sin llave activa se recuerda `memoriaInactivaMs`.
+    // Una llave válida no gasta fichas.
     const hashVisto = verificadas.get(prefijo);
     const conocida = hashVisto !== undefined && coincide(llave, hashVisto);
     const ip = ipDeSolicitud(c, proxies);
@@ -354,23 +373,42 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         // Prefijo ya validado con otro secreto: el hash de un prefijo no cambia, así que este secreto es
         // equivocado y no hace falta consultar la base.
         busqueda = { registrado: true, sinConsultar: true };
+      } else if ((inactivos.get(prefijo) ?? 0) > Date.now()) {
+        // Registrado sin llave activa hace menos de `memoriaInactivaMs`: no se vuelve a consultar.
+        busqueda = { registrado: true, sinConsultar: true };
       } else {
+        inactivos.delete(prefijo);
         // Quien llega mientras ya se consulta su prefijo espera ese resultado: no consulta la base ni reserva.
         let enCurso = enVueloPorPrefijo.get(prefijo);
         if (!enCurso) {
           if (!registradoConocido) {
-            const espera = intentosPorIp.espera(ip, enVueloPorIp.get(ip) ?? 0);
-            if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+            // La cubeta de la dirección solo frena cuando hay que hacer cola.
+            if (consultasNuevas.saturado) {
+              const espera = intentosPorIp.espera(ip, enVueloPorIp.get(ip) ?? 0);
+              if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+            }
             enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
             reservada = true;
           }
           enCurso = consultasNuevas.con(() => buscarLlave(prefijo)).finally(() => enVueloPorPrefijo.delete(prefijo));
           enVueloPorPrefijo.set(prefijo, enCurso);
         }
-
-        busqueda = await enCurso;
+        try {
+          busqueda = await enCurso;
+        } catch (e) {
+          if (e instanceof SemaforoSaturado) {
+            throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiadas llaves por validar a la vez. Espera y reintenta.', {
+              reintentarEn: Math.max(1, Math.ceil((li.esperaMaxMs ?? 5000) / 1000)),
+            });
+          }
+          throw e;
+        }
       }
       const { fila: hallada, registrado } = busqueda;
+      if (!hallada && registrado && !busqueda.sinConsultar) {
+        if (inactivos.size >= 10_000) inactivos.delete(inactivos.keys().next().value!);
+        inactivos.set(prefijo, Date.now() + memoriaInactivaMs);
+      }
       if (!hallada || !coincide(llave, hallada.hash)) {
         // La llave en memoria se descarta solo si ya no está activa o cambió: un secreto equivocado no la saca.
         if (hashVisto !== undefined && !busqueda.sinConsultar && (!hallada || !hallada.hash.equals(hashVisto))) verificadas.delete(prefijo);

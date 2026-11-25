@@ -124,8 +124,8 @@ export class LimitadorSolicitudes {
     const c = this.cubetas.get(clave) ?? { fichas: this.rafaga, t };
     c.fichas = Math.min(this.rafaga, c.fichas + ((t - c.t) / 1000) * this.porSegundo);
     c.t = t;
+    if (!this.cubetas.has(clave) && this.cubetas.size >= LimitadorSolicitudes.MAX_CUBETAS) this.desalojar(t);
     this.cubetas.set(clave, c);
-    if (this.cubetas.size > 10_000) this.cubetas.delete(this.cubetas.keys().next().value!);
     if (c.fichas >= 1) {
       c.fichas -= 1;
       return 0;
@@ -145,18 +145,66 @@ export class LimitadorSolicitudes {
   tiene(clave: string): boolean {
     return this.cubetas.has(clave);
   }
+  static readonly MAX_CUBETAS = 10_000;
+  /**
+   * Con demasiadas cubetas, descarta primero las llenas: no guardan nada que no se recupere al recrearlas. Solo si
+   * ninguna está llena, la más antigua. Así, crear muchas claves nuevas no borra la cubeta vacía de quien ataca.
+   */
+  private desalojar(t: number): void {
+    for (const [clave, c] of this.cubetas) {
+      if (c.fichas + ((t - c.t) / 1000) * this.porSegundo >= this.rafaga) this.cubetas.delete(clave);
+    }
+    if (this.cubetas.size >= LimitadorSolicitudes.MAX_CUBETAS) this.cubetas.delete(this.cubetas.keys().next().value!);
+  }
 }
 
-/** Semáforo con cola: a lo sumo `maximo` tareas a la vez; las demás esperan su turno en orden. */
+/** El semáforo no admite más espera: la cola está llena o se pasó el tiempo máximo en cola. */
+export class SemaforoSaturado extends Error {
+  constructor(readonly motivo: 'cola-llena' | 'espera-agotada') {
+    super(motivo === 'cola-llena' ? 'La cola del semáforo está llena.' : 'Se agotó el tiempo de espera en la cola.');
+  }
+}
+
+/**
+ * Semáforo con cola: a lo sumo `maximo` tareas a la vez; las demás esperan su turno en orden. La cola tiene un
+ * tope (`maxEnCola`) y un tiempo máximo de espera (`esperaMaxMs`): más allá, `con` falla con `SemaforoSaturado`
+ * sin correr la tarea.
+ */
 export class Semaforo {
   private activas = 0;
   private readonly cola: Array<() => void> = [];
-  constructor(private readonly maximo: number) {
+  constructor(
+    private readonly maximo: number,
+    private readonly maxEnCola = Number.POSITIVE_INFINITY,
+    private readonly esperaMaxMs = Number.POSITIVE_INFINITY,
+  ) {
     if (!Number.isSafeInteger(maximo) || maximo < 1) throw new Error('El semáforo necesita al menos un lugar.');
+    if (!(maxEnCola >= 0) || !(esperaMaxMs > 0)) throw new Error('El tope de la cola y la espera máxima deben ser positivos.');
+  }
+  /** Si hay que esperar en cola para correr una tarea nueva. */
+  get saturado(): boolean {
+    return this.activas >= this.maximo;
   }
   async con<T>(tarea: () => Promise<T>): Promise<T> {
-    if (this.activas >= this.maximo) await new Promise<void>((r) => this.cola.push(r));
-    else this.activas++;
+    if (this.activas >= this.maximo) {
+      if (this.cola.length >= this.maxEnCola) throw new SemaforoSaturado('cola-llena');
+      await new Promise<void>((resolver, rechazar) => {
+        let reloj: ReturnType<typeof setTimeout> | undefined;
+        const turno = () => {
+          if (reloj) clearTimeout(reloj);
+          resolver();
+        };
+        this.cola.push(turno);
+        if (Number.isFinite(this.esperaMaxMs)) {
+          reloj = setTimeout(() => {
+            const i = this.cola.indexOf(turno);
+            if (i >= 0) this.cola.splice(i, 1);
+            rechazar(new SemaforoSaturado('espera-agotada'));
+          }, this.esperaMaxMs);
+          reloj.unref?.();
+        }
+      });
+    } else this.activas++;
     try {
       return await tarea();
     } finally {

@@ -685,7 +685,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### DEMASIADOS_INTENTOS
 
-- **Qué significa (429):** hubo demasiados intentos con llaves no válidas.
+- **Qué significa (429):** hubo demasiados intentos con llaves no válidas, o hay demasiadas llaves por validar
+  a la vez en el servidor (cola llena o más de 5 s de espera).
 - **Solución:** revisa que la llave esté completa y activa, y reintenta después de los segundos de la cabecera
   `Retry-After`.
 

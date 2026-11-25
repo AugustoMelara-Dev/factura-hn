@@ -311,6 +311,28 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
   }
 }
 
+/** Función que añadió la versión actual del esquema: si el rol de la API no la ve, la base no está migrada. */
+export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
+
+/**
+ * Falla con un mensaje claro si la base tiene el esquema de la API en una versión anterior a la del código.
+ * Corre con la conexión de la API (no hace falta ser dueño de las tablas). Sin esto, una base sin migrar
+ * respondería 500 a cada llave no válida.
+ */
+export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, consola = 'node packages/api/dist/cli.js'): Promise<void> {
+  const r = await pool.query<{ ok: boolean }>(
+    "SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false) AS ok",
+    [MARCA_ESQUEMA_API, rol],
+  );
+  if (r.rows[0]?.ok) return;
+  throw new Error(
+    `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
+      `(falta ${MARCA_ESQUEMA_API} o el rol de la API no puede usarla). Migra antes de arrancar: arranca con ` +
+      `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
+      'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',
+  );
+}
+
 /** Días que se guarda la copia completa de una respuesta idempotente y una entrega terminada. */
 export const RETENCION_POR_DEFECTO = 30;
 /** Mínimo que aplica la base, aunque se pida menos. */

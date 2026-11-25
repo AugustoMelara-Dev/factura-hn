@@ -769,20 +769,34 @@ integración (DEC-086 a DEC-089).
     el límite de intentos (la base se sigue consultando: una revocada da 401 y sale de la memoria). Un secreto
     equivocado con ese prefijo se rechaza sin consultar la base (el hash de un prefijo no cambia) y **no** la
     saca de la memoria.
-  - Llaves no validadas: cubeta por dirección (2/s, ráfaga 20). Antes de consultar, la dirección necesita
-    `fichas - consultasEnCurso >= 1`; si no, 429 `DEMASIADOS_INTENTOS` sin consultar. La reserva se suelta en un
-    `finally`; una llave válida no gasta nada. Una sola consulta por prefijo a la vez: las solicitudes simultáneas
-    con la misma llave esperan ese resultado sin reservar (así, 3 cajas nuevas × 15 ventas en paralelo desde una
-    dirección hacen 3 consultas y ningún 429).
+  - Llaves no validadas: un semáforo de 4 consultas a la vez en el proceso, con una cola de a lo sumo 256
+    (`maxEnCola`) y 5 s de espera máxima (`esperaMaxMs`). Más allá, 429 `DEMASIADOS_INTENTOS` con `Retry-After`.
+    Una sola consulta por prefijo a la vez: las solicitudes simultáneas con la misma llave esperan ese resultado
+    sin reservar (así, 3 cajas nuevas × 15 ventas en paralelo desde una dirección hacen 3 consultas y ningún 429).
+  - Cubeta por dirección (2/s, ráfaga 20), que solo frena **con el semáforo saturado** (hay que hacer cola):
+    entonces la dirección necesita `fichas - consultasEnCurso >= 1` para esperar en cola; si no, 429
+    `DEMASIADOS_INTENTOS` sin consultar. Con lugares libres, la consulta corre aunque la dirección no tenga
+    fichas: todas las cajas de una instalación con Docker llegan desde la IP de la puerta de enlace y no deben
+    quedar en 429 por los fallos de otra. Un prefijo inexistente gasta una ficha; la reserva se suelta en un
+    `finally`; una llave válida no gasta nada. Así, 100 llaves falsas en paralelo desde una dirección hacen 20
+    consultas (4 corren, 16 esperan en cola, 80 reciben 429).
+  - Un prefijo registrado sin llave activa (revocada o tenant inactivo) se recuerda 15 s (`memoriaInactivaMs`):
+    mientras tanto se responde 401 o 429 (cubeta del prefijo) sin consultar la base. Un tenant reactivado vuelve
+    a entrar al pasar ese tiempo.
+  - Con más de 10 000 cubetas en memoria se descartan primero las llenas (no guardan nada que no se recupere al
+    recrearlas); solo si no hay llenas, la más antigua. Crear muchas claves nuevas no borra la cubeta vacía de
+    quien ataca.
+  - En modo alojado sin `FHN_PROXIES_DE_CONFIANZA`, el arranque avisa en el log: detrás de un proxy, todas las
+    solicitudes contarían como una sola dirección.
   - Fallos de un prefijo que existe (secreto equivocado, llave revocada, tenant inactivo) se cobran a una cubeta
     por prefijo (mismas tasas), no a la dirección: una caja que reintenta con su llave revocada se frena sola y
     no deja en 429 a las demás cajas detrás de la misma dirección (en la instalación local, todas llegan con la
     IP de la puerta de enlace de Docker). Para distinguir «revocada» de «no existe» se agrega
     `fhn_api_prefijo_registrado(prefijo)` (esquema de la API v7, `SECURITY DEFINER`, solo para el rol de la
     aplicación), que se consulta solo cuando no hay llave activa. El 401 es idéntico en todos los casos.
-  - Sin cubeta global: un semáforo de 4 consultas de llaves no validadas a la vez en el proceso, con cola. Acota
-    la carga sobre Postgres sin dar 429 a nadie (la cubeta global dejaba el proceso entero en 429 a cualquiera
-    con muchas direcciones).
+  - Sin cubeta global: el semáforo acota la carga sobre Postgres (la cubeta global dejaba el proceso entero en
+    429 a cualquiera con muchas direcciones). Segunda revisión: la cola sin tope crecía sin límite en memoria;
+    ahora tiene tope y espera máxima.
   - La dirección es la del socket. `X-Forwarded-For` se usa solo con `FHN_PROXIES_DE_CONFIANZA`: la lista de
     direcciones de los proxies (la cabecera se cree solo si el socket es uno de ellos) o un número N (la N-ésima
     desde la derecha; solo si a la API se llega únicamente por el proxy, documentado). Direcciones normalizadas:
@@ -797,6 +811,12 @@ integración (DEC-086 a DEC-089).
   aún no validó (p. ej. tras reiniciar) puede hacer que esa llave reciba 429 en sus fallos, pero no en sus
   aciertos: con la cubeta del prefijo agotada la base se sigue consultando (una a la vez por prefijo, dentro del
   semáforo) y el secreto correcto entra.
+- **Límite conocido (segunda revisión):** con el semáforo libre, una dirección que prueba prefijos inexistentes
+  uno tras otro consulta la base en cada intento (a lo sumo 4 consultas a la vez en el proceso). Se acepta: la
+  alternativa deja en 429 a las cajas que comparten la dirección. Además, el tiempo de respuesta distingue «llave
+  activa ya validada» (en memoria, sin consulta) de «revocada» (una consulta, o la memoria de 15 s). Solo lo
+  aprovecha quien ya tiene un prefijo; no revela secretos ni prefijos nuevos, y el cuerpo del 401 sigue siendo
+  idéntico. Se acepta.
 
 ### DEC-071 · Errores con `solucion` y `documentacion`
 - **Contexto:** plan v1 §2 punto 1.5 y `docs/analisis/api-rest.md` §3.2: los errores no decían qué hacer ni
