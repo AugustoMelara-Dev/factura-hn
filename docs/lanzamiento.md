@@ -70,6 +70,7 @@ gh api repos/$R/topics -X PUT -f 'names[]=honduras' -f 'names[]=sar' -f 'names[]
 gh api -X PUT repos/$R/branches/main/protection --input - <<'JSON'
 {
   "required_status_checks": { "strict": true, "contexts": [
+    "Tipos, pruebas, build, dist y documentación (Node 20)",
     "Tipos, pruebas, build, dist y documentación (Node 22)",
     "Tipos, pruebas, build, dist y documentación (Node 24)",
     "Postgres (almacén, API, cliente, MCP, Express, Next.js)",
@@ -181,9 +182,27 @@ gh run watch --repo $R
 
 El sitio queda en <https://augustomelara-dev.github.io/factura-hn/>.
 
-Desde aquí, cada cambio a un paquete lleva `pnpm changeset`. Al llegar a `main`, el flujo Release abre el PR
-«Versión de paquetes»; al fusionarlo, espera tu aprobación del entorno `npm` y publica con OIDC, sin tokens. La
-procedencia firmada se comprueba con `npm view @factura-hn/mcp dist.attestations`.
+Desde aquí, cada cambio a un paquete lleva `pnpm changeset`. El flujo Release corre en cada push a `main` en tres
+trabajos:
+
+1. **verificar**, sin permisos de escritura: instala, compila, prueba y guarda los `dist/`.
+2. **version**: con changesets pendientes, abre o actualiza el PR «Versión de paquetes». `pnpm run version` sube
+   los seis paquetes, la API (`packages/api/package.json` y `openapi.json`), los bloques `mcpServers` del README y
+   del sitio, y agrega al `CHANGELOG.md` de la raíz la sección de la versión con enlaces al de cada paquete.
+3. **publicar**: solo cuando no quedan changesets y alguna versión aún no está en npm (es decir, al fusionar el PR
+   de versión). Es el único trabajo con el entorno `npm`: **espera tu aprobación** y publica con OIDC, sin
+   tokens, con los `dist/` del primer trabajo. Los demás push a `main` no piden aprobación.
+
+El PR «Versión de paquetes» lo abre el `GITHUB_TOKEN` del flujo, y GitHub no dispara flujos por eventos de ese
+token: **el PR no corre el CI por sí solo**, y la protección de `main` no deja fusionarlo sin los checks. Lánzalo
+a mano sobre la rama del PR (los checks quedan en su último commit):
+
+```bash
+gh workflow run ci.yml --repo AugustoMelara-Dev/factura-hn --ref changeset-release/main
+```
+
+Cada vez que el flujo actualiza el PR (otro changeset llega a `main`), vuelve a lanzarlo. La procedencia firmada se
+comprueba con `npm view @factura-hn/mcp dist.attestations`.
 
 ## 7. Después del lanzamiento
 

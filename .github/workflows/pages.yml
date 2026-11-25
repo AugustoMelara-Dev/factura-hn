@@ -47,6 +47,8 @@ jobs:
 
   publicar:
     needs: construir
+    # Solo desde main: workflow_dispatch puede lanzarse desde otra rama.
+    if: vars.PUBLICAR_SITIO == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write
