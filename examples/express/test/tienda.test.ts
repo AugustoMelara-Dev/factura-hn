@@ -75,6 +75,12 @@ describe('receptor de webhooks', () => {
       expect((await enviar(firmar('otro', cuerpo, t))).status).toBe(400);
       expect((await enviar(firmar('s3creto', cuerpo, t), cuerpo.replace('77', '78'))).status).toBe(400);
       expect((await enviar(firmar('s3creto', cuerpo, t - 600))).status).toBe(400);
+      // Rotación del secreto: la API firma con los dos (dos v1). Basta una válida, en cualquier orden.
+      const otro = JSON.stringify({ id: '79', evento: 'webhook.prueba', creado: new Date().toISOString(), datos: {} });
+      expect((await enviar(firmar(['viejo', 's3creto'], otro, t), otro)).status).toBe(204);
+      expect((await enviar(firmar(['s3creto', 'viejo'], otro, t), otro)).status).toBe(204);
+      expect((await enviar(firmar(['viejo', 'otro'], otro, t), otro)).status).toBe(400);
+      expect(recibidos.map((a) => a.id)).toEqual(['77', '79']);
     } finally {
       cerrar();
     }
