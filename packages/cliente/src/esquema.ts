@@ -1291,9 +1291,11 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Libro */
+                /** @description Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera. */
                 200: {
                     headers: {
+                        /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
+                        "Documentos-Prueba-Excluidos": string;
                         [name: string]: unknown;
                     };
                     content: {
@@ -1304,6 +1306,9 @@ export interface paths {
                             resumen: {
                                 [key: string]: unknown;
                             };
+                            /** @description Documentos de prueba del período que no entran en el libro. */
+                            excluidos: number;
+                            aviso?: string;
                         };
                         "text/csv": string;
                     };
@@ -1384,9 +1389,11 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Archivo */
+                /** @description Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`). */
                 200: {
                     headers: {
+                        /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
+                        "Documentos-Prueba-Excluidos": string;
                         [name: string]: unknown;
                     };
                     content: {
@@ -2099,10 +2106,13 @@ export interface components {
                 documentacion?: string;
             };
             /** @description En 400 y 422: la lista completa, cada uno con su código y campo. */
-            errores?: components["schemas"]["ProblemaConGuia"][];
+            errores?: components["schemas"]["Problema"][];
             advertencias?: components["schemas"]["Problema"][];
         };
-        ProblemaConGuia: components["schemas"]["Problema"] & {
+        Problema: {
+            codigo: string;
+            mensaje: string;
+            campo?: string;
             /** @description Qué hacer para resolverlo, si se conoce. */
             solucion?: string;
             /**
@@ -2110,11 +2120,6 @@ export interface components {
              * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
              */
             documentacion?: string;
-        };
-        Problema: {
-            codigo: string;
-            mensaje: string;
-            campo?: string;
         };
         EmisorCambios: {
             rtn?: string;
@@ -2200,7 +2205,8 @@ export interface components {
                         correlativosRestantes: number;
                         alertas: components["schemas"]["Problema"][];
                     }[];
-                    problema: components["schemas"]["ProblemaConGuia"];
+                    /** @description Por qué no se puede emitir este tipo, o null si está listo. */
+                    problema: components["schemas"]["Problema"] | null;
                 }[];
             }[];
             /** @description Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja. */
@@ -2209,7 +2215,7 @@ export interface components {
             /** @description Con esta llave ya se puede emitir una factura (tipo 01). */
             puedeEmitir: boolean;
             /** @description Lo que falta para emitir una factura, con su solución. */
-            pendientes: components["schemas"]["ProblemaConGuia"][];
+            pendientes: components["schemas"]["Problema"][];
         };
         RespuestaEmision: {
             documento: components["schemas"]["DocumentoFiscal"];

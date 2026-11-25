@@ -10,16 +10,21 @@ const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ example: '2026-1
 const Codigo3 = z.string().regex(/^\d{3}$/);
 const Texto = (max = 300) => z.string().max(max);
 
-export const Problema = z.object({ codigo: z.string(), mensaje: z.string(), campo: z.string().optional() }).openapi('Problema');
-
 const Solucion = z.string().optional().openapi({ description: 'Qué hacer para resolverlo, si se conoce.' });
 const Documentacion = z.string().optional().openapi({
   description: 'Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).',
   example: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion',
 });
 
-/** Un problema con su solución y el enlace a la guía de errores. */
-export const ProblemaConGuia = Problema.extend({ solucion: Solucion, documentacion: Documentacion }).openapi('ProblemaConGuia');
+/**
+ * Un problema (error o advertencia) como el `Problema` del núcleo: código, mensaje, campo y, si se conocen, la
+ * solución y el enlace a la guía de errores.
+ */
+export const Problema = z
+  .object({ codigo: z.string(), mensaje: z.string(), campo: z.string().optional(), solucion: Solucion, documentacion: Documentacion })
+  .openapi('Problema');
+/** Alias de `Problema`, de cuando el esquema base no declaraba la guía. */
+export const ProblemaConGuia = Problema;
 
 export const ErrorRespuesta = z
   .object({
@@ -281,7 +286,7 @@ export const Sesion = z
               listo: z.boolean().openapi({ description: 'Hay una autorización vigente con números disponibles para este tipo.' }),
               siguienteNumero: z.string().nullable(),
               autorizaciones: z.array(AutorizacionVigente).openapi({ description: 'Autorizaciones vigentes de este punto y tipo.' }),
-              problema: ProblemaConGuia.nullable(),
+              problema: z.union([Problema, z.null()]).openapi({ description: 'Por qué no se puede emitir este tipo, o null si está listo.' }),
             }),
           ),
         }),

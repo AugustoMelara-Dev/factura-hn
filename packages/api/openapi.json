@@ -128,7 +128,7 @@
           "errores": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProblemaConGuia"
+              "$ref": "#/components/schemas/Problema"
             },
             "description": "En 400 y 422: la lista completa, cada uno con su código y campo."
           },
@@ -143,27 +143,6 @@
           "error"
         ]
       },
-      "ProblemaConGuia": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Problema"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "solucion": {
-                "type": "string",
-                "description": "Qué hacer para resolverlo, si se conoce."
-              },
-              "documentacion": {
-                "type": "string",
-                "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
-                "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
-              }
-            }
-          }
-        ]
-      },
       "Problema": {
         "type": "object",
         "properties": {
@@ -175,6 +154,15 @@
           },
           "campo": {
             "type": "string"
+          },
+          "solucion": {
+            "type": "string",
+            "description": "Qué hacer para resolverlo, si se conoce."
+          },
+          "documentacion": {
+            "type": "string",
+            "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
+            "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
           }
         },
         "required": [
@@ -513,7 +501,15 @@
                         "description": "Autorizaciones vigentes de este punto y tipo."
                       },
                       "problema": {
-                        "$ref": "#/components/schemas/ProblemaConGuia"
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Problema"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Por qué no se puede emitir este tipo, o null si está listo."
                       }
                     },
                     "required": [
@@ -554,7 +550,7 @@
           "pendientes": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProblemaConGuia"
+              "$ref": "#/components/schemas/Problema"
             },
             "description": "Lo que falta para emitir una factura, con su solución."
           }
@@ -2875,7 +2871,18 @@
         ],
         "responses": {
           "200": {
-            "description": "Libro",
+            "description": "Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera.",
+            "headers": {
+              "Documentos-Prueba-Excluidos": {
+                "schema": {
+                  "type": "string",
+                  "description": "Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal).",
+                  "example": "0"
+                },
+                "required": true,
+                "description": "Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal)."
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2893,11 +2900,19 @@
                       "type": "object",
                       "properties": {},
                       "additionalProperties": {}
+                    },
+                    "excluidos": {
+                      "type": "integer",
+                      "description": "Documentos de prueba del período que no entran en el libro."
+                    },
+                    "aviso": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "filas",
-                    "resumen"
+                    "resumen",
+                    "excluidos"
                   ]
                 }
               },
@@ -3009,7 +3024,18 @@
         ],
         "responses": {
           "200": {
-            "description": "Archivo",
+            "description": "Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).",
+            "headers": {
+              "Documentos-Prueba-Excluidos": {
+                "schema": {
+                  "type": "string",
+                  "description": "Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal).",
+                  "example": "0"
+                },
+                "required": true,
+                "description": "Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal)."
+              }
+            },
             "content": {
               "text/plain": {
                 "schema": {
