@@ -45,7 +45,8 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: npm con publicación de confianza (>= 11.5.1)
         run: npm install -g npm@11.6.2 && npm --version
-      - run: pnpm install --frozen-lockfile
+      # Sin las dependencias de colecciones/ (CLI de Bruno): solo las usa el trabajo «colecciones» de ci.yml.
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
       - run: pnpm auditar:datos
       - run: pnpm build
       - run: pnpm typecheck
