@@ -103,8 +103,9 @@ número de prueba, se acepta.
 
 Cada camino tiene además su propia protección:
 
-- **API:** el tenant `demo` solo acepta CAI ficticios (`AUTORIZACION_REAL_EN_DEMO`); en tu tenant, un CAI
-  ficticio necesita `"prueba": true` explícito (`AUTORIZACION_DEMO_SIN_PRUEBA`).
+- **API:** cada tenant es de prueba o de producción. Uno de prueba (el `demo`, con llaves `fhn_test_…`) solo
+  acepta CAI ficticios (`AUTORIZACION_REAL_EN_DEMO`); uno de producción (llaves `fhn_live_…`) no acepta ninguno
+  (`CAI_DE_PRUEBA`). Una llave `fhn_test_` no entra a un tenant de producción, ni al revés.
 - **MCP:** la base de prueba (`factura-demo.db`) va aparte de la real (`factura.db`), y no acepta un CAI real.
 
 Antes de emitir con tu CAI, revisa la lista de [Ir a producción](/produccion/).

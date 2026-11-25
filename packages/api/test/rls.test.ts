@@ -32,8 +32,8 @@ conBase('RLS: un tenant no ve ni toca los datos de otro', () => {
     expect((await b.admin('GET', `/v1/emisores/${a.emisorId}`)).status).toBe(404);
     expect((await b.admin('PATCH', `/v1/emisores/${a.emisorId}`, { telefono: '1' })).status).toBe(404);
     const llavesB = (await (await b.admin('GET', '/v1/llaves')).json()).llaves as { prefijo: string }[];
-    expect(llavesB.map((l) => l.prefijo)).not.toContain(a.llaveAdmin.split('_')[1]);
-    expect((await b.admin('DELETE', `/v1/llaves/${a.llaveAdmin.split('_')[1]}`)).status).toBe(404);
+    expect(llavesB.map((l) => l.prefijo)).not.toContain(a.llaveAdmin.split('_')[2]);
+    expect((await b.admin('DELETE', `/v1/llaves/${a.llaveAdmin.split('_')[2]}`)).status).toBe(404);
     expect((await (await b.admin('GET', '/v1/webhooks')).json()).webhooks).toEqual([]);
     const bit = await (await b.admin('GET', '/v1/bitacora')).json();
     expect(JSON.stringify(bit)).not.toContain(a.tenant);
@@ -122,7 +122,7 @@ conBase('RLS: un tenant no ve ni toca los datos de otro', () => {
     try {
       await c.query('BEGIN');
       await c.query(`SET LOCAL ROLE ${ROL}`);
-      const prefijo = a.llaveAdmin.split('_')[1];
+      const prefijo = a.llaveAdmin.split('_')[2];
       const r = await c.query('SELECT tenant FROM fhn_api_autenticar($1)', [prefijo]);
       expect(r.rows).toEqual([{ tenant: a.tenant }]);
       expect((await c.query('SELECT * FROM fhn_api_autenticar($1)', [caja.prefijo])).rowCount).toBe(0);

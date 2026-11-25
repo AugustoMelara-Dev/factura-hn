@@ -217,7 +217,7 @@ conBase('contrato con la base', () => {
     const { app, admin } = await tenantListo();
     const caja = await crearCaja(admin, '001');
     expect((await cliente(app, caja)('GET', '/v1/sesion')).headers.get('ratelimit')).not.toBeNull();
-    expect((await admin('DELETE', `/v1/llaves/${caja.split('_')[1]}`)).status).toBe(200);
+    expect((await admin('DELETE', `/v1/llaves/${/^fhn_(?:live_|test_)?([0-9a-f]+)_/.exec(caja)![1]}`)).status).toBe(200);
     for (const llave of ['fhn_000000000000_secretoequivocado', caja]) {
       const r = await cliente(app, llave)('GET', '/v1/sesion');
       expect(r.status).toBe(401);

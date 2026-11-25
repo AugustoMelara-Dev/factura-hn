@@ -8,13 +8,13 @@ Desde la raíz del repositorio, en tres comandos:
 ```bash
 pnpm install
 docker compose up -d --build                                   # API en 127.0.0.1:8787 (Docker Compose v2)
-FHN_LLAVE=fhn_… pnpm --filter @factura-hn/ejemplo-express start  # compila el cliente y abre 127.0.0.1:3001
+FHN_LLAVE=fhn_test_… pnpm --filter @factura-hn/ejemplo-express start  # compila el cliente y abre 127.0.0.1:3001
 ```
 
 En PowerShell, el tercer comando es:
 
 ```powershell
-$env:FHN_LLAVE = 'fhn_…'; pnpm --filter @factura-hn/ejemplo-express start
+$env:FHN_LLAVE = 'fhn_test_…'; pnpm --filter @factura-hn/ejemplo-express start
 ```
 
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,

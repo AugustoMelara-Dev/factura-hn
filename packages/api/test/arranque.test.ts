@@ -57,7 +57,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const base = { PUERTO: '0', FHN_HOST: '127.0.0.1' };
-const LLAVE = /fhn_[0-9a-f]{12}_[A-Za-z0-9_-]+/g;
+const LLAVE = /fhn_(?:live|test)_[0-9a-f]{12}_[A-Za-z0-9_-]+/g;
 
 describe('rol LOGIN de la API', () => {
   it('valida el nombre del rol LOGIN y no admite el mismo rol de la aplicación', () => {
@@ -183,7 +183,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
     // Las únicas llaves impresas son las del demo.
     const impresas = log.match(LLAVE) ?? [];
     expect(impresas).toHaveLength(2);
-    expect(impresas.map((l) => l.split('_')[1]).sort()).toEqual(llaves.map((f) => f.prefijo).sort());
+    expect(impresas.map((l) => l.split('_')[2]).sort()).toEqual(llaves.map((f) => f.prefijo).sort());
 
     // Segundo arranque: ninguna llave; sigue diciendo cómo crear la del negocio y otra llave del demo.
     salida.log.length = 0;

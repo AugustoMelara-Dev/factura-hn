@@ -128,7 +128,8 @@ aparece la forma de Docker Compose; los mensajes del servidor usan la de su desp
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
 docker compose exec api factura-hn-api migrar
-docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin (fhn_live_…)
+docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # sandbox: llaves fhn_test_…, solo CAI ficticios
 docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
 docker compose exec api factura-hn-api openapi openapi.json
@@ -141,7 +142,9 @@ usa. En la imagen de Docker, `node cli.cjs <comando>` sigue funcionando.
 
 No hay registro público de tenants: en el modo alojado los crea el operador. Los nombres `local` y `demo` están
 reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
-(el del emisor y el CAI ficticios).
+(el del emisor y el CAI ficticios). `tenant crear --modo prueba|produccion` (por defecto `produccion`) fija el
+modo del tenant, que no cambia después (ver «Tenants de prueba y de producción»). `llave crear` y `demo llave`
+crean la llave con la marca del modo de su tenant.
 
 ### Modo local y modo alojado
 
@@ -153,8 +156,40 @@ usar `FHN_MODO=alojado`. En modo local la API **no arranca** si la base tiene te
 
 ## Autenticación y roles
 
-`Authorization: Bearer fhn_<prefijo>_<secreto>`. El prefijo (12 hexadecimales) identifica la llave en
-listados y para revocarla; la base guarda solo el SHA-256 de la llave completa.
+`Authorization: Bearer fhn_live_<prefijo>_<secreto>` en un tenant de producción, o `fhn_test_<prefijo>_<secreto>`
+en uno de prueba. Las llaves creadas antes de esta marca (`fhn_<prefijo>_<secreto>`) siguen valiendo en su
+tenant, sea del modo que sea. El prefijo (12 hexadecimales) identifica la llave en listados y para revocarla
+(`DELETE /v1/llaves/{prefijo}`); la base guarda solo el SHA-256 de la llave completa, marca incluida.
+
+### Tenants de prueba y de producción
+
+Cada tenant tiene un modo, `prueba` o `produccion`, que decide el operador al crearlo y que no cambia:
+
+| | `prueba` (sandbox) | `produccion` |
+|---|---|---|
+| Llaves nuevas | `fhn_test_…` | `fhn_live_…` |
+| Autorizaciones | Solo CAI ficticios (`DEMO00-NO-VALIDO-…`); un CAI real da 422 `AUTORIZACION_REAL_EN_DEMO` | Ningún CAI ficticio: 422 `CAI_DE_PRUEBA`, aun con `"prueba": true` |
+| Documentos | Todos de prueba: leyenda `DOCUMENTO DE PRUEBA — SIN VALOR FISCAL`, fuera del libro y de la exportación | Con validez fiscal |
+
+- **La fuente de verdad es el modo del tenant.** Una llave `fhn_test_` solo entra a un tenant de prueba y una
+  `fhn_live_`, solo a uno de producción; si no, 401 `NO_AUTENTICADO`, como una llave que no existe. La marca no
+  se puede cambiar a mano: forma parte de la llave y de su hash.
+- **También fuera de la API.** La regla de las autorizaciones la impone la base (un disparador de
+  `fhn_autorizaciones` que crea la migración de la API): quien registre un CAI con el SDK sobre la base de la API
+  recibe el mismo rechazo, como error de la base con el código en el mensaje. Un tenant que no existe en
+  `api_tenants` (uso del SDK solo) no cambia.
+- **Dónde se ve.** `GET /v1/sesion` trae `modoTenant`, y cada respuesta autenticada (también los errores
+  después de autenticar) lleva la cabecera `FacturaHN-Modo: prueba` o `FacturaHN-Modo: produccion`. No
+  confundir con `modo` de la sesión y de `/salud`, que es el del servidor (`local` o `alojado`).
+- **Los que ya existían.** Al migrar, todos los tenants quedan en `produccion`, salvo el tenant `demo` de
+  demostración (el del emisor o los CAI ficticios), que queda en `prueba`. Si ese `demo` tiene alguna
+  autorización o algún documento con un CAI real, queda en `produccion` (la migración lo avisa) y `demo llave` ya
+  no le crea llaves. Las llaves viejas siguen entrando.
+  Las autorizaciones ficticias que un tenant de producción ya tenía registradas no se tocan: siguen emitiendo
+  con la leyenda de prueba.
+- **En modo local** los tenants son `local` (producción) y `demo` (prueba, con `FHN_DEMO=1`). Para pasar a
+  producción no se copia nada: se crea la llave admin de `local` (`llave crear local --rol admin`, una
+  `fhn_live_`), se registran el emisor y el CAI reales y el integrador cambia solo su llave.
 
 ### Quién hizo cada operación
 
@@ -171,7 +206,8 @@ documento lleva «Atendido por: …». El operador no cambia la huella de idempo
 
 | | `caja` | `admin` |
 |---|:-:|:-:|
-| Emitir, consultar documentos, PDF/HTML/TXT, libro de ventas, autorizaciones y su estado, emisor | ✅ | ✅ |
+| Emitir, consultar documentos, PDF/HTML/TXT, autorizaciones y su estado, emisor | ✅ | ✅ |
+| Libro de ventas | Solo de su punto de emisión | Todo el tenant |
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
 | Nota de crédito sobre un documento que no está en el sistema | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
@@ -187,7 +223,7 @@ El esquema `Bearer` no distingue mayúsculas.
 | `GET /salud`, `GET /openapi.json`, `GET /docs` | — | |
 | `GET /v1/sesion` | caja | Con qué llave hablas y qué falta para emitir (ver «Sesión») |
 | `POST /v1/emisores` · `GET /v1/emisores` · `GET/PATCH /v1/emisores/{id}` | admin · caja · caja/admin | Un emisor por tenant (el 409 trae su `id`); el RTN no cambia; los cambios afectan solo a documentos futuros |
-| `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo) |
+| `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo). El registro responde `{ autorizacion, advertencias }`: avisos que no lo impiden, como `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62) |
 | `GET /v1/autorizaciones/{cai}/estado` | caja | Vigencia, restantes y alertas (Arts. 59 y 62) |
 | `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria. Responde `{ documento, enlaces: { pdf, html, txt } }` |
 | `GET /v1/documentos?desde&hasta[&identificador][&limite&cursor]` | caja | Paginada, por fecha de emisión y número |
@@ -195,7 +231,7 @@ El esquema `Bearer` no distingue mayúsculas.
 | `POST /v1/documentos/{numero}/anular` | admin | Art. 41 |
 | `POST /v1/series/{id}/corregir-fecha` | admin | Reloj adelantado (Arts. 41 y 43) |
 | `GET /v1/series/{id}/no-utilizados` | admin | Art. 42. Sin las autorizaciones de prueba (no se reportan); `aviso` lo dice |
-| `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | |
+| `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | Con llave de caja, solo su punto de emisión (ver «Reportes de período») |
 | `GET /v1/exportacion?desde&hasta&formato=jsonl\|csv\|txt` | admin | Art. 53 num. 5 |
 | `GET /v1/bitacora?origen=fiscal\|api[&limite&cursor]` | admin | Paginada, del evento más reciente al más antiguo. `fiscal` (por defecto): la del núcleo; `api`: llaves, emisor y webhooks |
 | `POST/GET /v1/llaves` · `DELETE /v1/llaves/{prefijo}` | admin | La llave completa se muestra solo al crearla |
@@ -212,7 +248,7 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
 - Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
   `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`, `{ "entrega": … }`. Al crear una
   llave o un webhook, o al rotar el secreto de un webhook, la respuesta trae además `secreto` (la llave completa
-  `fhn_…` o el secreto de firma `whsec_…`), que solo se muestra esa vez.
+  `fhn_live_…` o `fhn_test_…`, o el secreto de firma `whsec_…`), que solo se muestra esa vez.
 - Cada lista es `{ "<plural>": [...], "hayMas": bool, "siguiente": "cursor" | null }`. Si `hayMas`, pide la
   página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
   El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
@@ -253,6 +289,15 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   30 s (un cliente lento que avanza no se corta) y la respuesta entera en 5 minutos (opción
   `duracionMaxReporteMs`); si no, se corta con error. Para períodos que tardan más, divídelos. El conteo, el
   tope y el encabezado de `txt` (`#factura-hn|v1|N`) salen de la misma lectura que las filas enviadas.
+- **Libro de ventas con llave de caja.** Una llave de caja recibe el libro solo de su punto de emisión: todas sus
+  series (facturas, notas), en el mismo orden y con las mismas filas que el libro del tenant filtrado a ese
+  punto. El resumen, el tope, `excluidos` y la cabecera `Documentos-Prueba-Excluidos` cuentan solo ese punto, y el
+  CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de
+  emisión (de antes de atar cada caja a su punto) recibe 403 `CAJA_SIN_PUNTO`. Con llave admin, el libro es de
+  todo el tenant. La exportación para el SAR sigue siendo solo de admin. **No es un límite de
+  confidencialidad:** una llave de caja sigue leyendo los documentos de todo el tenant con `GET /v1/documentos`
+  y `GET /v1/documentos/{numero}`. El libro por punto sirve para el cierre de cada caja, no para ocultarle las
+  ventas de las demás.
 - **Bitácora de la exportación.** Cada exportación queda en la bitácora de la API (`accion: exportacion`) con
   el período, el formato y los documentos contados. Se registra antes de enviar la última parte: si no se puede
   registrar, la respuesta se corta con error. Una exportación cortada (cliente, plazo o error) queda con
@@ -292,7 +337,7 @@ antes a centavos.
   `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
   `LIMITE_SOLICITUDES`, `LIMITE_MENSUAL`), cuerpo (`CUERPO_NO_UTF8`, `CUERPO_DEMASIADO_GRANDE`), forma
   (`SOLICITUD_INVALIDA`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
-  autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`).
+  autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `AUTORIZACION_REAL_EN_DEMO`, `CAI_DE_PRUEBA`).
 - **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
   (p. ej. `documento.lineas`) y `errores` trae todos. Un cuerpo que no es JSON es 400 `JSON_INVALIDO`.
 - **422 reglas fiscales** (`VALIDACION`): `errores` trae la lista completa, cada uno con su código, campo y
@@ -310,7 +355,8 @@ antes a centavos.
 
 `GET /v1/sesion` responde, para cualquier rol, con qué llave hablas y si ya puedes emitir:
 
-- `tenant`, `modo` (`local` o `alojado`) y `demo` (true en el tenant de demostración, con CAI ficticio);
+- `tenant`, `modoTenant` (`prueba` o `produccion`, ver «Tenants de prueba y de producción»), `modo` (del
+  servidor: `local` o `alojado`) y `demo` (true en el tenant de demostración, con CAI ficticio);
 - `llave`: id, prefijo, nombre, rol y, si es de caja, su establecimiento y punto de emisión (nunca el secreto);
 - `emisor`: si está registrado, con su RTN y razón social;
 - `puntos`: el punto de la llave de caja, o todos los que tienen autorizaciones si la llave es admin. Por cada

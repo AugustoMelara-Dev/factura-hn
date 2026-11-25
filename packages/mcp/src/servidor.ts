@@ -345,7 +345,7 @@ export function crearServidorMCP(backend: Backend): McpServer {
     'libro_ventas',
     {
       title: 'Libro de ventas',
-      description: 'Ventas de un período con totales por tarifa e ISV. Las notas de crédito restan; los anulados van en cero. Los documentos de prueba no entran.',
+      description: 'Ventas de un período con totales por tarifa e ISV. Las notas de crédito restan; los anulados van en cero. Los documentos de prueba no entran. Contra la API con una llave de caja, solo el libro de su punto de emisión.',
       inputSchema: { desde: Fecha, hasta: Fecha },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },

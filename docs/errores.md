@@ -131,22 +131,31 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### AUTORIZACION_DEMO_SIN_PRUEBA
 
-- **Qué significa (API, 422):** `POST /v1/autorizaciones` recibió un CAI ficticio (`DEMO00-NO-VALIDO-…`) sin
-  `"prueba": true`, en un tenant que no es el de demostración.
-- **Causa:** se pegó el CAI de la demostración en lugar del CAI real, o se quiso registrar una autorización de
-  prueba sin decirlo.
-- **Solución:** para una autorización de prueba, agrega `"prueba": true` al cuerpo. Si es tu CAI real, cópialo de
-  la resolución del SAR: un CAI real no empieza con `DEMO00-NO-VALIDO-`.
-- **Base:** ninguna fiscal: un punto de emisión de prueba no consume números de una serie real.
+- **Ya no lo devuelve la API.** Lo devolvía `POST /v1/autorizaciones` con un CAI ficticio sin `"prueba": true` en
+  un tenant que no era el de demostración. Desde los modos de tenant, un tenant de producción no acepta ningún
+  CAI ficticio: ver [`CAI_DE_PRUEBA`](#cai_de_prueba).
 
 ### AUTORIZACION_REAL_EN_DEMO
 
-- **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en el tenant `demo` de la
-  demostración.
-- **Causa:** se usó la llave admin de la demostración para registrar el CAI del negocio.
-- **Solución:** registra tu CAI en el tenant de tu negocio, con su llave admin. El tenant `demo` solo emite
-  documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
-- **Base:** ninguna fiscal: separa la demostración de la facturación real.
+- **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en un tenant de prueba: el `demo`
+  de la demostración o uno creado con `tenant crear --modo prueba` (sus llaves empiezan con `fhn_test_`).
+- **Causa:** se usó la llave admin del sandbox para registrar el CAI del negocio.
+- **Solución:** registra tu CAI en el tenant de producción de tu negocio, con su llave admin (`fhn_live_…`). Un
+  tenant de prueba solo emite documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+- **Base:** ninguna fiscal: separa la prueba de la facturación real (un CAI real en el sandbox emitiría documentos
+  con apariencia válida fuera de la serie real).
+
+### CAI_DE_PRUEBA
+
+- **Qué significa (API, 422):** `POST /v1/autorizaciones` recibió un CAI ficticio (`DEMO00-NO-VALIDO-…`) en un
+  tenant de producción (llaves `fhn_live_…`), con o sin `"prueba": true`.
+- **Causa:** se pegó el CAI de la demostración en lugar del CAI real, o se quiso probar en el tenant real.
+- **Solución:** si es tu CAI real, cópialo de la resolución del SAR: un CAI real no empieza con
+  `DEMO00-NO-VALIDO-`. Para probar, usa un tenant de prueba: el `demo` (`demo llave` en la consola) o uno creado
+  con `tenant crear --modo prueba`.
+- **Base:** ninguna fiscal: un CAI ficticio en un tenant real convertiría en «de prueba» un punto de emisión real.
+- **Fuera de la API:** con el SDK sobre la base de la API, la base rechaza el registro con un error cuyo mensaje
+  empieza con `CAI_DE_PRUEBA` (y `AUTORIZACION_REAL_EN_DEMO` en el caso contrario).
 
 ### AUTORIZACION_TIPO
 
@@ -654,7 +663,8 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 ### NO_AUTENTICADO
 
 - **Qué significa (401):** falta la llave de API o no es válida.
-- **Solución:** envía `Authorization: Bearer fhn_…` con una llave activa.
+- **Solución:** envía `Authorization: Bearer fhn_live_…` (o `fhn_test_…` en un tenant de prueba) con una llave
+  activa. Una llave `fhn_test_` no entra a un tenant de producción, ni una `fhn_live_` a uno de prueba.
 
 ### SOLO_ADMIN
 
@@ -664,7 +674,8 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### CAJA_SIN_PUNTO
 
-- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión.
+- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión. Lo devuelven
+  la emisión y `GET /v1/libro-ventas` (una caja recibe solo el libro de su punto, y esta llave no tiene uno).
 - **Solución:** crea otra llave de caja con establecimiento y punto de emisión.
 
 ### CAJA_NO_AUTORIZADA

@@ -48,7 +48,9 @@ export interface ContextoGuia {
  * cualquiera: en modo alojado no nombran comandos ni tenants del operador, y el demo solo se menciona si existe.
  */
 export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Record<string, string> {
-  const cabecera = 'Envía la cabecera `Authorization: Bearer fhn_<prefijo>_<secreto>` con una llave activa, sin espacios ni saltos de línea. ';
+  const cabecera =
+    'Envía la cabecera `Authorization: Bearer fhn_live_<prefijo>_<secreto>` (o `fhn_test_…` en un tenant de prueba) con una llave ' +
+    'activa, sin espacios ni saltos de línea. Una llave fhn_test_ no sirve en un tenant de producción, ni una fhn_live_ en uno de prueba. ';
   return {
     NO_AUTENTICADO:
       modo === 'alojado'
@@ -80,10 +82,11 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
       'Se usaron todos los números autorizados de este punto y tipo. Registra la nueva autorización del SAR con `POST /v1/autorizaciones`; ' +
       '`GET /v1/autorizaciones/{cai}/estado` avisa antes de que se agote.',
     AUTORIZACION_REAL_EN_DEMO:
-      'El tenant «demo» solo sirve para probar: no le registres CAI reales. Registra tu CAI en el tenant de tu negocio, con su llave admin.',
-    AUTORIZACION_DEMO_SIN_PRUEBA:
-      'Si quieres una autorización de prueba, agrega `"prueba": true` al cuerpo; sus documentos llevan la leyenda y no van al libro ' +
-      'de ventas. Si es tu CAI real, cópialo de la resolución del SAR: un CAI real no empieza con DEMO00-NO-VALIDO-.',
+      'Este tenant es de prueba (el «demo» o uno con llaves fhn_test_): no le registres CAI reales. Registra tu CAI en el tenant de ' +
+      'producción de tu negocio, con su llave admin fhn_live_.',
+    CAI_DE_PRUEBA:
+      'Un tenant de producción no acepta CAI ficticios (DEMO00-NO-VALIDO-…). Si es tu CAI real, cópialo de la resolución del SAR. ' +
+      'Para probar, usa un tenant de prueba: el «demo» (`demo llave` en la consola) o uno creado con `tenant crear --modo prueba`.',
     CUERPO_NO_UTF8: 'Guarda el JSON en un archivo UTF-8 y envíalo tal cual: con curl, `--data-binary @factura.json`.',
     CUERPO_DEMASIADO_GRANDE: 'El cuerpo admite hasta 512 KB: divide la venta en varios documentos o acorta los textos.',
     SOLICITUD_INVALIDA: 'Corrige el campo de `error.campo` (la lista completa está en `errores`). La forma de cada ruta está en /docs.',

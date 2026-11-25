@@ -175,7 +175,7 @@ conBase('límite de solicitudes', () => {
   it('quien conoce el prefijo de una llave no la deja en 429 (los fallos se cobran al prefijo, no a la dirección)', async () => {
     const { app, admin } = await tenantListo({ limiteSolicitudes: { porSegundo: 1, rafaga: 5 }, limiteIntentos: { porSegundo: 0.01, rafaga: 20 } });
     const caja = await crearCaja(admin, '001');
-    const prefijo = caja.split('_')[1]!;
+    const prefijo = caja.split('_')[2]!;
     const estados: number[] = [];
     for (let i = 0; i < 30; i++) estados.push((await cliente(app, llaveFalsa(prefijo), { ip: '198.51.100.7' })('GET', '/v1/autorizaciones')).status);
     // Quien ataca se queda sin intentos; la caja, incluso desde la misma dirección, sigue entrando.
@@ -225,8 +225,8 @@ conBase('límite de solicitudes', () => {
     const caja = await crearCaja(admin, '001');
     // Se «queman» una vez con un secreto equivocado: quedan como prefijos conocidos.
     const ip = '198.51.100.60';
-    for (const l of llaves) expect((await cliente(app, llaveFalsa(l.split('_')[1]), { ip })('GET', '/v1/sesion')).status).toBe(401);
-    const ataque = llaves.map((l) => cliente(app, llaveFalsa(l.split('_')[1]), { ip })('GET', '/v1/sesion'));
+    for (const l of llaves) expect((await cliente(app, llaveFalsa(l.split('_')[2]), { ip })('GET', '/v1/sesion')).status).toBe(401);
+    const ataque = llaves.map((l) => cliente(app, llaveFalsa(l.split('_')[2]), { ip })('GET', '/v1/sesion'));
     const legitima = cliente(app, caja, { ip: '198.51.100.61' })('GET', '/v1/sesion');
     const [a, v] = await Promise.all([Promise.all(ataque), legitima]);
     expect(v.status).toBe(200);
@@ -247,7 +247,7 @@ conBase('límite de solicitudes', () => {
   it('un secreto equivocado no saca de memoria la llave válida', async () => {
     const { app, admin } = await tenantListo({ limiteIntentos: { porSegundo: 0.01, rafaga: 2, consultasSimultaneas: 1, maxEnCola: 0 } });
     const caja = await crearCaja(admin, '001');
-    const prefijo = caja.split('_')[1]!;
+    const prefijo = caja.split('_')[2]!;
     const ip = '198.51.100.30';
     expect((await cliente(app, caja, { ip })('GET', '/v1/sesion')).status).toBe(200);
     expect((await cliente(app, llaveFalsa(prefijo), { ip: '198.51.100.31' })('GET', '/v1/sesion')).status).toBe(401);
@@ -266,7 +266,7 @@ conBase('límite de solicitudes', () => {
     const nueva = await crearCaja(admin, '002');
     const ip = '198.51.100.40'; // la puerta de enlace de Docker, compartida por todas las cajas de la instalación
     expect((await cliente(app, vieja, { ip })('GET', '/v1/sesion')).status).toBe(200);
-    expect((await admin('DELETE', `/v1/llaves/${vieja.split('_')[1]}`)).status).toBe(200);
+    expect((await admin('DELETE', `/v1/llaves/${vieja.split('_')[2]}`)).status).toBe(200);
     const estados: number[] = [];
     for (let i = 0; i < 8; i++) estados.push((await cliente(app, vieja, { ip })('GET', '/v1/sesion')).status);
     expect(estados).toEqual([401, 401, 401, 401, 401, 429, 429, 429]);
@@ -277,7 +277,7 @@ conBase('límite de solicitudes', () => {
   it('un prefijo registrado sin llave activa se recuerda: no consulta la base; el tenant reactivado entra al pasar el tiempo', async () => {
     const p = await poolPrueba();
     const { llaveAdmin } = await tenantListo();
-    const tenant = (await p.query('SELECT tenant FROM api_llaves WHERE prefijo = $1', [llaveAdmin.split('_')[1]])).rows[0].tenant as string;
+    const tenant = (await p.query('SELECT tenant FROM api_llaves WHERE prefijo = $1', [llaveAdmin.split('_')[2]])).rows[0].tenant as string;
     let conexiones = 0;
     const contado = new Proxy(p, {
       get(o, k) {
@@ -305,7 +305,7 @@ conBase('límite de solicitudes', () => {
   it('el 401 de una llave revocada es idéntico al de un prefijo que no existe', async () => {
     const { app, admin } = await tenantListo();
     const vieja = await crearCaja(admin, '001');
-    expect((await admin('DELETE', `/v1/llaves/${vieja.split('_')[1]}`)).status).toBe(200);
+    expect((await admin('DELETE', `/v1/llaves/${vieja.split('_')[2]}`)).status).toBe(200);
     // El mismo Solicitud-Id en las dos: el cuerpo no puede diferir en nada.
     const r1 = await cliente(app, vieja, { ip: '198.51.100.41' })('GET', '/v1/sesion', undefined, { 'solicitud-id': 'igual' });
     const r2 = await cliente(app, llaveFalsa(), { ip: '198.51.100.42' })('GET', '/v1/sesion', undefined, { 'solicitud-id': 'igual' });

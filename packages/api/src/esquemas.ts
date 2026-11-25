@@ -235,6 +235,10 @@ export const pagina = <T extends z.ZodTypeAny>(nombre: string, elemento: T) =>
 
 export const RespuestaEmisor = z.object({ emisor: EmisorGuardado }).openapi('RespuestaEmisor');
 export const RespuestaAutorizacion = z.object({ autorizacion: Autorizacion }).openapi('RespuestaAutorizacion');
+/** Al registrar: la autorización y sus avisos (p. ej. `AVISO_VIGENCIA_MAYOR_1_ANIO`, Art. 62). No impiden el registro. */
+export const RespuestaAutorizacionNueva = z
+  .object({ autorizacion: Autorizacion, advertencias: z.array(Problema) })
+  .openapi('RespuestaAutorizacionNueva');
 export const RespuestaEstado = z.object({ autorizacion: Autorizacion, estado: EstadoAutorizacion }).openapi('RespuestaEstado');
 
 export const Motivo = z.object({ motivo: z.string().min(1).max(500), operador: Operador.optional() }).openapi('Motivo');
@@ -322,7 +326,12 @@ const AutorizacionVigente = z.object({
 export const Sesion = z
   .object({
     tenant: z.string(),
-    modo: z.enum(['local', 'alojado']),
+    modoTenant: z.enum(['prueba', 'produccion']).openapi({
+      description:
+        'Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o ' +
+        '`produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada.',
+    }),
+    modo: z.enum(['local', 'alojado']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47) o `alojado`.' }),
     demo: z.boolean().openapi({ description: 'true en el tenant de demostración (CAI ficticio, sin validez fiscal).' }),
     llave: z.object({
       id: z.string(),
@@ -362,7 +371,11 @@ export const RespuestaLlave = z.object({ llave: Llave }).openapi('RespuestaLlave
 export const RespuestaLlaveNueva = z
   .object({
     llave: Llave,
-    secreto: z.string().openapi({ description: 'La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez.' }),
+    secreto: z.string().openapi({
+      description:
+        'La llave completa para `Authorization: Bearer`: `fhn_live_<prefijo>_<secreto>` en un tenant de producción o ' +
+        '`fhn_test_<prefijo>_<secreto>` en uno de prueba. Solo se muestra esta vez.',
+    }),
   })
   .openapi('RespuestaLlaveNueva');
 export const RespuestaWebhook = z.object({ webhook: Webhook }).openapi('RespuestaWebhook');

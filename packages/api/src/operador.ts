@@ -6,7 +6,7 @@ import type pg from 'pg';
 import { registrarAutorizacion } from 'factura-hn';
 import { autorizacionDemo, EMISOR_DEMO, LEYENDA_PRUEBA, PREFIJO_CAI_DEMO } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
-import { generarLlave, type RolLlave } from './llaves';
+import { generarLlave, type ModoTenant, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
 import { CONSOLA_POR_DEFECTO } from './errores';
 
@@ -30,8 +30,15 @@ async function enTenant<T>(pool: pg.Pool, tenant: string, fn: (c: pg.PoolClient)
 }
 
 export async function existeTenant(pool: pg.Pool, tenant: string): Promise<boolean> {
-  return enTenant(pool, tenant, async (c) => Boolean((await c.query('SELECT 1 FROM api_tenants WHERE tenant = $1', [tenant])).rowCount));
+  return (await modoDeTenant(pool, tenant)) !== null;
 }
+
+/** Modo de un tenant (`prueba` o `produccion`), o null si no existe. */
+export async function modoDeTenant(pool: pg.Pool, tenant: string): Promise<ModoTenant | null> {
+  return enTenant(pool, tenant, async (c) => (await c.query<{ modo: ModoTenant }>('SELECT modo FROM api_tenants WHERE tenant = $1', [tenant])).rows[0]?.modo ?? null);
+}
+
+export const MODOS_TENANT: readonly ModoTenant[] = ['prueba', 'produccion'];
 
 /**
  * Nombres que crea el propio servidor en modo local (`local` y el demo): el operador no los usa para un negocio,
@@ -39,11 +46,15 @@ export async function existeTenant(pool: pg.Pool, tenant: string): Promise<boole
  */
 export const TENANTS_RESERVADOS: readonly string[] = ['local', 'demo'];
 
-/** Crea un tenant y su primera llave admin. Devuelve la llave: se muestra una sola vez. */
+/**
+ * Crea un tenant y su primera llave admin. Devuelve la llave: se muestra una sola vez. `modo` (por defecto
+ * `produccion`) no cambia después: un tenant de prueba solo registra CAI ficticios y sus llaves son `fhn_test_…`;
+ * uno de producción no acepta CAI ficticios y sus llaves son `fhn_live_…`.
+ */
 export async function crearTenant(
   pool: pg.Pool,
-  o: { tenant: string; nombre: string; limiteMensual?: number | null },
-): Promise<{ tenant: string; llaveAdmin: string }> {
+  o: { tenant: string; nombre: string; limiteMensual?: number | null; modo?: ModoTenant },
+): Promise<{ tenant: string; llaveAdmin: string; modo: ModoTenant }> {
   if (TENANTS_RESERVADOS.includes(o.tenant)) {
     throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
   }
@@ -52,19 +63,24 @@ export async function crearTenant(
 
 async function crearTenantSinReserva(
   pool: pg.Pool,
-  o: { tenant: string; nombre: string; limiteMensual?: number | null },
-): Promise<{ tenant: string; llaveAdmin: string }> {
+  o: { tenant: string; nombre: string; limiteMensual?: number | null; modo?: ModoTenant },
+): Promise<{ tenant: string; llaveAdmin: string; modo: ModoTenant }> {
   if (!TENANT.test(o.tenant)) throw new Error('El tenant: minúsculas, dígitos, «-» o «_» (máx. 63).');
-  const { llave, prefijo, hash } = generarLlave();
+  const modo = o.modo ?? 'produccion';
+  if (!MODOS_TENANT.includes(modo)) throw new Error('El modo del tenant: prueba o produccion.');
+  const { llave, prefijo, hash } = generarLlave(modo);
   await enTenant(pool, o.tenant, async (c) => {
-    await c.query('INSERT INTO api_tenants (tenant, nombre, limite_mensual) VALUES ($1, $2, $3)', [o.tenant, o.nombre, o.limiteMensual ?? null]);
+    await c.query('INSERT INTO api_tenants (tenant, nombre, limite_mensual, modo) VALUES ($1, $2, $3, $4)', [o.tenant, o.nombre, o.limiteMensual ?? null, modo]);
     await c.query("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', 'admin inicial')", [prefijo, o.tenant, hash]);
-    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'tenant.creado', $2)", [o.tenant, JSON.stringify({ prefijo })]);
+    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'tenant.creado', $2)", [o.tenant, JSON.stringify({ prefijo, modo })]);
   });
-  return { tenant: o.tenant, llaveAdmin: llave };
+  return { tenant: o.tenant, llaveAdmin: llave, modo };
 }
 
-/** Llave adicional desde la consola del operador (p. ej. si se perdió la única llave admin). */
+/**
+ * Llave adicional desde la consola del operador (p. ej. si se perdió la única llave admin). Lleva la marca del
+ * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción.
+ */
 export async function crearLlaveOperador(
   pool: pg.Pool,
   o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string },
@@ -75,16 +91,17 @@ export async function crearLlaveOperador(
   if (Boolean(est) !== Boolean(pto) || (o.rol === 'caja' && !est) || (est && !tresDigitos.test(est)) || (pto && !tresDigitos.test(pto))) {
     throw new Error('Una llave de caja se ata a un establecimiento y punto de emisión: --caja 000-001.');
   }
-  if (!TENANT.test(o.tenant) || !(await existeTenant(pool, o.tenant))) {
+  const modo = TENANT.test(o.tenant) ? await modoDeTenant(pool, o.tenant) : null;
+  if (!modo) {
     throw new Error(`El tenant «${o.tenant}» no existe: arranca la API una vez (crea «${TENANT_LOCAL}») o créalo con «tenant crear».`);
   }
-  const { llave, prefijo, hash } = generarLlave();
+  const { llave, prefijo, hash } = generarLlave(modo);
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [prefijo, o.tenant, hash, o.rol, o.nombre, est, pto],
     );
-    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol })]);
+    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo })]);
   });
   return llave;
 }
@@ -149,7 +166,7 @@ export async function iniciarLocal(
 ): Promise<{ localSinLlaveAdmin: boolean; hayDemo: boolean; demo?: { llaveAdmin: string; llaveCaja: string } }> {
   if (!(await existeTenant(pool, TENANT_LOCAL))) {
     await enTenant(pool, TENANT_LOCAL, async (c) => {
-      await c.query('INSERT INTO api_tenants (tenant, nombre) VALUES ($1, $2)', [TENANT_LOCAL, 'Instalación local']);
+      await c.query("INSERT INTO api_tenants (tenant, nombre, modo) VALUES ($1, $2, 'produccion')", [TENANT_LOCAL, 'Instalación local']);
       await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'tenant.creado', '{}')", [TENANT_LOCAL]);
     });
   }
@@ -175,6 +192,9 @@ export async function crearLlaveDemo(pool: pg.Pool, o: { rol?: RolLlave } = {}):
   }
   if (!(await esDemoFicticio(pool))) {
     throw new Error('El tenant «demo» de esta base no es el de demostración (no tiene el emisor ni el CAI ficticios): «demo llave» no le crea llaves. Usa «llave crear».');
+  }
+  if ((await modoDeTenant(pool, TENANT_DEMO)) !== 'prueba') {
+    throw new Error('El tenant «demo» de esta base es de producción (tiene autorizaciones o documentos con un CAI real): «demo llave» no le crea llaves. Usa «llave crear».');
   }
   const rol = o.rol ?? 'caja';
   return crearLlaveOperador(pool, rol === 'caja'
@@ -248,7 +268,7 @@ export function errorTenantsAjenos(ajenos: string[]): string {
 }
 
 async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {
-  const { llaveAdmin } = await crearTenantSinReserva(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
+  const { llaveAdmin } = await crearTenantSinReserva(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)', modo: 'prueba' });
   await enTenant(pool, TENANT_DEMO, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_DEMO, JSON.stringify(EMISOR_DEMO)]));
   const hoy = o.hoy ?? new Date();
   const almacen = new AlmacenPostgres(pool, { tenant: TENANT_DEMO, rol: o.rol ?? ROL_POR_DEFECTO });

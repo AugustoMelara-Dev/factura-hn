@@ -20,6 +20,12 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
     description: 'Versión de la API que respondió (la misma de `/salud` y de `info.version`).',
     schema: { type: 'string', example: '0.2.0' },
   },
+  'FacturaHN-Modo': {
+    description:
+      'Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). ' +
+      'Solo después de validar la llave: nunca en un 401, un 413 ni un 429.',
+    schema: { type: 'string', example: 'prueba' },
+  },
   'RateLimit-Policy': {
     description:
       'Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se ' +
@@ -68,6 +74,7 @@ export function conCabecerasComunes<T>(doc: T): T {
           'Solicitud-Id',
           'FacturaHN-Version',
           ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
+          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) && estado !== '429' ? ['FacturaHN-Modo'] : []),
           ...(estado === '429' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };
