@@ -6,7 +6,17 @@ import { Content } from '../md/cumplimiento.md';
 import { conBase } from '../datos/navegacion';
 import { matriz } from '../datos/proyecto';
 
-const pct = (n: number, de: number) => `${Math.round((n / de) * 1000) / 10}%`;
+// Porcentajes como en el resto del texto: «15 %», con espacio fino que no se parte.
+const pct = (n: number, de: number) => `${(Math.round((n / de) * 1000) / 10).toLocaleString('es-HN')} %`;
+/** «42 cubiertos», «1 parcial», «10 no aplican». */
+const PLURALES: Record<string, [string, string]> = {
+  cubierto: ['cubierto', 'cubiertos'],
+  parcial: ['parcial', 'parciales'],
+  ausente: ['ausente', 'ausentes'],
+  documental: ['documental', 'documentales'],
+  'no-aplica': ['no aplica', 'no aplican'],
+};
+const estado = (clase: string, texto: string, n: number) => PLURALES[clase]?.[n === 1 ? 0 : 1] ?? texto.toLowerCase();
 const visibles = matriz.porEstado.filter((e) => e.cuenta > 0);
 ---
 
@@ -32,7 +42,7 @@ const visibles = matriz.porEstado.filter((e) => e.cuenta > 0);
 
 	<section class="contenedor resumen" aria-labelledby="resumen-titulo">
 		<h2 id="resumen-titulo" class="sr-only">Resumen de la matriz</h2>
-		<div class="barra" role="img" aria-label={visibles.map((e) => `${e.cuenta} ${e.texto.toLowerCase()}`).join(', ')}>
+		<div class="barra" role="img" aria-label={visibles.map((e) => `${e.cuenta} ${estado(e.clase, e.texto, e.cuenta)}`).join(', ')}>
 			{visibles.map((e) => <span class={`tramo ${e.clase}`} style={`flex-grow: ${e.cuenta}`} />)}
 		</div>
 		<ul class="leyenda">
@@ -40,7 +50,7 @@ const visibles = matriz.porEstado.filter((e) => e.cuenta > 0);
 				visibles.map((e) => (
 					<li>
 						<span class={`punto ${e.clase}`} aria-hidden="true" />
-						<strong>{e.cuenta}</strong> {e.texto.toLowerCase()}
+						<strong>{e.cuenta}</strong> {estado(e.clase, e.texto, e.cuenta)}
 						<span class="pct">{pct(e.cuenta, matriz.total)}</span>
 					</li>
 				))
