@@ -18,7 +18,7 @@ inscriban como autoimpresores por sistema computarizado (Art. 47). Es un proyect
 SAR. Hoy se ofrece como biblioteca y servidor que el negocio instala en sus propios equipos. También podríamos
 ofrecerlo como servicio en la nube, pero no lo haremos sin su respuesta a la consulta P-02.
 
-Para cumplir el Reglamento sin interpretarlo por nuestra cuenta, les agradeceremos que respondan las 14
+Para cumplir el Reglamento sin interpretarlo por nuestra cuenta, les agradeceremos que respondan las 20
 consultas siguientes. En cada una indicamos la lectura que aplicamos mientras tanto.
 
 Las citas «C L.n» remiten a la línea del texto consolidado del Acuerdo 481-2017 con el que trabajamos; con gusto
@@ -245,6 +245,104 @@ sistema, o el cambio exige solicitar una autorización nueva para el sistema nue
 
 **Lectura provisional.** El sistema no lo impide, y la documentación pide confirmarlo con el contador o con el SAR
 antes de registrar un CAI que no se solicitó para este sistema.
+
+## P-16. Tope de la nota de crédito y su tasa
+
+**Contexto.** El Art. 4 num. 32 define la Nota de Crédito como el documento que respalda un ajuste, devolución o
+descuento sobre el «correspondiente» comprobante (C L.381-385). No encontramos un artículo que fije un tope
+numérico para las notas de crédito sobre un mismo comprobante, ni que diga si deben usar la misma tasa de ISV que
+el comprobante ni el mismo tratamiento (exonerado o no).
+
+**Pregunta.**
+- ¿La suma de las notas de crédito sobre un comprobante puede superar su total?
+- ¿Puede superar, a una tasa (15 % o 18 %), el importe gravado o el ISV que el comprobante tuvo a esa tasa? Por
+  ejemplo, sobre una factura de L 100.00 exento y L 100.00 gravado al 15 %, ¿se puede emitir una nota de crédito
+  de L 180.00 gravado al 15 % (L 207.00 con ISV), que cabe en el total de L 215.00?
+- ¿Puede una nota de crédito llevar ISV a una tasa que el comprobante no tenía, o ISV sobre un comprobante
+  exonerado? ¿Debe la nota sobre un comprobante exonerado ser también exonerada?
+- Si el comprobante está en moneda extranjera, ¿el tope se compara en lempiras? ¿Con qué conversión?
+- ¿Las notas de débito sobre el comprobante amplían ese tope?
+
+**Artículos.** Arts. 4 num. 32 (C L.381-385), 11 num. 4 (C L.739-749), 26 y 28 num. 8.
+
+**Lectura provisional.** Con el comprobante en el sistema, una nota de crédito se rechaza si, sumada a las notas
+de crédito vigentes sobre él, supera su total o, a una tasa, su importe gravado o su ISV; también si lleva ISV a una
+tasa que el comprobante no tenía o sobre un comprobante exonerado. Si el comprobante es exonerado y la nota no (o
+al revés), la nota se emite con un aviso. En moneda extranjera, las líneas del comprobante se convierten a lempiras
+como las de la nota: precio por el tipo de cambio del comprobante y el redondeo del Art. 9 de la Ley del ISV. Las
+notas de débito no amplían el tope.
+
+## P-17. Libro de ventas en lempiras
+
+**Contexto.** El sistema ofrece un libro de ventas como apoyo para la declaración del ISV, que se declara y se paga
+en lempiras. No encontramos una norma que fije el formato del libro ni cómo convertir los documentos emitidos en
+moneda extranjera. El Art. 11 (párrafo final, C L.726-727) pide la tasa de cambio vigente a la fecha cuando la
+moneda es extranjera.
+
+**Pregunta.**
+- ¿Hay un formato establecido para el libro o registro de ventas de un autoimpresor?
+- Para un documento en moneda extranjera, ¿cada importe se convierte con el tipo de cambio impreso en el
+  documento? ¿Se convierte cada importe (base, ISV, total) por separado, o la base y se recalcula el ISV en
+  lempiras?
+
+**Artículos.** Art. 11, párrafo final (C L.726-727); Art. 53 num. 5 (C L.2161-2188); Ley del Impuesto Sobre
+Ventas, Art. 9.
+
+**Lectura provisional.** El libro va en lempiras. Cada importe de un documento en moneda extranjera se convierte
+por separado con el tipo de cambio impreso en el documento y se redondea al centavo con la regla del Art. 9 de la
+Ley del ISV. Por eso la suma de las partes puede diferir del total en un centavo. El libro muestra además la
+moneda, el tipo de cambio y el total en la moneda original.
+
+## P-18. Equivalente en lempiras en documentos en moneda extranjera
+
+**Contexto.** El Art. 11 pide la tasa de cambio vigente a la fecha cuando la moneda es extranjera (párrafo final,
+C L.726-727), y el Art. 11 num. 1 j habla de «Lempira o símbolo L». No encontramos un texto que exija imprimir el
+equivalente en lempiras de los importes.
+
+**Pregunta.**
+- En un comprobante en moneda extranjera, ¿debe imprimirse el equivalente en lempiras del ISV y del total?
+- Si se imprime, ¿con qué redondeo?
+
+**Artículos.** Art. 11 num. 1 j y párrafo final (C L.726-727); Ley del Impuesto Sobre Ventas, Art. 9.
+
+**Lectura provisional.** El comprobante lleva sus importes en su moneda e imprime, bajo el tipo de cambio, el
+equivalente en lempiras del ISV y del total: el importe por el tipo de cambio, redondeado al centavo con la regla
+del Art. 9 de la Ley del ISV. Se calcula al emitir y se guarda, así la reimpresión no cambia.
+
+## P-19. Nota con un RTN que el original no tiene
+
+**Contexto.** Los Arts. 26 y 28 piden en las notas de crédito y débito el nombre y el RTN del adquirente. Una
+factura a CONSUMIDOR FINAL se emite sin RTN. Si después ese cliente pide una nota (por ejemplo, por una
+devolución), la nota necesita un RTN que la factura no tiene, y ese RTN podría dar crédito fiscal a un adquirente
+que la factura no identificaba.
+
+**Pregunta.**
+- ¿Puede emitirse una nota de crédito o débito sobre una factura emitida a CONSUMIDOR FINAL?
+- Si puede, ¿con qué RTN? ¿Basta el que dé el cliente, o hay que hacer otro procedimiento (por ejemplo, anular la
+  factura y emitir otra con su RTN)?
+
+**Artículos.** Arts. 26 y 28 num. 1-3; Art. 11 num. 3 (C L.736-737).
+
+**Lectura provisional.** La nota se emite con el nombre y el RTN que indica el cliente, con un aviso que pide
+confirmar que corresponde al mismo cliente. Si la factura tenía RTN, la nota debe llevar el mismo.
+
+## P-20. Anulación de un documento con notas vigentes
+
+**Contexto.** El Art. 41 manda anular los comprobantes emitidos con errores (C L.1943-1955). El Art. 4 num. 32 dice
+que la nota de crédito respalda un ajuste sobre el «correspondiente» comprobante (C L.381-385). Ya rechazamos una
+nota sobre un comprobante anulado. Ningún artículo dice qué pasa al anular un comprobante que ya tiene notas de
+crédito o débito vigentes: si se permitiera, las notas quedarían sin comprobante y el libro de ventas mostraría
+importes negativos.
+
+**Pregunta.**
+- ¿Puede anularse un comprobante que tiene notas de crédito o débito vigentes?
+- Si no, ¿el procedimiento es anular primero las notas y después el comprobante? ¿O las notas quedan anuladas
+  con él?
+
+**Artículos.** Arts. 4 num. 32 (C L.381-385) y 41 (C L.1943-1955).
+
+**Lectura provisional.** El sistema no anula un comprobante con notas vigentes: indica cuáles son y pide anular
+primero las notas, cada una con su motivo. Después se puede anular el comprobante.
 
 ---
 

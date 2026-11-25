@@ -12,8 +12,9 @@ Medido el 2026-11-25 (rama `lote5/propiedades`, Node 24, Windows y Postgres 16 l
 | Cobertura de la especificación | 28 de 28 operaciones; 132 de 201 combinaciones operación + estado | — |
 
 Las 60 propiedades cubren: dinero (lectura exacta y redondeo de la Ley del ISV Art. 9), cálculo (el total es la
-suma de sus partes, Acuerdo 189-2014 Art. 11 num. 1 g-i; no se pierde un centavo; ISV incluido y no incluido;
-descuentos, Ley del ISV Art. 3; exento, alícuota cero y exonerado; el orden de las líneas no cambia nada),
+suma de sus partes, Reglamento del Régimen de Facturación, Acuerdo 481-2017, Art. 11 num. 1 g-i; no se pierde un
+centavo; ISV incluido y no incluido; descuentos, Ley del ISV Art. 3; exento, alícuota cero del Art. 12 del
+Reglamento (no de la Ley del ISV) y exonerado; el orden de las líneas no cambia nada),
 numeración (formato y rango, Art. 10; emisión consecutiva sin huecos y `RANGO_AGOTADO`), validación (RTN, DNI, CAI,
 fechas en America/Tegucigalpa, Arts. 14, 43 y 62) y montos en letras (un lector independiente las vuelve a número).
 El fuzz del núcleo comprueba que los lectores solo lanzan errores propios, nunca un `TypeError`.

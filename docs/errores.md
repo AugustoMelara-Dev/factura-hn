@@ -657,8 +657,12 @@ moneda: la mayoría de estos errores desaparecen.
 
 ### AVISO_ORIGINAL_SIN_RTN
 
-- **Qué significa:** el original se emitió sin RTN del adquirente.
+- **Qué significa:** el original se emitió sin RTN del adquirente (por ejemplo, a CONSUMIDOR FINAL). La nota se
+  emite con el RTN que indiques, que el original no tenía.
 - **Qué hacer:** confirma que la nota corresponde al mismo cliente.
+- **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente). Aceptar un RTN que el original no tiene
+  es una lectura del proyecto (DEC-079), en consulta al SAR:
+  [P-19](consulta-sar.md#p-19-nota-con-un-rtn-que-el-original-no-tiene).
 
 ### AVISO_NOTA_EXONERACION_DISTINTA
 
