@@ -17,7 +17,8 @@ concurrency:
 jobs:
   # ── Sección: propiedades, contrato OpenAPI y fuzzing (lote5/propiedades) ──────────────────────────────────────────
   # El CI corre lo mismo con 200 casos por propiedad y 300 casos de fuzz de la API; aquí, 20 000 de cada uno.
-  # Un fallo imprime la semilla de fast-check: FHN_PROP_SEMILLA=<semilla> lo reproduce (docs/calidad/propiedades.md).
+  # El fuzz del CI usa una semilla fija; aquí cambia cada noche. Un fallo imprime la semilla de fast-check:
+  # FHN_PROP_SEMILLA=<semilla> lo reproduce (docs/calidad/propiedades.md).
   propiedades:
     name: Propiedades, contrato OpenAPI y fuzzing (20 000 casos)
     runs-on: ubuntu-latest
@@ -41,6 +42,8 @@ jobs:
       FHN_PG_URL: postgres://postgres@localhost:5432/factura_hn_pruebas
       FHN_PROP_CORRIDAS: '20000'
       FHN_FUZZ_CASOS: '20000'
+      # Una semilla distinta cada noche (el CI usa una fija). Un fallo se reproduce con la que imprime fast-check.
+      FHN_PROP_SEMILLA: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
