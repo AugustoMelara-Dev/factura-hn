@@ -4,17 +4,17 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Estado
 
-- **Rama:** `main` en GitHub; cada lote entra por PR. La 0.2.0 está publicada en npm (24-11-2026, desde la
-  máquina del responsable); la siguiente sale con changesets como 0.3.0.
+- **Rama:** `main` en GitHub; cada cambio entra por PR. La 0.3.0 está publicada en npm (25-11-2026) desde el
+  flujo Release, con Trusted Publisher y procedencia firmada. El sitio está en
+  <https://augustomelara-dev.github.io/factura-hn/>. Las versiones siguientes salen con changesets.
 - **Fase actual:** plan «terminar factura-hn», en lotes 1 a 6 (24-11-2026).
-  - **Lote 1 (seguridad y 0.2.0):** hecho y publicado. Falta que el responsable confirme Trusted Publisher en los
-    seis paquetes.
+  - **Lote 1 (seguridad y 0.2.0):** hecho y publicado.
   - **Lote 2 (Etapa 1, los primeros 5 minutos):** hecho (74a8eea, PR #9).
   - **Lote 3 (sitio Starlight):** hecho (d3cdfc4, PR #10).
   - **Lote 4 (API para integradores):** hecho (cc2bbd0, PR #11).
   - **Lote 5 (calidad medida):** hecho (39072d8, PR #12).
-  - **Lote 6 (revisión final y 0.3.0):** hecho (9c05751, PR #13). La 0.3.0 queda versionada en `main`; se
-    publica cuando el responsable active `PUBLICAR_NPM`.
+  - **Lote 6 (revisión final y 0.3.0):** hecho (9c05751, PR #13; a70ff54, PR #14). 0.3.0 publicada y sitio en
+    línea (25-11-2026).
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
   - **Subagentes** (opus, esfuerzo medio) para el trabajo paralelo. Cada revisión la hace quien no escribió el
@@ -234,11 +234,10 @@ rama la revisó un subagente que no la escribió, y su autor corrigió los halla
 
 ## Sigue
 
-1. Correr `nocturno.yml` a mano con la espera de la cola de webhooks (DEC-204) y confirmarlo en verde.
-2. El responsable:
-   - confirma Trusted Publisher en los seis paquetes y la regla de ramas del entorno `npm`;
-   - activa `PUBLICAR_NPM` (publica la 0.3.0) y `PUBLICAR_SITIO`;
-   - envía `docs/consulta-sar.md` (P-01 a P-20) y, con la respuesta, cierra los [REVISAR].
+1. El entorno `npm` de GitHub no tiene reglas: la 0.3.0 se publicó sin pedir aprobación. Falta ponerle al
+   responsable como revisor obligatorio y limitarlo a `main` (`docs/lanzamiento.md`, paso 5).
+2. El responsable envía `docs/consulta-sar.md` (P-01 a P-20), con un contador o abogado tributario que indique el
+   canal (Oficina Virtual, escrito en una oficina del SAR o apoderado), y con cada respuesta se cierra su [REVISAR].
 3. Pendientes menores:
    - despacho de webhooks en paralelo dentro de cada pasada (DEC-204): hoy unos 100 avisos/s en el runner de
      GitHub;
