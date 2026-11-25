@@ -37,15 +37,18 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   sistemas computarizados (Art. 9, C L.559-566). factura-hn no tiene una función para juntar las ventas del día.
 - **Arriba de L 10,000**, la venta a consumidor final lleva el nombre y la identificación del cliente (Art. 11,
   párrafo final). factura-hn lo exige (`CONSUMIDOR_FINAL_IDENTIFICACION`).
-- **Precios con ISV incluido y el centavo.** El ISV impreso debe salir de la base impresa con el redondeo del
-  Art. 9 de la Ley del ISV. Con algunos precios de góndola no existe una base exacta, y el total queda 1 centavo
-  por debajo del precio: el cliente paga un centavo menos, nunca más (decisión D-01). Por eso se cobra siempre
+- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01). Por eso se cobra siempre
   `totales.total` y se calcula antes con `cotizar`. Para evitar el ajuste, `sugerirPrecioSinAjuste` propone precios
   que no lo necesitan.
 - **Papel térmico.** Antes de imprimir en papel térmico, el Art. 38 pide la certificación del proveedor del papel
   de que la impresión dura al menos 5 años.
 - **Contingencia.** Si la caja no funciona, se usan talonarios preimpresos de imprenta; vender sin documento se
   sanciona (Art. 55).
+
+:::caution[Por confirmar con fuente]
+El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
+(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+:::
 
 ## Ejemplo: una venta típica
 

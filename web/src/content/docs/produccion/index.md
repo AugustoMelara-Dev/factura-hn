@@ -107,7 +107,11 @@ Antes de entregarla al cliente, los tres revisan el impreso:
 - El número tiene la forma `NNN-NNN-NN-NNNNNNNN`, con el establecimiento, el punto de emisión y el tipo
   correctos, y empieza en el primer número del rango (Art. 10 num. 7).
 - Los datos del emisor coinciden con el RTN (Art. 10 num. 1).
-- El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido puede quedar 1 centavo por
-  debajo del precio, por el redondeo del Art. 9 de la Ley del ISV (decisión D-01).
+- El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido, factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01).
+
+:::caution[Por confirmar con fuente]
+El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
+(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+:::
 
 Desde ahí, la rutina está en [Operación mensual](/produccion/operacion-mensual/).

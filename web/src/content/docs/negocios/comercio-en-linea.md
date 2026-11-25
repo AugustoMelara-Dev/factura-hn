@@ -36,8 +36,12 @@ El [ejemplo de Express](https://github.com/AugustoMelara-Dev/factura-hn/tree/mai
 - **Arriba de L 10,000** a consumidor final, nombre e identificación del cliente (Art. 11, párrafo final). Pídelos
   en el formulario de compra; si faltan, la API responde 422 con `CONSUMIDOR_FINAL_IDENTIFICACION`.
 - **Crédito fiscal**: el cliente que lo necesita da su RTN al comprar (Art. 11 num. 1 a-c).
-- **Precios con ISV incluido**: el total puede quedar 1 centavo por debajo del precio, por el redondeo del Art. 9
-  de la Ley del ISV (D-01). Cobra el total que devuelve la API, o cotiza antes de cobrar.
+- **Precios con ISV incluido**: factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01). Cobra el total que devuelve la API, o cotiza antes de cobrar.
+
+:::caution[Por confirmar con fuente]
+El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
+(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+:::
 
 ## Ejemplo: facturar un pedido pagado
 
@@ -78,7 +82,7 @@ await facturarPedido({ id: '1001', lineas: [{ descripcion: 'Audífonos inalámbr
 await facturarPedido({ id: '1002', lineas: [{ descripcion: 'Televisor 55 pulgadas', cantidad: '1', precioUnitario: '12500.00' }] });
 // → { ok: false, errores: ['Ventas a consumidor final mayores de L 10,000.00 requieren nombre e identificación del cliente (Art. 11).'] }
 
-// Con nombre y DNI (ficticios). El total baja 1 centavo por el redondeo del Art. 9 de la Ley del ISV.
+// Con nombre y DNI (ficticios). Sin base exacta, el total queda 1 centavo por debajo (D-01, P-10).
 await facturarPedido({
   id: '1003',
   cliente: { nombre: 'Persona Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } },

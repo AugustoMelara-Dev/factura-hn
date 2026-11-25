@@ -56,7 +56,7 @@ Las que más afectan a un negocio que va a producción:
 | P-07 | Papel térmico: certificación y resúmenes de ventas | Aviso en la documentación; el software no lo gestiona |
 | P-08 | Exonerado agroindustrial solo con el registro SAG/RUPNSA | Se acepta (DEC-021) |
 | P-09 | Exportaciones: «gravado 0 %» o «exento» | «Gravado 0 %», según el Art. 12 del Reglamento |
-| P-10 | ISV por línea o por grupo de tasa | Por grupo de tasa |
+| P-10 | ISV por línea o por grupo de tasa | Por grupo de tasa; sin base exacta, 1 centavo menos (D-01) |
 | P-11 | Tasa del 18 % y la lista de bienes | Sin texto primario (DEC-069 [REVISAR]) |
 | P-13 | Fecha mínima de la primera emisión de una serie | Sin piso: la fecha es siempre la de hoy |
 
