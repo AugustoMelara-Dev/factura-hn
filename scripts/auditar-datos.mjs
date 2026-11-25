@@ -20,7 +20,7 @@ const BINARIO = /\.(png|jpe?g|gif|ico|pdf|woff2?|ttf|db|sqlite)$/i;
 
 const CAI_FICTICIOS = [/^[0-9A-F]{6}-D4E5F6-A1B2C3-D4E5F6-A1B2C3-[0-9A-F]{2}$/, /^DEMO00-/, /^0{6}-/, /^F{6}-/];
 const reglas = [
-  { nombre: 'RTN o DNI con forma real', patron: /(?<![\w-])(\d{13,14}|\d{4}-\d{4}-\d{5,6})(?![\w-])/g, permitido: (m) => /^(9999|0000)/.test(m) || /^\d{4}-\d{4}-\d{5,6}$/.test(m) && /^(9999|0000)-/.test(m) },
+  { nombre: 'RTN o DNI con forma real', patron: /(?<![\w-])(\d{13,14}|\d{4}-\d{4}-\d{5,6})(?![\w-]|\.\d)/g, permitido: (m) => /^(9999|0000)/.test(m) || /^\d{4}-\d{4}-\d{5,6}$/.test(m) && /^(9999|0000)-/.test(m) },
   { nombre: 'correo con un dominio que podría existir', patron: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, permitido: (m) => /\.example$/i.test(m) || m === 'algo@dominio.tld' || /@users\.noreply\.github\.com$/.test(m) },
   { nombre: 'CAI con forma real', patron: /\b[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{2}\b/g, permitido: (m) => CAI_FICTICIOS.some((r) => r.test(m)) },
   { nombre: 'ruta de una máquina', patron: /([A-Za-z]:\\Users\\[^\s\\'"`]+|\/home\/[a-z][\w-]*|\/Users\/[A-Z][\w-]*)/g, permitido: () => false },

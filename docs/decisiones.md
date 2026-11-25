@@ -2669,7 +2669,7 @@ Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
 - **Contexto:** `fueraDeCodigo` (`web/scripts/lib/enlaces-md.mjs`) cambia los comentarios HTML y el código en
   línea por marcas `\u0000N\u0000` y las restauraba en una sola pasada. Cuando un código en línea abarcaba un
   comentario ya marcado, la marca interna quedaba en el sitio: 18 NUL en `llms-full.txt` y
-  `referencia/decisiones.md`, y `�1�` en la página de decisiones (los comentarios `<!-- … (rama loteN/…) -->` de
+  `referencia/decisiones.md`, y la marca `\uFFFD1\uFFFD` (U+FFFD, carácter de reemplazo) en la página de decisiones (los comentarios `<!-- … (rama loteN/…) -->` de
   `docs/decisiones.md`).
 - **Elegida:** restaurar hasta que no quede ninguna marca (cada pasada solo puede sacar marcas de índice menor,
   así que el bucle termina). Prueba en `web/scripts/enlaces.test.mjs`, que falla sin el arreglo.
@@ -2719,5 +2719,7 @@ Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
   - DEC-050, DEC-051, DEC-068 y DEC-079 citan sus preguntas P-16 a P-19; DEC-140 y DEC-152 citan el Reglamento
     (Acuerdo 481-2017), no otro acuerdo.
   - La versión 0.3.0 sale de `pnpm run version` (changesets y `scripts/fijar-versiones.mjs`).
+  - `scripts/auditar-datos.mjs` no toma por RTN un importe con decimales (`8695652173913.00` en las pruebas del
+    tope técnico): el patrón de 13 o 14 dígitos excluye los que siguen con `.` y un dígito.
 - **Alternativa:** dejar las pruebas viejas con la regla nueva desactivada en el MCP; se descartó porque el MCP usa
   el mismo núcleo y debe comportarse igual.

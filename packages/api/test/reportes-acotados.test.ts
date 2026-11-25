@@ -207,7 +207,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
       await expect(sinLeer.text()).rejects.toThrow(); // cortada con error, no truncada en silencio
       const r = await hastaEstado(() => ka('GET', `/v1/exportacion?${PERIODO}&formato=txt`), 200);
       expect(r.status).toBe(200);
-      expect((await r.text()).startsWith('#factura-hn|v1|3\n')).toBe(true);
+      expect((await r.text()).startsWith('#factura-hn|v2|3\n')).toBe(true);
     } finally {
       await chico.end();
     }
@@ -275,7 +275,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
       // Cupo y conexión liberados: la siguiente exportación sale completa.
       const otra = await hastaEstado(() => ka('GET', `/v1/exportacion?${PERIODO}&formato=txt`), 200);
       expect(otra.status).toBe(200);
-      expect((await otra.text()).startsWith('#factura-hn|v1|3\n')).toBe(true);
+      expect((await otra.text()).startsWith('#factura-hn|v2|3\n')).toBe(true);
       expect(noCapturadas).toEqual([]);
     } finally {
       process.off('uncaughtException', alNoCapturada);
