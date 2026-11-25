@@ -32,3 +32,6 @@ colecciones/bruno/.env
 .pg-temporal/
 # Resultados de la medición de carga (pnpm carga).
 packages/api/carga/resultados/
+# Pruebas de mutación (Stryker): copia aislada e informes locales.
+.stryker-tmp/
+packages/core/reports/

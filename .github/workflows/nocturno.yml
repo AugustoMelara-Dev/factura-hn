@@ -1,6 +1,6 @@
 # Mediciones largas: lo que tarda más de unos 2 minutos y no cabe en ci.yml. Cada noche y a mano.
 # Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml.
-# Cada encargo del Lote 5 deja aquí su sección (un trabajo por tema); el integrador las junta.
+# Un trabajo por tema; cada uno con su informe en docs/calidad/.
 name: Nocturno
 
 on:
@@ -55,3 +55,32 @@ jobs:
         # Clúster desechable con los binarios de PostgreSQL del runner; el servicio de arriba no se reinicia.
         run: pnpm resiliencia --larga
   # --- fin de lote5/resiliencia ---------------------------------------------------------------------------
+
+  # --- Sección lote5/mutacion: pruebas de mutación del núcleo (docs/calidad/mutacion.md) ---
+  mutacion:
+    name: Mutación del núcleo (Stryker, ≥ 85 % por módulo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
+      # Falla si el puntaje global baja de 85 % (thresholds.break) o si algún módulo baja de 85 %.
+      - name: Stryker sobre cálculo, dinero, letras, numeración y validación
+        run: pnpm mutacion
+      - name: Informe HTML y JSON
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutacion
+          path: packages/core/reports/mutacion/
+          retention-days: 14
+  # --- Fin de la sección lote5/mutacion ---
