@@ -25,6 +25,11 @@ export type Autorizacion = Esquemas['Autorizacion'];
 export type EstadoAutorizacion = Esquemas['EstadoAutorizacion'];
 export type Emisor = Esquemas['Emisor'];
 export type Problema = Esquemas['Problema'];
+/** Un problema con `solucion` y `documentacion` (enlace a la guía de errores), si se conocen. */
+export type ProblemaConGuia = Esquemas['ProblemaConGuia'];
+export type Sesion = Esquemas['Sesion'];
+/** Rutas de la representación impresa de un documento emitido (`emitir(...).enlaces`). */
+export type Enlaces = Esquemas['Enlaces'];
 
 export interface OpcionesCliente {
   /** URL base, p. ej. `http://127.0.0.1:8787`. */
@@ -40,17 +45,27 @@ export interface OpcionesCliente {
   fetch?: typeof fetch;
 }
 
-/** Error de la API con su estado HTTP, código y, en 422, la lista de errores fiscales. */
+/**
+ * Error de la API con su estado HTTP, código y, en 400 y 422, la lista de errores. En los errores frecuentes trae
+ * `solucion` (qué hacer) y `documentacion` (enlace al código en la guía de errores); en un 400 de forma, `campo`.
+ */
 export class ErrorFacturaHN extends Error {
+  public readonly solucion?: string;
+  public readonly documentacion?: string;
+  public readonly campo?: string;
   constructor(
     public readonly estado: number,
     public readonly codigo: string,
     mensaje: string,
-    public readonly errores: Problema[] = [],
+    public readonly errores: ProblemaConGuia[] = [],
     public readonly advertencias: Problema[] = [],
+    guia: { solucion?: string; documentacion?: string; campo?: string } = {},
   ) {
     super(mensaje);
     this.name = 'ErrorFacturaHN';
+    if (guia.solucion !== undefined) this.solucion = guia.solucion;
+    if (guia.documentacion !== undefined) this.documentacion = guia.documentacion;
+    if (guia.campo !== undefined) this.campo = guia.campo;
   }
 }
 
@@ -60,17 +75,17 @@ interface Resultado<T> {
   response: Response;
 }
 
+type CuerpoError = Partial<Esquemas['Error']>;
+
+const errorDe = (estado: number, textoEstado: string, e: CuerpoError) =>
+  new ErrorFacturaHN(estado, e.error?.codigo ?? `HTTP_${estado}`, e.error?.mensaje ?? textoEstado, e.errores ?? [], e.advertencias ?? [], {
+    solucion: e.error?.solucion,
+    documentacion: e.error?.documentacion,
+    campo: e.error?.campo,
+  });
+
 function exigir<T>(r: Resultado<T>): T {
-  if (r.error !== undefined || !r.response.ok) {
-    const e = (r.error ?? {}) as { error?: { codigo?: string; mensaje?: string }; errores?: Problema[]; advertencias?: Problema[] };
-    throw new ErrorFacturaHN(
-      r.response.status,
-      e.error?.codigo ?? `HTTP_${r.response.status}`,
-      e.error?.mensaje ?? r.response.statusText,
-      e.errores ?? [],
-      e.advertencias ?? [],
-    );
-  }
+  if (r.error !== undefined || !r.response.ok) throw errorDe(r.response.status, r.response.statusText, (r.error ?? {}) as CuerpoError);
   return r.data as T;
 }
 
@@ -88,8 +103,7 @@ export function crearCliente(o: OpcionesCliente) {
   const archivo = async (ruta: string, tipo: 'pdf' | 'html' | 'txt' | 'csv' | 'jsonl') => {
     const resp = await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${ruta}`, { headers: cabeceras });
     if (!resp.ok) {
-      const e = (await resp.json().catch(() => ({}))) as { error?: { codigo?: string; mensaje?: string } };
-      throw new ErrorFacturaHN(resp.status, e.error?.codigo ?? `HTTP_${resp.status}`, e.error?.mensaje ?? resp.statusText);
+      throw errorDe(resp.status, resp.statusText, (await resp.json().catch(() => ({}))) as CuerpoError);
     }
     return tipo === 'pdf' ? new Uint8Array(await resp.arrayBuffer()) : await resp.text();
   };
@@ -105,6 +119,14 @@ export function crearCliente(o: OpcionesCliente) {
   return {
     /** Cliente tipado para cualquier ruta de la API. */
     api,
+
+    /**
+     * Con qué llave hablas (tenant, rol, caja, modo) y si ya puedes emitir; si no, `pendientes` dice qué falta,
+     * con su solución.
+     */
+    async sesion(): Promise<Sesion> {
+      return exigir(await api.GET('/v1/sesion')).sesion;
+    },
 
     /**
      * Emite una factura, NC o ND. `idempotencyKey` debe ser estable por venta (p. ej. el id de la venta en

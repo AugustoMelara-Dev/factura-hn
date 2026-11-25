@@ -11,28 +11,36 @@ Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 ```bash
 git clone https://github.com/AugustoMelara-Dev/factura-hn.git
 cd factura-hn
-docker compose up -d --build --wait
-docker compose logs api        # llaves del demo (CAI ficticio): se muestran UNA sola vez
+docker compose up -d --build --wait     # otro puerto: FHN_PUERTO=8788 docker compose up -d --build --wait
 ```
 
-Abre <http://127.0.0.1:8787/docs>, pulsa **Authorize** y pega la **llave de caja demo**. El tenant `demo` usa
-un emisor y un CAI **ficticios** (`DEMO00-NO-VALIDO-…`): lo que emitas ahí no tiene validez fiscal.
+El tenant `demo` usa un emisor y un CAI **ficticios** (`DEMO00-NO-VALIDO-…`): lo que emitas ahí no tiene
+validez fiscal. Su llave de caja sale una vez en el log (`docker compose logs api`), en un bloque que dice
+«CAI FICTICIO». Con ella, la primera factura sale en tres pasos (en PowerShell, ver la [guía de la API](api.md)):
 
 ```bash
-LLAVE=fhn_...   # la llave de caja demo del log
-# El cuerpo va en un archivo UTF-8: escrito en la línea de comandos, una consola de Windows puede mandar la
-# «é» en otra codificación, y la API lo rechaza (400 CUERPO_NO_UTF8).
-cat > factura.json <<'JSON'
-{"documento":{"preciosIncluyenISV":true,"lineas":[{"descripcion":"Café","cantidad":"2","precioUnitario":"57.50"}]}}
-JSON
-curl -X POST http://127.0.0.1:8787/v1/documentos \
+LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)   # 1. otra llave de caja del demo
+PDF=$(curl -sf -X POST http://127.0.0.1:8787/v1/documentos \
   -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
-  --data-binary @factura.json
-curl -H "authorization: Bearer $LLAVE" -o factura.pdf \
-  http://127.0.0.1:8787/v1/documentos/000-001-01-00000001.pdf
+  --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')   # 2. emite
+curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"          # 3. el PDF
 ```
 
+También puedes abrir <http://127.0.0.1:8787/docs>, pulsar **Authorize** y pegar la llave. `GET /v1/sesion` dice
+con qué llave hablas y qué falta para emitir.
+
 Para empezar de cero (borra **todos** los datos): `docker compose down -v`.
+
+## La consola del operador
+
+Las llaves y los tenants se crean con la consola `factura-hn-api`, que corre dentro del contenedor de la API:
+
+```bash
+docker compose exec api factura-hn-api ayuda          # lista los comandos
+docker compose exec api factura-hn-api <comando> --help
+```
+
+Así aparece en esta guía, en la [guía de la API](api.md) y en los mensajes del servidor.
 
 ## Poner en marcha un negocio
 
@@ -77,7 +85,7 @@ Para empezar de cero (borra **todos** los datos): `docker compose down -v`.
    servidor: la consola la imprime solo en tu terminal.
 
    ```bash
-   docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración
+   docker compose exec api factura-hn-api llave crear local --rol admin --nombre Administración
    ```
 4. **Configura con la llave admin** (desde `/docs` o con `curl`):
    - el emisor: `POST /v1/emisores` (los siete datos del Art. 10 num. 1);
@@ -86,7 +94,12 @@ Para empezar de cero (borra **todos** los datos): `docker compose down -v`.
      `puntoEmision`. Cada caja usa solo su llave.
 5. **Cajas en la red local.** La API escucha en `127.0.0.1`. Para que otras computadoras la alcancen, pon
    delante un proxy con TLS (Caddy, nginx) en la IP del equipo, o cambia el puerto publicado a la IP de la red
-   local (`"192.168.1.10:8787:8787"`) solo si la red es de confianza. Nunca la publiques a Internet sin TLS.
+   local (`"192.168.1.10:8787:8787"`) solo si la red es de confianza. Nunca la publiques a Internet sin TLS. Con
+   el proxy, define `FHN_PROXIES_DE_CONFIANZA` en el servicio `api` con la dirección del proxy tal como la ve
+   la API (p. ej. `"172.18.0.5"`): así el límite de intentos distingue cada caja y una solicitud que no pase por
+   el proxy no puede elegir su cubeta. También acepta el número de proxies (`"1"`), pero **solo si a la API se
+   llega únicamente por el proxy**: deja el puerto publicado en `127.0.0.1` (ver «Límites de solicitudes» en la
+   [guía de la API](api.md)).
 
 ## Respaldos
 
@@ -149,9 +162,9 @@ puede traer cambios incompatibles.
 | Ver las llaves (sin el secreto) | `GET /v1/llaves` con la llave admin |
 | Otra llave de caja | `POST /v1/llaves` |
 | Revocar una llave | `DELETE /v1/llaves/{prefijo}` |
-| La primera llave admin del negocio | `docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración` |
-| Perdí la llave admin | `docker compose exec api node cli.cjs llave crear local --rol admin --nombre "nueva"` |
-| Perdí la llave de caja del demo | `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "caja demo 2" --caja 000-001` |
+| La primera llave admin del negocio | `docker compose exec api factura-hn-api llave crear local --rol admin --nombre Administración` |
+| Perdí la llave admin | `docker compose exec api factura-hn-api llave crear local --rol admin --nombre "nueva"` |
+| Perdí la llave de caja del demo | `docker compose exec api factura-hn-api demo llave` |
 
 La base guarda solo el hash de cada llave: una llave perdida no se recupera, se reemplaza.
 
@@ -167,5 +180,7 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de los webhooks. Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor |
 | `FHN_DEMO` | — | `1`: crea el tenant de demostración con datos ficticios |
+| `FHN_PUERTO` | `8787` | Puerto publicado en 127.0.0.1 por `docker-compose.yml` (variable de Compose, no de la API) |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
 
 Referencia completa de la API: [guía de la API](api.md).

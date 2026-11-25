@@ -6,13 +6,13 @@
  *   corre cada transacción como el rol de la aplicación (sin BYPASSRLS) con `factura_hn.tenant` fijado.
  * - Dos tablas se leen antes de saber el tenant o para todos los tenants, y por eso su RLS no se fuerza al
  *   dueño: `api_llaves` (autenticación) y `api_entregas` (el despachador de webhooks). El rol de la aplicación
- *   sigue sujeto a la política; solo dos funciones `SECURITY DEFINER` acotadas leen sin tenant.
+ *   sigue sujeto a la política; solo funciones `SECURITY DEFINER` acotadas leen sin tenant.
  * - La bitácora es de solo inserción (disparador) y el rol no tiene DELETE en ninguna tabla.
  */
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 6;
+export const VERSION_ESQUEMA_API = 7;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -166,6 +166,15 @@ BEGIN
 END
 $$$f$, current_schema());
 
+-- v7: si un prefijo existe aunque su llave esté revocada o su tenant inactivo. La API lo usa solo para cobrar
+-- el intento fallido al prefijo y no a la dirección de quien llama; la respuesta HTTP es el mismo 401.
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_prefijo_registrado(p_prefijo text)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM api_llaves WHERE prefijo = p_prefijo)
+$$$f$, current_schema());
+
 -- Solo después de comprobar el secreto (la API lo llama a lo sumo una vez por minuto y llave).
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_marcar_uso(p_prefijo text, p_hash bytea)
@@ -222,6 +231,7 @@ $$$f$, current_schema());
 END $do$;
 REVOKE ALL ON FUNCTION fhn_api_mantenimiento(integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_autenticar(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION fhn_api_prefijo_registrado(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_tenants_con_pendientes() FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_marcar_uso(text, bytea) FROM PUBLIC;
 `;
@@ -244,7 +254,7 @@ GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_ent
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
 GRANT SELECT, INSERT ON api_bitacora TO ${rol};
 GRANT USAGE ON SEQUENCE api_entregas_id_seq, api_bitacora_id_seq TO ${rol};
-GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
+GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
 }
 
 /**

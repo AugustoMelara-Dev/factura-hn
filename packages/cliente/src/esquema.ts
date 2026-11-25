@@ -629,6 +629,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sesion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Con qué llave hablas y qué falta para emitir
+         * @description Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sesión */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RespuestaSesion"];
+                    };
+                };
+                /** @description Solicitud mal formada */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Falta la llave de API o no es válida */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description La llave no tiene permiso */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Reglas fiscales: lista de errores */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Límite de solicitudes o de documentos del mes */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/documentos": {
         parameters: {
             query?: never;
@@ -719,7 +803,7 @@ export interface paths {
         put?: never;
         /**
          * Emite una factura, nota de crédito o nota de débito
-         * @description Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.
+         * @description Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. `enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.
          */
         post: {
             parameters: {
@@ -743,7 +827,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["RespuestaDocumento"];
+                        "application/json": components["schemas"]["RespuestaEmision"];
                     };
                 };
                 /** @description Solicitud mal formada */
@@ -2004,9 +2088,28 @@ export interface components {
             error: {
                 codigo: string;
                 mensaje: string;
+                /** @description En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`). */
+                campo?: string;
+                /** @description Qué hacer para resolverlo, si se conoce. */
+                solucion?: string;
+                /**
+                 * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
+                 * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
+                 */
+                documentacion?: string;
             };
-            errores?: components["schemas"]["Problema"][];
+            /** @description En 400 y 422: la lista completa, cada uno con su código y campo. */
+            errores?: components["schemas"]["ProblemaConGuia"][];
             advertencias?: components["schemas"]["Problema"][];
+        };
+        ProblemaConGuia: components["schemas"]["Problema"] & {
+            /** @description Qué hacer para resolverlo, si se conoce. */
+            solucion?: string;
+            /**
+             * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
+             * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
+             */
+            documentacion?: string;
         };
         Problema: {
             codigo: string;
@@ -2054,8 +2157,63 @@ export interface components {
             porcentajeUsado: number;
             alertas: components["schemas"]["Problema"][];
         };
-        RespuestaDocumento: {
+        RespuestaSesion: {
+            sesion: components["schemas"]["Sesion"];
+        };
+        Sesion: {
+            tenant: string;
+            /** @enum {string} */
+            modo: "local" | "alojado";
+            /** @description true en el tenant de demostración (CAI ficticio, sin validez fiscal). */
+            demo: boolean;
+            llave: {
+                id: string;
+                prefijo: string;
+                nombre: string;
+                /** @enum {string} */
+                rol: "caja" | "admin";
+                establecimiento: string | null;
+                puntoEmision: string | null;
+            };
+            emisor: {
+                registrado: boolean;
+                rtn: string | null;
+                razonSocial: string | null;
+            };
+            /** @description Llave de caja: su punto de emisión. Llave admin: los puntos con alguna autorización registrada. */
+            puntos: {
+                establecimiento: string;
+                puntoEmision: string;
+                tipos: {
+                    /** @enum {string} */
+                    tipoDocumento: "01" | "06" | "07";
+                    /** @description Hay una autorización vigente con números disponibles para este tipo. */
+                    listo: boolean;
+                    siguienteNumero: string | null;
+                    /** @description Autorizaciones vigentes de este punto y tipo. */
+                    autorizaciones: {
+                        cai: string;
+                        rangoInicial: number;
+                        rangoFinal: number;
+                        fechaLimiteEmision: string;
+                        diasRestantes: number;
+                        correlativosRestantes: number;
+                        alertas: components["schemas"]["Problema"][];
+                    }[];
+                    problema: components["schemas"]["ProblemaConGuia"];
+                }[];
+            }[];
+            /** @description Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja. */
+            documentosDelMes: number | null;
+            limiteMensual: number | null;
+            /** @description Con esta llave ya se puede emitir una factura (tipo 01). */
+            puedeEmitir: boolean;
+            /** @description Lo que falta para emitir una factura, con su solución. */
+            pendientes: components["schemas"]["ProblemaConGuia"][];
+        };
+        RespuestaEmision: {
             documento: components["schemas"]["DocumentoFiscal"];
+            enlaces: components["schemas"]["Enlaces"];
         };
         DocumentoFiscal: {
             /** @enum {string} */
@@ -2125,6 +2283,15 @@ export interface components {
              * @example 115.00
              */
             tipoCambio?: string | number;
+        };
+        /** @description Rutas de la representación impresa, relativas al servidor. Se piden con la misma llave. */
+        Enlaces: {
+            /** @example /v1/documentos/000-001-01-00000001.pdf */
+            pdf: string;
+            /** @example /v1/documentos/000-001-01-00000001.html */
+            html: string;
+            /** @example /v1/documentos/000-001-01-00000001.txt */
+            txt: string;
         };
         SolicitudEmision: {
             establecimiento?: string;
@@ -2196,6 +2363,9 @@ export interface components {
              */
             descuento?: string | number;
             unidad?: string;
+        };
+        RespuestaDocumento: {
+            documento: components["schemas"]["DocumentoFiscal"];
         };
         Motivo: {
             motivo: string;

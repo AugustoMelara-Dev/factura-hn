@@ -18,6 +18,7 @@ import {
   contarDocumentos,
   corregirFechaAdelantada,
   documentosPorPaginas,
+  elegirAutorizacion,
   emitir,
   ErrorValidacion,
   problemaDeOperador,
@@ -44,7 +45,19 @@ import {
 import { AlmacenPostgres, type TransaccionPostgres } from '@factura-hn/postgres';
 import { renderizarPDF } from '@factura-hn/pdf';
 import { ROL_POR_DEFECTO } from './esquema';
-import { ErrorApi, LimitadorSolicitudes, type CuerpoError } from './errores';
+import {
+  CONSOLA_POR_DEFECTO,
+  conSolucion,
+  ErrorApi,
+  ipDeSolicitud,
+  LimitadorSolicitudes,
+  Semaforo,
+  soluciones,
+  type ProxiesDeConfianza,
+  type CuerpoError,
+  type ProblemaApi,
+} from './errores';
+import { TENANT_DEMO } from './operador';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
@@ -60,6 +73,23 @@ import {
 
 export const VERSION_API = '0.2.0';
 
+const LOCALE_ES = z.locales.es().localeError;
+const LOCALE_EN = z.locales.en().localeError;
+const textoDe = (m: unknown): string | undefined => (typeof m === 'string' ? m : (m as { message?: string } | null | undefined)?.message);
+
+/**
+ * Mensaje en español de un problema de forma (400), solo para la respuesta de la API: no cambia la configuración
+ * global de Zod (otra biblioteca del mismo proceso sigue con sus mensajes). Zod ya no trae la entrada en el
+ * problema; se toma de `datos` (lo que se validó) por su ruta. Un mensaje propio del esquema se respeta: solo se
+ * traduce el que coincide con el mensaje por omisión de Zod.
+ */
+function mensajeEnEspanol(issue: z.core.$ZodIssue, datos: unknown): string {
+  const input = issue.path.reduce<unknown>((v, k) => (v !== null && typeof v === 'object' ? (v as Record<PropertyKey, unknown>)[k as PropertyKey] : undefined), datos);
+  const conEntrada = { ...issue, input } as Parameters<typeof LOCALE_ES>[0];
+  if (textoDe(LOCALE_EN(conEntrada)) !== issue.message) return issue.message;
+  return textoDe(LOCALE_ES(conEntrada)) ?? issue.message;
+}
+
 export interface ConfigApi {
   pool: pg.Pool;
   modo: 'local' | 'alojado';
@@ -67,8 +97,28 @@ export interface ConfigApi {
   rol?: string;
   cofre?: CofreSecretos;
   reloj?: () => Date;
-  /** Solicitudes por segundo y ráfaga por llave. Por defecto 20 y 40. */
+  /** Solicitudes por segundo y ráfaga por llave, contadas solo con el secreto correcto. Por defecto 20 y 40. */
   limiteSolicitudes?: { porSegundo: number; rafaga: number };
+  /**
+   * Intentos de autenticación con llaves que este proceso aún no validó.
+   * - `porSegundo`, `rafaga` (por defecto 2 y 20): fichas por dirección (IPv6 por su /64). Cada consulta en curso
+   *   reserva una; sin fichas libres, 429 `DEMASIADOS_INTENTOS` sin consultar la base. Un prefijo inexistente
+   *   gasta la ficha; una llave válida no gasta nada.
+   * - Las mismas tasas, por prefijo, para los fallos de un prefijo que existe (secreto equivocado, llave revocada
+   *   o tenant inactivo): una caja que reintenta con su llave revocada se frena solo a sí misma.
+   * - `consultasSimultaneas` (por defecto 4): consultas a la base de llaves no validadas a la vez en el proceso;
+   *   las demás esperan su turno en cola (no reciben 429).
+   */
+  limiteIntentos?: { porSegundo?: number; rafaga?: number; consultasSimultaneas?: number };
+  /**
+   * Proxies de confianza delante de la API (por defecto 0: la dirección del cliente es la del socket y
+   * `X-Forwarded-For` se ignora). Ver `ProxiesDeConfianza`.
+   */
+  proxiesDeConfianza?: ProxiesDeConfianza;
+  /** Cómo se invoca la consola del operador en este despliegue, para los mensajes. Por defecto `node packages/api/dist/cli.js`. */
+  consola?: string;
+  /** Si este despliegue tiene el tenant de demostración (modo local): solo entonces la guía de errores lo menciona. */
+  hayDemo?: boolean;
   /**
    * Documentos como máximo en un reporte de período (libro de ventas, exportación); más allá, 422
    * `PERIODO_DEMASIADO_GRANDE`. Por defecto `FHN_MAX_DOCUMENTOS_REPORTE` o 50 000.
@@ -102,6 +152,24 @@ export interface Sesion {
 
 type Env = { Variables: { sesion: Sesion } };
 
+interface LlaveAutenticada {
+  tenant: string;
+  hash: Buffer;
+  rol: RolLlave;
+  establecimiento: string | null;
+  punto_emision: string | null;
+  limite_mensual: number | null;
+  id: string;
+  nombre: string;
+}
+/** La llave activa de un prefijo, si la hay, y si el prefijo existe aunque la llave esté revocada o su tenant inactivo. */
+interface BusquedaLlave {
+  fila?: LlaveAutenticada;
+  registrado: boolean;
+  /** Se resolvió con la llave en memoria, sin consultar la base. */
+  sinConsultar?: boolean;
+}
+
 const IDENTIFICADOR = /^\d{3}-\d{3}-\d{2}$/;
 const NUMERO = /^\d{3}-\d{3}-\d{2}-\d{8}$/;
 const CLAVE_IDEMPOTENCIA = /^[\x21-\x7e]{1,255}$/;
@@ -128,6 +196,16 @@ const respuestasError = {
 } as const;
 const json = <T extends z.ZodTypeAny>(schema: T, description: string) => ({ description, content: { 'application/json': { schema } } });
 const seguridad = [{ llave: [] }];
+
+/** Rutas de la representación impresa de un documento emitido. */
+const conEnlaces = <R extends { documento: { numero: string } }>(r: R) => ({
+  ...r,
+  enlaces: {
+    pdf: `/v1/documentos/${r.documento.numero}.pdf`,
+    html: `/v1/documentos/${r.documento.numero}.html`,
+    txt: `/v1/documentos/${r.documento.numero}.txt`,
+  },
+});
 
 // --- Paginación (DEC-047) ------------------------------------------------------------------------------------
 const LIMITE_POR_DEFECTO = 100;
@@ -160,14 +238,47 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const cofre = cfg.cofre ?? new CofreSecretos(null);
   const reloj = cfg.reloj ?? (() => new Date());
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
+  const li = cfg.limiteIntentos ?? {};
+  const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
+  const fallosPorPrefijo = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
+  const consultasNuevas = new Semaforo(li.consultasSimultaneas ?? 4);
+  /** Consultas en curso de llaves no validadas, por dirección: cada una reserva una ficha de su cubeta. */
+  const enVueloPorIp = new Map<string, number>();
+  /** Una sola consulta en curso por prefijo: las solicitudes con el mismo prefijo esperan su resultado. */
+  const enVueloPorPrefijo = new Map<string, Promise<BusquedaLlave>>();
+  const proxies = cfg.proxiesDeConfianza ?? 0;
+  if (typeof proxies === 'number' && (!Number.isSafeInteger(proxies) || proxies < 0))
+    throw new Error('proxiesDeConfianza debe ser un entero mayor o igual que 0 o una lista de direcciones.');
+  /** Hash de las llaves que este proceso ya validó, por prefijo: quien presenta el secreto correcto no gasta intentos. */
+  const verificadas = new Map<string, Buffer>();
+  const guia = soluciones({ consola: cfg.consola ?? CONSOLA_POR_DEFECTO, modo: cfg.modo, hayDemo: cfg.hayDemo });
+  const conGuia = (p: ProblemaApi): ProblemaApi => conSolucion({ error: { codigo: '_', mensaje: '' }, errores: [p] }, guia).errores![0]!;
+  const buscarLlave = (prefijo: string): Promise<BusquedaLlave> =>
+    base.transaccion(async (t) => {
+      const tx = comoTransaccionPostgres(t);
+      const fila = (await tx.consulta<LlaveAutenticada>('SELECT * FROM fhn_api_autenticar($1)', [prefijo])).rows[0];
+      if (fila) return { fila, registrado: true };
+      const r = await tx.consulta<{ registrado: boolean }>('SELECT fhn_api_prefijo_registrado($1) AS registrado', [prefijo]);
+      return { registrado: r.rows[0]?.registrado === true };
+    });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
   const ultimoUso = new Map<string, number>();
 
   const app = new OpenAPIHono<Env>({
     defaultHook: (r, c) => {
       if (!r.success) {
-        const detalles = r.error.issues.map((i) => ({ codigo: 'SOLICITUD_INVALIDA', mensaje: i.message, campo: i.path.join('.') }));
-        return c.json<CuerpoError>({ error: { codigo: 'SOLICITUD_INVALIDA', mensaje: 'La solicitud no tiene la forma esperada.' }, errores: detalles }, 400);
+        const datos = (r as { data?: unknown }).data;
+        const detalles = r.error.issues.map((i) => ({ codigo: 'SOLICITUD_INVALIDA', mensaje: mensajeEnEspanol(i, datos), campo: i.path.join('.') }));
+        const primero = detalles[0];
+        const cuerpo: CuerpoError = {
+          error: {
+            codigo: 'SOLICITUD_INVALIDA',
+            mensaje: primero ? `La solicitud no tiene la forma esperada. ${primero.campo ? `${primero.campo}: ` : ''}${primero.mensaje}` : 'La solicitud no tiene la forma esperada.',
+            ...(primero?.campo ? { campo: primero.campo } : {}),
+          },
+          errores: detalles,
+        };
+        return c.json<CuerpoError>(conSolucion(cuerpo, guia), 400);
       }
       return undefined;
     },
@@ -191,12 +302,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     if (e instanceof ErrorApi) {
       if (e.estado === 429 && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
       const { reintentarEn: _r, ...extra } = e.extra;
-      return c.json<CuerpoError>({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, e.estado);
+      return c.json<CuerpoError>(conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia), e.estado);
     }
     if (e instanceof ErrorValidacion) {
       const noEncontrado = e.errores.some((p) => p.codigo === 'DOCUMENTO_NO_ENCONTRADO');
       return c.json<CuerpoError>(
-        { error: { codigo: noEncontrado ? 'NO_ENCONTRADO' : 'VALIDACION', mensaje: e.errores.map((p) => p.mensaje).join(' ') }, errores: e.errores, advertencias: e.advertencias },
+        conSolucion(
+          { error: { codigo: noEncontrado ? 'NO_ENCONTRADO' : 'VALIDACION', mensaje: e.errores.map((p) => p.mensaje).join(' ') }, errores: e.errores, advertencias: e.advertencias },
+          guia,
+        ),
         noEncontrado ? 404 : 422,
       );
     }
@@ -213,17 +327,70 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const prefijo = prefijoDe(llave);
     const noValida = new ErrorApi(401, 'NO_AUTENTICADO', 'Falta la llave de API o no es válida.');
     if (!prefijo) throw noValida;
-    // El límite va antes de consultar la base: también frena a quien prueba secretos con un prefijo conocido.
-    const espera = limitador.tomar(prefijo);
-    if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
-    const fila = await base.transaccion(async (t) => {
-      const r = await comoTransaccionPostgres(t).consulta<{
-        tenant: string; hash: Buffer; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; limite_mensual: number | null;
-        id: string; nombre: string;
-      }>('SELECT * FROM fhn_api_autenticar($1)', [prefijo]);
-      return r.rows[0];
-    });
-    if (!fila || !coincide(llave, fila.hash)) throw noValida;
+    const limitarLlave = () => {
+      const espera = limitador.tomar(prefijo);
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
+    };
+    // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
+    // dejarla en 429. Una llave que este proceso ya validó (mismo hash, en memoria) no pasa por el límite de
+    // intentos. Las demás: (1) la dirección necesita una ficha libre además de las reservadas por sus consultas
+    // en curso, o recibe 429 sin consultar la base; (2) una sola consulta por prefijo a la vez y a lo sumo
+    // `consultasSimultaneas` en el proceso (las demás esperan en cola); (3) el fallo de un prefijo que existe se
+    // cobra a ese prefijo y el de un prefijo inexistente, a la dirección. Una llave válida no gasta fichas.
+    const hashVisto = verificadas.get(prefijo);
+    const conocida = hashVisto !== undefined && coincide(llave, hashVisto);
+    const ip = ipDeSolicitud(c, proxies);
+    // Un prefijo que ya se sabe registrado no gasta fichas de la dirección.
+    const registradoConocido = fallosPorPrefijo.tiene(prefijo);
+    let reservada = false;
+    let busqueda: BusquedaLlave;
+    try {
+      if (conocida) {
+        limitarLlave();
+        busqueda = await buscarLlave(prefijo);
+      } else if (hashVisto !== undefined) {
+        // Prefijo ya validado con otro secreto: el hash de un prefijo no cambia, así que este secreto es
+        // equivocado y no hace falta consultar la base.
+        busqueda = { registrado: true, sinConsultar: true };
+      } else {
+        // Quien llega mientras ya se consulta su prefijo espera ese resultado: no consulta la base ni reserva.
+        let enCurso = enVueloPorPrefijo.get(prefijo);
+        if (!enCurso) {
+          if (!registradoConocido) {
+            const espera = intentosPorIp.espera(ip, enVueloPorIp.get(ip) ?? 0);
+            if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+            enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
+            reservada = true;
+          }
+          enCurso = consultasNuevas.con(() => buscarLlave(prefijo)).finally(() => enVueloPorPrefijo.delete(prefijo));
+          enVueloPorPrefijo.set(prefijo, enCurso);
+        }
+
+        busqueda = await enCurso;
+      }
+      const { fila: hallada, registrado } = busqueda;
+      if (!hallada || !coincide(llave, hallada.hash)) {
+        // La llave en memoria se descarta solo si ya no está activa o cambió: un secreto equivocado no la saca.
+        if (hashVisto !== undefined && !busqueda.sinConsultar && (!hallada || !hallada.hash.equals(hashVisto))) verificadas.delete(prefijo);
+        if (hallada || registrado) {
+          const espera = fallosPorPrefijo.tomar(prefijo);
+          if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+        } else intentosPorIp.tomar(ip);
+        throw noValida;
+      }
+    } finally {
+      if (reservada) {
+        const n = (enVueloPorIp.get(ip) ?? 1) - 1;
+        if (n > 0) enVueloPorIp.set(ip, n);
+        else enVueloPorIp.delete(ip);
+      }
+    }
+    const fila = busqueda.fila!;
+    if (!conocida) {
+      verificadas.set(prefijo, fila.hash);
+      if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
+      limitarLlave();
+    }
     // Último uso: solo con el secreto correcto y a lo sumo una vez por minuto por llave.
     const ahoraMs = Date.now();
     if ((ultimoUso.get(prefijo) ?? 0) < ahoraMs - 60_000) {
@@ -458,6 +625,102 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     },
   );
 
+  // --- Sesión ---------------------------------------------------------------------------------------------
+  app.openapi(
+    createRoute({
+      method: 'get', path: '/v1/sesion', tags: ['Sesión'], security: seguridad,
+      summary: 'Con qué llave hablas y qué falta para emitir',
+      description:
+        'Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya ' +
+        'se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede ' +
+        'llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.',
+      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasError },
+    }),
+    async (c) => {
+      const s = sesion(c);
+      const hoy = fechaHonduras(reloj());
+      const cajaCompleta = s.establecimiento && s.puntoEmision ? `${s.establecimiento}-${s.puntoEmision}` : null;
+      const { emisor, filas, documentosDelMes } = await enTenant(c, async (tx) => {
+        const emisor = await leerEmisor(tx);
+        const params: unknown[] = [tx.tenant];
+        let sql = `SELECT a.identificador, a.datos, s.ultimo FROM fhn_autorizaciones a
+                    LEFT JOIN fhn_series s ON s.tenant = a.tenant AND s.identificador = a.identificador
+                   WHERE a.tenant = $1`;
+        if (cajaCompleta) sql += ` AND a.identificador LIKE $${params.push(`${cajaCompleta}-%`)}`;
+        else if (s.rol === 'caja') sql += ' AND false';
+        const filas = (await tx.consulta<{ identificador: string; datos: AutorizacionCAI; ultimo: number | null }>(`${sql} ORDER BY a.identificador, a.rango_inicial`, params)).rows;
+        const uso = await tx.consulta<{ documentos: number }>('SELECT documentos FROM api_uso WHERE tenant = $1 AND mes = $2', [tx.tenant, hoy.slice(0, 7)]);
+        return { emisor, filas, documentosDelMes: uso.rows[0]?.documentos ?? 0 };
+      });
+
+      const porSerie = new Map<string, { auts: AutorizacionCAI[]; ultimo: number | null }>();
+      for (const f of filas) {
+        const serie = porSerie.get(f.identificador) ?? { auts: [], ultimo: f.ultimo };
+        serie.auts.push(typeof f.datos === 'string' ? JSON.parse(f.datos) : f.datos);
+        porSerie.set(f.identificador, serie);
+      }
+      const puntosConCai = [...new Set([...porSerie.keys()].map((id) => id.slice(0, 7)))].sort();
+      const puntos = (cajaCompleta ? [cajaCompleta] : s.rol === 'caja' ? [] : puntosConCai).map((punto) => {
+        const tipos = (['01', '06', '07'] as const).map((tipoDocumento) => {
+          const serie = porSerie.get(`${punto}-${tipoDocumento}`) ?? { auts: [], ultimo: null };
+          const eleccion = elegirAutorizacion(serie.auts, serie.ultimo, hoy);
+          const vigentes = serie.auts.flatMap((a) => {
+            const consumido = Math.max(serie.ultimo ?? 0, a.ultimoEmitidoAntes ?? 0);
+            const ultimo = consumido < a.rangoInicial ? null : Math.min(consumido, a.rangoFinal);
+            const estado = estadoAutorizacion(a, ultimo, { hoy });
+            if (!estado.vigente) return [];
+            return [{
+              cai: a.cai, rangoInicial: a.rangoInicial, rangoFinal: a.rangoFinal, fechaLimiteEmision: a.fechaLimiteEmision,
+              diasRestantes: estado.diasRestantes, correlativosRestantes: estado.correlativosRestantes, alertas: estado.alertas,
+            }];
+          });
+          const listo = !('error' in eleccion);
+          return {
+            tipoDocumento,
+            listo,
+            siguienteNumero: 'error' in eleccion ? null : `${punto}-${tipoDocumento}-${String(eleccion.correlativo).padStart(8, '0')}`,
+            autorizaciones: vigentes,
+            problema: 'error' in eleccion ? conGuia({ ...eleccion.error, mensaje: `${punto}, tipo ${tipoDocumento}: ${eleccion.error.mensaje}` }) : null,
+          };
+        });
+        const [establecimiento, puntoEmision] = punto.split('-') as [string, string];
+        return { establecimiento, puntoEmision, tipos };
+      });
+
+      const pendientes: ProblemaApi[] = [];
+      if (!emisor) pendientes.push(conGuia({ codigo: 'SIN_EMISOR', mensaje: 'Falta registrar el emisor (POST /v1/emisores).' }));
+      if (s.rol === 'caja' && !cajaCompleta) {
+        pendientes.push(conGuia({ codigo: 'CAJA_SIN_PUNTO', mensaje: 'Esta llave de caja no está atada a un punto de emisión.' }));
+      }
+      const facturas = puntos.map((p) => p.tipos[0]!);
+      if (!facturas.some((t) => t.listo)) {
+        if (facturas.length) pendientes.push(...facturas.map((t) => t.problema!));
+        else if (s.rol === 'admin') {
+          pendientes.push(conGuia({ codigo: 'SIN_AUTORIZACION', mensaje: 'No hay ninguna autorización (CAI) registrada (Arts. 59-61).' }));
+        }
+      }
+      if (s.limiteMensual !== null && documentosDelMes >= s.limiteMensual) {
+        pendientes.push(conGuia({ codigo: 'LIMITE_MENSUAL', mensaje: `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.` }));
+      }
+
+      return c.json({
+        sesion: {
+          tenant: s.tenant,
+          modo: cfg.modo,
+          demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO,
+          llave: { id: s.llaveId, prefijo: s.prefijo, nombre: s.llaveNombre, rol: s.rol, establecimiento: s.establecimiento, puntoEmision: s.puntoEmision },
+          emisor: emisor ? { registrado: true, rtn: emisor.datos.rtn, razonSocial: emisor.datos.razonSocial } : { registrado: false, rtn: null, razonSocial: null },
+          puntos,
+          // El uso del mes es de todo el tenant: solo lo ve una llave admin.
+          documentosDelMes: s.rol === 'admin' ? documentosDelMes : null,
+          limiteMensual: s.limiteMensual,
+          puedeEmitir: pendientes.length === 0,
+          pendientes,
+        },
+      } as z.infer<typeof S.RespuestaSesion>, 200);
+    },
+  );
+
   // --- Documentos ------------------------------------------------------------------------------------------
   app.openapi(
     createRoute({
@@ -467,12 +730,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         'Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. ' +
         'La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento ' +
         '(cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. ' +
-        'La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.',
+        'La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. ' +
+        '`enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.',
       request: {
         headers: z.object({ 'idempotency-key': z.string().openapi({ description: 'Clave única por venta (p. ej. un UUID generado por el POS).' }) }),
         body: { content: { 'application/json': { schema: S.SolicitudEmision } }, required: true },
       },
-      responses: { 201: json(S.RespuestaDocumento, 'Emitido'), 409: json(S.ErrorRespuesta, 'Falta registrar el emisor'), ...respuestasError },
+      responses: { 201: json(S.RespuestaEmision, 'Emitido'), 409: json(S.ErrorRespuesta, 'Falta registrar el emisor'), ...respuestasError },
     }),
     async (c) => {
       const s = sesion(c);
@@ -528,7 +792,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           respuestaPrevia = { documento: doc };
         }
         c.header('Idempotency-Replayed', 'true');
-        return c.json(respuestaPrevia as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
+        return c.json(conEnlaces(respuestaPrevia as { documento: { numero: string } }) as unknown as z.infer<typeof S.RespuestaEmision>, 201);
       };
       const buscarPrevia = () =>
         enTenant(c, async (tx) => (await tx.consulta<{ huella: string; codigo: number; respuesta: unknown }>(
@@ -603,7 +867,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         if (!ganadora) throw e;
         return repetir(ganadora);
       }
-      return c.json(respuesta! as unknown as z.infer<typeof S.RespuestaDocumento>, 201);
+      return c.json(conEnlaces(respuesta!) as unknown as z.infer<typeof S.RespuestaEmision>, 201);
     },
   );
 

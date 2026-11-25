@@ -105,6 +105,19 @@
               },
               "mensaje": {
                 "type": "string"
+              },
+              "campo": {
+                "type": "string",
+                "description": "En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`)."
+              },
+              "solucion": {
+                "type": "string",
+                "description": "Qué hacer para resolverlo, si se conoce."
+              },
+              "documentacion": {
+                "type": "string",
+                "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
+                "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
               }
             },
             "required": [
@@ -115,8 +128,9 @@
           "errores": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Problema"
-            }
+              "$ref": "#/components/schemas/ProblemaConGuia"
+            },
+            "description": "En 400 y 422: la lista completa, cada uno con su código y campo."
           },
           "advertencias": {
             "type": "array",
@@ -127,6 +141,27 @@
         },
         "required": [
           "error"
+        ]
+      },
+      "ProblemaConGuia": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Problema"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "solucion": {
+                "type": "string",
+                "description": "Qué hacer para resolverlo, si se conoce."
+              },
+              "documentacion": {
+                "type": "string",
+                "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
+                "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+              }
+            }
+          }
         ]
       },
       "Problema": {
@@ -307,15 +342,249 @@
           "alertas"
         ]
       },
-      "RespuestaDocumento": {
+      "RespuestaSesion": {
+        "type": "object",
+        "properties": {
+          "sesion": {
+            "$ref": "#/components/schemas/Sesion"
+          }
+        },
+        "required": [
+          "sesion"
+        ]
+      },
+      "Sesion": {
+        "type": "object",
+        "properties": {
+          "tenant": {
+            "type": "string"
+          },
+          "modo": {
+            "type": "string",
+            "enum": [
+              "local",
+              "alojado"
+            ]
+          },
+          "demo": {
+            "type": "boolean",
+            "description": "true en el tenant de demostración (CAI ficticio, sin validez fiscal)."
+          },
+          "llave": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "prefijo": {
+                "type": "string"
+              },
+              "nombre": {
+                "type": "string"
+              },
+              "rol": {
+                "type": "string",
+                "enum": [
+                  "caja",
+                  "admin"
+                ]
+              },
+              "establecimiento": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "puntoEmision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "prefijo",
+              "nombre",
+              "rol",
+              "establecimiento",
+              "puntoEmision"
+            ]
+          },
+          "emisor": {
+            "type": "object",
+            "properties": {
+              "registrado": {
+                "type": "boolean"
+              },
+              "rtn": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "razonSocial": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "registrado",
+              "rtn",
+              "razonSocial"
+            ]
+          },
+          "puntos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "establecimiento": {
+                  "type": "string"
+                },
+                "puntoEmision": {
+                  "type": "string"
+                },
+                "tipos": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tipoDocumento": {
+                        "type": "string",
+                        "enum": [
+                          "01",
+                          "06",
+                          "07"
+                        ]
+                      },
+                      "listo": {
+                        "type": "boolean",
+                        "description": "Hay una autorización vigente con números disponibles para este tipo."
+                      },
+                      "siguienteNumero": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "autorizaciones": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "cai": {
+                              "type": "string"
+                            },
+                            "rangoInicial": {
+                              "type": "integer"
+                            },
+                            "rangoFinal": {
+                              "type": "integer"
+                            },
+                            "fechaLimiteEmision": {
+                              "type": "string"
+                            },
+                            "diasRestantes": {
+                              "type": "integer"
+                            },
+                            "correlativosRestantes": {
+                              "type": "integer"
+                            },
+                            "alertas": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/Problema"
+                              }
+                            }
+                          },
+                          "required": [
+                            "cai",
+                            "rangoInicial",
+                            "rangoFinal",
+                            "fechaLimiteEmision",
+                            "diasRestantes",
+                            "correlativosRestantes",
+                            "alertas"
+                          ]
+                        },
+                        "description": "Autorizaciones vigentes de este punto y tipo."
+                      },
+                      "problema": {
+                        "$ref": "#/components/schemas/ProblemaConGuia"
+                      }
+                    },
+                    "required": [
+                      "tipoDocumento",
+                      "listo",
+                      "siguienteNumero",
+                      "autorizaciones",
+                      "problema"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "establecimiento",
+                "puntoEmision",
+                "tipos"
+              ]
+            },
+            "description": "Llave de caja: su punto de emisión. Llave admin: los puntos con alguna autorización registrada."
+          },
+          "documentosDelMes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja."
+          },
+          "limiteMensual": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "puedeEmitir": {
+            "type": "boolean",
+            "description": "Con esta llave ya se puede emitir una factura (tipo 01)."
+          },
+          "pendientes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemaConGuia"
+            },
+            "description": "Lo que falta para emitir una factura, con su solución."
+          }
+        },
+        "required": [
+          "tenant",
+          "modo",
+          "demo",
+          "llave",
+          "emisor",
+          "puntos",
+          "documentosDelMes",
+          "limiteMensual",
+          "puedeEmitir",
+          "pendientes"
+        ]
+      },
+      "RespuestaEmision": {
         "type": "object",
         "properties": {
           "documento": {
             "$ref": "#/components/schemas/DocumentoFiscal"
+          },
+          "enlaces": {
+            "$ref": "#/components/schemas/Enlaces"
           }
         },
         "required": [
-          "documento"
+          "documento",
+          "enlaces"
         ]
       },
       "DocumentoFiscal": {
@@ -557,6 +826,29 @@
           "fecha"
         ]
       },
+      "Enlaces": {
+        "type": "object",
+        "properties": {
+          "pdf": {
+            "type": "string",
+            "example": "/v1/documentos/000-001-01-00000001.pdf"
+          },
+          "html": {
+            "type": "string",
+            "example": "/v1/documentos/000-001-01-00000001.html"
+          },
+          "txt": {
+            "type": "string",
+            "example": "/v1/documentos/000-001-01-00000001.txt"
+          }
+        },
+        "required": [
+          "pdf",
+          "html",
+          "txt"
+        ],
+        "description": "Rutas de la representación impresa, relativas al servidor. Se piden con la misma llave."
+      },
       "SolicitudEmision": {
         "type": "object",
         "properties": {
@@ -788,6 +1080,17 @@
           "descripcion",
           "cantidad",
           "precioUnitario"
+        ]
+      },
+      "RespuestaDocumento": {
+        "type": "object",
+        "properties": {
+          "documento": {
+            "$ref": "#/components/schemas/DocumentoFiscal"
+          }
+        },
+        "required": [
+          "documento"
         ]
       },
       "Motivo": {
@@ -1721,6 +2024,82 @@
         }
       }
     },
+    "/v1/sesion": {
+      "get": {
+        "tags": [
+          "Sesión"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "summary": "Con qué llave hablas y qué falta para emitir",
+        "description": "Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.",
+        "responses": {
+          "200": {
+            "description": "Sesión",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaSesion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/documentos": {
       "post": {
         "tags": [
@@ -1732,7 +2111,7 @@
           }
         ],
         "summary": "Emite una factura, nota de crédito o nota de débito",
-        "description": "Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual.",
+        "description": "Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. `enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.",
         "parameters": [
           {
             "schema": {
@@ -1761,7 +2140,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RespuestaDocumento"
+                  "$ref": "#/components/schemas/RespuestaEmision"
                 }
               }
             }
