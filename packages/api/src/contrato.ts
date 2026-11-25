@@ -94,13 +94,15 @@ export function conCabecerasComunes<T>(doc: T): T {
     for (const metodo of METODOS) {
       const op = item[metodo];
       if (!op?.responses) continue;
+      // Una operación pública de /v1 (la creación de entornos de la demo) no valida llave: sin RateLimit ni FacturaHN-Modo.
+      const conLlave = ruta.startsWith('/v1/') && (op as { security?: unknown[] }).security?.length !== 0;
       for (const [estado, r] of Object.entries(op.responses)) {
         if (r.$ref) continue;
         const nombres = [
           'Solicitud-Id',
           'FacturaHN-Version',
-          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
-          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['FacturaHN-Modo'] : []),
+          ...(conLlave && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
+          ...(conLlave && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['FacturaHN-Modo'] : []),
           ...(estado === '429' || estado === '503' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };

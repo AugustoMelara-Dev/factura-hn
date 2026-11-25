@@ -12,9 +12,11 @@ export { crearApp, VERSION_API } from './app';
 export type { ConfigApi, Sesion } from './app';
 export { exigirEsquemaApi, migrarApi, ESQUEMA_API, ROL_POR_DEFECTO, VERSION_ESQUEMA_API } from './esquema';
 export { ErrorApi, LimitadorSolicitudes } from './errores';
-export { generarLlave, prefijoDe } from './llaves';
+export { generarLlave, generarTokenMcp, llaveDeTokenMcp, prefijoDe } from './llaves';
+export { configDemo, leerConfigDemo, RUTA_ENTORNOS_DEMO } from './demo';
+export type { ConfigDemo } from './demo';
 export type { RolLlave } from './llaves';
-export { crearTenant, crearLlaveOperador, crearLlaveDemo, iniciarLocal, TENANT_LOCAL, TENANT_DEMO, CAI_DEMO } from './operador';
+export { crearTenant, crearLlaveOperador, crearLlaveDemo, iniciarLocal, purgarEntornosDemo, pausarDemo, resumenDemo, TENANT_LOCAL, TENANT_DEMO, CAI_DEMO } from './operador';
 export {
   CofreSecretos,
   despacharWebhooks,

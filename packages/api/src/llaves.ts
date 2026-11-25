@@ -11,7 +11,7 @@
  * hash lento, y la comparación es en tiempo constante. El hash cubre también la marca `live` o `test`: cambiarla
  * da otra llave, que no existe.
  */
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export type RolLlave = 'caja' | 'admin';
 /** Modo de un tenant: `prueba` (sandbox, solo CAI ficticios) o `produccion`. */
@@ -51,4 +51,30 @@ export function prefijoDe(llave: string): string | null {
 export function coincide(llave: string, hashGuardado: Buffer): boolean {
   const h = hashLlave(llave);
   return h.length === hashGuardado.length && timingSafeEqual(h, hashGuardado);
+}
+
+/**
+ * Token del MCP remoto: `fhnmcp_<test|live>_<prefijo>_<secreto>`. Va en la ruta de la URL personal del MCP
+ * (`https://…/mcp/<token>`), porque un conector personalizado de Claude se agrega solo con la URL. No es una llave
+ * de API: el servidor MCP deriva de él la llave `fhn_<marca>_<prefijo>_<HMAC-SHA256(secreto, ETIQUETA)>`, una llave
+ * normal del tenant (con su fila en `api_llaves` y su hash). Así la base no guarda nada con que reconstruir el
+ * token, y revocar esa llave (`DELETE /v1/llaves/{prefijo}`) apaga el token sin tocar las demás llaves.
+ */
+const FORMATO_TOKEN_MCP = /^fhnmcp_(live|test)_([0-9a-f]{12})_([A-Za-z0-9_-]{43})$/;
+const ETIQUETA_TOKEN_MCP = 'factura-hn/mcp/llave/v1';
+
+/** La llave de API que corresponde a un token del MCP remoto, o null si el token no tiene la forma. */
+export function llaveDeTokenMcp(token: string): string | null {
+  const m = FORMATO_TOKEN_MCP.exec(token);
+  if (!m) return null;
+  const derivado = createHmac('sha256', m[3]!).update(ETIQUETA_TOKEN_MCP).digest('base64url');
+  return `fhn_${m[1]}_${m[2]}_${derivado}`;
+}
+
+/** Token nuevo del MCP remoto para un tenant del modo indicado, con la llave que deriva (su hash va a `api_llaves`). */
+export function generarTokenMcp(modo: ModoTenant): { token: string; llave: string; prefijo: string; hash: Buffer } {
+  const prefijo = randomBytes(6).toString('hex');
+  const token = `fhnmcp_${marcaDeModo(modo)}_${prefijo}_${randomBytes(32).toString('base64url')}`;
+  const llave = llaveDeTokenMcp(token)!;
+  return { token, llave, prefijo, hash: hashLlave(llave) };
 }

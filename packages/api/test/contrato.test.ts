@@ -94,7 +94,8 @@ describe('OpenAPI: estados de error', () => {
       // Toda operación que puede dar 500 también puede dar 503 BASE_NO_DISPONIBLE (la base se reinicia).
       expect(estados, o.nombre).toContain('503');
       // 403 TENANT_FUERA_DEL_MODO_LOCAL: el servidor en modo local no atiende llaves de otro tenant, en ninguna operación.
-      if (o.ruta.startsWith('/v1/')) expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '403', '429']));
+      // Salvo las públicas de la demo (crear un entorno y su preflight), que no llevan llave.
+      if (o.ruta.startsWith('/v1/') && o.ruta !== '/v1/demo/entornos') expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '403', '429']));
       // bodyLimit cubre todo /v1/*: una operación sin cuerpo esperado (DELETE, POST sin cuerpo) también puede dar 413.
       expect(estados.includes('413'), o.nombre).toBe(o.metodo !== 'get');
     }
@@ -105,7 +106,7 @@ describe('OpenAPI: estados de error', () => {
       for (const [estado, r] of Object.entries(o.op.responses)) {
         const cabeceras = Object.keys(r.headers ?? {});
         expect(cabeceras, `${o.nombre} ${estado}`).toEqual(expect.arrayContaining(['Solicitud-Id', 'FacturaHN-Version']));
-        const conLimite = o.ruta.startsWith('/v1/') && estado !== '401' && estado !== '413';
+        const conLimite = o.ruta.startsWith('/v1/') && o.ruta !== '/v1/demo/entornos' && estado !== '401' && estado !== '413';
         expect(cabeceras.includes('RateLimit-Policy') && cabeceras.includes('RateLimit'), `${o.nombre} ${estado}`).toBe(conLimite);
         // La llave aún no se validó: un 401 nunca declara RateLimit.
         if (estado === '401') expect(cabeceras.filter((n) => n.startsWith('RateLimit')), `${o.nombre} 401`).toEqual([]);

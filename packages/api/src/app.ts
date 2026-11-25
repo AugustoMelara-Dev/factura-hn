@@ -67,7 +67,9 @@ import {
   type ProblemaApi,
 } from './errores';
 import { TENANT_DEMO, TENANT_LOCAL } from './operador';
-import { coincide, generarLlave, leerLlave, type ModoTenant, type RolLlave } from './llaves';
+import { configDemo, ejemplosDemo, huellaOrigen, RUTA_ENTORNOS_DEMO, type ConfigDemo } from './demo';
+import { autorizacionDemo, EMISOR_DEMO } from 'factura-hn/demo';
+import { coincide, generarLlave, generarTokenMcp, leerLlave, type ModoTenant, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import {
   CofreSecretos,
@@ -114,7 +116,19 @@ function mensajeEnEspanol(issue: z.core.$ZodIssue, datos: unknown): string {
 
 export interface ConfigApi {
   pool: pg.Pool;
-  modo: 'local' | 'alojado';
+  /**
+   * - `local`: un solo negocio (Art. 47); `alojado`: varios negocios con RLS;
+   * - `demo`: la demostración pública: solo entornos de prueba que crea cualquiera con `POST /v1/demo/entornos` y que
+   *   se borran a las 24 h. Sin webhooks, sin cambiar el emisor ficticio y con límites estrictos (ver `demo`).
+   */
+  modo: 'local' | 'alojado' | 'demo';
+  /** Configuración del modo demo. Por defecto `configDemo()` (valores estrictos). Solo con `modo: 'demo'`. */
+  demo?: ConfigDemo;
+  /**
+   * Cabecera que el proxy de confianza pone con la dirección del cliente (p. ej. `fly-client-ip` en Fly.io). Si se
+   * define, manda sobre `X-Forwarded-For`. Nunca se cree por defecto: sin proxy delante, la escribe el cliente.
+   */
+  cabeceraIpCliente?: string;
   /** Rol de base de datos sin BYPASSRLS con el que corre cada transacción. */
   rol?: string;
   cofre?: CofreSecretos;
@@ -372,7 +386,47 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return { registrado: r.rows[0]?.registrado === true };
     });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
-  const maxBytesPagina = cfg.maxBytesPagina ?? MAX_BYTES_PAGINA;
+  // --- Modo demo: estado en memoria de este proceso (una sola réplica; ver docs/demo.md) ---
+  const demo = cfg.modo === 'demo' ? (cfg.demo ?? configDemo()) : null;
+  const ipDe = (c: Context<Env>) => ipDeSolicitud(c, proxies, cfg.cabeceraIpCliente);
+  const maxCuerpo = demo?.maxCuerpo ?? 512 * 1024;
+  const porMinuto = (n: number) => new LimitadorSolicitudes(n / 60, n);
+  const demoGlobal = demo ? porMinuto(demo.solicitudesPorMinutoGlobal) : null;
+  const demoPorEntorno = demo ? porMinuto(demo.solicitudesPorMinuto) : null;
+  const demoCreaciones = demo ? porMinuto(demo.creacionesPorMinuto) : null;
+  /** Freno en memoria por dirección antes de ir a la base: a lo sumo 3 intentos seguidos y luego uno cada 20 s. */
+  const demoCreacionesPorIp = demo ? new LimitadorSolicitudes(1 / 20, 3) : null;
+  /** Solicitudes de cada entorno en este proceso, para `solicitudesPorEntorno`. */
+  const demoUsadas = new Map<string, number>();
+  /** Vencimiento de cada entorno (no cambia), por tenant. */
+  const demoExpira = new Map<string, number>();
+  const demoPausa = { valor: false, hasta: 0 };
+  const demoPausado = async (): Promise<boolean> => {
+    if (!demo) return false;
+    if (demo.pausado) return true;
+    const ahora = Date.now();
+    if (demoPausa.hasta > ahora) return demoPausa.valor;
+    const r = await base.transaccion((t) => comoTransaccionPostgres(t).consulta<{ pausado: boolean }>('SELECT pausado FROM api_demo_control WHERE id'));
+    demoPausa.valor = r.rows[0]?.pausado === true;
+    demoPausa.hasta = ahora + 5000;
+    return demoPausa.valor;
+  };
+  const errorPausa = () => new ErrorApi(503, 'DEMO_PAUSADO', 'La demostración está en pausa. Vuelve a intentarlo más tarde.', { reintentarEn: 600 });
+  const expiraDe = async (tenant: string): Promise<number | null> => {
+    const ya = demoExpira.get(tenant);
+    if (ya !== undefined) return ya;
+    const r = await base.paraTenant(tenant).transaccion((t) =>
+      comoTransaccionPostgres(t).consulta<{ expira: Date }>('SELECT expira FROM api_demo_entornos WHERE tenant = $1', [tenant]),
+    );
+    const e = r.rows[0]?.expira;
+    if (!e) return null;
+    if (demoExpira.size >= 50_000) demoExpira.delete(demoExpira.keys().next().value!);
+    demoExpira.set(tenant, e.getTime());
+    return e.getTime();
+  };
+  const segundosHasta = (ms: number) => Math.max(1, Math.ceil((ms - reloj().getTime()) / 1000));
+
+  const maxBytesPagina = cfg.maxBytesPagina ?? demo?.maxBytesPagina ?? MAX_BYTES_PAGINA;
   if (!Number.isSafeInteger(maxBytesPagina) || maxBytesPagina < 1) throw new Error('maxBytesPagina debe ser un entero mayor que 0.');
   const ultimoUso = new Map<string, number>();
 
@@ -426,7 +480,31 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
     if (/^application\/json\s*$/i.test(c.res.headers.get('content-type') ?? '')) c.header('Content-Type', TIPO_JSON);
   });
-  app.use('/v1/*', bodyLimit({ maxSize: 512 * 1024, onError: () => { throw new ErrorApi(413, 'CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 512 KB.'); } }));
+  // CORS solo para lo que llama el navegador (la página «Pruébalo ahora»): `POST /v1/demo/entornos`, sin credenciales.
+  // Solo los orígenes de FHN_DEMO_ORIGENES; nunca «*». También en los errores (429, 503), que pasan por aquí.
+  app.use('/v1/demo/*', async (c, next) => {
+    const origen = c.req.header('origin');
+    const permitido = demo !== null && origen !== undefined && demo.origenes.includes(origen);
+    const cabeceras = () => {
+      c.header('Vary', 'Origin');
+      if (!permitido) return;
+      c.header('Access-Control-Allow-Origin', origen!);
+      c.header('Access-Control-Expose-Headers', 'Retry-After, RateLimit, RateLimit-Policy, Solicitud-Id');
+    };
+    await next();
+    cabeceras();
+    if (permitido && c.req.method === 'OPTIONS') {
+      c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      c.header('Access-Control-Allow-Headers', 'Content-Type');
+      c.header('Access-Control-Max-Age', '600');
+    }
+  });
+  app.use('/v1/*', bodyLimit({
+    maxSize: maxCuerpo,
+    onError: () => {
+      throw new ErrorApi(413, 'CUERPO_DEMASIADO_GRANDE', `El cuerpo supera ${Math.floor(maxCuerpo / 1024)} KB.`);
+    },
+  }));
 
   app.onError((error, c) => {
     let e = error;
@@ -481,6 +559,128 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.notFound((c) => c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }), 404));
 
+  // --- Demo pública: crear un entorno de prueba (sin llave) ------------------------------------------------------
+  // Se registra antes de la autenticación: su manejador responde sin pasar por ella. Fuera del modo demo, 404.
+  app.openapi(
+    createRoute({
+      method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [],
+      summary: 'Crea un entorno de prueba propio (solo en el servidor de demostración)',
+      description:
+        'Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para ' +
+        'quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el ' +
+        'servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
+        'entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo ' +
+        'el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los ' +
+        'orígenes de `FHN_DEMO_ORIGENES`.',
+      responses: {
+        201: json(S.RespuestaEntornoDemo, 'Entorno creado. La llave y la URL del MCP se muestran solo esta vez.'),
+        404: json(S.ErrorRespuesta, 'Este servidor no está en modo demo (NO_ENCONTRADO)'),
+        ...respuestasDe(413, 429, 500),
+      },
+    }),
+    async (c) => {
+      if (!demo) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Ruta no encontrada.');
+      if (await demoPausado()) throw errorPausa();
+      const ip = ipDe(c);
+      const limite = (espera: number) => {
+        if (espera > 0) throw new ErrorApi(429, 'DEMO_LIMITE_ENTORNOS', 'Se crearon demasiados entornos de prueba. Espera y reintenta.', { reintentarEn: espera });
+      };
+      limite(demoCreacionesPorIp!.tomar(ip));
+      limite(demoCreaciones!.tomar('global'));
+      const creado = reloj();
+      const expira = new Date(creado.getTime() + demo.horas * 3_600_000);
+      const tenant = `demo-${randomBytes(8).toString('hex')}`;
+      const llave = generarLlave('prueba');
+      const mcp = demo.urlMcp ? generarTokenMcp('prueba') : null;
+      const r = await base.paraTenant(tenant).transaccion(async (t) => {
+        const tx = comoTransaccionPostgres(t);
+        const cupo = (await tx.consulta<{ estado: string; reintentar_en: number }>(
+          'SELECT estado, reintentar_en FROM fhn_api_crear_entorno_demo($1, $2, $3, $4, $5, $6, $7, $8)',
+          [tenant, 'Entorno de prueba', creado, expira, huellaOrigen(demo.secreto, ip), demo.entornosPorIp, demo.maxEntornos, demo.documentos],
+        )).rows[0]!;
+        if (cupo.estado !== 'ok') return cupo;
+        await tx.consulta('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [tenant, JSON.stringify(EMISOR_DEMO)]);
+        const insertarLlave = (k: { prefijo: string; hash: Buffer }, nombre: string) =>
+          tx.consulta("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', $4)", [k.prefijo, tenant, k.hash, nombre]);
+        await insertarLlave(llave, 'Visitante (demo)');
+        if (mcp) await insertarLlave(mcp, 'MCP remoto (demo)');
+        // Los CAI ficticios, en la misma transacción: un entorno nunca queda a medias.
+        const enEstaTx = { transaccion: <T>(fn: (x: TransaccionFiscal) => Promise<T>) => fn(t) } as unknown as AlmacenPostgres;
+        for (const tipoDocumento of ['01', '06', '07'] as const) {
+          await registrarAutorizacionConAvisos(enEstaTx, autorizacionDemo({ hoy: creado, tipoDocumento, rangoFinal: 5000 }), { reloj, actor: 'demo' });
+        }
+        await bitacora(tx, 'demo', 'llave.creada', { prefijo: llave.prefijo, rol: 'admin', modo: 'prueba', ...(mcp ? { mcp: mcp.prefijo } : {}) });
+        return cupo;
+      });
+      if (r.estado === 'pausado') throw errorPausa();
+      if (r.estado !== 'ok') {
+        throw new ErrorApi(429, 'DEMO_LIMITE_ENTORNOS', r.estado === 'por_origen'
+          ? `Ya creaste ${demo.entornosPorIp} entornos de prueba en las últimas 24 horas. Usa uno de ellos o espera.`
+          : 'Hay demasiados entornos de prueba abiertos en este momento. Reintenta más tarde.', { reintentarEn: r.reintentar_en });
+      }
+      demoExpira.set(tenant, expira.getTime());
+      const urlApi = demo.urlApi ?? new URL(c.req.url).origin;
+      const urlMcp = mcp ? `${demo.urlMcp}/${mcp.token}` : null;
+      return c.json({
+        entorno: {
+          id: tenant, creado: creado.toISOString(), expira: expira.toISOString(), modo: 'prueba' as const, leyenda: LEYENDA_PRUEBA,
+          establecimiento: '000', puntoEmision: '001',
+          emisor: { rtn: EMISOR_DEMO.rtn, razonSocial: EMISOR_DEMO.razonSocial, nombreComercial: EMISOR_DEMO.nombreComercial },
+          limites: { documentos: demo.documentos, solicitudesPorMinuto: demo.solicitudesPorMinuto, solicitudesTotales: demo.solicitudesPorEntorno, maxCuerpoBytes: demo.maxCuerpo },
+        },
+        llave: llave.llave,
+        mcp: mcp && urlMcp ? { url: urlMcp, prefijo: mcp.prefijo } : null,
+        api: { url: urlApi },
+        ejemplos: ejemplosDemo({ urlApi, llave: llave.llave, urlMcp }),
+        aviso:
+          `Entorno de prueba: emisor y CAI ficticios. Todo lo que emitas lleva «${LEYENDA_PRUEBA}». Se borra con todos sus datos el ` +
+          `${expira.toISOString()}. La llave y la URL del MCP se muestran solo ahora: guárdalas. No pongas datos reales de personas.`,
+      }, 201);
+    },
+  );
+
+  /**
+   * Modo demo, dentro de la autenticación (antes de las cabeceras de la llave): solo entornos de prueba vigentes,
+   * interruptor global, límites por entorno y globales, y fuera lo que no tiene sentido en una demostración pública
+   * (webhooks: la red interna del proveedor; cambiar el emisor ficticio; crear llaves). Revocar una llave sí se
+   * puede: así se apaga la URL del MCP.
+   */
+  const exigirDemo = async (c: Context<Env>, tenant: string, modoTenant: ModoTenant) => {
+    if (!demo) return;
+    if (await demoPausado()) throw errorPausa();
+    const soloPrueba = () => new ErrorApi(403, 'DEMO_SOLO_PRUEBA', 'Este servidor de demostración solo atiende entornos de prueba.');
+    if (modoTenant !== 'prueba') throw soloPrueba();
+    const expira = await expiraDe(tenant);
+    if (expira === null) throw soloPrueba();
+    if (expira <= reloj().getTime()) throw new ErrorApi(401, 'ENTORNO_VENCIDO', 'Este entorno de prueba venció y se borra con todos sus datos.');
+    const m = c.req.method;
+    const ruta = c.req.path;
+    if (ruta.startsWith('/v1/webhooks') || (ruta.startsWith('/v1/emisores') && m !== 'GET') || (ruta === '/v1/llaves' && m === 'POST')) {
+      throw new ErrorApi(403, 'DEMO_NO_DISPONIBLE', 'Esta operación no está disponible en la demostración pública.');
+    }
+    const lleno = (espera: number) => {
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en la demostración. Espera y reintenta.', { reintentarEn: espera });
+    };
+    lleno(demoGlobal!.tomar('global'));
+    lleno(demoPorEntorno!.tomar(tenant));
+    const usadas = (demoUsadas.get(tenant) ?? 0) + 1;
+    if (usadas > demo.solicitudesPorEntorno) {
+      throw new ErrorApi(429, 'DEMO_LIMITE_SOLICITUDES', `Este entorno de prueba ya hizo sus ${demo.solicitudesPorEntorno} solicitudes.`, { reintentarEn: segundosHasta(expira) });
+    }
+    if (!demoUsadas.has(tenant) && demoUsadas.size >= 50_000) demoUsadas.delete(demoUsadas.keys().next().value!);
+    demoUsadas.set(tenant, usadas);
+  };
+
+  app.openapi(
+    createRoute({
+      method: 'options', path: RUTA_ENTORNOS_DEMO, operationId: 'preflightEntornoDemo', tags: ['Demostración'], security: [],
+      summary: 'Preflight CORS de la creación de entornos',
+      description: 'Con `FHN_MODO=demo` y un `Origin` de `FHN_DEMO_ORIGENES`, lleva las cabeceras `Access-Control-*`; si no, ninguna.',
+      responses: { 204: { description: 'Sin cuerpo' }, ...respuestasDe(413, 500) },
+    }),
+    (c) => c.body(null, 204),
+  );
+
   // Autenticación: Authorization: Bearer fhn_live_<prefijo>_<secreto>, fhn_test_<prefijo>_<secreto> o fhn_<prefijo>_<secreto>
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? '';
@@ -511,7 +711,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // Una llave válida no gasta fichas.
     const hashVisto = verificadas.get(prefijo);
     const conocida = hashVisto !== undefined && coincide(llave, hashVisto);
-    const ip = ipDeSolicitud(c, proxies);
+    const ip = ipDe(c);
     // Un prefijo que ya se sabe registrado no gasta fichas de la dirección.
     const registradoConocido = fallosPorPrefijo.tiene(prefijo);
     let reservada = false;
@@ -594,6 +794,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     if (cfg.modo === 'local' && cfg.soloTenantsLocales && fila.tenant !== TENANT_LOCAL && fila.tenant !== TENANT_DEMO) {
       throw new ErrorApi(403, 'TENANT_FUERA_DEL_MODO_LOCAL', 'Este servidor corre en modo local, para un solo negocio, y la llave es de otro tenant.');
     }
+    await exigirDemo(c, fila.tenant, fila.modo);
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
@@ -1104,6 +1305,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
                ON CONFLICT (tenant, mes) DO UPDATE SET documentos = api_uso.documentos + 1 RETURNING documentos`,
               [tx.tenant, mes],
             );
+            if (demo && s.limiteMensual !== null && uso.rows[0]!.documentos > s.limiteMensual) {
+              throw new ErrorApi(429, 'DEMO_LIMITE_DOCUMENTOS', `Este entorno de prueba ya emitió sus ${s.limiteMensual} documentos.`, {
+                reintentarEn: segundosHasta((await expiraDe(s.tenant)) ?? reloj().getTime() + 3_600_000),
+              });
+            }
             if (s.limiteMensual !== null && uso.rows[0]!.documentos > s.limiteMensual) {
               throw new ErrorApi(429, 'LIMITE_MENSUAL', `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.`, {
                 reintentarEn: segundosHastaElMesSiguiente(mes, reloj()),

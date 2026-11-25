@@ -61,7 +61,7 @@ export const CONSOLA_POR_DEFECTO = 'node packages/api/dist/cli.js';
 export interface ContextoGuia {
   /** Forma de invocar la consola del operador en este despliegue (p. ej. `docker compose exec api factura-hn-api`). */
   consola: string;
-  modo: 'local' | 'alojado';
+  modo: 'local' | 'alojado' | 'demo';
   /** Si este despliegue tiene el tenant de demostración. */
   hayDemo?: boolean;
 }
@@ -76,7 +76,9 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     'activa, sin espacios ni saltos de línea. Una llave fhn_test_ no sirve en un tenant de producción, ni una fhn_live_ en uno de prueba. ';
   return {
     NO_AUTENTICADO:
-      modo === 'alojado'
+      modo === 'demo'
+        ? `${cabecera}Si tu entorno de prueba venció o perdiste su llave, crea otro con \`POST /v1/demo/entornos\`.`
+        : modo === 'alojado'
         ? `${cabecera}Si no tienes una llave o la tuya fue revocada, pide una al operador de la API.`
         : cabecera +
           (hayDemo ? `Para la demostración, crea una llave de caja con \`${consola} demo llave\`; la` : 'La') +
@@ -124,6 +126,17 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     BASE_NO_DISPONIBLE:
       'La base de datos se está reiniciando o no responde. Reintenta después de los segundos de Retry-After; al emitir, con la ' +
       'misma Idempotency-Key: si el documento alcanzó a emitirse recibes el mismo, y si no, se emite una sola vez.',
+    DEMO_PAUSADO: 'La demostración está en pausa por mantenimiento o por abuso. Vuelve a intentarlo más tarde (cabecera Retry-After).',
+    DEMO_NO_DISPONIBLE:
+      'Esta operación no está disponible en la demostración pública (webhooks, cambiar el emisor ficticio o crear llaves). ' +
+      'Pruébala en tu propia instalación: docs/autoalojamiento.md.',
+    DEMO_SOLO_PRUEBA: 'Este servidor de demostración solo atiende entornos de prueba creados con `POST /v1/demo/entornos`.',
+    ENTORNO_VENCIDO: 'Los entornos de prueba duran 24 horas y luego se borran con todos sus datos. Crea otro con `POST /v1/demo/entornos`.',
+    DEMO_LIMITE_ENTORNOS:
+      'Se alcanzó el límite de entornos de prueba (por dirección por día, o en todo el servicio). Usa el que ya creaste o ' +
+      'reintenta después de los segundos de Retry-After.',
+    DEMO_LIMITE_SOLICITUDES: 'Este entorno de prueba ya usó todas sus solicitudes. Crea otro entorno con `POST /v1/demo/entornos`.',
+    DEMO_LIMITE_DOCUMENTOS: 'Este entorno de prueba ya emitió todos los documentos que permite. Crea otro entorno con `POST /v1/demo/entornos`.',
     VALIDACION: 'Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta con la misma Idempotency-Key: un 422 no consume número.',
   };
 }
@@ -344,14 +357,31 @@ export function leerProxiesDeConfianza(texto: string | undefined): ProxiesDeConf
 }
 
 /**
+ * Lee `FHN_IP_CLIENTE_CABECERA`: el nombre de una cabecera que el proxy de confianza pone con la dirección del
+ * cliente (p. ej. `Fly-Client-IP`), o undefined. Sin definir, ninguna cabecera así se cree.
+ */
+export function leerCabeceraIpCliente(texto: string | undefined): string | undefined {
+  const t = (texto ?? '').trim().toLowerCase();
+  if (!t) return undefined;
+  if (!/^[a-z0-9-]{1,64}$/.test(t)) throw new Error(`FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera HTTP, p. ej. Fly-Client-IP (no "${texto}").`);
+  return t;
+}
+
+/**
  * Dirección del cliente para el límite de intentos. Por defecto, la del socket: `X-Forwarded-For` lo escribe
  * el cliente y no se cree. Sin socket (p. ej. una prueba con `app.request`), todas las solicitudes comparten
  * una cubeta.
  */
-export function ipDeSolicitud(c: SolicitudConDireccion, proxies: ProxiesDeConfianza): string {
+export function ipDeSolicitud(c: SolicitudConDireccion, proxies: ProxiesDeConfianza, cabeceraCliente?: string): string {
   type Enlace = { incoming?: { socket?: { remoteAddress?: string } } };
   const env = c.env as (Enlace & { server?: Enlace }) | undefined;
   const socket = env?.incoming?.socket?.remoteAddress ?? env?.server?.incoming?.socket?.remoteAddress;
+  // Una cabecera que pone el proxy del proveedor con la dirección del cliente (p. ej. Fly-Client-IP en Fly.io). Solo
+  // si se configuró: sin proxy delante, la escribe el cliente. Con un valor que no es una dirección, se ignora.
+  if (cabeceraCliente) {
+    const v = c.req.header(cabeceraCliente)?.trim();
+    if (v && isIP(v.replace(/^[|]$/g, '')) !== 0) return agrupar(v);
+  }
   const saltos = () => (c.req.header('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (typeof proxies === 'number') {
     if (proxies > 0) {

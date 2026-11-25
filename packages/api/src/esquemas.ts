@@ -358,7 +358,7 @@ export const Sesion = z
         'Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o ' +
         '`produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada.',
     }),
-    modo: z.enum(['local', 'alojado']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47) o `alojado`.' }),
+    modo: z.enum(['local', 'alojado', 'demo']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47), `alojado` o `demo` (la demostración pública, solo entornos de prueba).' }),
     demo: z.boolean().openapi({ description: 'true en el tenant de demostración (CAI ficticio, sin validez fiscal).' }),
     llave: z.object({
       id: z.string(),
@@ -418,3 +418,42 @@ export const RespuestaSecretoRotado = z
     secreto: z.string().openapi({ description: 'El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez.' }),
   })
   .openapi('RespuestaSecretoRotado');
+
+/** Respuesta de `POST /v1/demo/entornos` (solo con `FHN_MODO=demo`). */
+export const RespuestaEntornoDemo = z
+  .object({
+    entorno: z.object({
+      id: z.string().openapi({ description: 'Identificador del entorno (su tenant), p. ej. `demo-3f9c…`.' }),
+      creado: z.string().openapi({ description: 'Instante de creación (ISO 8601, UTC).' }),
+      expira: z.string().openapi({ description: 'Instante en que el entorno se borra con todos sus datos (ISO 8601, UTC).' }),
+      modo: z.literal('prueba'),
+      leyenda: z.string().openapi({ description: 'DOCUMENTO DE PRUEBA — SIN VALOR FISCAL: todo lo que emitas aquí la lleva.' }),
+      establecimiento: z.string().openapi({ example: '000' }),
+      puntoEmision: z.string().openapi({ example: '001' }),
+      emisor: z.object({ rtn: z.string(), razonSocial: z.string(), nombreComercial: z.string().optional() }).openapi({
+        description: 'El emisor ficticio del entorno. No se puede cambiar en la demostración.',
+      }),
+      limites: z.object({
+        documentos: z.number().int().openapi({ description: 'Documentos que puede emitir el entorno.' }),
+        solicitudesPorMinuto: z.number().int().openapi({ description: 'Solicitudes por minuto del entorno (llave y MCP juntos).' }),
+        solicitudesTotales: z.number().int().openapi({ description: 'Solicitudes en toda la vida del entorno.' }),
+        maxCuerpoBytes: z.number().int(),
+      }),
+    }),
+    llave: z.string().openapi({ description: 'Llave admin `fhn_test_…` del entorno, para `Authorization: Bearer`. Solo se muestra esta vez.' }),
+    mcp: z
+      .object({
+        url: z.string().openapi({ description: 'URL personal del MCP remoto: pégala como conector personalizado en Claude o ChatGPT, sin autenticación.' }),
+        prefijo: z.string().openapi({ description: 'Prefijo de la llave del MCP: `DELETE /v1/llaves/{prefijo}` con tu llave revoca la URL.' }),
+      })
+      .nullable()
+      .openapi({ description: 'null si este servidor no tiene MCP remoto configurado.' }),
+    api: z.object({ url: z.string() }),
+    ejemplos: z.object({
+      curl: z.string().openapi({ description: 'Emitir una factura de prueba con curl.' }),
+      sdk: z.string().openapi({ description: 'Lo mismo con el cliente `@factura-hn/cliente`.' }),
+      mcp: z.string().openapi({ description: 'Cómo agregar el MCP remoto en Claude o ChatGPT.' }),
+    }),
+    aviso: z.string(),
+  })
+  .openapi('RespuestaEntornoDemo');

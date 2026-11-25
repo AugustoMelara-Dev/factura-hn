@@ -35,10 +35,11 @@ describe('API9 · inventario de rutas y versiones', () => {
   });
 
   it('los middleware (método ALL) son exactamente los conocidos: un manejador con app.all() no se cuela sin documentar', () => {
-    // Por orden de registro: id de solicitud y cabeceras comunes (*), límite del cuerpo, autenticación y UTF-8 (/v1/*),
+    // Por orden de registro: id de solicitud y cabeceras comunes (*), CORS de la demo (/v1/demo/*), límite del cuerpo,
+    // autenticación y UTF-8 (/v1/*),
     // y los cupos de los tres reportes. Cualquier otro ALL es una ruta que atiende todos los métodos fuera de la especificación.
     expect(app.routes.filter((r) => r.method === 'ALL').map((r) => r.path)).toEqual([
-      '/*', '/*', '/v1/*', '/v1/*', '/v1/*', '/v1/libro-ventas', '/v1/exportacion', '/v1/series/:identificador/no-utilizados',
+      '/*', '/*', '/v1/demo/*', '/v1/*', '/v1/*', '/v1/*', '/v1/libro-ventas', '/v1/exportacion', '/v1/series/:identificador/no-utilizados',
     ]);
   });
 
@@ -50,14 +51,16 @@ describe('API9 · inventario de rutas y versiones', () => {
 
   it('el catálogo de las pruebas OWASP cubre todas las operaciones: una ruta nueva no queda sin probar', () => {
     const catalogo = operaciones({ emisorId: 'e', numero: '000-001-01-00000001', cai: 'c', webhookId: 'w', entregaId: 'x', prefijoCaja: 'p' });
-    expect([...catalogo.map((o) => `${o.metodo} ${o.plantilla} ${o.operationId}`), 'GET /salud obtenerSalud'].sort()).toEqual(
+    // Más las públicas: /salud y la demo (ver demo.test.ts, con sus límites, CORS y aislamiento).
+    const publicas = ['GET /salud obtenerSalud', 'POST /v1/demo/entornos crearEntornoDemo', 'OPTIONS /v1/demo/entornos preflightEntornoDemo'];
+    expect([...catalogo.map((o) => `${o.metodo} ${o.plantilla} ${o.operationId}`), ...publicas].sort()).toEqual(
       opsDe(vivo).map((o) => `${o.clave} ${o.operationId}`).sort(),
     );
   });
 
-  it('solo /salud es pública; todas las demás operaciones piden la llave y declaran 401', () => {
+  it('solo /salud y la creación de entornos de la demo son públicas; todas las demás piden la llave y declaran 401', () => {
     for (const o of opsDe(vivo)) {
-      if (o.operationId === 'obtenerSalud') {
+      if (['obtenerSalud', 'crearEntornoDemo', 'preflightEntornoDemo'].includes(o.operationId)) {
         expect(o.security).toEqual([]);
         continue;
       }

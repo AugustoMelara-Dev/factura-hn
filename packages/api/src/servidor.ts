@@ -4,7 +4,10 @@
  *   dueño de las tablas (la migración lo crea si no existe y le concede el rol de la aplicación).
  * - FHN_MIGRAR_URL: conexión del dueño de las tablas, solo para migrar y preparar el modo local al arrancar.
  *   Sin ella, la API usa DATABASE_URL también para eso y corre como dueño de las tablas (se avisa en el log).
- * - FHN_MODO: `local` (por defecto, con aviso en el log) o `alojado`
+ * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (la demostración pública: solo entornos
+ *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*, ver docs/demo.md)
+ * - FHN_IP_CLIENTE_CABECERA: cabecera con la dirección del cliente que pone el proxy de confianza (p. ej.
+ *   Fly-Client-IP en Fly.io). Sin definir, ninguna se cree.
  * - PUERTO: por defecto 8787; FHN_HOST: por defecto 0.0.0.0
  * - FHN_ROL: rol de base de datos de la aplicación (por defecto fhn_app)
  * - FHN_CLAVE_CIFRADO: 32 bytes en base64 para cifrar los secretos de webhooks (obligatoria en `alojado`)
@@ -20,14 +23,18 @@
 import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
-import { leerProxiesDeConfianza } from './errores';
+import { leerConfigDemo } from './demo';
+import { leerCabeceraIpCliente, leerProxiesDeConfianza } from './errores';
 import { exigirEsquemaApi, mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
 import {
   bloqueLlavesDemo,
   comandoLlaveAdminLocal,
   comandoLlaveDemo,
   consolaDe,
+  datosRealesEnBase,
+  errorDatosRealesEnDemo,
   errorTenantsAjenos,
+  purgarEntornosDemo,
   iniciarLocal,
   tenantsAjenosAlModoLocal,
 } from './operador';
@@ -74,8 +81,22 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   if (!url) throw new Error('Falta DATABASE_URL.');
   // Falla cerrado: un valor mal escrito no debe arrancar en modo local (webhooks a la red interna).
   const modoTexto = env.FHN_MODO ?? 'local';
-  if (modoTexto !== 'local' && modoTexto !== 'alojado') throw new Error(`FHN_MODO debe ser "local" o "alojado" (no "${modoTexto}").`);
+  if (modoTexto !== 'local' && modoTexto !== 'alojado' && modoTexto !== 'demo') {
+    throw new Error(`FHN_MODO debe ser "local", "alojado" o "demo" (no "${modoTexto}").`);
+  }
   const modo = modoTexto;
+  // La demostración pública: la base debe ser solo suya y los límites por dirección deben ver la del cliente.
+  const configDemo = modo === 'demo' ? leerConfigDemo(env) : undefined;
+  if (modo === 'demo') {
+    if (env.FHN_DEMO === '1') throw new Error('FHN_DEMO=1 es la demostración del modo local; con FHN_MODO=demo no se usa. Quítala.');
+    if (env.FHN_PROXIES_DE_CONFIANZA === undefined && env.FHN_IP_CLIENTE_CABECERA === undefined) {
+      throw new Error(
+        'FHN_MODO=demo necesita saber la dirección de cada visitante para sus límites: define FHN_PROXIES_DE_CONFIANZA ' +
+          '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. Fly-Client-IP en Fly.io). Ver docs/demo.md.',
+      );
+    }
+  }
+  const cabeceraIpCliente = leerCabeceraIpCliente(env.FHN_IP_CLIENTE_CABECERA);
   const rol = env.FHN_ROL ?? ROL_POR_DEFECTO;
   if (modo === 'alojado' && !env.FHN_CLAVE_CIFRADO) throw new Error('El modo alojado requiere FHN_CLAVE_CIFRADO (32 bytes en base64).');
   const retencionTexto = env.FHN_RETENCION_DIAS ?? String(RETENCION_POR_DEFECTO);
@@ -124,6 +145,10 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   try {
     await esperarBase(poolDueno);
     await migrarApi(poolDueno, rol, { login });
+    if (modo === 'demo') {
+      const reales = await datosRealesEnBase(poolDueno);
+      if (reales.length) throw new Error(errorDatosRealesEnDemo(reales));
+    }
     if (modo === 'local') {
       const ajenos = await tenantsAjenosAlModoLocal(poolDueno);
       if (ajenos.length) throw new Error(errorTenantsAjenos(ajenos));
@@ -180,7 +205,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     mantenimientoApi(poolApi, rol, retencion).catch((e) => console.error('Mantenimiento de retención', e));
   await mantener();
 
-  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza, hayDemo, soloTenantsLocales: modo === 'local' });
+  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza, cabeceraIpCliente, hayDemo, soloTenantsLocales: modo === 'local', demo: configDemo });
   const puerto = Number(env.PUERTO ?? 8787);
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);
@@ -188,16 +213,35 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   // Cada 5 s, sin esperar a la pasada anterior: los tenants que siguen entregando se omiten (enCurso), así que
   // un receptor lento solo retrasa los avisos de su propio tenant.
   const enCurso = new Set<string>();
-  const intervalo = setInterval(() => {
+  // En modo demo no hay webhooks (la ruta se niega): no hay nada que despachar.
+  const intervalo = modo === 'demo' ? undefined : setInterval(() => {
     despacharWebhooks({ pool: poolApi, rol, cofre, permitirRedInterna: modo === 'local', enCurso }).catch((e) => console.error('Despacho de webhooks', e));
   }, 5000);
   const intervaloMantenimiento = setInterval(() => void mantener(), UNA_HORA);
+  // Modo demo: cada minuto se borran los entornos vencidos con todos sus datos. La consola tiene el mismo paso
+  // («demo limpiar») para una tarea programada aparte.
+  let purgando = false;
+  const purgar = async () => {
+    if (purgando) return;
+    purgando = true;
+    try {
+      const n = await purgarEntornosDemo(poolApi, { rol });
+      if (n) console.log(`factura-hn demo: ${n} entorno${n === 1 ? '' : 's'} vencido${n === 1 ? '' : 's'} borrado${n === 1 ? '' : 's'}.`);
+    } catch (e) {
+      console.error('Limpieza de entornos de demostración', e);
+    } finally {
+      purgando = false;
+    }
+  };
+  if (modo === 'demo') await purgar();
+  const intervaloDemo = modo === 'demo' ? setInterval(() => void purgar(), 60_000) : undefined;
 
   return {
     app,
     async cerrar() {
       clearInterval(intervalo);
       clearInterval(intervaloMantenimiento);
+      clearInterval(intervaloDemo);
       await new Promise<void>((r) => servidor.close(() => r()));
       await poolApi.end();
     },
