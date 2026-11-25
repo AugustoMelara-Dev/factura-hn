@@ -11,8 +11,13 @@ Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo con el MCP Inspe
   `Authorization: Bearer <llave>`. No guarda datos ni credenciales.
 - Cada sesión queda atada a su llave (otra llave recibe 404), vence a los 15 minutos sin uso y se reanuda con
   `Last-Event-ID`; los flujos SSE llevan un latido cada 15 segundos.
-- Límites por dirección, por llave, de sesiones y de cuerpo, con 429 y `Retry-After`; `Origin` solo de los
-  clientes conocidos (`FHN_MCP_ORIGENES`); nunca un 500 por una solicitud mal formada.
+- Límites por dirección, por llave, de cuerpo y de llaves rechazadas, con 429 y `Retry-After`; sesiones con cupo por
+  llave, por tenant y por dirección (al pasarse se cierra la más vieja de ese mismo visitante); eventos para
+  reconexión acotados por sesión y en todo el proceso; un mensaje JSON-RPC por solicitud (un arreglo recibe 400);
+  `Origin` solo de los clientes conocidos (`FHN_MCP_ORIGENES`); nunca un 500 por una solicitud mal formada.
+- Manda a la API la dirección del cliente en `X-Forwarded-For`, para que los intentos con llaves no válidas
+  cuenten por visitante.
 - Un resultado de una herramienta de más de 64 KB (`FHN_MCP_MAX_RESULTADO`) se recorta con un aviso; nueva opción
   `maxResultado` de `crearServidorMCP`.
-- Nuevas exportaciones: `servirMcpHttp`, `crearManejadorMcpHttp`, `opcionesMcpHttpDesdeEntorno`, `llaveDeTokenMcp`.
+- Nuevas exportaciones: `servirMcpHttp`, `crearManejadorMcpHttp`, `opcionesMcpHttpDesdeEntorno`, `direccionDelCliente`,
+  `ipDelCliente`, `llaveDeTokenMcp`.

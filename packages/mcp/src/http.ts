@@ -45,6 +45,17 @@ export interface OpcionesMcpHttp {
   maxSesiones?: number;
   /** Sesiones abiertas a la vez por llave; la más vieja se cierra al abrir otra. Por defecto 3. */
   sesionesPorLlave?: number;
+  /**
+   * Sesiones abiertas a la vez por tenant (un entorno, con todas sus llaves) y por dirección del cliente; al pasar
+   * el cupo se cierra la más vieja de ese tenant o de esa dirección, nunca la de otro. Por defecto 3 y 6.
+   */
+  sesionesPorTenant?: number;
+  sesionesPorIp?: number;
+  /** Llaves o tokens que la API rechazó, por minuto por dirección; más allá, 429 sin preguntarle. Por defecto 10. */
+  rechazosPorMinutoIp?: number;
+  /** Bytes de eventos guardados para reconexión: por sesión y en todo el proceso. Por defecto 1 MiB y 64 MiB. */
+  maxBytesEventosSesion?: number;
+  maxBytesEventos?: number;
   /** Una sesión sin solicitudes durante este tiempo se cierra. Por defecto 15 minutos. */
   sesionInactivaMs?: number;
   /** Solicitudes por minuto por dirección y por llave. Por defecto 60 y 60. */
@@ -79,17 +90,59 @@ class Cubetas {
     }
     return Math.max(1, Math.ceil(((1 - b.fichas) * 60) / this.porMinuto));
   }
+  /** Como `tomar`, sin gastar ficha. */
+  espera(clave: string): number {
+    const b = this.c.get(clave);
+    if (!b) return 0;
+    const fichas = Math.min(this.porMinuto, b.fichas + ((Date.now() - b.t) / 60_000) * this.porMinuto);
+    return fichas >= 1 ? 0 : Math.max(1, Math.ceil(((1 - fichas) * 60) / this.porMinuto));
+  }
 }
 
-/** Eventos de cada sesión, para que un cliente que se reconecta (`Last-Event-ID`) reciba lo que se perdió. Acotado. */
-class EventosEnMemoria implements EventStore {
-  private readonly eventos: Array<{ id: string; stream: string; mensaje: JSONRPCMessage }> = [];
-  constructor(private readonly maximo = 200) {}
+/** Bytes de eventos guardados entre todas las sesiones del proceso. */
+interface PresupuestoEventos {
+  usados: number;
+  readonly maximo: number;
+}
+
+/**
+ * Eventos de cada sesión, para que un cliente que se reconecta (`Last-Event-ID`) reciba lo que se perdió. Acotado
+ * por cantidad y por bytes en la sesión, y por bytes en todo el proceso: al pasar un tope se descartan los más
+ * viejos (un cliente que se reconecta tarde no los recibe y, si hace falta, repite la solicitud).
+ */
+export class EventosEnMemoria implements EventStore {
+  private readonly eventos: Array<{ id: string; stream: string; mensaje: JSONRPCMessage; bytes: number }> = [];
+  private bytes = 0;
+  constructor(
+    private readonly global: PresupuestoEventos,
+    private readonly maximo = 200,
+    private readonly maxBytes = 1024 * 1024,
+  ) {}
+  private descartarViejo(): boolean {
+    const e = this.eventos.shift();
+    if (!e) return false;
+    this.bytes -= e.bytes;
+    this.global.usados -= e.bytes;
+    return true;
+  }
   async storeEvent(stream: string, mensaje: JSONRPCMessage): Promise<string> {
     const id = `${stream}_${Date.now().toString(36)}_${randomUUID().slice(0, 8)}`;
-    this.eventos.push({ id, stream, mensaje });
-    if (this.eventos.length > this.maximo) this.eventos.shift();
+    const bytes = JSON.stringify(mensaje).length;
+    // Un evento que no cabe ni solo no se guarda: el cliente lo recibe igual; solo no se puede repetir.
+    if (bytes > this.maxBytes || bytes > this.global.maximo) return id;
+    while (this.eventos.length >= this.maximo || this.bytes + bytes > this.maxBytes) this.descartarViejo();
+    while (this.global.usados + bytes > this.global.maximo) if (!this.descartarViejo()) return id;
+    this.eventos.push({ id, stream, mensaje, bytes });
+    this.bytes += bytes;
+    this.global.usados += bytes;
     return id;
+  }
+  /** Devuelve al presupuesto global lo que ocupaba esta sesión (al cerrarla). */
+  liberar(): void {
+    while (this.descartarViejo());
+  }
+  get ocupados(): number {
+    return this.bytes;
   }
   async getStreamIdForEventId(id: string): Promise<string | undefined> {
     return this.eventos.find((e) => e.id === id)?.stream;
@@ -105,8 +158,12 @@ class EventosEnMemoria implements EventStore {
 
 interface Sesion {
   transporte: StreamableHTTPServerTransport;
+  eventos: EventosEnMemoria;
   /** Huella de la llave con que se abrió: una solicitud con otra llave no entra a esta sesión. */
   huella: string;
+  /** Tenant de la llave (de `GET /v1/sesion`) y dirección del cliente: cada uno tiene su cupo de sesiones. */
+  tenant: string;
+  ip: string;
   ultimoUso: number;
 }
 
@@ -146,9 +203,11 @@ async function leerCuerpo(req: IncomingMessage, max: number): Promise<string> {
 }
 
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+/** Una dirección sin corchetes, en minúsculas y, la IPv4 mapeada en IPv6, como IPv4. */
+const normalizar = (ip: string) => ip.trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/^::ffff:(?=\d)/, '');
 /** IPv6 por su /64; IPv4 tal cual. */
 function agrupar(ip: string): string {
-  const v = ip.trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/^::ffff:(?=\d)/, '');
+  const v = normalizar(ip);
   if (IPV4.test(v) || !v.includes(':')) return v;
   const [izq = '', der = ''] = v.split('::');
   const a = izq ? izq.split(':') : [];
@@ -157,22 +216,54 @@ function agrupar(ip: string): string {
   return `${grupos.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, '')).join(':')}::/64`;
 }
 
-/** La dirección del cliente, con las mismas reglas que la API (ver `OpcionesMcpHttp.proxiesDeConfianza`). */
-export function ipDelCliente(req: IncomingMessage, proxies: number | readonly string[] = 0, cabecera?: string): string {
-  const socket = req.socket.remoteAddress ?? 'desconocida';
+/**
+ * La dirección del cliente (sin agrupar), con las mismas reglas que la API (ver `OpcionesMcpHttp.proxiesDeConfianza`).
+ * Es la que se manda a la API en `X-Forwarded-For`.
+ */
+export function direccionDelCliente(req: IncomingMessage, proxies: number | readonly string[] = 0, cabecera?: string): string {
+  const socket = normalizar(req.socket.remoteAddress ?? 'desconocida');
+  const valida = (t: string | undefined) => (t && isIP(normalizar(t)) !== 0 ? normalizar(t) : undefined);
   if (cabecera) {
     const v = req.headers[cabecera.toLowerCase()];
-    const t = (Array.isArray(v) ? v[0] : v)?.trim();
-    if (t && isIP(t.replace(/^\[|\]$/g, '')) !== 0) return agrupar(t);
+    const t = valida((Array.isArray(v) ? v[0] : v)?.trim());
+    if (t) return t;
   }
   const xff = String(req.headers['x-forwarded-for'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   if (typeof proxies === 'number') {
-    if (proxies > 0 && xff.length >= proxies) return agrupar(xff[xff.length - proxies]!);
-  } else if (proxies.length && proxies.map((p) => agrupar(p)).includes(agrupar(socket))) {
-    const confiables = new Set(proxies.map((p) => agrupar(p)));
-    for (let i = xff.length - 1; i >= 0; i--) if (!confiables.has(agrupar(xff[i]!))) return agrupar(xff[i]!);
+    const t = proxies > 0 && xff.length >= proxies ? valida(xff[xff.length - proxies]) : undefined;
+    if (t) return t;
+  } else if (proxies.length) {
+    // Cada proxy por su dirección exacta (no por su /64): otra máquina de la misma red no hereda la confianza.
+    const confiables = new Set(proxies.map(normalizar));
+    if (confiables.has(socket)) {
+      for (let i = xff.length - 1; i >= 0; i--) {
+        if (confiables.has(normalizar(xff[i]!))) continue;
+        const t = valida(xff[i]);
+        if (t) return t;
+        break;
+      }
+    }
   }
-  return agrupar(socket);
+  return socket;
+}
+
+/** La cubeta de la dirección del cliente para los límites: IPv4 tal cual, IPv6 por su /64. */
+export function ipDelCliente(req: IncomingMessage, proxies: number | readonly string[] = 0, cabecera?: string): string {
+  return agrupar(direccionDelCliente(req, proxies, cabecera));
+}
+
+/**
+ * fetch hacia la API con la dirección del cliente en `X-Forwarded-For`: así la API cuenta los intentos con llaves no
+ * válidas de cada visitante por separado y no los de todos juntos (todos llegan desde este proceso). La API la cree
+ * solo si tiene a este proceso en `FHN_PROXIES_DE_CONFIANZA`.
+ */
+function fetchConCliente(base: typeof fetch, direccion: string): typeof fetch {
+  return (async (entrada: RequestInfo | URL, init?: RequestInit) => {
+    const solicitud = new Request(entrada, init);
+    const cabeceras = new Headers(solicitud.headers);
+    cabeceras.set('x-forwarded-for', direccion);
+    return base(new Request(solicitud, { headers: cabeceras }));
+  }) as typeof fetch;
 }
 
 export interface ManejadorMcpHttp {
@@ -193,6 +284,12 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
   const maxCuerpo = o.maxCuerpo ?? 64 * 1024;
   const porIp = new Cubetas(o.solicitudesPorMinutoIp ?? 60);
   const porLlaveMinuto = new Cubetas(o.solicitudesPorMinutoLlave ?? 60);
+  const porTenant = o.sesionesPorTenant ?? 3;
+  const porIpSesiones = o.sesionesPorIp ?? 6;
+  const rechazos = new Cubetas(o.rechazosPorMinutoIp ?? 10);
+  const presupuesto: PresupuestoEventos = { usados: 0, maximo: o.maxBytesEventos ?? 64 * 1024 * 1024 };
+  const maxBytesSesion = o.maxBytesEventosSesion ?? 1024 * 1024;
+  const fetchApi = o.fetch ?? fetch;
   const registrar = o.registrar ?? ((m: string, e?: unknown) => console.error(m, e ?? ''));
   const sesiones = new Map<string, Sesion>();
 
@@ -200,7 +297,13 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     const s = sesiones.get(id);
     if (!s) return;
     sesiones.delete(id);
+    s.eventos.liberar();
     await s.transporte.close().catch(() => undefined);
+  };
+  /** Cierra las más viejas de las sesiones que cumplen `es` hasta dejar `cupo - 1` (lugar para la nueva). */
+  const hacerLugar = async (es: (s: Sesion) => boolean, cupo: number) => {
+    const de = [...sesiones.entries()].filter(([, s]) => es(s)).sort((a, b) => a[1].ultimoUso - b[1].ultimoUso);
+    for (const [id] of de.slice(0, Math.max(0, de.length - cupo + 1))) await cerrarSesion(id);
   };
   const barrido = setInterval(() => {
     const limite = Date.now() - inactiva;
@@ -233,12 +336,18 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     return llave;
   }
 
-  /** Comprueba la llave contra la API antes de abrir una sesión: así el conector falla al agregarlo, no después. */
-  async function validarLlave(llave: string): Promise<void> {
+  /**
+   * Comprueba la llave contra la API antes de abrir una sesión (así el conector falla al agregarlo, no después) y
+   * devuelve su tenant. Una dirección que ya mandó muchas llaves rechazadas recibe 429 sin preguntarle a la API.
+   */
+  async function validarLlave(llave: string, ip: string, direccion: string): Promise<string> {
+    const espera = rechazos.espera(ip);
+    if (espera) throw new ErrorHttp(429, 'Demasiadas llaves o URL del MCP no válidas desde tu dirección. Espera y reintenta.', -32000, { 'retry-after': String(espera) });
     try {
-      await crearCliente({ url: urlApi, llave, fetch: o.fetch }).sesion();
+      return (await crearCliente({ url: urlApi, llave, fetch: fetchConCliente(fetchApi, direccion) }).sesion()).tenant;
     } catch (e) {
       if (e instanceof ErrorFacturaHN && (e.estado === 401 || e.estado === 403)) {
+        rechazos.tomar(ip);
         throw new ErrorHttp(401, `La API no acepta esta llave o esta URL del MCP (${e.codigo}): ${e.message}`);
       }
       if (e instanceof ErrorFacturaHN && (e.estado === 429 || e.estado === 503)) {
@@ -248,28 +357,35 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     }
   }
 
-  async function nuevaSesion(llave: string, huella: string): Promise<StreamableHTTPServerTransport> {
-    // A lo sumo `porLlave` sesiones por llave: la más vieja se cierra (los clientes reabren sesión seguido).
-    const deLaLlave = [...sesiones.entries()].filter(([, s]) => s.huella === huella).sort((a, b) => a[1].ultimoUso - b[1].ultimoUso);
-    for (const [id] of deLaLlave.slice(0, Math.max(0, deLaLlave.length - porLlave + 1))) await cerrarSesion(id);
+  async function nuevaSesion(llave: string, huella: string, tenant: string, ip: string, direccion: string): Promise<StreamableHTTPServerTransport> {
+    // Cupos por llave, por tenant y por dirección: al pasarse, se cierra la sesión más vieja de esa misma llave,
+    // tenant o dirección (los clientes reabren sesión seguido). Así un visitante no llena el cupo global de todos.
+    await hacerLugar((s) => s.huella === huella, porLlave);
+    await hacerLugar((s) => s.tenant === tenant, porTenant);
+    await hacerLugar((s) => s.ip === ip, porIpSesiones);
     if (sesiones.size >= maxSesiones) {
       throw new ErrorHttp(503, 'El servidor MCP tiene demasiadas sesiones abiertas. Reintenta en unos minutos.', -32000, { 'retry-after': '60' });
     }
-    const backend = new BackendApi({ url: urlApi, llave, establecimiento: o.establecimiento ?? '000', puntoEmision: o.puntoEmision ?? '001', fetch: o.fetch });
+    const backend = new BackendApi({
+      url: urlApi, llave, establecimiento: o.establecimiento ?? '000', puntoEmision: o.puntoEmision ?? '001', fetch: fetchConCliente(fetchApi, direccion),
+    });
     const servidor = crearServidorMCP(backend, { maxResultado: o.maxResultado ?? 64 * 1024 });
+    const eventos = new EventosEnMemoria(presupuesto, 200, maxBytesSesion);
     const transporte: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
-      eventStore: new EventosEnMemoria(),
+      eventStore: eventos,
       maxRequestBodySize: maxCuerpo,
       onsessioninitialized: (id) => {
-        sesiones.set(id, { transporte, huella, ultimoUso: Date.now() });
+        sesiones.set(id, { transporte, eventos, huella, tenant, ip, ultimoUso: Date.now() });
       },
       onsessionclosed: (id) => {
         sesiones.delete(id);
+        eventos.liberar();
       },
     });
     transporte.onclose = () => {
       if (transporte.sessionId) sesiones.delete(transporte.sessionId);
+      eventos.liberar();
     };
     await servidor.connect(transporte);
     return transporte;
@@ -279,11 +395,13 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     const ruta = new URL(req.url ?? '/', 'http://localhost').pathname;
     if (ruta === '/salud' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, version: versionPaquete() ?? '0.0.0', sesiones: sesiones.size }));
+      res.end(JSON.stringify({ ok: true, version: versionPaquete() ?? '0.0.0' }));
       return;
     }
     if (ruta !== '/mcp' && !ruta.startsWith('/mcp/')) throw new ErrorHttp(404, 'Ruta no encontrada.');
-    const espera = porIp.tomar(ipDelCliente(req, o.proxiesDeConfianza, o.cabeceraIpCliente));
+    const direccion = direccionDelCliente(req, o.proxiesDeConfianza, o.cabeceraIpCliente);
+    const ip = agrupar(direccion);
+    const espera = porIp.tomar(ip);
     if (espera) throw new ErrorHttp(429, 'Demasiadas solicitudes desde tu dirección. Espera y reintenta.', -32000, { 'retry-after': String(espera) });
     // Protección contra DNS rebinding: un navegador manda Origin; solo los orígenes conocidos.
     const origen = req.headers.origin;
@@ -306,6 +424,11 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       } catch {
         throw new ErrorHttp(400, 'El cuerpo no es JSON válido.', -32700);
       }
+      // Varios mensajes en un arreglo multiplicarían una solicitud (y su respuesta) sin pasar por los límites; la
+      // versión 2025-06-18 del protocolo ya no los admite.
+      if (Array.isArray(cuerpo)) {
+        throw new ErrorHttp(400, 'Manda un mensaje JSON-RPC por solicitud: este servidor no acepta varios en un arreglo.', -32600);
+      }
     }
 
     if (typeof idSesion === 'string' && idSesion) {
@@ -316,11 +439,11 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       await s.transporte.handleRequest(req, res, cuerpo);
       return;
     }
-    if (req.method !== 'POST' || !(Array.isArray(cuerpo) ? cuerpo.some(isInitializeRequest) : isInitializeRequest(cuerpo))) {
+    if (req.method !== 'POST' || !isInitializeRequest(cuerpo)) {
       throw new ErrorHttp(400, 'Falta la cabecera Mcp-Session-Id: inicia la sesión con initialize.');
     }
-    await validarLlave(llave);
-    const transporte = await nuevaSesion(llave, huella);
+    const tenant = await validarLlave(llave, ip, direccion);
+    const transporte = await nuevaSesion(llave, huella, tenant, ip, direccion);
     await transporte.handleRequest(req, res, cuerpo);
   }
 
@@ -348,9 +471,10 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
 export async function servirMcpHttp(o: OpcionesMcpHttp & { puerto?: number; host?: string }): Promise<{ url: string; servidor: Server; cerrar: () => Promise<void> }> {
   const m = crearManejadorMcpHttp(o);
   const servidor = createServer((req, res) => void m.manejar(req, res));
-  // Un cliente lento no retiene la conexión para siempre; los flujos SSE llevan su propio latido (cada 15 s).
-  servidor.headersTimeout = 30_000;
-  servidor.requestTimeout = 0;
+  // Un cliente lento no retiene la conexión: las cabeceras y el cuerpo deben llegar en 30 s. No corta las respuestas
+  // largas (los flujos SSE, que llevan su propio latido cada 15 s), solo la recepción de la solicitud.
+  servidor.headersTimeout = 20_000;
+  servidor.requestTimeout = 30_000;
   await new Promise<void>((r) => servidor.listen(o.puerto ?? 8788, o.host ?? '0.0.0.0', r));
   const dir = servidor.address();
   const puerto = typeof dir === 'object' && dir ? dir.port : o.puerto;
@@ -400,6 +524,11 @@ export function opcionesMcpHttpDesdeEntorno(env: NodeJS.ProcessEnv): OpcionesMcp
     origenes,
     maxSesiones: entero('FHN_MCP_MAX_SESIONES', 100, 1, 100_000),
     sesionesPorLlave: entero('FHN_MCP_SESIONES_POR_LLAVE', 3, 1, 100),
+    sesionesPorTenant: entero('FHN_MCP_SESIONES_POR_TENANT', 3, 1, 100),
+    sesionesPorIp: entero('FHN_MCP_SESIONES_POR_IP', 6, 1, 1000),
+    rechazosPorMinutoIp: entero('FHN_MCP_RECHAZOS_POR_MINUTO_IP', 10, 1, 10_000),
+    maxBytesEventosSesion: entero('FHN_MCP_MAX_BYTES_EVENTOS_SESION', 1024 * 1024, 64 * 1024, 64 * 1024 * 1024),
+    maxBytesEventos: entero('FHN_MCP_MAX_BYTES_EVENTOS', 64 * 1024 * 1024, 1024 * 1024, 1024 * 1024 * 1024),
     sesionInactivaMs: entero('FHN_MCP_SESION_INACTIVA_MIN', 15, 1, 24 * 60) * 60_000,
     solicitudesPorMinutoIp: entero('FHN_MCP_SOLICITUDES_POR_MINUTO_IP', 60, 1, 100_000),
     solicitudesPorMinutoLlave: entero('FHN_MCP_SOLICITUDES_POR_MINUTO', 60, 1, 100_000),

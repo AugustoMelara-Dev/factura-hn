@@ -295,33 +295,48 @@ async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promis
 
 // --- Modo demo (FHN_MODO=demo) -----------------------------------------------------------------------------------
 
+/** Tablas con columna `tenant`: la revisión del modo demo las mira todas. */
+const TABLAS_CON_TENANT = [
+  'api_tenants', 'api_llaves', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_entregas', 'api_uso', 'api_bitacora',
+  'fhn_documentos', 'fhn_autorizaciones', 'fhn_series', 'fhn_eventos',
+] as const;
+
 /**
  * Por qué una base no sirve para el modo demo, o `[]`. La demostración pública no debe compartir base con datos
- * reales: cualquier tenant de producción (también el «local») o autorización con un CAI real la descarta. Corre con
- * el dueño de las tablas; como `api_tenants` fuerza RLS también al dueño, cada candidato se revisa con su tenant fijado.
+ * reales, y la revisión falla cerrada: cualquier tenant con filas en cualquier tabla (aunque no tenga llaves) que no
+ * sea un entorno de la demostración, cualquier tenant de producción y cualquier CAI real (en autorizaciones o en
+ * documentos) la descartan. Corre con el dueño de las tablas. Como varias tablas fuerzan RLS también a su dueño, en
+ * una transacción que se revierte al final quita ese forzado para ver todas las filas (si el rol no salta RLS ya).
  */
 export async function datosRealesEnBase(pool: pg.Pool): Promise<string[]> {
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
-    const candidatos = (await c.query<{ tenant: string }>(
-      `SELECT tenant FROM api_llaves UNION SELECT tenant FROM api_demo_entornos UNION SELECT unnest($1::text[]) ORDER BY 1`,
-      [[TENANT_LOCAL, TENANT_DEMO]],
-    )).rows.map((f) => f.tenant);
-    const motivos: string[] = [];
-    for (const tenant of candidatos) {
-      await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
-      const f = (await c.query<{ modo: string | null; reales: boolean }>(
-        `SELECT (SELECT modo FROM api_tenants WHERE tenant = $1) AS modo,
-                EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND NOT starts_with(upper(btrim(cai)), 'DEMO00-NO-VALIDO-')) AS reales`,
-        [tenant],
-      )).rows[0]!;
-      if (f.modo === 'produccion') motivos.push(`el tenant «${tenant}» es de producción`);
-      else if (f.reales) motivos.push(`el tenant «${tenant}» tiene autorizaciones con un CAI real`);
-      if (motivos.length >= 5) break;
+    const yo = (await c.query<{ salta: boolean }>('SELECT rolsuper OR rolbypassrls AS salta FROM pg_roles WHERE rolname = current_user')).rows[0];
+    if (!yo?.salta) {
+      for (const t of [...TABLAS_CON_TENANT, 'api_demo_entornos']) await c.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
     }
-    await c.query('COMMIT');
-    return motivos;
+    const union = TABLAS_CON_TENANT.map((t) => `SELECT tenant FROM ${t}`).join(' UNION ');
+    const f = (await c.query<{ tenant: string; motivo: string }>(
+      `WITH todos AS (${union}),
+            reales AS (
+              SELECT tenant FROM fhn_autorizaciones WHERE NOT starts_with(upper(btrim(cai)), 'DEMO00-NO-VALIDO-')
+              UNION SELECT tenant FROM fhn_documentos WHERE NOT starts_with(upper(btrim(coalesce(datos->>'cai', ''))), 'DEMO00-NO-VALIDO-'))
+       SELECT t.tenant,
+              CASE WHEN (SELECT modo FROM api_tenants a WHERE a.tenant = t.tenant) = 'produccion' THEN 'produccion'
+                   WHEN t.tenant IN (SELECT tenant FROM reales) THEN 'cai_real'
+                   ELSE 'ajeno' END AS motivo
+         FROM todos t
+        WHERE t.tenant IN (SELECT tenant FROM reales)
+           OR t.tenant NOT IN (SELECT e.tenant FROM api_demo_entornos e)
+           OR (SELECT modo FROM api_tenants a WHERE a.tenant = t.tenant) IS DISTINCT FROM 'prueba'
+        ORDER BY t.tenant LIMIT 5`,
+    )).rows;
+    await c.query('ROLLBACK');
+    return f.map(({ tenant, motivo }) =>
+      motivo === 'produccion' ? `el tenant «${tenant}» es de producción`
+        : motivo === 'cai_real' ? `el tenant «${tenant}» tiene un CAI real`
+          : `el tenant «${tenant}» no es un entorno de la demostración`);
   } catch (e) {
     await c.query('ROLLBACK').catch(() => undefined);
     throw e;

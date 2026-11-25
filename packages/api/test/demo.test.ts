@@ -1,12 +1,13 @@
 /**
  * Modo demo (`FHN_MODO=demo`): entornos de prueba por visitante con `POST /v1/demo/entornos`, aislados entre sí,
  * que vencen y se borran; límites con 429 y `Retry-After`; interruptor global; CAI real imposible; CORS. Requiere
- * FHN_PG_URL. Las pruebas usan un reloj inyectado lejos en el futuro: así no cuentan los entornos de otras pruebas.
+ * FHN_PG_URL. Las pruebas usan un reloj inyectado en un año pasado distinto para cada app (entre 1100 y 1900): así no
+ * cuentan los entornos de otras pruebas, y la limpieza (que nunca va más allá del reloj de la base) puede borrarlos.
  */
 import { randomBytes } from 'node:crypto';
 import fc from 'fast-check';
 import pg from 'pg';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { crearApp } from '../src/app';
 import { configDemo, leerConfigDemo, type ConfigDemo } from '../src/demo';
 import { ejecutarConsola } from '../src/consola';
@@ -24,7 +25,7 @@ const json = async (r: Response) => (await r.json()) as any;
 const HORA = 3_600_000;
 
 /** Un año distinto por app: los cupos globales solo ven los entornos de su propio año. */
-let anio = 2200 + Math.floor(Math.random() * 7000);
+let anio = 1100 + Math.floor(Math.random() * 700);
 function appDemo(cambios: Partial<ConfigDemo> = {}, o: { reloj?: { t: number } } = {}) {
   const reloj = o.reloj ?? { t: Date.UTC(anio++, 0, 15, 15) };
   return poolPrueba().then((pool) => {
@@ -269,6 +270,55 @@ conBase('modo demo', () => {
     expect(Number(r!.headers.get('retry-after'))).toBeGreaterThan(0);
   });
 
+  it('un entorno que se pasa de sus límites no gasta el cupo global: los demás siguen atendidos', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() });
+    try {
+      const { app } = await appDemo({ solicitudesPorMinuto: 30, solicitudesPorMinutoGlobal: 300, solicitudesPorEntorno: 100_000 });
+      const a = await json(await crear(app));
+      const b = await json(await crear(app));
+      // Las dos llaves admin del entorno A (la del visitante y la del MCP), alternadas.
+      const llavesA = [a.llave, llaveDeTokenMcp(String(a.mcp.url).split('/').pop()!)!];
+      let negadas = 0;
+      for (let i = 0; i < 400; i++) if ((await cliente(app, llavesA[i % 2])('GET', '/v1/sesion')).status === 429) negadas++;
+      expect(negadas).toBeGreaterThanOrEqual(400 - 30);
+      expect((await cliente(app, b.llave)('GET', '/v1/sesion')).status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('los intentos de direcciones sin cupo no gastan el cupo global por minuto de entornos nuevos', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() });
+    try {
+      const { app } = await appDemo({ entornosPorIp: 1, creacionesPorMinuto: 10 });
+      const ips = ['198.51.100.31', '198.51.100.32', '198.51.100.33', '198.51.100.34'];
+      for (const ip of ips) expect((await crear(app, ip)).status).toBe(201);
+      for (let i = 0; i < 12; i++) expect((await crear(app, ips[i % 4])).status).toBe(429);
+      expect((await crear(app, '198.51.100.35')).status).toBe(201);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('una página de otro sitio no crea entornos (403 ORIGEN_NO_PERMITIDO); sin Origin, como curl, sí', async () => {
+    const { app } = await appDemo({ origenes: ['https://sitio.ejemplo.example'] });
+    const ajeno = await crear(app, undefined, { origin: 'https://otro.ejemplo.example' });
+    expect(ajeno.status).toBe(403);
+    expect(ajeno.headers.get('access-control-allow-origin')).toBeNull();
+    expect(ajeno.headers.get('facturahn-modo')).toBe('prueba');
+    expect((await json(ajeno)).error).toMatchObject({ codigo: 'ORIGEN_NO_PERMITIDO', mensaje: expect.any(String) });
+    const sinOrigen = await crear(app);
+    expect(sinOrigen.status).toBe(201);
+    expect(sinOrigen.headers.get('facturahn-modo')).toBe('prueba');
+  });
+
+  it('la limpieza nunca va más allá del reloj de la base: un entorno vigente no vence antes', async () => {
+    const { app, pool } = await appDemo({}, { reloj: { t: Date.now() } });
+    const e = await json(await crear(app));
+    await purgarEntornosDemo(pool, { rol: ROL, ahora: new Date(Date.UTC(9999, 0, 1)) });
+    expect((await cliente(app, e.llave)('GET', '/v1/sesion')).status).toBe(200);
+  });
+
   it('cuerpo acotado: 413', async () => {
     const { app } = await appDemo({ maxCuerpo: 2048 });
     const e = await json(await crear(app));
@@ -334,6 +384,11 @@ conBase('modo demo', () => {
     const sin = crearApp({ pool, modo: 'demo', rol: ROL, demo: configDemo({ entornosPorIp: 1, maxEntornos: 1000, creacionesPorMinuto: 1000 }), reloj: () => new Date(reloj), registrar: () => undefined });
     expect((await crear(sin, '10.0.0.2', { 'fly-client-ip': '203.0.113.60' })).status).toBe(201);
     expect((await crear(sin, '10.0.0.2', { 'fly-client-ip': '203.0.113.61' })).status).toBe(429);
+    // IPv6 entre corchetes en la cabecera: se reconoce y cuenta por su /64.
+    const relojV6 = Date.UTC(anio++, 0, 1);
+    const v6 = crearApp({ pool, modo: 'demo', rol: ROL, demo, reloj: () => new Date(relojV6), cabeceraIpCliente: 'fly-client-ip', registrar: () => undefined });
+    expect((await crear(v6, '10.0.0.3', { 'fly-client-ip': '[2001:db8:5:6::1]' })).status).toBe(201);
+    expect((await crear(v6, '10.0.0.4', { 'fly-client-ip': '2001:db8:5:6::2' })).status).toBe(429);
   });
 
   it('fuera del modo demo la ruta no existe', async () => {
@@ -400,6 +455,7 @@ conBase('arranque en modo demo', () => {
     const b = await baseAparte();
     try {
       await expect(arrancar({ ...ENV, FHN_PROXIES_DE_CONFIANZA: undefined, DATABASE_URL: b.url })).rejects.toThrow(/FHN_PROXIES_DE_CONFIANZA[^]*FHN_IP_CLIENTE_CABECERA/);
+      await expect(arrancar({ ...ENV, FHN_PROXIES_DE_CONFIANZA: ' ', DATABASE_URL: b.url })).rejects.toThrow(/FHN_PROXIES_DE_CONFIANZA[^]*FHN_IP_CLIENTE_CABECERA/);
       await expect(arrancar({ ...ENV, FHN_DEMO: '1', DATABASE_URL: b.url })).rejects.toThrow(/FHN_DEMO=1/);
       await expect(arrancar({ ...ENV, FHN_MODO: 'demos', DATABASE_URL: b.url })).rejects.toThrow(/"local", "alojado" o "demo"/);
       // Una base que ya usó el modo local (tenant «local», de producción).
@@ -415,6 +471,58 @@ conBase('arranque en modo demo', () => {
       await expect(arrancar({ ...ENV, DATABASE_URL: b.url })).rejects.toThrow(/datos reales/);
     } finally {
       await b.cerrar();
+    }
+  });
+
+  it('se niega con un tenant sin llaves que no es un entorno de la demostración', async () => {
+    for (const forzar of ['api_tenants', 'fhn_eventos'] as const) {
+      const b = await baseAparte();
+      const p = new pg.Pool({ connectionString: b.url, max: 2 });
+      try {
+        await migrarApi(p, ROL);
+        const c = await p.connect();
+        try {
+          await c.query('BEGIN');
+          await c.query("SELECT set_config('factura_hn.tenant', 'negocio-sin-llaves', true)");
+          if (forzar === 'api_tenants') await c.query("INSERT INTO api_tenants (tenant, nombre, modo) VALUES ('negocio-sin-llaves', 'Negocio', 'produccion')");
+          else await c.query("INSERT INTO fhn_eventos (tenant, tipo, instante, datos) VALUES ('negocio-sin-llaves', 'documento.emitido', now(), '{}')");
+          await c.query('COMMIT');
+        } finally {
+          c.release();
+        }
+        expect(await datosRealesEnBase(p)).toEqual([
+          expect.stringMatching(forzar === 'api_tenants' ? /«negocio-sin-llaves» es de producción/ : /«negocio-sin-llaves» no es un entorno de la demostración/),
+        ]);
+      } finally {
+        await p.end();
+      }
+      try {
+        await expect(arrancar({ ...ENV, DATABASE_URL: b.url })).rejects.toThrow(/datos reales/);
+      } finally {
+        await b.cerrar();
+      }
+    }
+  });
+
+  it('las funciones de la demo no se pueden ejecutar desde los roles de la API de datos de Supabase', async () => {
+    const admin = await poolPrueba();
+    const existia = (await admin.query("SELECT 1 FROM pg_roles WHERE rolname = 'anon'")).rowCount === 1;
+    if (!existia) await admin.query('CREATE ROLE anon NOLOGIN');
+    const b = await baseAparte();
+    const esquema = decodeURIComponent(new URL(b.url).searchParams.get('options')!).split('=')[1]!;
+    const p = new pg.Pool({ connectionString: b.url, max: 2 });
+    try {
+      // Como en Supabase: lo nuevo del esquema se le da a anon por defecto.
+      await p.query('ALTER DEFAULT PRIVILEGES IN SCHEMA ' + esquema + ' GRANT EXECUTE ON FUNCTIONS TO anon');
+      await migrarApi(p, ROL);
+      for (const fn of ['fhn_api_purgar_demo(timestamptz, integer)', 'fhn_api_demo_resumen(timestamptz)', 'fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer)']) {
+        expect((await p.query("SELECT has_function_privilege('anon', $1, 'EXECUTE') AS puede", [esquema + '.' + fn])).rows[0].puede, fn).toBe(false);
+        expect((await p.query("SELECT has_function_privilege($1, $2, 'EXECUTE') AS puede", [ROL, esquema + '.' + fn])).rows[0].puede, fn).toBe(true);
+      }
+    } finally {
+      await p.end();
+      await b.cerrar();
+      if (!existia) await admin.query('DROP ROLE anon');
     }
   });
 
@@ -448,7 +556,7 @@ conBase('arranque en modo demo', () => {
           expect((await c.query('SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1', [t])).rowCount).toBe(queda);
         }
         await c.query('COMMIT');
-        expect(await datosRealesEnBase(p)).toEqual([expect.stringMatching(/«con-real» tiene autorizaciones con un CAI real/)]);
+        expect(await datosRealesEnBase(p)).toEqual([expect.stringMatching(/«con-real» tiene un CAI real/)]);
       } finally {
         c.release();
       }

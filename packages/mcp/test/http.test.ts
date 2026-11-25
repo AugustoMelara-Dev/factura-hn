@@ -10,7 +10,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { configDemo, crearApp, generarTokenMcp, migrarApi } from '@factura-hn/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ipDelCliente, opcionesMcpHttpDesdeEntorno, servirMcpHttp, type OpcionesMcpHttp } from '../src/http';
+import { direccionDelCliente, EventosEnMemoria, ipDelCliente, opcionesMcpHttpDesdeEntorno, servirMcpHttp, type OpcionesMcpHttp } from '../src/http';
 import { esLlaveApi, llaveDeTokenMcp } from '../src/token';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +66,34 @@ describe('configuración del MCP remoto', () => {
     expect(ipDelCliente(r, ['10.0.0.5'])).toBe('203.0.113.9');
     expect(ipDelCliente(r, ['10.0.0.6'])).toBe('10.0.0.5');
     expect(ipDelCliente(req('2001:db8:1:2:3:4:5:6', {}))).toBe('2001:db8:1:2::/64');
+    // La que se manda a la API va sin agrupar; un proxy de la lista cuenta por su dirección exacta, no por su /64.
+    expect(direccionDelCliente(req('2001:db8:1:2:3:4:5:6', {}))).toBe('2001:db8:1:2:3:4:5:6');
+    expect(direccionDelCliente(req('fdaa::2', { 'x-forwarded-for': '198.51.100.7' }), ['fdaa::3'])).toBe('fdaa::2');
+    expect(direccionDelCliente(req('10.0.0.5', { 'fly-client-ip': '[2001:db8::9]' }), 0, 'fly-client-ip')).toBe('2001:db8::9');
+  });
+});
+
+describe('eventos para reconexión: acotados por cantidad y por bytes', () => {
+  it('por sesión y en todo el proceso', async () => {
+    const global = { usados: 0, maximo: 5000 };
+    const evento = (n: number) => ({ jsonrpc: '2.0' as const, method: 'x', params: { relleno: 'x'.repeat(n) } });
+    const a = new EventosEnMemoria(global, 200, 2000);
+    for (let i = 0; i < 10; i++) await a.storeEvent('s', evento(500));
+    expect(a.ocupados).toBeLessThanOrEqual(2000);
+    const b = new EventosEnMemoria(global, 200, 4000);
+    for (let i = 0; i < 10; i++) await b.storeEvent('s', evento(500));
+    expect(global.usados).toBeLessThanOrEqual(5000);
+    expect(global.usados).toBe(a.ocupados + b.ocupados);
+    const c = new EventosEnMemoria(global, 3, 1_000_000);
+    for (let i = 0; i < 10; i++) await c.storeEvent('s', evento(1));
+    expect(global.usados).toBe(a.ocupados + b.ocupados + c.ocupados);
+    a.liberar();
+    b.liberar();
+    c.liberar();
+    expect(global.usados).toBe(0);
+    // Uno más grande que el tope no se guarda, pero tiene id.
+    expect(await a.storeEvent('s', evento(10_000))).toMatch(/^s_/);
+    expect(a.ocupados).toBe(0);
   });
 });
 
@@ -90,6 +118,7 @@ describe('solicitudes mal formadas o no permitidas: errores claros, nunca 500', 
     ['método no permitido', `/mcp/${token}`, { method: 'PUT', headers: ACEPTA, body: '{}' }, 405, /Método no permitido/],
     ['origen ajeno', `/mcp/${token}`, { method: 'POST', headers: { ...ACEPTA, origin: 'https://sitio-malo.ejemplo.example' }, body: JSON.stringify(INIT) }, 403, /Origen no permitido/],
     ['cuerpo enorme', `/mcp/${token}`, { method: 'POST', headers: ACEPTA, body: 'x'.repeat(70 * 1024) }, 413, /supera 64 KB/],
+    ['varios mensajes en un arreglo', `/mcp/${token}`, { method: 'POST', headers: ACEPTA, body: JSON.stringify([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/list' }]) }, 400, /un mensaje JSON-RPC por solicitud/],
     ['ruta desconocida', '/otra', { method: 'GET' }, 404, /Ruta no encontrada/],
     ['API caída al iniciar', `/mcp/${token}`, { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 502, /No se pudo conectar con la API/],
   ];
@@ -104,7 +133,9 @@ describe('solicitudes mal formadas o no permitidas: errores claros, nunca 500', 
   it('salud responde sin llave y sin datos', async () => {
     const r = await fetch(`${s.url}/salud`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toMatchObject({ ok: true, sesiones: 0 });
+    const cuerpo = (await r.json()) as Cualquiera;
+    expect(cuerpo).toMatchObject({ ok: true });
+    expect(Object.keys(cuerpo).sort()).toEqual(['ok', 'version']);
   });
 
   it('con FHN_MCP_SOLO_URL=1, /mcp con Bearer no existe', async () => {
@@ -142,7 +173,9 @@ describe.skipIf(!URL_PG)('MCP remoto contra la API en modo demo', () => {
   const pool = new pg.Pool({ connectionString: URL_PG, max: 10 });
   // Un reloj lejos en el futuro (y distinto de los de las pruebas de la API): la limpieza de otras pruebas no toca
   // estos entornos y los cupos globales solo ven los de este año.
-  const reloj = { t: Date.UTC(9500 + Math.floor(Math.random() * 400), 2, 10, 15) };
+  const reloj = { t: Date.UTC(2001 + Math.floor(Math.random() * 19), 2, 10, 15) };
+  /** X-Forwarded-For de cada solicitud que el MCP hizo a la API. */
+  const reenviadas: Array<string | null> = [];
   let app: ReturnType<typeof crearApp>;
   let fetchApp: typeof fetch;
   let s: Awaited<ReturnType<typeof servidor>>;
@@ -151,7 +184,11 @@ describe.skipIf(!URL_PG)('MCP remoto contra la API en modo demo', () => {
     await migrarApi(pool);
     const demo = configDemo({ maxEntornos: 100_000, entornosPorIp: 1000, creacionesPorMinuto: 1000, urlMcp: 'https://mcp.ejemplo.example/mcp', urlApi: 'https://api.ejemplo.example' });
     app = crearApp({ pool, modo: 'demo', demo, reloj: () => new Date(reloj.t), registrar: () => undefined });
-    fetchApp = ((e: RequestInfo | URL, init?: RequestInit) => app.fetch(e instanceof Request ? e : new Request(e, init))) as typeof fetch;
+    fetchApp = ((e: RequestInfo | URL, init?: RequestInit) => {
+      const r = e instanceof Request ? e : new Request(e, init);
+      reenviadas.push(r.headers.get('x-forwarded-for'));
+      return app.fetch(r);
+    }) as typeof fetch;
     s = await servidor({ urlApi: 'http://api.local', fetch: fetchApp });
   });
   afterAll(async () => {
@@ -305,6 +342,109 @@ describe.skipIf(!URL_PG)('MCP remoto contra la API en modo demo', () => {
     } finally {
       await cliente.close();
       await corto.cerrar();
+    }
+  });
+
+  it('manda a la API la dirección del cliente en X-Forwarded-For', async () => {
+    const conCabecera = await servidor({ urlApi: 'http://api.local', fetch: fetchApp, cabeceraIpCliente: 'x-ip-prueba' });
+    const { token } = await entorno();
+    reenviadas.length = 0;
+    const { cliente } = await conectar(`${conCabecera.url}/mcp/${token}`, { 'x-ip-prueba': '203.0.113.44' });
+    try {
+      await cliente.listTools();
+      await llamar(cliente, 'estado_cai', {});
+      expect(reenviadas.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(reenviadas)).toEqual(new Set(['203.0.113.44']));
+    } finally {
+      await cliente.close();
+      await conCabecera.cerrar();
+    }
+  });
+
+  it('cupos de sesiones por tenant y por dirección: un visitante no llena el cupo de todos', async () => {
+    const chico = await servidor({ urlApi: 'http://api.local', fetch: fetchApp, maxSesiones: 10, sesionesPorTenant: 3, sesionesPorIp: 6, cabeceraIpCliente: 'x-ip-prueba' });
+    const abiertos: Client[] = [];
+    try {
+      const a = await entorno();
+      // A abre 12 sesiones con sus dos credenciales y desde varias direcciones: le quedan 3.
+      for (let i = 0; i < 12; i++) {
+        const url = i % 2 ? `${chico.url}/mcp/${a.token}` : `${chico.url}/mcp`;
+        const cab: Record<string, string> = { 'x-ip-prueba': `198.51.100.${100 + i}` };
+        if (!(i % 2)) cab.authorization = `Bearer ${a.llave}`;
+        abiertos.push((await conectar(url, cab)).cliente);
+      }
+      const salud = await fetch(`${chico.url}/salud`);
+      expect(salud.status).toBe(200);
+      const b = await entorno();
+      const cb = await conectar(`${chico.url}/mcp/${b.token}`, { 'x-ip-prueba': '198.51.100.200' });
+      abiertos.push(cb.cliente);
+      expect((await cb.cliente.listTools()).tools.length).toBeGreaterThan(0);
+      // Por dirección: desde una sola, a lo sumo 6 sesiones aunque sean de entornos distintos.
+      const unaIp = await servidor({ urlApi: 'http://api.local', fetch: fetchApp, sesionesPorIp: 2, cabeceraIpCliente: 'x-ip-prueba' });
+      try {
+        const abiertas: Array<{ token: string; id: string }> = [];
+        for (let i = 0; i < 3; i++) {
+          const e = await entorno();
+          const c = await conectar(`${unaIp.url}/mcp/${e.token}`, { 'x-ip-prueba': '198.51.100.250' });
+          abiertos.push(c.cliente);
+          abiertas.push({ token: e.token, id: c.transporte.sessionId! });
+        }
+        const usar = ({ token, id }: { token: string; id: string }) =>
+          fetch(`${unaIp.url}/mcp/${token}`, {
+            method: 'POST',
+            headers: { ...ACEPTA, 'mcp-session-id': id, 'mcp-protocol-version': '2025-06-18', 'x-ip-prueba': '198.51.100.250' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/list' }),
+          }).then((r) => r.status);
+        expect(await usar(abiertas[0]!)).toBe(404);
+        expect(await usar(abiertas[2]!)).toBe(200);
+      } finally {
+        await unaIp.cerrar();
+      }
+    } finally {
+      for (const c of abiertos) await c.close().catch(() => undefined);
+      await chico.cerrar();
+    }
+  });
+
+  it('una ráfaga de tokens falsos desde una dirección no deja sin sesión a un visitante nuevo de otra', async () => {
+    // La API con el semáforo de llaves no validadas casi siempre lleno (1 lugar) y pocas fichas por dirección. Cree
+    // X-Forwarded-For solo del MCP (10.9.9.9).
+    const demo = configDemo({ maxEntornos: 100_000, entornosPorIp: 1000, creacionesPorMinuto: 1000, urlMcp: 'https://mcp.ejemplo.example/mcp', urlApi: 'https://api.ejemplo.example' });
+    const apiEstricta = crearApp({
+      pool, modo: 'demo', demo, reloj: () => new Date(reloj.t), registrar: () => undefined,
+      proxiesDeConfianza: ['10.9.9.9'], limiteIntentos: { consultasSimultaneas: 1, porSegundo: 0.01, rafaga: 2 },
+    });
+    const desdeElMcp = ((e: RequestInfo | URL, init?: RequestInit) =>
+      apiEstricta.fetch(e instanceof Request ? e : new Request(e, init), { incoming: { socket: { remoteAddress: '10.9.9.9' } } })) as typeof fetch;
+    const mcp = await servidor({ urlApi: 'http://api.local', fetch: desdeElMcp, cabeceraIpCliente: 'x-ip-prueba', rechazosPorMinutoIp: 10_000, solicitudesPorMinutoIp: 10_000 });
+    try {
+      const visitante = await entorno();
+      const rafaga = Array.from({ length: 30 }, () =>
+        fetch(`${mcp.url}/mcp/${generarTokenMcp('prueba').token}`, { method: 'POST', headers: { ...ACEPTA, 'x-ip-prueba': '203.0.113.66' }, body: JSON.stringify(INIT) }).then((r) => r.status));
+      const nuevo = conectar(`${mcp.url}/mcp/${visitante.token}`, { 'x-ip-prueba': '203.0.113.77' });
+      const estados = await Promise.all(rafaga);
+      expect(estados.every((e) => e === 401 || e === 429)).toBe(true);
+      const { cliente } = await nuevo;
+      expect((await cliente.listTools()).tools.length).toBeGreaterThan(0);
+      await cliente.close();
+    } finally {
+      await mcp.cerrar();
+    }
+  });
+
+  it('el MCP frena por su cuenta a una dirección que manda muchas URL no válidas', async () => {
+    const frena = await servidor({ urlApi: 'http://api.local', fetch: fetchApp, rechazosPorMinutoIp: 2, cabeceraIpCliente: 'x-ip-prueba' });
+    try {
+      const pedir = (ip: string) =>
+        fetch(`${frena.url}/mcp/${generarTokenMcp('prueba').token}`, { method: 'POST', headers: { ...ACEPTA, 'x-ip-prueba': ip }, body: JSON.stringify(INIT) });
+      expect((await pedir('203.0.113.90')).status).toBe(401);
+      expect((await pedir('203.0.113.90')).status).toBe(401);
+      const r = await pedir('203.0.113.90');
+      expect(r.status).toBe(429);
+      expect(Number(r.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+      expect((await pedir('203.0.113.91')).status).toBe(401);
+    } finally {
+      await frena.cerrar();
     }
   });
 });

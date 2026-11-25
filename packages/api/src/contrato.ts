@@ -94,15 +94,18 @@ export function conCabecerasComunes<T>(doc: T): T {
     for (const metodo of METODOS) {
       const op = item[metodo];
       if (!op?.responses) continue;
-      // Una operación pública de /v1 (la creación de entornos de la demo) no valida llave: sin RateLimit ni FacturaHN-Modo.
+      // Una operación pública de /v1 (la creación de entornos de la demo) no valida llave: sin RateLimit.
       const conLlave = ruta.startsWith('/v1/') && (op as { security?: unknown[] }).security?.length !== 0;
+      // La creación de entornos de la demo no tiene llave, pero todo entorno que crea es de prueba: lleva FacturaHN-Modo
+      // (siempre «prueba») en lo que responde el manejador (201, 403, 429 y 503), como las demás operaciones de /v1.
+      const modoDemo = ruta === '/v1/demo/entornos' && metodo === 'post' ? new Set(['201', '403', '429', '503']) : null;
       for (const [estado, r] of Object.entries(op.responses)) {
         if (r.$ref) continue;
         const nombres = [
           'Solicitud-Id',
           'FacturaHN-Version',
           ...(conLlave && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
-          ...(conLlave && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['FacturaHN-Modo'] : []),
+          ...((conLlave && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado)) || modoDemo?.has(estado) ? ['FacturaHN-Modo'] : []),
           ...(estado === '429' || estado === '503' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };

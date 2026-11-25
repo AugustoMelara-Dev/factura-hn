@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Crea un entorno de prueba propio (solo en el servidor de demostración)
-         * @description Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los orígenes de `FHN_DEMO_ORIGENES`.
+         * @description Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. curl, se atiende).
          */
         post: operations["crearEntornoDemo"];
         delete?: never;
@@ -956,10 +956,23 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["RespuestaEntornoDemo"];
+                };
+            };
+            /** @description La solicitud viene de una página de otro sitio (ORIGEN_NO_PERMITIDO) */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Este servidor no está en modo demo (NO_ENCONTRADO) */
@@ -989,6 +1002,7 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     "Retry-After": components["headers"]["Retry-After"];
                     [name: string]: unknown;
                 };
@@ -1012,6 +1026,7 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     "Retry-After": components["headers"]["Retry-After"];
                     [name: string]: unknown;
                 };

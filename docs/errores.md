@@ -919,6 +919,12 @@ Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](demo.md)). Todos traen el
   no se crean entornos y los que hay no atienden.
 - **Solución:** reintenta más tarde, después de los segundos de `Retry-After`.
 
+### ORIGEN_NO_PERMITIDO
+
+- **Qué significa (403):** `POST /v1/demo/entornos` llegó desde una página de otro sitio (su `Origin` no está en
+  `FHN_DEMO_ORIGENES`). Una solicitud sin `Origin` (curl, el SDK) se atiende.
+- **Solución:** crea el entorno desde la página «Pruébalo ahora» del sitio de factura-hn o con curl.
+
 ### DEMO_LIMITE_ENTORNOS
 
 - **Qué significa (429):** se alcanzó el límite de entornos de prueba: por dirección por día

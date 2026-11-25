@@ -89,7 +89,8 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   const configDemo = modo === 'demo' ? leerConfigDemo(env) : undefined;
   if (modo === 'demo') {
     if (env.FHN_DEMO === '1') throw new Error('FHN_DEMO=1 es la demostración del modo local; con FHN_MODO=demo no se usa. Quítala.');
-    if (env.FHN_PROXIES_DE_CONFIANZA === undefined && env.FHN_IP_CLIENTE_CABECERA === undefined) {
+    // Una variable definida pero vacía cuenta como no definida: la configuración debe decirlo explícitamente.
+    if (!env.FHN_PROXIES_DE_CONFIANZA?.trim() && !env.FHN_IP_CLIENTE_CABECERA?.trim()) {
       throw new Error(
         'FHN_MODO=demo necesita saber la dirección de cada visitante para sus límites: define FHN_PROXIES_DE_CONFIANZA ' +
           '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. Fly-Client-IP en Fly.io). Ver docs/demo.md.',

@@ -571,22 +571,34 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         'servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
         'entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo ' +
         'el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los ' +
-        'orígenes de `FHN_DEMO_ORIGENES`.',
+        'orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. ' +
+        'curl, se atiende).',
       responses: {
         201: json(S.RespuestaEntornoDemo, 'Entorno creado. La llave y la URL del MCP se muestran solo esta vez.'),
+        403: json(S.ErrorRespuesta, 'La solicitud viene de una página de otro sitio (ORIGEN_NO_PERMITIDO)'),
         404: json(S.ErrorRespuesta, 'Este servidor no está en modo demo (NO_ENCONTRADO)'),
         ...respuestasDe(413, 429, 500),
       },
     }),
     async (c) => {
       if (!demo) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Ruta no encontrada.');
+      // Todo entorno de la demostración es de prueba: lo dice también en los errores (403, 429, 503).
+      c.header('FacturaHN-Modo', 'prueba');
+      // CORS no frena un POST sin cuerpo (es una solicitud «simple»): una página de otro sitio podría crear entornos con
+      // la dirección de sus visitantes. Con Origin, solo los de FHN_DEMO_ORIGENES; sin Origin (curl, el SDK), se atiende.
+      const origen = c.req.header('origin');
+      if (origen !== undefined && !demo.origenes.includes(origen)) {
+        throw new ErrorApi(403, 'ORIGEN_NO_PERMITIDO', 'Esta página no puede crear entornos de prueba. Usa la del sitio de factura-hn o curl.');
+      }
       if (await demoPausado()) throw errorPausa();
       const ip = ipDe(c);
       const limite = (espera: number) => {
         if (espera > 0) throw new ErrorApi(429, 'DEMO_LIMITE_ENTORNOS', 'Se crearon demasiados entornos de prueba. Espera y reintenta.', { reintentarEn: espera });
       };
       limite(demoCreacionesPorIp!.tomar(ip));
-      limite(demoCreaciones!.tomar('global'));
+      // El cupo global por minuto se mira aquí y se gasta solo si el entorno se crea: los intentos que la base rechaza
+      // (dirección sin cupo) no lo consumen, así unas pocas direcciones no bloquean a todos.
+      limite(demoCreaciones!.espera('global'));
       const creado = reloj();
       const expira = new Date(creado.getTime() + demo.horas * 3_600_000);
       const tenant = `demo-${randomBytes(8).toString('hex')}`;
@@ -618,6 +630,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           ? `Ya creaste ${demo.entornosPorIp} entornos de prueba en las últimas 24 horas. Usa uno de ellos o espera.`
           : 'Hay demasiados entornos de prueba abiertos en este momento. Reintenta más tarde.', { reintentarEn: r.reintentar_en });
       }
+      demoCreaciones!.tomar('global');
       demoExpira.set(tenant, expira.getTime());
       const urlApi = demo.urlApi ?? new URL(c.req.url).origin;
       const urlMcp = mcp ? `${demo.urlMcp}/${mcp.token}` : null;
@@ -661,12 +674,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const lleno = (espera: number) => {
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en la demostración. Espera y reintenta.', { reintentarEn: espera });
     };
-    lleno(demoGlobal!.tomar('global'));
-    lleno(demoPorEntorno!.tomar(tenant));
+    // Primero los límites del entorno y al final el global: un entorno que se pasa de los suyos no gasta el cupo de
+    // todos (con sus dos llaves admin podría agotarlo y dejar en 429 a los demás visitantes).
     const usadas = (demoUsadas.get(tenant) ?? 0) + 1;
     if (usadas > demo.solicitudesPorEntorno) {
       throw new ErrorApi(429, 'DEMO_LIMITE_SOLICITUDES', `Este entorno de prueba ya hizo sus ${demo.solicitudesPorEntorno} solicitudes.`, { reintentarEn: segundosHasta(expira) });
     }
+    lleno(demoPorEntorno!.tomar(tenant));
+    lleno(demoGlobal!.tomar('global'));
     if (!demoUsadas.has(tenant) && demoUsadas.size >= 50_000) demoUsadas.delete(demoUsadas.keys().next().value!);
     demoUsadas.set(tenant, usadas);
   };

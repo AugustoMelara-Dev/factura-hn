@@ -249,6 +249,13 @@ BEGIN
   RAISE EXCEPTION 'factura-hn: la bitácora no se modifica';
 END $$;
 
+-- Las funciones de la purga de prueba buscan las tablas solo en este esquema (y pg_catalog), nunca en otro
+-- que esté antes en el search_path de quien las llama.
+DO $sp$ BEGIN
+  EXECUTE format('ALTER FUNCTION fhn_purga_prueba_permitida(text) SET search_path = pg_catalog, %I, pg_temp', current_schema());
+  EXECUTE format('ALTER FUNCTION fhn_no_borrar() SET search_path = pg_catalog, %I, pg_temp', current_schema());
+  EXECUTE format('ALTER FUNCTION fhn_bitacora_inmutable() SET search_path = pg_catalog, %I, pg_temp', current_schema());
+END $sp$;
 DROP TRIGGER IF EXISTS fhn_eventos_inmutables ON fhn_eventos;
 CREATE TRIGGER fhn_eventos_inmutables BEFORE UPDATE OR DELETE ON fhn_eventos FOR EACH ROW EXECUTE FUNCTION fhn_bitacora_inmutable();
 DROP TRIGGER IF EXISTS fhn_series_sin_borrar ON fhn_series;

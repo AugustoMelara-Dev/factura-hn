@@ -37,11 +37,13 @@ entorno se borra con todos sus datos: documentos, series, autorizaciones, llaves
 
 Con `FHN_MODO=demo` la API **no arranca** si:
 
-- la base tiene un tenant de producción, un tenant que no es un entorno de prueba, o algún CAI real en
-  autorizaciones o documentos: la base de la demostración debe ser solo suya, nunca la de un negocio;
+- la base tiene filas de cualquier tenant que no sea un entorno de la demostración (en cualquier tabla: documentos,
+  autorizaciones, series, bitácoras, emisores, llaves…, aunque no tenga llaves), un tenant de producción, o algún CAI
+  real en autorizaciones o documentos. La revisión falla cerrada: la base de la demostración debe ser solo suya,
+  nunca la de un negocio. La hace el dueño de las tablas en una transacción que se revierte al final;
 - `FHN_DEMO=1` está definida (es la demostración del modo local, otra cosa);
 - no se dijo cómo saber la dirección de cada visitante: hay que definir `FHN_PROXIES_DE_CONFIANZA` o
-  `FHN_IP_CLIENTE_CABECERA` (ver más abajo);
+  `FHN_IP_CLIENTE_CABECERA` con un valor (vacías cuentan como no definidas; ver más abajo);
 - alguna variable `FHN_DEMO_*` tiene un valor fuera de su rango.
 
 ## Variables de la API (`FHN_MODO=demo`)
@@ -84,6 +86,11 @@ Solo `POST /v1/demo/entornos` (y su `OPTIONS`) tiene CORS, y solo para los oríg
 página sepa cuánto esperar. La página debe llamar con `fetch(url, { method: 'POST', mode: 'cors', credentials: 'omit' })`.
 El resto de la API no tiene CORS: la llave no debe vivir en una página.
 
+Un `POST` sin cuerpo es una solicitud «simple» que el navegador manda sin preguntar, así que CORS solo no basta: una
+página de otro sitio podría crear entornos con la dirección de cada visitante suyo y gastar su cupo. Por eso una
+solicitud con `Origin` que no está en `FHN_DEMO_ORIGENES` recibe 403 `ORIGEN_NO_PERMITIDO`. Sin `Origin` (curl,
+el SDK, un servidor) se atiende.
+
 ## Limpieza a las 24 horas
 
 La API borra los entornos vencidos al arrancar y luego cada minuto. El mismo paso está en la consola, para una tarea
@@ -95,7 +102,8 @@ factura-hn-api demo estado      # vigentes, vencidos por borrar y si está en pa
 ```
 
 El borrado lo hace una función de la base con permisos de su dueño (`fhn_api_purgar_demo`), en transacciones de
-50 entornos. La retención general (`FHN_RETENCION_DIAS`, mínimo 7 días) no cambia. Los documentos de un negocio siguen
+50 entornos. Nunca usa una hora posterior al reloj de la base: quien la llame no puede vencer antes un entorno
+vigente. La retención general (`FHN_RETENCION_DIAS`, mínimo 7 días) no cambia. Los documentos de un negocio siguen
 siendo imborrables: la base solo deja borrar, y solo dentro de esa función, filas de un tenant de prueba cuyo CAI es
 ficticio (`DEMO00-NO-VALIDO-…`). Si un entorno tuviera un CAI real (no puede: la base lo rechaza al registrarlo),
 no se borra, queda un aviso (`WARNING`) en el log de Postgres y los demás se borran igual.
@@ -114,7 +122,9 @@ entonces `demo reanudar` no la quita: hay que quitar la variable.
 ## Una sola réplica
 
 Los límites por minuto, por dirección y por sesión viven en la memoria de cada proceso. Con una sola réplica de la
-API y una del MCP remoto son exactos. Con dos o más, cada una cuenta por su lado y los límites se multiplican por
+API y una del MCP remoto son exactos. Los límites de cada entorno se revisan antes que el global: un entorno que se
+pasa de los suyos recibe 429 sin gastar el cupo de todos. Igual con los entornos nuevos: el cupo global por minuto
+solo se gasta cuando un entorno se crea, no cuando la base lo niega porque la dirección ya usó el suyo. Con dos o más, cada una cuenta por su lado y los límites se multiplican por
 el número de réplicas. Los cupos que más importan (entornos por dirección, entornos vigentes y documentos por
 entorno) sí están en la base y valen para todas.
 
@@ -131,7 +141,10 @@ Rutas:
   ChatGPT.
 - `POST|GET|DELETE /mcp` con `Authorization: Bearer <llave fhn_… o token fhnmcp_…>`: para clientes que mandan
   cabeceras (MCP Inspector, un agente propio). `FHN_MCP_SOLO_URL=1` la quita.
-- `GET /salud`: `{ ok, version, sesiones }`, sin datos de nadie.
+- `GET /salud`: `{ ok, version }`, sin datos de nadie ni cifras de uso.
+
+Cada solicitud lleva un solo mensaje JSON-RPC: un arreglo de mensajes recibe 400 (la versión 2025-06-18 del protocolo
+ya no los admite, y multiplicaría una solicitud sin pasar por los límites).
 
 El token (`fhnmcp_test_<prefijo>_<secreto>`) no es la llave del visitante: el MCP deriva de él otra llave
 (`fhn_test_<prefijo>_…`, con HMAC-SHA256) y la API guarda solo el hash de esa llave. Así, la URL se puede revocar
@@ -139,7 +152,17 @@ sola (`DELETE /v1/llaves/{prefijo}`) y la base no puede reconstruir el token.
 
 Cada sesión MCP queda atada a la llave con que se abrió: un `Mcp-Session-Id` de otra URL o de otra llave recibe
 404, igual que una sesión inexistente, y el cliente abre otra. Al abrir una sesión, el MCP comprueba la llave con
-`GET /v1/sesion`: un token que la API no acepta recibe 401 de inmediato.
+`GET /v1/sesion`: un token que la API no acepta recibe 401 de inmediato. Una dirección que manda muchos tokens
+rechazados (`FHN_MCP_RECHAZOS_POR_MINUTO_IP`) recibe 429 sin que el MCP le pregunte a la API.
+
+Las sesiones tienen cupo por llave, por tenant (un entorno, con su llave y la del MCP) y por dirección del cliente:
+al abrir una más, se cierra la más vieja de esa misma llave, tenant o dirección, nunca la de otro visitante. Así un
+visitante no llena el cupo global.
+
+En cada solicitud a la API, el MCP manda la dirección del cliente en `X-Forwarded-For`. La API la cree solo si tiene
+la dirección privada del MCP en `FHN_PROXIES_DE_CONFIANZA` (en forma de lista, ver Fly.io más abajo): así los
+intentos con llaves no válidas cuentan por visitante, y una ráfaga de tokens falsos de uno no deja sin sesión a los
+demás. Sin eso, todo lo que llega del MCP cuenta como una sola dirección.
 
 ### Variables del MCP remoto
 
@@ -152,6 +175,11 @@ Cada sesión MCP queda atada a la llave con que se abrió: un `Mcp-Session-Id` d
 | `FHN_MCP_ORIGENES` | `https://claude.ai,https://claude.com,https://chatgpt.com,https://chat.openai.com` | Si la solicitud trae `Origin`, solo estos (403 si no). Protege contra DNS rebinding |
 | `FHN_MCP_MAX_SESIONES` | `100` | Sesiones abiertas a la vez (503 con `Retry-After` más allá) |
 | `FHN_MCP_SESIONES_POR_LLAVE` | `3` | Sesiones a la vez por llave; abrir otra cierra la más vieja |
+| `FHN_MCP_SESIONES_POR_TENANT` | `3` | Sesiones a la vez por tenant (todas sus llaves); abrir otra cierra la más vieja de ese tenant |
+| `FHN_MCP_SESIONES_POR_IP` | `6` | Sesiones a la vez por dirección del cliente; abrir otra cierra la más vieja de esa dirección |
+| `FHN_MCP_RECHAZOS_POR_MINUTO_IP` | `10` | Llaves o tokens que la API rechazó, por minuto por dirección; más allá, 429 |
+| `FHN_MCP_MAX_BYTES_EVENTOS_SESION` | `1048576` | Bytes de eventos guardados para reconexión, por sesión |
+| `FHN_MCP_MAX_BYTES_EVENTOS` | `67108864` | Bytes de eventos guardados para reconexión, en todo el proceso |
 | `FHN_MCP_SESION_INACTIVA_MIN` | `15` | Minutos sin solicitudes tras los que una sesión se cierra |
 | `FHN_MCP_SOLICITUDES_POR_MINUTO_IP` | `60` | Solicitudes por minuto por dirección (429 con `Retry-After`) |
 | `FHN_MCP_SOLICITUDES_POR_MINUTO` | `60` | Solicitudes por minuto por llave (la API tiene además las suyas) |
@@ -162,7 +190,12 @@ Cada sesión MCP queda atada a la llave con que se abrió: un `Mcp-Session-Id` d
 
 Los flujos SSE llevan un latido cada 15 segundos, por debajo del corte por inactividad de los proxies. Un cliente
 que pierde la conexión vuelve a pedir el flujo con `Last-Event-ID` y recibe lo que se perdió (los últimos 200
-eventos de su sesión, en memoria). Si la sesión ya no existe (reinicio, inactividad), recibe 404 y abre otra.
+eventos de su sesión, hasta 1 MiB, en memoria; 64 MiB entre todas). Si la sesión ya no existe (reinicio,
+inactividad), recibe 404 y abre otra. Las cabeceras de una solicitud deben llegar en 20 segundos y el cuerpo, en 30:
+un cliente lento no retiene la conexión (las respuestas largas, como los flujos SSE, no tienen ese corte).
+
+**Memoria.** Con los valores por defecto (100 sesiones, 64 MiB de eventos), el MCP remoto cabe en una máquina de
+512 MB. Si subes `FHN_MCP_MAX_SESIONES` o los topes de eventos, sube la memoria en proporción.
 
 ### Por qué URL con token y no OAuth
 
@@ -187,8 +220,12 @@ Una forma de desplegarlo (no es la única):
   MCP remoto (`factura-hn-mcp http`). El MCP llama a la API por la red privada (`FHN_API_URL=http://<app-api>.internal:8787`
   o una dirección Flycast): ese tráfico no sale a internet ni pasa por el proxy público.
 - **Dirección del cliente.** El proxy de Fly pone la dirección del cliente en `Fly-Client-IP` y la agrega al final de
-  `X-Forwarded-For`. En las dos aplicaciones: `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=0`.
-  Así una solicitud sin esa cabecera (la red privada) cuenta por su dirección real. Ojo: dentro de la red privada,
+  `X-Forwarded-For`. En el MCP: `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=0`. En la API:
+  `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=<dirección privada de la máquina del MCP>`
+  (la que da `fly ips private` en la aplicación del MCP, en forma de lista; varias, separadas por comas). Así las
+  solicitudes públicas cuentan por `Fly-Client-IP` y las del MCP, por el `X-Forwarded-For` que pone el MCP. La
+  dirección privada cambia si la máquina del MCP se recrea: actualiza la variable de la API cuando pase (si no,
+  todo lo del MCP vuelve a contar como una sola dirección, sin dejar de funcionar). Ojo: dentro de la red privada,
   cualquier máquina de la organización puede poner esa cabecera; no expongas la API de la demostración a otras
   aplicaciones. `FHN_PROXIES_DE_CONFIANZA=1` (el último salto de `X-Forwarded-For`) también sirve, pero solo si a la
   API se llega únicamente por el proxy público.
@@ -197,6 +234,11 @@ Una forma de desplegarlo (no es la única):
   transacciones y nada necesita superusuario. Por el pooler (Supavisor), mejor en modo sesión; en modo transacción
   también funciona porque todo lo que la API fija en la conexión (`set_config(…, true)`) vale solo para su
   transacción. El MCP remoto no tiene `DATABASE_URL`.
+- **API de datos de Supabase.** Supabase publica por HTTP (PostgREST) los esquemas que se le indiquen, con los roles
+  `anon`, `authenticated` y `service_role`. No publiques el esquema de factura-hn: quita su nombre de «Exposed
+  schemas» en la configuración de la API de datos (o desactívala). Además, la migración les quita a esos roles el
+  permiso de ejecutar las funciones de la API y de la demostración aunque los privilegios por defecto de Supabase se
+  lo den; solo el rol de la aplicación las ejecuta.
 - **Gasto.** El tráfico saliente se cobra por GB y no hay tope de gasto: deja los límites por defecto, revisa
   `demo estado` y ten a mano `demo pausar` (o `FHN_DEMO_PAUSADO=1` y reiniciar).
 - **Limpieza.** La API ya limpia cada minuto; si quieres una tarea aparte, una máquina programada que corra

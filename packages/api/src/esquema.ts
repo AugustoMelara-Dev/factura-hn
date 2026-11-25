@@ -201,6 +201,11 @@ BEGIN
   END IF;
   RAISE EXCEPTION 'La bitácora de la API es de solo inserción';
 END $$;
+-- Las funciones de la purga de prueba buscan las tablas solo en este esquema (y pg_catalog), nunca en otro
+-- que esté antes en el search_path de quien las llama.
+DO $sp$ BEGIN
+  EXECUTE format('ALTER FUNCTION fhn_api_solo_insertar() SET search_path = pg_catalog, %I, pg_temp', current_schema());
+END $sp$;
 DROP TRIGGER IF EXISTS fhn_api_bitacora_inmutable ON api_bitacora;
 CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacora
   FOR EACH ROW EXECUTE FUNCTION fhn_api_solo_insertar();
@@ -390,8 +395,10 @@ DECLARE
   v_tenant text;
   v_modo text;
   v_n integer := 0;
+  -- Nunca más adelante que el reloj de la base: quien llama no puede vencer antes de tiempo un entorno vigente.
+  v_ahora timestamptz := least(p_ahora, now());
 BEGIN
-  FOR v_tenant IN SELECT e.tenant FROM api_demo_entornos e WHERE e.expira <= p_ahora ORDER BY e.expira
+  FOR v_tenant IN SELECT e.tenant FROM api_demo_entornos e WHERE e.expira <= v_ahora ORDER BY e.expira
                    LIMIT greatest(coalesce(p_maximo, 0), 0) FOR UPDATE SKIP LOCKED LOOP
     PERFORM set_config('factura_hn.tenant', v_tenant, true);
     SELECT t.modo INTO v_modo FROM api_tenants t WHERE t.tenant = v_tenant;
@@ -471,6 +478,25 @@ REVOKE ALL ON FUNCTION fhn_api_marcar_uso(text, bytea) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_purgar_demo(timestamptz, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_demo_resumen(timestamptz) FROM PUBLIC;
+-- En un Postgres administrado (Supabase), los privilegios por defecto dan EXECUTE de las funciones nuevas a sus roles
+-- de la API de datos: se quitan también, si existen. Solo el rol de la aplicación las ejecuta.
+DO $do$
+DECLARE
+  v_rol text;
+  v_fn text;
+BEGIN
+  FOREACH v_rol IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+      FOREACH v_fn IN ARRAY ARRAY[
+        'fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer)',
+        'fhn_api_purgar_demo(timestamptz, integer)', 'fhn_api_demo_resumen(timestamptz)', 'fhn_api_modo_tenant(text)',
+        'fhn_api_mantenimiento(integer)', 'fhn_api_autenticar(text)', 'fhn_api_prefijo_registrado(text)',
+        'fhn_api_tenants_con_pendientes()', 'fhn_api_marcar_uso(text, bytea)'] LOOP
+        EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I', v_fn, v_rol);
+      END LOOP;
+    END IF;
+  END LOOP;
+END $do$;
 `;
 
 const ROL = /^[a-z_][a-z0-9_]{0,62}$/;
