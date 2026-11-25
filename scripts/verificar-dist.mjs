@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { enlacesRotos } from './enlaces.mjs';
 import { DOCS_PUBLICOS, PUBLICABLES, REPOSITORIO } from './paquetes.mjs';
+import { buscarTerminos } from './terminos-internos.mjs';
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -84,15 +85,14 @@ try {
     if (faltan.length) fallo(`${j.name}: faltan en el paquete ${faltan.join(', ')}`);
     const sobran = archivos.filter((f) => /^(src|test)\//.test(f) || /\.test\.|tsconfig|vitest\.config/.test(f));
     if (sobran.length) fallo(`${j.name}: no deberían publicarse ${sobran.slice(0, 5).join(', ')}`);
-    // Solo los documentos públicos: nada interno (análisis, planes, avance, lanzamiento, modelo de negocio).
+    // Solo los documentos públicos de DOCS_PUBLICOS.
     const docsInternos = archivos.filter((f) => f.startsWith('docs/') && !DOCS_PUBLICOS.includes(f.slice('docs/'.length)));
     if (docsInternos.length) fallo(`${j.name}: documentos internos en el paquete: ${docsInternos.join(', ')}`);
-    // Ni referencias a ellos: decisiones (DEC-xxx), pendientes de la matriz interna (B-xx, P-xx, D-xx) ni sus archivos.
-    const INTERNO = /\bDEC-\d{3}\b|\[REVISAR\]|\b[BPD]-\d{2}\b|(?:decisiones|investigacion|consulta-sar|plan-v1|lanzamiento|avance|modelo-de-negocio)\.md|docs\/analisis/;
+    // Ni términos del proceso interno de desarrollo (scripts/terminos-internos.mjs).
     for (const [nombre, bytes] of contenido) {
       if (!/\.(md|txt|d\.c?ts|c?js|json)$/.test(nombre)) continue;
-      const linea = bytes.toString('utf8').split('\n').findIndex((l) => INTERNO.test(l));
-      if (linea >= 0) fallo(`${j.name}: referencia interna en ${nombre.replace(/^package\//, '')}:${linea + 1}`);
+      const [h] = buscarTerminos(bytes.toString('utf8'));
+      if (h) fallo(`${j.name}: término interno en ${nombre.replace(/^package\//, '')}:${h.linea} (${h.nombre}: «${h.texto}»)`);
     }
     const enPaquete = new Map([...contenido].map(([f, b]) => [f.replace(/^package\//, ''), b]));
     const rotos = enlacesRotos(enPaquete);
