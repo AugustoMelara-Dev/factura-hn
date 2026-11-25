@@ -4,7 +4,7 @@
 //    están los archivos que nombran main/module/types/exports/bin, README y LICENSE; no van fuentes ni pruebas;
 //    de `docs/` solo van los de DOCS_PUBLICOS; `workspace:` se reemplazó por versiones; repository.url es
 //    exactamente el repositorio de GitHub y repository.directory apunta al paquete (los exige la publicación de
-//    confianza de npm). Ningún .md del tarball enlaza con ruta relativa a algo que no viaja en él.
+//    confianza de npm). Ningún .md ni llms.txt del tarball enlaza con ruta relativa a algo que no viaja en él.
 // 2. Cada entrada carga por import (ESM) y, si la tiene, por require (CJS), con las mismas exportaciones.
 // 3. El núcleo compilado emite un documento y el PDF compilado lo imprime.
 import { execFileSync } from 'node:child_process';
@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { gunzipSync } from 'node:zlib';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { enlacesRotos } from './enlaces.mjs';
 import { DOCS_PUBLICOS, PUBLICABLES, REPOSITORIO } from './paquetes.mjs';
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
@@ -52,46 +53,36 @@ function leerTgz(ruta) {
 }
 
 /**
- * Enlaces relativos de los .md del tarball que apuntan a algo que no viaja en él. En npmjs.com y dentro de
- * node_modules no existe el resto del repositorio: `../core` o `examples/basico` quedan rotos. Se revisan los
- * enlaces Markdown (`[texto](destino)`, también imágenes) y `href`/`src` de HTML, fuera de bloques de código.
- * Devuelve pares [archivo, destino].
+ * Enlaces rotos conocidos que solo avisan, sin fallar: paquete → documento → destinos exactos. Uno roto que no
+ * esté aquí hace fallar la verificación.
+ * TODO(lote2-integracion): el README de factura-hn es el README raíz (copiar-docs.mjs). Se reescribe en la
+ * integración: entonces esta lista queda vacía.
  */
-function enlacesRotos(contenido) {
-  const rutas = [...contenido.keys()].map((f) => f.replace(/^package\//, ''));
-  const existe = (r) => rutas.includes(r) || rutas.some((f) => f.startsWith(`${r}/`));
-  const rotos = [];
-  for (const [nombre, bytes] of contenido) {
-    if (!nombre.endsWith('.md')) continue;
-    const md = nombre.replace(/^package\//, '');
-    const texto = bytes.toString('utf8').replace(/\r\n/g, '\n').replace(/^(```|~~~)[\s\S]*?^\1/gm, '').replace(/`[^`\n]*`/g, '');
-    const destinos = [
-      ...[...texto.matchAll(/\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)].map((m) => m[1]),
-      ...[...texto.matchAll(/\b(?:href|src)\s*=\s*["']([^"']+)["']/g)].map((m) => m[1]),
-    ];
-    for (const destino of destinos) {
-      if (/^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(destino)) continue; // absoluto o ancla en la misma página
-      const ruta = decodeURIComponent(destino.replace(/[?#].*$/, ''));
-      const partes = [];
-      let fuera = ruta.startsWith('/');
-      for (const p of [...md.split('/').slice(0, -1), ...ruta.split('/')]) {
-        if (p === '..') {
-          if (partes.length) partes.pop();
-          else fuera = true; // sale del paquete
-        } else if (p && p !== '.') partes.push(p);
-      }
-      if (fuera || !existe(partes.join('/'))) rotos.push([md, destino]);
-    }
-  }
-  return rotos;
-}
+const ENLACES_PENDIENTES = {
+  'factura-hn': {
+    'README.md': [
+      'packages/cliente/README.md',
+      'packages/mcp/README.md',
+      'packages/mcp/README.md#vía-el-sdk-local-sqlite-en-este-equipo',
+      'examples/basico',
+      'examples/pos-offline',
+      'examples/express',
+      'examples/nextjs',
+      'examples/playground',
+      'CONTRIBUTING.md',
+      'SECURITY.md',
+    ],
+  },
+};
 
-/**
- * Archivos con enlaces rotos conocidos que solo avisan, sin fallar.
- * TODO(lote2-integracion): el README de factura-hn es el README raíz (copiar-docs.mjs) y enlaza a packages/,
- * examples/, CONTRIBUTING.md y SECURITY.md. Se reescribe en la integración: entonces se vacía esta lista.
- */
-const ENLACES_PENDIENTES = { 'factura-hn': ['README.md'] };
+// Primero, las pruebas del revisor de enlaces.
+try {
+  execFileSync(process.execPath, ['--test', join(raiz, 'scripts', 'enlaces.test.mjs')], { stdio: 'pipe' });
+  console.log('ok  pruebas de enlaces.mjs');
+} catch (e) {
+  fallo(`pruebas de enlaces.mjs:
+${e.stdout ?? ''}${e.stderr ?? ''}`);
+}
 
 const temporal = mkdtempSync(join(tmpdir(), 'fhn-pack-'));
 try {
@@ -117,10 +108,17 @@ try {
       const linea = bytes.toString('utf8').split('\n').findIndex((l) => INTERNO.test(l));
       if (linea >= 0) fallo(`${j.name}: referencia interna en ${nombre.replace(/^package\//, '')}:${linea + 1}`);
     }
-    for (const [md, destino] of enlacesRotos(contenido)) {
-      const texto = `${j.name}: ${md} enlaza a «${destino}», que no está en el paquete (usa una URL absoluta)`;
-      if (ENLACES_PENDIENTES[j.name]?.includes(md)) console.warn(`AVISO ${texto}`);
+    const enPaquete = new Map([...contenido].map(([f, b]) => [f.replace(/^package\//, ''), b]));
+    const rotos = enlacesRotos(enPaquete);
+    for (const [doc, destino] of rotos) {
+      const texto = `${j.name}: ${doc} enlaza a «${destino}», que no está en el paquete (usa una URL absoluta)`;
+      if (ENLACES_PENDIENTES[j.name]?.[doc]?.includes(destino)) console.warn(`AVISO ${texto}`);
       else fallo(texto);
+    }
+    for (const [doc, destinos] of Object.entries(ENLACES_PENDIENTES[j.name] ?? {})) {
+      for (const d of destinos) {
+        if (!rotos.some(([x, y]) => x === doc && y === d)) console.warn(`AVISO ${j.name}: ${doc} ya no tiene «${d}» roto: quítalo de ENLACES_PENDIENTES`);
+      }
     }
     const manifiesto = contenido.get('package/package.json')?.toString('utf8') ?? '';
     if (manifiesto.includes('workspace:')) fallo(`${j.name}: el package.json publicado conserva «workspace:»`);
