@@ -97,8 +97,8 @@ const nota = await emitir(
 Si el original está en el mismo almacén, `emitir` lo compara con la nota. Estas reglas son errores: la nota no
 se emite y no consume número.
 
-- **El original existe y no está anulado.** Un documento anulado no respalda una operación que ajustar
-  (Art. 41): `REFERENCIA_ANULADA`.
+- **El original existe y no está anulado.** Un documento anulado no respalda una operación que ajustar:
+  `REFERENCIA_ANULADA` (DEC-004, aprobada; el Art. 41 trata el anulado como un documento con errores).
 - **Mismo CAI, fecha y RTN del adquirente** (Art. 26 num. 1-3; DEC-004, aprobada):
   `REFERENCIA_CAI_NO_COINCIDE`, `REFERENCIA_FECHA_NO_COINCIDE`, `REFERENCIA_RTN_NO_COINCIDE`.
 - **La nota no es anterior al original** (DEC-017, aprobada): `REFERENCIA_FECHA_POSTERIOR`.
