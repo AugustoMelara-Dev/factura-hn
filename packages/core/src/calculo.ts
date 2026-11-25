@@ -27,6 +27,14 @@ export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, n
   ISV18: 18,
 };
 
+/**
+ * Mayor total, en centavos, que el SDK calcula: L 9,999,999,999,999.99 (15 dígitos). No es una regla fiscal
+ * (el Reglamento no fija un máximo): hasta aquí los importes salen exactos como `number` (15 cifras
+ * significativas) y el total cabe en letras. Más arriba, `deCentavos` perdería centavos y `centavosEnLetras`
+ * fallaría con RangeError a mitad de la emisión.
+ */
+export const MONTO_MAXIMO_CENTAVOS = 10n ** 15n - 1n;
+
 /** Decimales admitidos en cantidad y precio unitario. */
 export const ESCALA_CANTIDAD = 4;
 export const ESCALA_PRECIO = 4;
@@ -104,14 +112,32 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
     problemas.push({ codigo: 'SIN_LINEAS', mensaje: 'El documento debe tener al menos una línea.', campo: 'lineas' });
     return problemas;
   }
+  // Importe neto por grupo de tasa: el tope se mide con el ISV que corresponde a cada grupo.
+  const grupos = { ISV15: 0n, ISV18: 0n, sinISV: 0n };
+  let leidas = true;
   lineas.forEach((l, i) => {
     const campo = `lineas[${i}]`;
     if (!l.descripcion || !l.descripcion.trim())
       problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: falta la descripción.`, campo });
     if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
-    leerLinea(l, i, problemas);
+    const leida = leerLinea(l, i, problemas);
+    const grupo = l.isv === 'EXENTO' || l.isv === 'GRAVADO0' ? 'sinISV' : l.isv === undefined || l.isv === 'ISV15' ? 'ISV15' : 'ISV18';
+    if (leida) grupos[grupo] += bruto(leida) - leida.descuento;
+    else leidas = false;
   });
+  // Tope técnico, no fiscal (ver MONTO_MAXIMO_CENTAVOS). Se mide el total con el ISV de cada grupo de tasa sumado
+  // aparte (precios sin ISV y sin exoneración): con el ISV incluido en el precio o con exoneración, el total real
+  // es menor o igual. Una tasa inválida cuenta como 18 % (ya hay un error LINEA_ISV).
+  const totalMaximo =
+    grupos.sinISV + grupos.ISV15 + impuestoArt9(grupos.ISV15, TASAS_ISV.ISV15) + grupos.ISV18 + impuestoArt9(grupos.ISV18, TASAS_ISV.ISV18);
+  if (leidas && totalMaximo > MONTO_MAXIMO_CENTAVOS) {
+    problemas.push({
+      codigo: 'MONTO_FUERA_DE_RANGO',
+      mensaje: `El total de las líneas con su ISV sería L ${centavosATexto(totalMaximo)}: supera el máximo que se puede emitir, L ${centavosATexto(MONTO_MAXIMO_CENTAVOS)}.`,
+      campo: 'lineas',
+    });
+  }
   return problemas;
 }
 

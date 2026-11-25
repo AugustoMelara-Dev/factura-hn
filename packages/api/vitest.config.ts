@@ -14,5 +14,5 @@ export default defineConfig({
     ],
   },
   // Todos los archivos comparten la misma base: uno a la vez.
-  test: { fileParallelism: false, testTimeout: 30_000, hookTimeout: 60_000 },
+  test: { fileParallelism: false, testTimeout: 30_000, hookTimeout: 60_000, setupFiles: ['./test/setup-contrato.ts'] },
 });

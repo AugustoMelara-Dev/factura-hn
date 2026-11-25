@@ -235,7 +235,9 @@ Cada tenant tiene un modo, `prueba` o `produccion`, que decide el operador al cr
   recibe el mismo rechazo, como error de la base con el código en el mensaje. Un tenant que no existe en
   `api_tenants` (uso del SDK solo) no cambia.
 - **Dónde se ve.** `GET /v1/sesion` trae `modoTenant`, y cada respuesta autenticada (también los errores
-  después de autenticar) lleva la cabecera `FacturaHN-Modo: prueba` o `FacturaHN-Modo: produccion`. No
+  después de autenticar) lleva la cabecera `FacturaHN-Modo: prueba` o `FacturaHN-Modo: produccion` (también los 429 que llegan
+  después de validar la llave, como `LIMITE_MENSUAL`; nunca el 401, el 413 ni los 429 `DEMASIADOS_INTENTOS` y
+  `DEMASIADAS_SOLICITUDES`, que se deciden antes). No
   confundir con `modo` de la sesión y de `/salud`, que es el del servidor (`local` o `alojado`).
 - **Los que ya existían.** Al migrar, todos los tenants quedan en `produccion`, salvo el tenant `demo` de
   demostración (el del emisor o los CAI ficticios), que queda en `prueba`. Si ese `demo` tiene alguna
@@ -297,7 +299,8 @@ El esquema `Bearer` no distingue mayúsculas.
 | `POST /v1/webhooks/{id}/probar` | admin | 202. Encola un evento `webhook.prueba` |
 | `POST /v1/webhooks/{id}/rotar-secreto` | admin | Secreto nuevo con gracia (`graciaHoras`, 24 por defecto); se muestra solo esta vez |
 
-Los períodos (`desde`, `hasta`) son de hasta 366 días.
+Los períodos (`desde`, `hasta`) son de hasta 366 días, y las dos fechas deben existir en el calendario: `2026-02-30`
+o `2026-13-01` son 400 `SOLICITUD_INVALIDA`.
 
 ### Forma de las respuestas
 
@@ -322,6 +325,10 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
 | `FacturaHN-Version` | todas | Versión de la API que respondió (la de `/salud`) |
 | `RateLimit-Policy`, `RateLimit` | `/v1`, después de validar la llave (nunca en 401, 413 ni 429 `DEMASIADOS_INTENTOS`) | Límite de la llave (ver «Límites de solicitudes») |
 | `Retry-After` | los 429 y los 503 | Segundos que conviene esperar antes de reintentar |
+| `Idempotency-Replayed` | el 201 de `POST /v1/documentos` | `true` cuando la respuesta es la repetición de una emisión anterior con la misma `Idempotency-Key` (ver «Emisión: una transacción») |
+
+`GET /v1/exportacion` responde `application/x-ndjson` (`jsonl`), `text/csv` (`csv`) o `text/plain` (`txt`),
+según `formato`; la especificación declara los tres.
 
 ### Reportes de período
 
@@ -395,13 +402,19 @@ antes a centavos.
   traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
   `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
   `LIMITE_SOLICITUDES`, `LIMITE_MENSUAL`), cuerpo (`CUERPO_NO_UTF8`, `CUERPO_DEMASIADO_GRANDE`), forma
-  (`SOLICITUD_INVALIDA`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
+  (`SOLICITUD_INVALIDA`), tipo de contenido (`TIPO_DE_CONTENIDO`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
   autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `AUTORIZACION_REAL_EN_DEMO`, `CAI_DE_PRUEBA`).
 - **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
   (p. ej. `documento.lineas`) y `errores` trae todos. Un cuerpo que no es JSON es 400 `JSON_INVALIDO`.
+  El nombre de una llave y la URL de un webhook no admiten caracteres de control (salvo tabulador y saltos de
+  línea): 400 `SOLICITUD_INVALIDA`. En los textos del documento y del emisor es 422 `TEXTO_CARACTER_NO_PERMITIDO`.
+- **415** (`TIPO_DE_CONTENIDO`): la operación espera un cuerpo JSON y la solicitud no trae
+  `Content-Type: application/json`. Viene con la forma de error de la API (antes, texto plano), y cada operación
+  con cuerpo lo declara en `/openapi.json`.
 - **422 reglas fiscales** (`VALIDACION`): `errores` trae la lista completa, cada uno con su código, campo y
   enlace; el código que importa es `errores[].codigo`. El error principal toma la solución del primero que la
-  tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`.
+  tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`, y `MONTO_FUERA_DE_RANGO` cuando el total del documento pasaría
+  de L 9,999,999,999,999.99 (un tope técnico, no fiscal: ver `docs/errores.md`); no consume número.
 - Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
   `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
   espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO` · 503
@@ -409,7 +422,7 @@ antes a centavos.
   la base vuelve; reintenta (al emitir, con la misma `Idempotency-Key`: si el documento alcanzó a emitirse
   recibes el mismo, y si no, se emite una sola vez).
 - Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
-  401, 429, 500 y 503; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  401, 429, 500 y 503; las que tienen cuerpo, 415; `libro-ventas`, 403 (llave de caja sin punto de emisión); las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
   operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
   reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 

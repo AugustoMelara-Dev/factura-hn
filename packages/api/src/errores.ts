@@ -110,6 +110,7 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     CAI_DE_PRUEBA:
       'Un tenant de producción no acepta CAI ficticios (DEMO00-NO-VALIDO-…). Si es tu CAI real, cópialo de la resolución del SAR. ' +
       'Para probar, usa un tenant de prueba: el «demo» (`demo llave` en la consola) o uno creado con `tenant crear --modo prueba`.',
+    TIPO_DE_CONTENIDO: 'Envía la cabecera `Content-Type: application/json` con el cuerpo en JSON; con curl, `-H "Content-Type: application/json"`.',
     CUERPO_NO_UTF8: 'Guarda el JSON en un archivo UTF-8 y envíalo tal cual: con curl, `--data-binary @factura.json`.',
     CUERPO_DEMASIADO_GRANDE: 'El cuerpo admite hasta 512 KB: divide la venta en varios documentos o acorta los textos.',
     SOLICITUD_INVALIDA: 'Corrige el campo de `error.campo` (la lista completa está en `errores`). La forma de cada ruta está en /docs.',

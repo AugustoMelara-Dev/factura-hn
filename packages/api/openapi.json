@@ -1251,7 +1251,8 @@
           "nombre": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]*$"
           },
           "rol": {
             "type": "string",
@@ -1483,6 +1484,7 @@
     "headers": {
       "Solicitud-Id": {
         "description": "Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.",
+        "required": true,
         "schema": {
           "type": "string",
           "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
@@ -1490,13 +1492,14 @@
       },
       "FacturaHN-Version": {
         "description": "Versión de la API que respondió (la misma de `/salud` y de `info.version`).",
+        "required": true,
         "schema": {
           "type": "string",
           "example": "0.2.0"
         }
       },
       "FacturaHN-Modo": {
-        "description": "Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413 ni un 429.",
+        "description": "Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `DEMASIADOS_REPORTES`).",
         "schema": {
           "type": "string",
           "example": "prueba"
@@ -1518,6 +1521,7 @@
       },
       "Retry-After": {
         "description": "Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras). En un 503 `BASE_NO_DISPONIBLE`, lo que suele tardar la base en volver de un reinicio.",
+        "required": true,
         "schema": {
           "type": "integer",
           "example": 1
@@ -1778,6 +1782,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -1826,6 +1857,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -1993,6 +2027,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -2203,6 +2240,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -2445,6 +2485,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -2493,6 +2560,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -2700,6 +2770,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -2748,6 +2845,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -2915,6 +3015,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -3127,6 +3230,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -3273,6 +3379,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -3376,13 +3485,6 @@
         "responses": {
           "201": {
             "description": "Emitido",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RespuestaEmision"
-                }
-              }
-            },
             "headers": {
               "Solicitud-Id": {
                 "$ref": "#/components/headers/Solicitud-Id"
@@ -3398,6 +3500,22 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Idempotency-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "description": "`true` si la respuesta repite la de una solicitud anterior con la misma `Idempotency-Key` (no se emitió otro documento).",
+                  "example": "true"
+                },
+                "required": false,
+                "description": "`true` si la respuesta repite la de una solicitud anterior con la misma `Idempotency-Key` (no se emitió otro documento)."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaEmision"
+                }
               }
             }
           },
@@ -3518,6 +3636,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -3566,6 +3711,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -3817,6 +3965,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -4066,6 +4217,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -4309,6 +4463,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -4357,6 +4538,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -4586,6 +4770,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -4634,6 +4845,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -4882,6 +5096,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -5185,6 +5402,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -5299,7 +5519,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).",
+            "description": "Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`). `jsonl` en `application/x-ndjson`, `csv` en `text/csv` y `txt` en `text/plain`.",
             "headers": {
               "Solicitud-Id": {
                 "$ref": "#/components/headers/Solicitud-Id"
@@ -5327,6 +5547,16 @@
               }
             },
             "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
               "text/plain": {
                 "schema": {
                   "type": "string"
@@ -5454,6 +5684,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -5720,6 +5953,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -5925,6 +6161,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -5946,6 +6209,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -6140,6 +6406,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -6423,6 +6692,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -6656,6 +6928,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "422": {
             "description": "Reglas fiscales: lista de errores",
             "content": {
@@ -6704,6 +7003,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -6898,6 +7200,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -7153,6 +7458,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
@@ -7455,6 +7763,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -7747,6 +8058,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -8030,6 +8344,9 @@
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
               },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
               }
@@ -8301,6 +8618,33 @@
               }
             }
           },
+          "415": {
+            "description": "El cuerpo no viene como JSON: falta `Content-Type: application/json` (TIPO_DE_CONTENIDO).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -8322,6 +8666,9 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               },
               "Retry-After": {
                 "$ref": "#/components/headers/Retry-After"
