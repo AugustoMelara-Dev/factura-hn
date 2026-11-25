@@ -5,10 +5,11 @@
  *
  * El tenant sale **solo** de la llave de API, nunca de la solicitud.
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { bodyLimit } from 'hono/body-limit';
 import { CABECERAS_DOCS, HTML_DOCS } from './docs';
+import { conCabecerasComunes, SOLICITUD_ID } from './contrato';
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
@@ -169,7 +170,8 @@ export interface Sesion {
   limiteMensual: number | null;
 }
 
-type Env = { Variables: { sesion: Sesion } };
+/** `solicitud`: el id de la solicitud (cabecera `Solicitud-Id`), en las respuestas, los errores y el log. */
+type Env = { Variables: { sesion: Sesion; solicitud: string } };
 
 interface LlaveAutenticada {
   tenant: string;
@@ -206,13 +208,21 @@ function jsonEstable(v: unknown): string {
   return JSON.stringify(v);
 }
 
-const respuestasError = {
-  400: { description: 'Solicitud mal formada', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  401: { description: 'Falta la llave de API o no es válida', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  403: { description: 'La llave no tiene permiso', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  422: { description: 'Reglas fiscales: lista de errores', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  429: { description: 'Límite de solicitudes o de documentos del mes', content: { 'application/json': { schema: S.ErrorRespuesta } } },
+const conError = (description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
+/** Respuestas de error que puede dar una operación. Cada ruta declara solo las que su código devuelve. */
+const CATALOGO_ERRORES = {
+  400: conError('Solicitud mal formada: forma, parámetros, cabeceras o JSON'),
+  401: conError('Falta la llave de API o no es válida'),
+  403: conError('La llave no tiene permiso'),
+  413: conError('El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)'),
+  422: conError('Reglas fiscales: lista de errores'),
+  429: conError('Límite de solicitudes (con `Retry-After`)'),
+  500: conError('Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.'),
 } as const;
+const respuestasDe = <K extends keyof typeof CATALOGO_ERRORES>(...estados: K[]) =>
+  Object.fromEntries(estados.map((e) => [e, CATALOGO_ERRORES[e]])) as Pick<typeof CATALOGO_ERRORES, K>;
+/** Las de una operación con cuerpo que valida reglas fiscales y exige rol admin. */
+const respuestasError = respuestasDe(400, 401, 403, 413, 422, 429, 500);
 const json = <T extends z.ZodTypeAny>(schema: T, description: string) => ({ description, content: { 'application/json': { schema } } });
 const seguridad = [{ llave: [] }];
 
@@ -251,12 +261,28 @@ function paginar<F>(filas: F[], limite: number, llave: (f: F) => unknown) {
   return { elementos, hayMas, siguiente: hayMas ? escribirCursor(llave(elementos[elementos.length - 1]!)) : null };
 }
 
+/**
+ * Segundos desde `ahora` hasta el primer día del mes siguiente a `mes` (AAAA-MM), a las 00:00 de Honduras: cuando
+ * el límite mensual de documentos vuelve a cero. Honduras está en UTC-6 todo el año (sin horario de verano desde
+ * 2006): las 00:00 de allá son las 06:00 UTC.
+ */
+export function segundosHastaElMesSiguiente(mes: string, ahora: Date): number {
+  const [anio, m] = mes.split('-').map(Number) as [number, number];
+  // Date.UTC con el mes 1-based como índice 0-based ya es el mes siguiente (y pasa de diciembre a enero).
+  return Math.max(1, Math.ceil((Date.UTC(anio, m, 1, 6) - ahora.getTime()) / 1000));
+}
+
+/** El cuerpo de error con el id de la solicitud (`error.solicitud`), el mismo de la cabecera `Solicitud-Id`. */
+const conSolicitud = (c: Context<Env>, cuerpo: CuerpoError): CuerpoError => ({ ...cuerpo, error: { ...cuerpo.error, solicitud: c.get('solicitud') } });
+
 export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rolBd = cfg.rol ?? ROL_POR_DEFECTO;
   const base = new AlmacenPostgres(cfg.pool, { rol: rolBd });
   const cofre = cfg.cofre ?? new CofreSecretos(null);
   const reloj = cfg.reloj ?? (() => new Date());
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
+  /** La cubeta de la llave como política del borrador: `q` fichas que se recuperan enteras en `w` segundos. */
+  const politicaLimite = `"llave";q=${limitador.rafaga};w=${Math.max(1, Math.ceil(limitador.rafaga / limitador.porSegundo))}`;
   const li = cfg.limiteIntentos ?? {};
   const rafagaIntentos = li.rafaga ?? 20;
   const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, rafagaIntentos);
@@ -301,7 +327,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           },
           errores: detalles,
         };
-        return c.json<CuerpoError>(conSolucion(cuerpo, guia), 400);
+        return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
       }
       return undefined;
     },
@@ -313,6 +339,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
 
   // --- Infraestructura -------------------------------------------------------------------------------------
+  // Id de la solicitud y versión de la API en todas las respuestas, también en los errores y en /docs.
+  app.use('*', async (c, next) => {
+    const delCliente = c.req.header('solicitud-id');
+    const id = delCliente !== undefined && SOLICITUD_ID.test(delCliente) ? delCliente : randomUUID();
+    c.set('solicitud', id);
+    await next();
+    c.header('Solicitud-Id', id);
+    c.header('FacturaHN-Version', VERSION_API);
+  });
   app.use('*', async (c, next) => {
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
@@ -325,23 +360,30 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     if (e instanceof ErrorApi) {
       if (e.estado === 429 && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
       const { reintentarEn: _r, ...extra } = e.extra;
-      return c.json<CuerpoError>(conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia), e.estado);
+      return c.json<CuerpoError>(conSolicitud(c, conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia)), e.estado);
     }
     if (e instanceof ErrorValidacion) {
       const noEncontrado = e.errores.some((p) => p.codigo === 'DOCUMENTO_NO_ENCONTRADO');
       return c.json<CuerpoError>(
-        conSolucion(
+        conSolicitud(c, conSolucion(
           { error: { codigo: noEncontrado ? 'NO_ENCONTRADO' : 'VALIDACION', mensaje: e.errores.map((p) => p.mensaje).join(' ') }, errores: e.errores, advertencias: e.advertencias },
           guia,
-        ),
+        )),
         noEncontrado ? 404 : 422,
       );
     }
-    if (e instanceof HTTPException) return e.getResponse();
-    registrar('Error interno', e);
-    return c.json<CuerpoError>({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }, 500);
+    if (e instanceof HTTPException) {
+      // El validador de Hono rechaza en texto plano un cuerpo que no es JSON: se responde con la forma de error de la API.
+      if (e.status === 400) {
+        const cuerpo: CuerpoError = { error: { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es JSON válido: revisa comillas, comas y llaves.' } };
+        return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
+      }
+      return e.getResponse();
+    }
+    registrar(`Error interno (solicitud ${c.get('solicitud')})`, e);
+    return c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }), 500);
   });
-  app.notFound((c) => c.json<CuerpoError>({ error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }, 404));
+  app.notFound((c) => c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }), 404));
 
   // Autenticación: Authorization: Bearer fhn_<prefijo>_<secreto>
   app.use('/v1/*', async (c, next) => {
@@ -350,8 +392,16 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const prefijo = prefijoDe(llave);
     const noValida = new ErrorApi(401, 'NO_AUTENTICADO', 'Falta la llave de API o no es válida.');
     if (!prefijo) throw noValida;
+    // Cabeceras del borrador IETF de RateLimit (draft-ietf-httpapi-ratelimit-headers): cuota de la llave y lo que
+    // le queda. Solo con el secreto correcto: en el 429 de la llave y en las respuestas autenticadas, no en un 401.
+    const cabecerasLimite = () => {
+      const { restantes, lleno } = limitador.estado(prefijo);
+      c.header('RateLimit-Policy', politicaLimite);
+      c.header('RateLimit', `"llave";r=${restantes};t=${lleno}`);
+    };
     const limitarLlave = () => {
       const espera = limitador.tomar(prefijo);
+      if (espera > 0) cabecerasLimite();
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
     };
     // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
@@ -436,6 +486,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
       limitarLlave();
     }
+    cabecerasLimite();
     // Último uso: solo con el secreto correcto y a lo sumo una vez por minuto por llave.
     const ahoraMs = Date.now();
     if ((ultimoUso.get(prefijo) ?? 0) < ahoraMs - 60_000) {
@@ -520,7 +571,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Público ---------------------------------------------------------------------------------------------
   app.openapi(
-    createRoute({ method: 'get', path: '/salud', tags: ['Sistema'], summary: 'Estado del servicio', responses: { 200: json(z.object({ ok: z.boolean(), version: z.string(), modo: z.string() }), 'En servicio') } }),
+    createRoute({ method: 'get', path: '/salud', operationId: 'obtenerSalud', tags: ['Sistema'], security: [], summary: 'Estado del servicio', responses: { 200: json(z.object({ ok: z.boolean(), version: z.string(), modo: z.string() }), 'En servicio'), ...respuestasDe(500) } }),
     async (c) => {
       await cfg.pool.query('SELECT 1');
       return c.json({ ok: true, version: VERSION_API, modo: cfg.modo }, 200);
@@ -544,7 +595,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/emisores', tags: ['Emisor'], security: seguridad,
+      method: 'post', path: '/v1/emisores', operationId: 'crearEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Registra los datos del obligado tributario (uno por tenant)',
       request: { body: { content: { 'application/json': { schema: S.Emisor } }, required: true } },
       responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
@@ -568,8 +619,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/emisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
-      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/emisores', operationId: 'listarEmisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
+      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const e = await enTenant(c, leerEmisor);
@@ -580,9 +631,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rutaEmisorId = z.object({ id: z.string().uuid() });
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
+      method: 'get', path: '/v1/emisores/{id}', operationId: 'obtenerEmisor', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
       request: { params: rutaEmisorId },
-      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const { id } = c.req.valid('param');
@@ -594,7 +645,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'patch', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad,
+      method: 'patch', path: '/v1/emisores/{id}', operationId: 'actualizarEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)',
       request: { params: rutaEmisorId, body: { content: { 'application/json': { schema: S.EmisorCambios } }, required: true } },
       responses: { 200: json(S.RespuestaEmisor, 'Actualizado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
@@ -622,7 +673,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Autorizaciones (CAI) --------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad,
+      method: 'post', path: '/v1/autorizaciones', operationId: 'registrarAutorizacion', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Registra una autorización del SAR (CAI, rango y fecha límite)',
       request: { body: { content: { 'application/json': { schema: S.Autorizacion } }, required: true } },
       responses: { 201: json(S.RespuestaAutorizacion, 'Registrada'), ...respuestasError },
@@ -659,8 +710,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
-      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/autorizaciones', operationId: 'listarAutorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
+      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const lista = await enTenant(c, async (tx) =>
@@ -672,10 +723,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/autorizaciones/{cai}/estado', tags: ['Autorizaciones'], security: seguridad,
+      method: 'get', path: '/v1/autorizaciones/{cai}/estado', operationId: 'obtenerEstadoAutorizacion', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Vigencia y rango restante de una autorización (Arts. 59 y 62)',
       request: { params: z.object({ cai: z.string().min(1).max(60) }) },
-      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
@@ -705,13 +756,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Sesión ---------------------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/sesion', tags: ['Sesión'], security: seguridad,
+      method: 'get', path: '/v1/sesion', operationId: 'obtenerSesion', tags: ['Sesión'], security: seguridad,
       summary: 'Con qué llave hablas y qué falta para emitir',
       description:
         'Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya ' +
         'se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede ' +
         'llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.',
-      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasError },
+      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const s = sesion(c);
@@ -804,7 +855,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Documentos ------------------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/documentos', tags: ['Documentos'], security: seguridad,
+      method: 'post', path: '/v1/documentos', operationId: 'emitirDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Emite una factura, nota de crédito o nota de débito',
       description:
         'Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. ' +
@@ -925,7 +976,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
               [tx.tenant, mes],
             );
             if (s.limiteMensual !== null && uso.rows[0]!.documentos > s.limiteMensual) {
-              throw new ErrorApi(429, 'LIMITE_MENSUAL', `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.`);
+              throw new ErrorApi(429, 'LIMITE_MENSUAL', `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.`, {
+                reintentarEn: segundosHastaElMesSiguiente(mes, reloj()),
+              });
             }
             const instante = reloj();
             await encolarEvento(tx, 'documento.emitido', `documento.emitido:${doc.numero}`, doc, instante);
@@ -953,9 +1006,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/documentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
+      method: 'get', path: '/v1/documentos', operationId: 'listarDocumentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
       request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
-      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasError },
+      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const q = c.req.valid('query');
@@ -977,7 +1030,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/documentos/{archivo}', tags: ['Documentos'], security: seguridad,
+      method: 'get', path: '/v1/documentos/{archivo}', operationId: 'obtenerDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Un documento: JSON, o la representación impresa con .pdf, .html o .txt',
       description: 'La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).',
       request: {
@@ -995,7 +1048,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           },
         },
         404: json(S.ErrorRespuesta, 'No existe'),
-        ...respuestasError,
+        ...respuestasDe(400, 401, 429, 500),
       },
     }),
     async (c) => {
@@ -1024,7 +1077,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/documentos/{numero}/anular', tags: ['Documentos'], security: seguridad,
+      method: 'post', path: '/v1/documentos/{numero}/anular', operationId: 'anularDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Anula un documento (Art. 41): conserva número y contenido, cambia el estado',
       request: { params: z.object({ numero: z.string().regex(NUMERO) }), body: { content: { 'application/json': { schema: S.Motivo } }, required: true } },
       responses: { 200: json(S.RespuestaDocumento, 'Anulado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
@@ -1104,7 +1157,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rutaSerie = z.object({ identificador: z.string().regex(IDENTIFICADOR).openapi({ example: '000-001-01' }) });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/series/{identificador}/corregir-fecha', tags: ['Series'], security: seguridad,
+      method: 'post', path: '/v1/series/{identificador}/corregir-fecha', operationId: 'corregirFechaSerie', tags: ['Series'], security: seguridad,
       summary: 'Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)',
       request: { params: rutaSerie, body: { content: { 'application/json': { schema: S.Motivo } }, required: true } },
       responses: { 200: json(z.object({ anulados: z.array(S.DocumentoFiscal) }), 'Anulados'), ...respuestasError },
@@ -1126,7 +1179,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/series/{identificador}/no-utilizados', tags: ['Series'], security: seguridad,
+      method: 'get', path: '/v1/series/{identificador}/no-utilizados', operationId: 'listarNoUtilizados', tags: ['Series'], security: seguridad,
       summary: 'Números que hay que reportar al SAR como no utilizados (Art. 42)',
       description: 'Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.',
       request: { params: rutaSerie },
@@ -1138,7 +1191,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           }),
           'Rangos',
         ),
-        ...respuestasError,
+        ...respuestasDe(400, 401, 403, 429, 500),
       },
     }),
     async (c) => {
@@ -1161,7 +1214,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/libro-ventas', tags: ['Reportes'], security: seguridad,
+      method: 'get', path: '/v1/libro-ventas', operationId: 'obtenerLibroVentas', tags: ['Reportes'], security: seguridad,
       summary: 'Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)',
       request: { query: S.periodo({ formato: z.enum(['json', 'csv']).optional() }) },
       responses: {
@@ -1180,7 +1233,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
             'text/csv': { schema: z.string() },
           },
         },
-        ...respuestasError,
+        ...respuestasDe(400, 401, 422, 429, 500),
       },
     }),
     async (c) => {
@@ -1223,12 +1276,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/exportacion', tags: ['Reportes'], security: seguridad,
+      method: 'get', path: '/v1/exportacion', operationId: 'exportarPeriodo', tags: ['Reportes'], security: seguridad,
       summary: 'Archivo de texto de un período para el SAR (Art. 53 num. 5)',
       request: { query: S.periodo({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
       responses: {
         200: { description: 'Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).', headers: cabecerasExcluidos, content: { 'text/plain': { schema: z.string() } } },
-        ...respuestasError,
+        ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
     async (c) => {
@@ -1273,7 +1326,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/bitacora', tags: ['Auditoría'], security: seguridad,
+      method: 'get', path: '/v1/bitacora', operationId: 'listarBitacora', tags: ['Auditoría'], security: seguridad,
       summary: 'Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)',
       request: {
         query: z.object({
@@ -1281,7 +1334,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           ...S.Paginacion,
         }),
       },
-      responses: { 200: json(S.pagina('eventos', z.looseObject({})), 'Una página'), ...respuestasError },
+      responses: { 200: json(S.pagina('eventos', z.looseObject({})), 'Una página'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1310,10 +1363,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/llaves', tags: ['Llaves'], security: seguridad,
+      method: 'post', path: '/v1/llaves', operationId: 'crearLlave', tags: ['Llaves'], security: seguridad,
       summary: 'Crea una llave (la llave completa se muestra solo esta vez)',
       request: { body: { content: { 'application/json': { schema: S.LlaveNueva } }, required: true } },
-      responses: { 201: json(S.RespuestaLlaveNueva, 'Creada'), ...respuestasError },
+      responses: { 201: json(S.RespuestaLlaveNueva, 'Creada'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1337,8 +1390,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/llaves', tags: ['Llaves'], security: seguridad, summary: 'Llaves del tenant (sin secretos)',
-      responses: { 200: json(S.pagina('llaves', S.Llave), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/llaves', operationId: 'listarLlaves', tags: ['Llaves'], security: seguridad, summary: 'Llaves del tenant (sin secretos)',
+      responses: { 200: json(S.pagina('llaves', S.Llave), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1351,9 +1404,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'delete', path: '/v1/llaves/{prefijo}', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
+      method: 'delete', path: '/v1/llaves/{prefijo}', operationId: 'revocarLlave', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
       request: { params: z.object({ prefijo: z.string().regex(/^[0-9a-f]{12}$/) }) },
-      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasError },
+      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1381,7 +1434,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const aWebhook = (f: FilaWebhook) => ({ id: f.id, url: f.url, eventos: f.eventos, activo: f.activo, creado: f.creado.toISOString() });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
+      method: 'post', path: '/v1/webhooks', operationId: 'crearWebhook', tags: ['Webhooks'], security: seguridad,
       summary: 'Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)',
       description: `Hasta ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant: con ${MAX_WEBHOOKS_ACTIVOS} activos, crear otro es 409 \`LIMITE_WEBHOOKS\`.`,
       request: { body: { content: { 'application/json': { schema: S.WebhookNuevo } }, required: true } },
@@ -1413,8 +1466,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad, summary: 'Webhooks del tenant',
-      responses: { 200: json(S.pagina('webhooks', S.Webhook), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/webhooks', operationId: 'listarWebhooks', tags: ['Webhooks'], security: seguridad, summary: 'Webhooks del tenant',
+      responses: { 200: json(S.pagina('webhooks', S.Webhook), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1427,9 +1480,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'delete', path: '/v1/webhooks/{id}', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
+      method: 'delete', path: '/v1/webhooks/{id}', operationId: 'desactivarWebhook', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
       request: { params: z.object({ id: z.string().uuid() }) },
-      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1445,11 +1498,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   );
 
   // --- Documentación ---------------------------------------------------------------------------------------
-  app.doc31('/openapi.json', {
+  const especificacion = {
     openapi: '3.1.0',
     info: {
       title: 'factura-hn API',
       version: VERSION_API,
+      license: { name: 'MIT', identifier: 'MIT' },
       description: [
         'Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.',
         '',
@@ -1465,7 +1519,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
       ].join('\n'),
     },
-  });
+  };
+  // Como `app.doc31`, más las cabeceras que la API pone en todas las respuestas (./contrato).
+  app.get('/openapi.json', (c) => c.json(conCabecerasComunes(app.getOpenAPI31Document(especificacion))));
   app.get('/docs', (c) => {
     for (const [k, v] of Object.entries(CABECERAS_DOCS)) c.header(k, v);
     return c.html(HTML_DOCS);

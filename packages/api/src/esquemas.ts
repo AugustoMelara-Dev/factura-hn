@@ -34,6 +34,10 @@ export const ErrorRespuesta = z
       campo: z.string().optional().openapi({ description: 'En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`).' }),
       solucion: Solucion,
       documentacion: Documentacion,
+      solicitud: z.string().openapi({
+        description: 'Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema.',
+        example: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42',
+      }),
     }),
     errores: z.array(ProblemaConGuia).optional().openapi({ description: 'En 400 y 422: la lista completa, cada uno con su código y campo.' }),
     advertencias: z.array(Problema).optional(),

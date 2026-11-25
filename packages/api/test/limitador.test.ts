@@ -306,10 +306,17 @@ conBase('límite de solicitudes', () => {
     const { app, admin } = await tenantListo();
     const vieja = await crearCaja(admin, '001');
     expect((await admin('DELETE', `/v1/llaves/${vieja.split('_')[1]}`)).status).toBe(200);
-    const r1 = await cliente(app, vieja, { ip: '198.51.100.41' })('GET', '/v1/sesion');
-    const r2 = await cliente(app, llaveFalsa(), { ip: '198.51.100.42' })('GET', '/v1/sesion');
+    // El mismo Solicitud-Id en las dos: el cuerpo no puede diferir en nada.
+    const r1 = await cliente(app, vieja, { ip: '198.51.100.41' })('GET', '/v1/sesion', undefined, { 'solicitud-id': 'igual' });
+    const r2 = await cliente(app, llaveFalsa(), { ip: '198.51.100.42' })('GET', '/v1/sesion', undefined, { 'solicitud-id': 'igual' });
     expect([r1.status, r2.status]).toEqual([401, 401]);
     expect(await r1.json()).toEqual(await r2.json());
+    const nombres = (r: Response) => {
+      const n: string[] = [];
+      r.headers.forEach((_, k) => n.push(k));
+      return n.sort();
+    };
+    expect(nombres(r1)).toEqual(nombres(r2));
   });
 
   it('muchas direcciones con prefijos aleatorios no dejan a nadie en 429: las consultas esperan en cola', async () => {
