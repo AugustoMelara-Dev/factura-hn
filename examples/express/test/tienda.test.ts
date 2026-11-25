@@ -131,5 +131,30 @@ describe.skipIf(!URL_PG)('tienda contra la API', () => {
     } finally {
       cerrar();
     }
+
+    // Segunda corrida: la tienda reinicia sin recordar nada (como servidor.ts, con sus pedidos en memoria) contra
+    // la misma API. El pedido ya facturado devuelve su factura y uno nuevo toma el número que diga la API.
+    const pedidos2: Record<string, Pedido> = {
+      '1': { id: '1', articulos: [{ descripcion: 'Cemento', cantidad: 2, precioConISV: '245.00' }] },
+      '3': { id: '3', articulos: [{ descripcion: 'Arena', cantidad: 1, precioConISV: '100.00' }] },
+    };
+    const otraVez = await escuchar(crearTienda({
+      fhn: crearCliente({ url: 'http://api', llave: (data as { secreto: string }).secreto, fetch: fetchApi }),
+      buscarPedido: async (id) => pedidos2[id] ?? null,
+      guardarFactura: async (id, numero) => void (pedidos2[id]!.numeroFactura = numero),
+      secretoWebhook: 'x',
+    }));
+    try {
+      const repetida = await fetch(`${otraVez.base}/pedidos/1/factura`, { method: 'POST', headers: JSON_ });
+      expect(repetida.status).toBe(200);
+      const r = await repetida.json();
+      const nueva = await fetch(`${otraVez.base}/pedidos/3/factura`, { method: 'POST', headers: JSON_ });
+      expect(nueva.status).toBe(201);
+      expect((await nueva.json()).numero).not.toBe(r.numero);
+      const pdf = await fetch(`${otraVez.base}${r.pdf}`);
+      expect(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-');
+    } finally {
+      otraVez.cerrar();
+    }
   });
 });

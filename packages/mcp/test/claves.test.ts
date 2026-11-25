@@ -22,16 +22,22 @@ describe('claves de idempotencia en SQLite', () => {
       cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
       rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: '2027-10-31',
     });
-    const nuevo = () => new BackendLocal({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
+    // Reloj fijo: la prueba no depende de la fecha en que corre (el CAI vence el 2027-10-31).
+    const reloj = () => new Date('2026-11-24T15:00:00Z');
+    const nuevo = () => new BackendLocal({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj });
     const venta = { lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10.00' }] };
 
     const a = await nuevo().emitir(venta, 'clave-1');
-    // «Reinicio»: otra instancia, misma base.
-    expect((await nuevo().emitir(venta, 'clave-1')).numero).toBe(a.numero);
+    expect(a.repetido).toBe(false);
+    // «Reinicio»: otra instancia, misma base. El reintento dice que es repetido.
+    const otra = await nuevo().emitir(venta, 'clave-1');
+    expect([otra.documento.numero, otra.repetido]).toEqual([a.documento.numero, true]);
 
     const b = nuevo();
     const rs = await Promise.all(Array.from({ length: 5 }, () => b.emitir(venta, 'clave-2')));
-    expect(new Set(rs.map((d) => d.numero))).toEqual(new Set(['000-001-01-00000002']));
+    expect(new Set(rs.map((r) => r.documento.numero))).toEqual(new Set(['000-001-01-00000002']));
+    // De los intentos simultáneos, solo uno emitió; los demás se marcan como repetidos.
+    expect(rs.filter((r) => !r.repetido)).toHaveLength(1);
     expect((db.prepare('SELECT count(*) AS n FROM fhn_documentos').get() as { n: number }).n).toBe(2);
     await expect(nuevo().emitir({ lineas: [{ descripcion: 'otra', cantidad: 1, precioUnitario: '1.00' }] }, 'clave-1')).rejects.toMatchObject({ codigo: 'IDEMPOTENCIA_CONFLICTO' });
   });

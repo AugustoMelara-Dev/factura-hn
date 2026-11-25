@@ -34,6 +34,9 @@ export function fragmentosTS(archivo: string): Fragmento[] {
 
 function compilar(fragmentos: Fragmento[]): string[] {
   const nombres = fragmentos.map((f, i) => join(RAIZ, `__fragmento_${i}.ts`));
+  // Un bloque que empieza con «// lib/facturador.ts:» es ese archivo de Next.js: los demás lo importan como
+  // `@/lib/facturador`.
+  const facturadorNext = fragmentos.findIndex((f) => /^\s*\/\/ lib\/facturador\.ts:/m.test(f.codigo));
   const opciones: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,
@@ -46,11 +49,13 @@ function compilar(fragmentos: Fragmento[]): string[] {
     baseUrl: RAIZ,
     paths: {
       'factura-hn': [INDICE],
+      'factura-hn/demo': [join(RAIZ, 'packages', 'core', 'src', 'demo.ts')],
       '@factura-hn/postgres': [join(RAIZ, 'packages', 'postgres', 'src', 'index.ts')],
       '@factura-hn/sqlite': [join(RAIZ, 'packages', 'sqlite', 'src', 'index.ts')],
       '@factura-hn/cliente': [join(RAIZ, 'packages', 'cliente', 'src', 'index.ts')],
       '@factura-hn/pdf': [join(RAIZ, 'packages', 'pdf', 'src', 'index.ts')],
       pg: [join(RAIZ, 'packages', 'postgres', 'node_modules', '@types', 'pg', 'index.d.ts')],
+      ...(facturadorNext >= 0 ? { '@/lib/facturador': [nombres[facturadorNext]!] } : {}),
     },
   };
   const host = ts.createCompilerHost(opciones);
@@ -72,7 +77,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
 }
 
 describe('los fragmentos de código de la documentación compilan', () => {
-  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md']) {
+  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md']) {
     it(archivo, () => {
       const fragmentos = fragmentosTS(archivo);
       expect(fragmentos.length).toBeGreaterThan(0);
@@ -133,6 +138,7 @@ describe('documentación para agentes', () => {
 
   it('las funciones y los tipos que nombran existen en algún paquete', () => {
     const paquetes = ['core', 'sqlite', 'postgres', 'pdf', 'api', 'cliente', 'mcp'].map((n) => join(RAIZ, 'packages', n, 'src', 'index.ts'));
+    paquetes.push(join(RAIZ, 'packages', 'core', 'src', 'demo.ts'));
     const programa = ts.createProgram(paquetes, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, skipLibCheck: true, noEmit: true });
     const checker = programa.getTypeChecker();
     const exportados = new Set<string>();
@@ -171,7 +177,7 @@ describe('documentación para agentes', () => {
   it('las herramientas MCP que se listan son las que el servidor registra', () => {
     const servidor = readFileSync(join(RAIZ, 'packages', 'mcp', 'src', 'servidor.ts'), 'utf8');
     const registradas = [...servidor.matchAll(/registerTool\(\s*'(\w+)'/g)].map((m) => m[1]).sort();
-    expect(registradas).toHaveLength(6);
+    expect(registradas).toHaveLength(7);
     for (const archivo of ['README.md', 'llms.txt', 'packages/mcp/README.md']) {
       const texto = readFileSync(join(RAIZ, archivo), 'utf8');
       for (const h of registradas) expect(texto.includes(h!), `${archivo}: ${h}`).toBe(true);

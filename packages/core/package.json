@@ -40,7 +40,20 @@
         "types": "./dist/pruebas.d.cts",
         "default": "./dist/pruebas.cjs"
       }
+    },
+    "./demo": {
+      "import": {
+        "types": "./dist/demo.d.ts",
+        "default": "./dist/demo.js"
+      },
+      "require": {
+        "types": "./dist/demo.d.cts",
+        "default": "./dist/demo.cjs"
+      }
     }
+  },
+  "bin": {
+    "factura-hn": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -56,7 +69,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/pruebas.ts --format esm,cjs --dts --clean",
+    "build": "tsup src/index.ts src/pruebas.ts src/demo.ts --format esm,cjs --dts --splitting --clean && tsup src/cli.ts --format esm --target node18",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "prepack": "node ../../scripts/copiar-docs.mjs packages/core README.md AGENTS.md llms.txt LICENSE skills docs"

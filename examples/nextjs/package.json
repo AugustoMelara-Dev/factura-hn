@@ -5,7 +5,7 @@
   "description": "Next.js 16: emitir con una server action y recibir webhooks en un route handler.",
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "pnpm --filter @factura-hn/cliente build && next dev -p 3002",
     "build": "next build",
     "start": "next start -p 3002",
     "typecheck": "tsc --noEmit",

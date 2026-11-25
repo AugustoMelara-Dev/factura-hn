@@ -84,6 +84,12 @@ export interface AutorizacionCAI {
   ultimoEmitidoAntes?: number;
   /** Fecha de la resolución que otorga el CAI (YYYY-MM-DD), si se conoce. Permite revisar el Art. 62. */
   fechaAutorizacion?: string;
+  /**
+   * `true` si es una autorización de prueba (un CAI ficticio, como el de `factura-hn/demo`). Todo documento
+   * emitido con ella lleva `modo: 'prueba'` y se imprime con la leyenda `LEYENDA_PRUEBA`. Una serie no mezcla
+   * autorizaciones de prueba y reales. Omítelo en una autorización real.
+   */
+  prueba?: boolean;
 }
 
 export type TipoIdentificacion = 'DNI' | 'RTN' | 'PASAPORTE' | 'CARNET_RESIDENTE' | 'OTRO';
@@ -266,6 +272,24 @@ export interface DocumentoFiscal {
   estado: EstadoDocumento;
   /** Datos de la anulación, presentes solo si `estado` es ANULADO. */
   anulacion?: { motivo: string; fecha: string; hora: string };
+  /**
+   * `'prueba'` si se emitió con una autorización de prueba (`AutorizacionCAI.prueba`): no tiene valor fiscal y
+   * todo impreso lleva `LEYENDA_PRUEBA`. Ausente en un documento real, incluidos los guardados antes de que
+   * existiera este campo. No cambia nunca, ni al anular.
+   */
+  modo?: 'prueba';
+  /**
+   * Solo en moneda extranjera: equivalente en lempiras del ISV y del total, con `tipoCambio`, calculado al
+   * emitir. El impreso lo muestra si está; un documento guardado sin él se reimprime igual que se emitió.
+   */
+  equivalenteLempiras?: EquivalenteLempiras;
+}
+
+/** Equivalente en lempiras de un documento en moneda extranjera. `isv15` e `isv18`, solo si son mayores que 0. */
+export interface EquivalenteLempiras {
+  isv15?: number;
+  isv18?: number;
+  total: number;
 }
 
 /**
@@ -280,6 +304,10 @@ export interface Problema {
   codigo: string;
   mensaje: string;
   campo?: string;
+  /** Qué hacer para resolverlo, en una o dos frases. */
+  solucion?: string;
+  /** Enlace a la explicación del código en el catálogo de errores (`docs/errores.md`). */
+  documentacion?: string;
 }
 
 export interface ResultadoValidacion {

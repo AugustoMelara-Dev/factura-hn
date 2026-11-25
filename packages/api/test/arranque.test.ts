@@ -7,11 +7,11 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mantenimientoApi, migrarApi, rolLoginApi } from '../src/esquema';
-import { COMANDO_LLAVE_ADMIN_LOCAL, crearLlaveOperador, crearTenant, TENANT_DEMO, TENANT_LOCAL } from '../src/operador';
+import { comandoLlaveAdminLocal, crearLlaveOperador, crearTenant, TENANT_DEMO, TENANT_LOCAL } from '../src/operador';
 import { usuarioDeUrlSiHay } from '../src/pool';
 import { arrancar } from '../src/servidor';
 import { CofreSecretos, despacharWebhooks } from '../src/webhooks';
-import { caiAleatorio, cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG, venta } from './ayuda';
+import { caiAleatorio, cerrarPool, cliente, EMISOR, FECHA_LIMITE, poolPrueba, ROL, URL_PG, venta } from './ayuda';
 
 const esquemas: string[] = [];
 const roles: string[] = [];
@@ -90,7 +90,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
         const admin = cliente(s.app, llaveAdmin);
         expect((await admin('POST', '/v1/emisores', EMISOR)).status).toBe(201);
         const aut = await admin('POST', '/v1/autorizaciones', {
-          cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
+          cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE,
         });
         expect(aut.status).toBe(201);
         expect((await admin('POST', '/v1/webhooks', { url: 'https://hooks.ejemplo.example/factura', eventos: ['documento.emitido'] })).status).toBe(201);
@@ -169,8 +169,9 @@ describe.skipIf(!URL_PG)('arranque', () => {
     const s1 = await arrancar(env);
     await s1.cerrar();
     const log = salida.log.join('\n');
-    expect(log).toContain(COMANDO_LLAVE_ADMIN_LOCAL);
-    expect(log).toMatch(/demostración sin validez fiscal/);
+    expect(log).toContain(comandoLlaveAdminLocal('node packages/api/dist/cli.js'));
+    expect(log).toContain('CAI FICTICIO · DOCUMENTO DE PRUEBA — SIN VALOR FISCAL');
+    expect(log).toContain('node packages/api/dist/cli.js demo llave');
     // Sin FHN_MIGRAR_URL, un aviso; con FHN_MODO definido, ningún aviso de modo.
     expect(salida.warn.join('\n')).toMatch(/dueño de las tablas/);
     expect(salida.warn.join('\n')).not.toMatch(/FHN_MODO no está definida/);
@@ -184,18 +185,21 @@ describe.skipIf(!URL_PG)('arranque', () => {
     expect(impresas).toHaveLength(2);
     expect(impresas.map((l) => l.split('_')[1]).sort()).toEqual(llaves.map((f) => f.prefijo).sort());
 
-    // Segundo arranque: ninguna llave; sigue diciendo cómo crear la del negocio.
+    // Segundo arranque: ninguna llave; sigue diciendo cómo crear la del negocio y otra llave del demo.
     salida.log.length = 0;
     await (await arrancar(env)).cerrar();
     expect(salida.log.join('\n')).not.toMatch(LLAVE);
-    expect(salida.log.join('\n')).toContain(COMANDO_LLAVE_ADMIN_LOCAL);
+    expect(salida.log.join('\n')).toContain(comandoLlaveAdminLocal('node packages/api/dist/cli.js'));
+    expect(salida.log.join('\n')).toMatch(/demostración activa.*node packages\/api\/dist\/cli\.js demo llave/);
 
-    // Con la llave admin creada por la consola, el aviso ya no sale.
+    // Con la llave admin creada por la consola, el aviso ya no sale. Con FHN_CONSOLA (la imagen de Docker), los
+    // comandos salen como se invocan ahí.
     await crearLlaveOperador(pool, { tenant: TENANT_LOCAL, rol: 'admin', nombre: 'Administración' });
     salida.log.length = 0;
-    await (await arrancar(env)).cerrar();
-    expect(salida.log.join('\n')).not.toContain(COMANDO_LLAVE_ADMIN_LOCAL);
+    await (await arrancar({ ...env, FHN_CONSOLA: 'docker compose exec api factura-hn-api' })).cerrar();
+    expect(salida.log.join('\n')).not.toContain('llave crear local');
     expect(salida.log.join('\n')).not.toMatch(LLAVE);
+    expect(salida.log.join('\n')).toContain('docker compose exec api factura-hn-api demo llave');
   });
 
   it('sin FHN_MODO avisa que corre en modo local y que un servicio con varios negocios usa alojado', async () => {
@@ -292,7 +296,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
       const admin = cliente(s2.app, llaveAdmin);
       expect((await admin('POST', '/v1/emisores', EMISOR)).status).toBe(201);
       expect((await admin('POST', '/v1/autorizaciones', {
-        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
+        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE,
       })).status).toBe(201);
       expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': 'vieja' })).status).toBe(201);
     } finally {

@@ -6,7 +6,15 @@ description: Integra facturación SAR Honduras (CAI, rangos, ISV 15%/18%, numera
 # Facturación SAR Honduras con factura-hn
 
 Dos caminos: el **SDK** (proyecto JS/TS con su propia base) o la **API REST** (otro lenguaje, o un servidor
-de factura-hn ya instalado). Si no está claro, pregunta al usuario cuál.
+de factura-hn ya instalado). Si no está claro, pregunta al usuario cuál. Para operar la facturación desde el
+asistente (no integrarla), el servidor MCP `@factura-hn/mcp`.
+
+**Antes de integrar, la primera factura de prueba** (CAI ficticio; el impreso dice «DOCUMENTO DE PRUEBA — SIN
+VALOR FISCAL»):
+- SDK: `npm install factura-hn`, `npx factura-hn init` y `node emitir.mjs` (o `npx factura-hn demo`).
+- API: `docker compose up -d --build --wait` y la llave de caja del demo con
+  `docker compose exec -T api factura-hn-api demo llave --solo-llave`.
+- MCP: `npx -y @factura-hn/mcp init --demo`, el bloque `mcpServers` en el cliente y «emite una factura de prueba».
 
 **SDK** (tu proyecto JS/TS emite con su propia base):
 
@@ -30,21 +38,27 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 4. Crea el almacén (`AlmacenPostgres` + `migrar()`, o `AlmacenSQLite`). Si la base no es Postgres ni SQLite,
    implementa `AlmacenFiscal` y hazlo pasar `ejecutarContratoAlmacen` de `factura-hn/pruebas`.
 5. Agrega una pantalla para registrar autorizaciones CAI con `registrarAutorizacion`.
-6. Agrega al modelo de producto el campo `tratamientoISV` (`ISV15` | `ISV18` | `EXENTO`), por defecto `ISV15`.
+6. Agrega al modelo de producto el campo `tratamientoISV` (`ISV15` | `ISV18` | `GRAVADO0` | `EXENTO`), por
+   defecto `ISV15`, y pásalo en cada línea como `isv`. `GRAVADO0` (tasa cero, exportaciones) no es `EXENTO`.
 7. Crea el servicio de emisión en el servidor con `emitir`. Es el único camino: no armes la numeración ni
    guardes el documento por tu cuenta.
-8. Agrega impresión (`renderizarHTML` carta/ticket o `renderizarTexto` para térmicas), anulación con `anular`
-   y Nota de Crédito (06).
-9. Muestra `estadoAutorizacion(...).alertas` en la UI del POS.
+8. Agrega impresión (`renderizarHTML` carta/ticket, `renderizarTexto` para térmicas o `renderizarPDF` de
+   `@factura-hn/pdf`), anulación con `anular` y Nota de Crédito (06).
+9. Muestra `estadoAutorizacion(...).alertas` en la UI del POS. Para demos y pruebas usa `factura-hn/demo`
+   (`crearFacturadorDemo()`) en otro almacén, nunca en el de producción.
 10. Escribe pruebas: validación sin consumo de número, CAI vencido o agotado, total en caja igual al impreso.
 
 ## Pasos con la API
 
 1. Instala `@factura-hn/cliente` (en JS/TS) o genera un cliente desde `/openapi.json` de la API.
-2. Lee la sección «Con la API REST» de `node_modules/factura-hn/AGENTS.md` y `docs/api.md`.
+2. Lee la sección «Con la API REST» de `node_modules/@factura-hn/cliente/AGENTS.md` y la referencia
+   `node_modules/@factura-hn/cliente/docs/api.md` (ambos vienen en el paquete del cliente). Sin el cliente
+   instalado: https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md.
 3. Emite en el servidor con `crearCliente({ url, llave })` y `fhn.emitir(solicitud, { idempotencyKey })`, con
-   una clave estable por venta y una llave de caja que nunca llegue al navegador.
-4. Muestra los errores del 422 tal cual; guarda el número y reimprime con `fhn.descargar(numero, 'pdf')`.
+   una clave estable por venta y una llave de caja que nunca llegue al navegador. La clave se crea al abrir la
+   venta (p. ej. `crypto.randomUUID()`) y se guarda con ella: no la fijes en el código.
+4. Muestra los errores del 422 tal cual; guarda el número que devuelve la emisión (`documento.numero`, nunca
+   uno supuesto) y reimprime con `fhn.descargar(numero, 'pdf')`.
 5. Si registras webhooks, verifica la firma con `await verificarFirmaWebhook(cuerpo, cabecera, secreto)` sobre el
    cuerpo crudo y descarta repetidos por `id`.
 
@@ -54,4 +68,5 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 - Nunca borres ni reutilices un número emitido; anula con `anular` o emite nota de crédito.
 - Muestra al usuario los mensajes de `ErrorValidacion.errores` sin reinterpretarlos.
 - Cobra `totales.total`.
+- Un documento con `modo: 'prueba'` (CAI ficticio) no tiene valor fiscal: no lo entregues como factura real.
 - Recuerda al usuario, una vez, que debe estar registrado como autoimpresor ante el SAR y validar con su contador.

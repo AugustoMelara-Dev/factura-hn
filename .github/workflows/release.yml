@@ -55,7 +55,7 @@ jobs:
         with:
           title: 'Versión de paquetes'
           commit: 'chore: versión de paquetes'
-          version: pnpm changeset version
+          version: pnpm run version
           # Empaqueta con pnpm y sube con npm (scripts/publicar.mjs): npm hace el intercambio OIDC.
           publish: node scripts/publicar.mjs
         env:

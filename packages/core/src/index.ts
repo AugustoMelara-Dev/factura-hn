@@ -8,6 +8,8 @@
  *   await anular(doc.numero, { almacen, motivo });                // Art. 41
  *
  * Solo hay un camino para emitir y uno para anular: `emitir` y `anular` sobre un `AlmacenFiscal`.
+ * `crearFacturador` es una fachada sobre ellos que guarda la configuración del negocio; `factura-hn/demo` trae
+ * un facturador de prueba listo para emitir.
  */
 export * from './tipos';
 export {
@@ -78,6 +80,8 @@ export {
   TIPOS_NO_EMITIBLES_POR_SISTEMA,
   COMPROBANTES_FISCALES,
   ErrorValidacion,
+  esErrorValidacion,
+  validarEmisor,
   hoyHonduras,
   UMBRAL_CONSUMIDOR_FINAL,
   CONSUMIDOR_FINAL,
@@ -104,10 +108,15 @@ export {
   SALTO_MAXIMO_DIAS,
   validarNuevaAutorizacion,
   elegirAutorizacion,
+  autorizacionesActivas,
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
-export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, VERSION_EXPORTACION } from './exportacion';
+export { crearFacturador } from './facturador';
+export type { AutorizacionCaja, ConfigFacturador, Facturador, NotaEntrada, OpcionesOperacion, Venta } from './facturador';
+export { conSolucion, enlaceError, SOLUCIONES, URL_ERRORES } from './errores';
+export { esAutorizacionDePrueba, esCAIDemo, esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
+export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, separarDocumentosDePrueba, VERSION_EXPORTACION } from './exportacion';
 export type { FormatoExportacion, LibroContable } from './exportacion';
 export {
   CAUSALES_NO_UTILIZACION,
@@ -122,5 +131,5 @@ export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';
 export { contarDocumentos, correlativosDe, documentosPorPaginas, TAMANO_PAGINA, TAMANO_PAGINA_COMPLETOS } from './paginas';
 export type { OpcionesPaginas } from './paginas';
-export { acumuladorResumenVentas, filaLibroVentas, inicioLibroVentasCSV, libroVentasCSV, lineaLibroVentasCSV, resumenVentas } from './reportes';
+export { acumuladorResumenVentas, filaLibroVentas, inicioLibroVentasCSV, libroVentas, libroVentasCSV, lineaLibroVentasCSV, resumenVentas } from './reportes';
 export type { FilaLibroVentas, ResumenVentas } from './reportes';

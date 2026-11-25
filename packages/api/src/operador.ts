@@ -4,9 +4,11 @@
  */
 import type pg from 'pg';
 import { registrarAutorizacion } from 'factura-hn';
+import { autorizacionDemo, EMISOR_DEMO, LEYENDA_PRUEBA, PREFIJO_CAI_DEMO } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
 import { generarLlave, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
+import { CONSOLA_POR_DEFECTO } from './errores';
 
 export const TENANT_LOCAL = 'local';
 const TENANT = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -31,8 +33,24 @@ export async function existeTenant(pool: pg.Pool, tenant: string): Promise<boole
   return enTenant(pool, tenant, async (c) => Boolean((await c.query('SELECT 1 FROM api_tenants WHERE tenant = $1', [tenant])).rowCount));
 }
 
+/**
+ * Nombres que crea el propio servidor en modo local (`local` y el demo): el operador no los usa para un negocio,
+ * para que un tenant real nunca se confunda con el de demostración.
+ */
+export const TENANTS_RESERVADOS: readonly string[] = ['local', 'demo'];
+
 /** Crea un tenant y su primera llave admin. Devuelve la llave: se muestra una sola vez. */
 export async function crearTenant(
+  pool: pg.Pool,
+  o: { tenant: string; nombre: string; limiteMensual?: number | null },
+): Promise<{ tenant: string; llaveAdmin: string }> {
+  if (TENANTS_RESERVADOS.includes(o.tenant)) {
+    throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
+  }
+  return crearTenantSinReserva(pool, o);
+}
+
+async function crearTenantSinReserva(
   pool: pg.Pool,
   o: { tenant: string; nombre: string; limiteMensual?: number | null },
 ): Promise<{ tenant: string; llaveAdmin: string }> {
@@ -72,24 +90,49 @@ export async function crearLlaveOperador(
 }
 
 /**
- * Datos de DEMOSTRACIÓN: el CAI es ficticio y no sirve para facturar. El nombre del emisor lo dice y la
- * fecha límite es corta. Solo para probar la API localmente.
+ * Datos de DEMOSTRACIÓN, de `factura-hn/demo`: el CAI es ficticio y no sirve para facturar, y el nombre del
+ * emisor lo dice. `CAI_DEMO` queda por compatibilidad: el de cada tipo termina en su código (`…-01`).
  */
-export const CAI_DEMO = 'DEMO00-NO-VALIDO-0000-0000-0000-00';
-export const EMISOR_DEMO = {
-  rtn: '99990000000000',
-  razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)',
-  nombreComercial: 'Demo factura-hn',
-  direccionCasaMatriz: 'Tegucigalpa, M.D.C.',
-  direccionEstablecimiento: 'Tegucigalpa, M.D.C.',
-  telefono: '0000-0006',
-  correo: 'demo@ejemplo.example',
-};
+export const CAI_DEMO = `${PREFIJO_CAI_DEMO}00`;
+export { EMISOR_DEMO, LEYENDA_PRUEBA };
 
 export const TENANT_DEMO = 'demo';
 
-/** Comando para crear la llave admin del tenant `local` en la instalación con Docker Compose. */
-export const COMANDO_LLAVE_ADMIN_LOCAL = 'docker compose exec api node cli.cjs llave crear local --rol admin --nombre Administración';
+/**
+ * Cómo invocar la consola del operador: lo que diga `FHN_CONSOLA` (la imagen de Docker la define como
+ * `docker compose exec api factura-hn-api`) o, fuera de Docker, `node packages/api/dist/cli.js`.
+ */
+export const consolaDe = (env: NodeJS.ProcessEnv): string => env.FHN_CONSOLA?.trim() || CONSOLA_POR_DEFECTO;
+
+/** Comando para crear la llave admin del tenant `local`. */
+export const comandoLlaveAdminLocal = (consola: string): string => `${consola} llave crear local --rol admin --nombre Administración`;
+/** Comando para crear otra llave de caja del demo. */
+export const comandoLlaveDemo = (consola: string): string => `${consola} demo llave`;
+
+/**
+ * Bloque destacado con llaves del demo, para el log del servidor y la consola: dice que el CAI es ficticio y
+ * cómo crear otra llave si se pierde.
+ */
+export function bloqueLlavesDemo(llaves: { caja?: string; admin?: string }, consola: string): string {
+  const linea = '='.repeat(78);
+  return [
+    '',
+    linea,
+    `  DEMOSTRACIÓN · CAI FICTICIO · ${LEYENDA_PRUEBA}`,
+    llaves.caja
+      ? '  Tenant «demo», punto de emisión 000-001. Nada de lo que emitas aquí tiene validez fiscal.'
+      : '  Tenant «demo». Nada de lo que emitas aquí tiene validez fiscal.',
+    '',
+    ...(llaves.caja ? [`  Llave de caja (para emitir): ${llaves.caja}`] : []),
+    ...(llaves.admin ? [`  Llave admin del demo:        ${llaves.admin}`] : []),
+    '',
+    '  Se muestra solo esta vez. Si pierdes la llave de caja, crea otra con:',
+    `    ${comandoLlaveDemo(consola)}`,
+    '  Primera factura en 3 pasos: docs/api.md, «La primera factura».',
+    linea,
+    '',
+  ].join('\n');
+}
 
 /**
  * Modo local (Art. 47): un solo negocio en su establecimiento. Crea el tenant `local` si no existe, **sin
@@ -97,12 +140,13 @@ export const COMANDO_LLAVE_ADMIN_LOCAL = 'docker compose exec api node cli.cjs l
  * la imprime solo en su terminal y no en el log del servidor. Con `demo`, crea **además** un tenant aparte,
  * `demo`, con el emisor y un CAI ficticios y sus llaves (sin validez fiscal): el tenant `local` del negocio
  * queda limpio para su RTN y sus CAI reales.
- * Devuelve si `local` sigue sin llave admin activa y las llaves del demo creadas en esta llamada.
+ * Devuelve si `local` sigue sin llave admin activa, si existe el tenant `demo` y las llaves del demo creadas en
+ * esta llamada.
  */
 export async function iniciarLocal(
   pool: pg.Pool,
   o: { demo?: boolean; rol?: string; hoy?: Date } = {},
-): Promise<{ localSinLlaveAdmin: boolean; demo?: { llaveAdmin: string; llaveCaja: string } }> {
+): Promise<{ localSinLlaveAdmin: boolean; hayDemo: boolean; demo?: { llaveAdmin: string; llaveCaja: string } }> {
   if (!(await existeTenant(pool, TENANT_LOCAL))) {
     await enTenant(pool, TENANT_LOCAL, async (c) => {
       await c.query('INSERT INTO api_tenants (tenant, nombre) VALUES ($1, $2)', [TENANT_LOCAL, 'Instalación local']);
@@ -112,9 +156,43 @@ export async function iniciarLocal(
   const localSinLlaveAdmin = await enTenant(pool, TENANT_LOCAL, async (c) =>
     !(await c.query("SELECT 1 FROM api_llaves WHERE tenant = $1 AND rol = 'admin' AND revocada IS NULL", [TENANT_LOCAL])).rowCount,
   );
-  const r: { localSinLlaveAdmin: boolean; demo?: { llaveAdmin: string; llaveCaja: string } } = { localSinLlaveAdmin };
-  if (o.demo && !(await existeTenant(pool, TENANT_DEMO))) r.demo = await crearDemo(pool, o);
+  const hayDemo = await existeTenant(pool, TENANT_DEMO);
+  const r: { localSinLlaveAdmin: boolean; hayDemo: boolean; demo?: { llaveAdmin: string; llaveCaja: string } } = { localSinLlaveAdmin, hayDemo };
+  if (o.demo && !hayDemo) {
+    r.demo = await crearDemo(pool, o);
+    r.hayDemo = true;
+  }
   return r;
+}
+
+/**
+ * Otra llave del tenant `demo` (por defecto de caja, en 000-001), para quien perdió la del log. Falla si el demo
+ * no existe: se crea al arrancar en modo local con `FHN_DEMO=1`.
+ */
+export async function crearLlaveDemo(pool: pg.Pool, o: { rol?: RolLlave } = {}): Promise<string> {
+  if (!(await existeTenant(pool, TENANT_DEMO))) {
+    throw new Error('El tenant «demo» no existe: arranca la API una vez en modo local con FHN_DEMO=1 (el docker-compose.yml lo trae).');
+  }
+  if (!(await esDemoFicticio(pool))) {
+    throw new Error('El tenant «demo» de esta base no es el de demostración (no tiene el emisor ni el CAI ficticios): «demo llave» no le crea llaves. Usa «llave crear».');
+  }
+  const rol = o.rol ?? 'caja';
+  return crearLlaveOperador(pool, rol === 'caja'
+    ? { tenant: TENANT_DEMO, rol, nombre: 'Caja demo (consola)', establecimiento: '000', puntoEmision: '001' }
+    : { tenant: TENANT_DEMO, rol, nombre: 'Admin demo (consola)' });
+}
+
+/** Si el tenant `demo` es el de demostración: tiene el emisor ficticio o algún CAI ficticio (`DEMO00-NO-VALIDO-…`). */
+export async function esDemoFicticio(pool: pg.Pool): Promise<boolean> {
+  const prefijoCai = CAI_DEMO.slice(0, CAI_DEMO.indexOf('NO-VALIDO-') + 'NO-VALIDO-'.length);
+  return enTenant(pool, TENANT_DEMO, async (c) => {
+    const r = await c.query<{ demo: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM api_emisores WHERE tenant = $1 AND datos->>'rtn' = $2)
+           OR EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND starts_with(cai, $3)) AS demo`,
+      [TENANT_DEMO, EMISOR_DEMO.rtn, prefijoCai],
+    );
+    return r.rows[0]?.demo === true;
+  });
 }
 
 /**
@@ -170,21 +248,13 @@ export function errorTenantsAjenos(ajenos: string[]): string {
 }
 
 async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promise<{ llaveAdmin: string; llaveCaja: string }> {
-  const { llaveAdmin } = await crearTenant(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
+  const { llaveAdmin } = await crearTenantSinReserva(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
   await enTenant(pool, TENANT_DEMO, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_DEMO, JSON.stringify(EMISOR_DEMO)]));
   const hoy = o.hoy ?? new Date();
-  const limite = new Date(hoy.getTime() + 180 * 86_400_000).toISOString().slice(0, 10);
   const almacen = new AlmacenPostgres(pool, { tenant: TENANT_DEMO, rol: o.rol ?? ROL_POR_DEFECTO });
+  // Rango 1–5000, como los demos creados antes de factura-hn/demo; `prueba: true` lo marca de prueba.
   for (const tipoDocumento of ['01', '06', '07'] as const) {
-    await registrarAutorizacion(almacen, {
-      cai: `${CAI_DEMO.slice(0, -2)}${tipoDocumento}`,
-      tipoDocumento,
-      establecimiento: '000',
-      puntoEmision: '001',
-      rangoInicial: 1,
-      rangoFinal: 5000,
-      fechaLimiteEmision: limite,
-    }, { actor: 'operador:demo' });
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy, tipoDocumento, rangoFinal: 5000 }), { actor: 'operador:demo' });
   }
   const llaveCaja = await crearLlaveOperador(pool, { tenant: TENANT_DEMO, rol: 'caja', nombre: 'Caja 1 (demo)', establecimiento: '000', puntoEmision: '001' });
   return { llaveAdmin, llaveCaja };

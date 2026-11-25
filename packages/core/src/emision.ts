@@ -17,6 +17,7 @@ import { deCentavos, dividirRedondeando, formatearMonto, parsearDecimal, redonde
 import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeOperador, problemaDeTipo } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
+import { esAutorizacionDePrueba, esDocumentoDePrueba } from './modo';
 import { esNumeroValido, formatearNumero, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import type { AutorizacionCAI, DocumentoEntrada, DocumentoFiscal, OpcionesDocumento, Problema } from './tipos';
 
@@ -49,11 +50,52 @@ function exigirOperador(operador: string | undefined) {
 }
 
 /**
- * Problemas de registrar `nueva` junto a las autorizaciones ya registradas del mismo identificador.
- * Dos autorizaciones de un mismo identificador no pueden compartir números: cada número del rango
+ * Sin almacén no hay dónde reservar el número ni guardar el documento. Se avisa con un error del SDK en lugar
+ * del `TypeError` que daría leer `transaccion` de `undefined`.
+ */
+export function exigirAlmacen(almacen: unknown, operacion: string): asserts almacen is AlmacenFiscal {
+  if (!almacen || typeof (almacen as AlmacenFiscal).transaccion !== 'function') {
+    throw error(
+      'ALMACEN_REQUERIDO',
+      `${operacion}: falta el almacén fiscal («almacen»), donde se reservan los números y se guardan los documentos.`,
+      'almacen',
+    );
+  }
+}
+
+/** Establecimiento y punto de emisión de una autorización, p. ej. `000-001`. */
+function puntoDe(a: Pick<AutorizacionCAI, 'establecimiento' | 'puntoEmision'>): string {
+  return `${String(a.establecimiento).padStart(3, '0')}-${String(a.puntoEmision).padStart(3, '0')}`;
+}
+
+/** Último correlativo consumido por serie (`NNN-NNN-TT`), o null si no ha emitido. */
+export interface EstadoPunto {
+  ultimo: (identificador: string) => number | null;
+}
+
+/**
+ * Las autorizaciones de una serie que todavía pueden emitir: sin las de prueba si el punto de emisión ya tiene
+ * alguna autorización real (en cualquier tipo). Desde que el punto pasa a real, su demo queda retirada para
+ * siempre; los documentos de prueba ya emitidos no cambian.
+ */
+export function autorizacionesActivas(deSerie: AutorizacionCAI[], puntoConReal: boolean): AutorizacionCAI[] {
+  return puntoConReal ? deSerie.filter((a) => !esAutorizacionDePrueba(a)) : deSerie;
+}
+
+/**
+ * Problemas de registrar `nueva` junto a las autorizaciones ya registradas. `existentes` trae las del mismo
+ * punto de emisión (todos los tipos): las de otro identificador solo cuentan para el modo de prueba.
+ *
+ * - Una autorización de prueba no entra en un punto que tiene o tuvo una real (`AUTORIZACION_MODO_MEZCLADO`).
+ * - Una real sí entra en un punto con autorizaciones de prueba: las retira (`autorizacionesActivas`). Las de
+ *   prueba no cuentan para duplicados ni solapes, pero los números que ya usaron documentos de prueba no se
+ *   repiten: con `estado`, el rango real debe empezar después del último consumido de su serie
+ *   (`RANGO_USADO_EN_PRUEBA`).
+ *
+ * Dos autorizaciones reales de un mismo identificador no pueden compartir números: cada número del rango
  * pertenece a un solo CAI (Arts. 10 num. 3-5 y 59).
  */
-export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI): Problema[] {
+export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI, estado?: EstadoPunto): Problema[] {
   const problemas = validarAutorizacion(nueva).filter((p) => !esAdvertencia(p));
   // B-15: no se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
   const tipo = problemaDeTipo(nueva.tipoDocumento);
@@ -69,8 +111,34 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
     }
   }
   const id = identificadorDe(nueva);
+  // Producto, no regla fiscal: un punto de emisión pasa de prueba a real, nunca al revés. Así los documentos de
+  // prueba no consumen números de una serie real, ni una nota real cita una factura de prueba.
+  const punto = puntoDe(nueva);
+  const dePrueba = esAutorizacionDePrueba(nueva);
+  const real = dePrueba ? existentes.find((a) => puntoDe(a) === punto && !esAutorizacionDePrueba(a)) : undefined;
+  if (real) {
+    problemas.push({
+      codigo: 'AUTORIZACION_MODO_MEZCLADO',
+      mensaje: `El punto de emisión ${punto} tiene o tuvo autorizaciones reales (CAI ${real.cai}): no se le puede registrar una de prueba.`,
+      campo: 'prueba',
+    });
+  }
+  if (!dePrueba && estado && existentes.some((a) => identificadorDe(a) === id && esAutorizacionDePrueba(a))) {
+    const ultimo = estado.ultimo(id);
+    if (ultimo !== null && ultimo >= nueva.rangoInicial) {
+      problemas.push({
+        codigo: 'RANGO_USADO_EN_PRUEBA',
+        mensaje:
+          `Los correlativos hasta el ${ultimo} de ${id} ya los usaron documentos de prueba y un número no se repite: ` +
+          `el rango ${nueva.rangoInicial}–${nueva.rangoFinal} del CAI ${nueva.cai} no se puede registrar en este almacén.`,
+        campo: 'rangoInicial',
+      });
+    }
+  }
   for (const a of existentes) {
     if (identificadorDe(a) !== id) continue;
+    // La demo que una autorización real retira no le reserva números.
+    if (!dePrueba && esAutorizacionDePrueba(a)) continue;
     if (a.cai.trim().toUpperCase() === nueva.cai.trim().toUpperCase()) {
       problemas.push({ codigo: 'AUTORIZACION_DUPLICADA', mensaje: `El CAI ${nueva.cai} ya está registrado para ${id}.`, campo: 'cai' });
     } else if (nueva.rangoInicial <= a.rangoFinal && a.rangoInicial <= nueva.rangoFinal) {
@@ -90,12 +158,24 @@ export async function registrarAutorizacion(
   autorizacion: AutorizacionCAI,
   opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
 ): Promise<AutorizacionCAI> {
+  exigirAlmacen(almacen, 'registrarAutorizacion');
   exigirOperador(opciones.operador);
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
     const id = identificadorDe(autorizacion);
-    await tx.bloquearSerie(id);
-    const problemas = validarNuevaAutorizacion(await tx.autorizaciones(id), autorizacion);
+    // Todas las series del punto de emisión, en orden fijo: el modo de prueba se decide por punto, no por tipo,
+    // y dos registros simultáneos de tipos distintos en el mismo punto no deben validarse a la vez.
+    // Orden: primero las notas (06, 07) y después los demás tipos. Una nota de crédito bloquea su serie 06 y
+    // luego la del original (problemasDeNotaCredito); si aquí la 01 fuera antes que la 06, una nota y un
+    // registro simultáneos se esperarían el uno al otro (deadlock en Postgres).
+    const delPunto: AutorizacionCAI[] = [];
+    const ultimos = new Map<string, number | null>();
+    for (const tipo of ORDEN_DE_BLOQUEO) {
+      const serie = identificadorDe({ ...autorizacion, tipoDocumento: tipo });
+      ultimos.set(serie, (await tx.bloquearSerie(serie)).ultimo);
+      delPunto.push(...(await tx.autorizaciones(serie)));
+    }
+    const problemas = validarNuevaAutorizacion(delPunto, autorizacion, { ultimo: (serie) => ultimos.get(serie) ?? null });
     if (problemas.length) throw new ErrorValidacion(problemas);
     const normalizada: AutorizacionCAI = {
       ...autorizacion,
@@ -130,14 +210,29 @@ export async function registrarAutorizacion(
  *   números ≥ ese siguiente. Si su rango empieza más adelante, se salta hasta su inicio: los números
  *   saltados pertenecen a autorizaciones vencidas que se reportan como no utilizados (Art. 42); nunca se
  *   emiten.
+ *
+ * @param identificador serie `NNN-NNN-TT`, si se conoce: los mensajes la nombran y dicen cómo resolver.
  */
 export function elegirAutorizacion(
   autorizaciones: AutorizacionCAI[],
   ultimo: number | null,
   hoy: string,
+  identificador?: string,
 ): { autorizacion: AutorizacionCAI; correlativo: number } | { error: Problema } {
+  const serie = identificador ? ` (${nombreDeIdentificador(identificador)}, serie ${identificador})` : '';
   if (autorizaciones.length === 0) {
-    return { error: { codigo: 'SIN_AUTORIZACION', mensaje: 'No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).' } };
+    const problema: Problema = {
+      codigo: 'SIN_AUTORIZACION',
+      mensaje: `No hay autorización (CAI) registrada para este punto de emisión y tipo de documento${serie} (Arts. 59-61).`,
+    };
+    if (identificador) {
+      const [est, pto, tipo] = identificador.split('-');
+      problema.solucion =
+        `Registra el CAI de esa serie una vez: registrarAutorizacion(almacen, { cai, tipoDocumento: '${tipo}', ` +
+        `establecimiento: '${est}', puntoEmision: '${pto}', rangoInicial, rangoFinal, fechaLimiteEmision }), con los datos ` +
+        'de la resolución del SAR. Para probar sin un CAI real, usa crearFacturadorDemo() de factura-hn/demo.';
+    }
+    return { error: problema };
   }
   const ordenadas = [...autorizaciones].sort((a, b) => a.rangoInicial - b.rangoInicial);
   // Una serie migrada continúa después de lo emitido fuera del sistema (`ultimoEmitidoAntes`).
@@ -147,9 +242,23 @@ export function elegirAutorizacion(
   const candidata = vigentes.find((a) => a.rangoFinal >= siguiente);
   if (candidata) return { autorizacion: candidata, correlativo: Math.max(siguiente, candidata.rangoInicial) };
   if (vigentes.length === 0) {
-    return { error: { codigo: 'AUTORIZACION_VENCIDA', mensaje: 'Todas las autorizaciones de este punto de emisión y tipo están vencidas (Art. 62). Solicita un nuevo CAI.' } };
+    const ultimaFecha = ordenadas.map((a) => a.fechaLimiteEmision).filter(esFechaValida).sort().pop();
+    return {
+      error: {
+        codigo: 'AUTORIZACION_VENCIDA',
+        mensaje: `Todas las autorizaciones de este punto de emisión y tipo${serie} están vencidas` +
+          `${ultimaFecha ? ` (la última venció el ${ultimaFecha})` : ''} (Art. 62). Solicita un nuevo CAI.`,
+      },
+    };
   }
-  return { error: { codigo: 'RANGO_AGOTADO', mensaje: 'Se agotaron los rangos autorizados vigentes de este punto de emisión y tipo. Solicita un nuevo CAI.' } };
+  const ultimaVigente = vigentes[vigentes.length - 1]!;
+  return {
+    error: {
+      codigo: 'RANGO_AGOTADO',
+      mensaje: `Se agotaron los rangos autorizados vigentes de este punto de emisión y tipo${serie}: el último número ` +
+        `autorizado es el ${ultimaVigente.rangoFinal} (CAI ${ultimaVigente.cai}). Solicita un nuevo CAI.`,
+    },
+  };
 }
 
 export interface OpcionesEmision {
@@ -186,6 +295,14 @@ export interface OpcionesEmision {
   libroContable?: LibroContable;
 }
 
+/** Orden en que `registrarAutorizacion` bloquea las series de un punto: notas primero (ver allí). */
+const ORDEN_DE_BLOQUEO = (Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>).sort(
+  (x, y) => Number(!esNota(x)) - Number(!esNota(y)) || x.localeCompare(y),
+);
+function esNota(tipo: string): boolean {
+  return tipo === '06' || tipo === '07';
+}
+
 /**
  * Emite un documento de forma atómica: bloquea la serie, elige la autorización vigente, valida, construye
  * y guarda. Todo o nada.
@@ -194,6 +311,7 @@ export interface OpcionesEmision {
  *   FECHA_ANTERIOR_AL_ULTIMO o los de `validarEntrada`.
  */
 export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision): Promise<DocumentoFiscal> {
+  exigirAlmacen(config?.almacen, 'emitir');
   const tipo = entrada.tipoDocumento ?? '01';
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
@@ -240,10 +358,22 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
         }),
       );
     }
-    const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy);
+    let deSerie = await tx.autorizaciones(id);
+    // Si la serie tiene demo, se mira si el punto ya pasó a real (en cualquier tipo): entonces la demo está retirada.
+    if (deSerie.some((a) => esAutorizacionDePrueba(a))) {
+      let puntoConReal = deSerie.some((a) => !esAutorizacionDePrueba(a));
+      for (const otro of Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>) {
+        if (puntoConReal || otro === tipo) continue;
+        const otras = await tx.autorizaciones(`${id.slice(0, 7)}-${otro}`);
+        puntoConReal = otras.some((a) => !esAutorizacionDePrueba(a));
+      }
+      deSerie = autorizacionesActivas(deSerie, puntoConReal);
+    }
+    const eleccion = elegirAutorizacion(deSerie, serie.ultimo, hoy, id);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
     if (tipo === '06' || tipo === '07') entrada = await monedaDelOriginal(tx, entrada);
-    const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
+    const adicionales =
+      tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada, esAutorizacionDePrueba(eleccion.autorizacion)) : [];
     let doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     if (tipo === '06') {
       // DEC-051: el importe y la tasa se comparan con los totales ya calculados de la nota. Con errores,
@@ -284,6 +414,7 @@ export async function anular(
     libroContable?: LibroContable;
   },
 ): Promise<DocumentoFiscal> {
+  exigirAlmacen(config?.almacen, 'anular');
   exigirOperador(config.operador);
   const ahora = relojDe(config.reloj)();
   return config.almacen.transaccion(async (tx) => {
@@ -341,6 +472,7 @@ export async function corregirFechaAdelantada(
   almacen: AlmacenFiscal,
   config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string; operador?: string; libroContable?: LibroContable },
 ): Promise<DocumentoFiscal[]> {
+  exigirAlmacen(almacen, 'corregirFechaAdelantada');
   exigirOperador(config.operador);
   const motivo = config.motivo?.trim();
   if (!motivo) {
@@ -394,6 +526,7 @@ export async function corregirFechaAdelantada(
 
 /** La bitácora de auditoría, en orden de registro. */
 export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
+  exigirAlmacen(almacen, 'eventosAuditoria');
   return almacen.transaccion((tx) => tx.eventos(filtro));
 }
 
@@ -406,7 +539,7 @@ export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEve
  * - Si no está: `AVISO_ORIGINAL_EXTERNO` (DEC-004), salvo que el número pertenezca a una autorización que
  *   este sistema administra y no se haya consumido (`REFERENCIA_NO_EXISTE`).
  */
-async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<Problema[]> {
+async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEntrada, notaDePrueba: boolean): Promise<Problema[]> {
   const r = entrada.referencia;
   if (!r?.numero || !esNumeroValido(r.numero)) return []; // validarEntrada ya lo reporta
   const partes = parsearNumero(r.numero);
@@ -433,6 +566,16 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
       });
     }
     return problemas;
+  }
+  // Producto, no regla fiscal: una nota de prueba no modifica un documento real, ni al revés.
+  if (esDocumentoDePrueba(original) !== notaDePrueba) {
+    problemas.push({
+      codigo: 'REFERENCIA_MODO_MEZCLADO',
+      mensaje: notaDePrueba
+        ? `El documento ${numero} es real: una nota de prueba no lo puede modificar.`
+        : `El documento ${numero} es de prueba (sin valor fiscal): una nota real no lo puede modificar.`,
+      campo: 'referencia.numero',
+    });
   }
   if (original.estado === 'ANULADO') {
     problemas.push({ codigo: 'REFERENCIA_ANULADA', mensaje: `El documento ${numero} está ANULADO (Art. 41); no se le puede aplicar una nota.`, campo: 'referencia.numero' });
@@ -481,7 +624,13 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
   const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6, 'tipoCambio') : 1_000_000n;
   const totalOriginal = dividirRedondeando(redondearDecimal(original.totales.total, 2) * tc, 1_000_000n);
   const previas = (await tx.documentos({ desde: original.fechaEmision, tipoDocumento: '06', referencia: numero })).filter(
-    (d) => d.tipoDocumento === '06' && d.estado !== 'ANULADO' && d.numero !== nota.numero && d.referencia?.numero === numero,
+    (d) =>
+      d.tipoDocumento === '06' &&
+      d.estado !== 'ANULADO' &&
+      d.numero !== nota.numero &&
+      d.referencia?.numero === numero &&
+      // Las notas del otro modo (prueba o real) no cuentan para el saldo.
+      esDocumentoDePrueba(d) === esDocumentoDePrueba(nota),
   );
   const acreditado = previas.reduce((suma, d) => suma + redondearDecimal(d.totales.total, 2), 0n);
   const saldo = totalOriginal - acreditado;
@@ -523,6 +672,7 @@ async function monedaDelOriginal(tx: TransaccionFiscal, entrada: DocumentoEntrad
 
 /** Busca un documento guardado y lo devuelve inmutable. */
 export async function buscarDocumento(almacen: AlmacenFiscal, numero: string): Promise<DocumentoFiscal | null> {
+  exigirAlmacen(almacen, 'buscarDocumento');
   const doc = await almacen.transaccion((tx) => tx.buscarDocumento(numero));
   return doc ? congelar(doc) : null;
 }

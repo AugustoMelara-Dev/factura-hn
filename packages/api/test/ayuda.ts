@@ -21,6 +21,14 @@ const hex = (n: number) => randomBytes(n).toString('hex').toUpperCase();
 export const caiAleatorio = () => `${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(1)}`;
 export const nombreTenant = (p = 't') => `${p}-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
 
+const DIA_MS = 86_400_000;
+/** La fecha (AAAA-MM-DD, UTC) dentro de `dias` días: las pruebas no dependen del calendario. */
+export const fechaEn = (dias: number): string => new Date(Date.now() + dias * DIA_MS).toISOString().slice(0, 10);
+/** Fecha límite de emisión de los CAI de prueba: dentro de 300 días. */
+export const FECHA_LIMITE = fechaEn(300);
+/** Un instante 15 días después de `FECHA_LIMITE`, para probar autorizaciones vencidas. */
+export const DESPUES_DEL_LIMITE = new Date(`${fechaEn(315)}T15:00:00Z`);
+
 let pool: pg.Pool | null = null;
 export async function poolPrueba(): Promise<pg.Pool> {
   if (!pool) {
@@ -36,17 +44,22 @@ export async function cerrarPool(): Promise<void> {
 
 export type Cliente = (metodo: string, ruta: string, cuerpo?: unknown, cabeceras?: Record<string, string>) => Promise<Response>;
 
-export function cliente(app: ReturnType<typeof crearApp>, llave: string | null): Cliente {
+/** Cliente de prueba. Con `ip`, la solicitud llega como desde esa dirección (el socket de @hono/node-server). */
+export function cliente(app: ReturnType<typeof crearApp>, llave: string | null, o: { ip?: string } = {}): Cliente {
   return async (metodo, ruta, cuerpo, cabeceras = {}) =>
-    app.request(ruta, {
-      method: metodo,
-      headers: {
-        ...(llave ? { authorization: `Bearer ${llave}` } : {}),
-        ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),
-        ...cabeceras,
+    app.request(
+      ruta,
+      {
+        method: metodo,
+        headers: {
+          ...(llave ? { authorization: `Bearer ${llave}` } : {}),
+          ...(cuerpo !== undefined ? { 'content-type': 'application/json' } : {}),
+          ...cabeceras,
+        },
+        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
       },
-      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-    });
+      o.ip ? { incoming: { socket: { remoteAddress: o.ip } } } : undefined,
+    );
 }
 
 /** Tenant listo para emitir: emisor y autorizaciones de factura y NC en las cajas indicadas. */
@@ -66,7 +79,7 @@ export async function tenantListo(
     for (const tipoDocumento of ['01', '06'] as const) {
       const a = await admin('POST', '/v1/autorizaciones', {
         cai: caiAleatorio(), tipoDocumento, establecimiento: '000', puntoEmision: punto,
-        rangoInicial: 1, rangoFinal: o.rangoFinal ?? 1000, fechaLimiteEmision: '2027-10-31',
+        rangoInicial: 1, rangoFinal: o.rangoFinal ?? 1000, fechaLimiteEmision: FECHA_LIMITE,
       });
       if (a.status !== 201) throw new Error(`autorización: ${a.status} ${await a.text()}`);
     }

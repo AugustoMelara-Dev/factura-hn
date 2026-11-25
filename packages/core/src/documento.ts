@@ -3,14 +3,18 @@
  */
 import { congelar } from './inmutable';
 import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, validarLineas } from './calculo';
-import { centavosATexto, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
+import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
+import { conSolucion } from './errores';
+import { esAutorizacionDePrueba } from './modo';
 import type {
   AutorizacionCAI,
   DocumentoEntrada,
+  Emisor,
   DocumentoFiscal,
+  EquivalenteLempiras,
   OpcionesDocumento,
   Problema,
   ResultadoValidacion,
@@ -118,11 +122,37 @@ export function problemaDeTipo(tipo: string): Problema | null {
 
 const PATRON_CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** Un problema en una línea de texto: código, mensaje, qué hacer y dónde leer más. */
+function textoProblema(p: Problema): string {
+  const mensaje = p.mensaje.trim();
+  const partes = [`[${p.codigo}] ${mensaje}${/[.!?»)]$/.test(mensaje) ? '' : '.'}`];
+  if (p.solucion) partes.push(`Solución: ${p.solucion}`);
+  if (p.documentacion) partes.push(`Más información: ${p.documentacion}`);
+  return partes.join(' ');
+}
+
+/**
+ * Error de validación del SDK. Cada problema trae `codigo`, `mensaje` y, si el código es del SDK, `solucion`
+ * y `documentacion` (enlace al catálogo de errores). El `message` los incluye.
+ */
 export class ErrorValidacion extends Error {
-  constructor(public readonly errores: Problema[], public readonly advertencias: Problema[] = []) {
-    super(`Documento inválido: ${errores.map((e) => `[${e.codigo}] ${e.mensaje}`).join(' ')}`);
+  readonly errores: Problema[];
+  readonly advertencias: Problema[];
+  constructor(errores: Problema[], advertencias: Problema[] = []) {
+    const completos = errores.map(conSolucion);
+    super(`Documento inválido: ${completos.map(textoProblema).join(' ')}`);
     this.name = 'ErrorValidacion';
+    this.errores = completos;
+    this.advertencias = advertencias;
   }
+}
+
+/**
+ * true si `e` es un `ErrorValidacion`, aunque venga de otra copia del paquete (ESM y CJS cargados a la vez),
+ * donde `instanceof` falla.
+ */
+export function esErrorValidacion(e: unknown): e is ErrorValidacion {
+  return e instanceof ErrorValidacion || (e instanceof Error && e.name === 'ErrorValidacion' && Array.isArray((e as ErrorValidacion).errores));
 }
 
 /**
@@ -135,6 +165,31 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
     return { codigo: 'OPERADOR', mensaje: 'El operador debe ser un nombre de 1 a 80 caracteres, sin caracteres de control.', campo };
   }
   return null;
+}
+
+/**
+ * Problemas de los datos del emisor: todos son obligatorios (Reglamento Art. 10 num. 1; Arts. 25 y 27 num. 1
+ * para las notas). Es la misma comprobación que hace `emitir`; sirve para validar la configuración del negocio
+ * al arrancar.
+ */
+export function validarEmisor(e: Emisor | undefined): Problema[] {
+  const problemas: Problema[] = [];
+  if (!e) problemas.push({ codigo: 'EMISOR', mensaje: 'Faltan los datos del emisor.', campo: 'emisor' });
+  else {
+    if (!e.rtn || !esRTNValido(e.rtn)) problemas.push({ codigo: 'EMISOR_RTN', mensaje: 'RTN del emisor inválido (14 dígitos).', campo: 'emisor.rtn' });
+    if (!e.razonSocial?.trim()) problemas.push({ codigo: 'EMISOR_NOMBRE', mensaje: 'Falta el nombre o razón social del emisor.', campo: 'emisor.razonSocial' });
+    // Art. 10 num. 1 (y Arts. 25 y 27 num. 1 para las notas): todos los datos de identificación del emisor.
+    if (!e.nombreComercial?.trim())
+      problemas.push({ codigo: 'EMISOR_NOMBRE_COMERCIAL', mensaje: 'Falta el nombre comercial del emisor (Art. 10 num. 1 c). Si no tiene uno distinto, repite la razón social.', campo: 'emisor.nombreComercial' });
+    if (!e.direccionCasaMatriz?.trim()) problemas.push({ codigo: 'EMISOR_DIRECCION', mensaje: 'Falta la dirección de casa matriz (Art. 10 num. 1 d).', campo: 'emisor.direccionCasaMatriz' });
+    if (!e.direccionEstablecimiento?.trim())
+      problemas.push({ codigo: 'EMISOR_DIRECCION_ESTABLECIMIENTO', mensaje: 'Falta la dirección del establecimiento donde está el punto de emisión (Art. 10 num. 1 d).', campo: 'emisor.direccionEstablecimiento' });
+    if (!e.telefono?.trim()) problemas.push({ codigo: 'EMISOR_TELEFONO', mensaje: 'Falta el número telefónico del emisor (Art. 10 num. 1 e).', campo: 'emisor.telefono' });
+    if (!e.correo?.trim()) problemas.push({ codigo: 'EMISOR_CORREO', mensaje: 'Falta el correo electrónico del emisor (Art. 10 num. 1 f).', campo: 'emisor.correo' });
+    else if (!PATRON_CORREO.test(e.correo.trim()))
+      problemas.push({ codigo: 'EMISOR_CORREO', mensaje: `El correo del emisor no parece válido: "${e.correo}".`, campo: 'emisor.correo' });
+  }
+  return problemas.map(conSolucion);
 }
 
 /**
@@ -190,22 +245,7 @@ export function validarEntrada(
   }
 
   // Emisor
-  const e = entrada.emisor;
-  if (!e) problemas.push({ codigo: 'EMISOR', mensaje: 'Faltan los datos del emisor.', campo: 'emisor' });
-  else {
-    if (!e.rtn || !esRTNValido(e.rtn)) problemas.push({ codigo: 'EMISOR_RTN', mensaje: 'RTN del emisor inválido (14 dígitos).', campo: 'emisor.rtn' });
-    if (!e.razonSocial?.trim()) problemas.push({ codigo: 'EMISOR_NOMBRE', mensaje: 'Falta el nombre o razón social del emisor.', campo: 'emisor.razonSocial' });
-    // Art. 10 num. 1 (y Arts. 25 y 27 num. 1 para las notas): todos los datos de identificación del emisor.
-    if (!e.nombreComercial?.trim())
-      problemas.push({ codigo: 'EMISOR_NOMBRE_COMERCIAL', mensaje: 'Falta el nombre comercial del emisor (Art. 10 num. 1 c). Si no tiene uno distinto, repite la razón social.', campo: 'emisor.nombreComercial' });
-    if (!e.direccionCasaMatriz?.trim()) problemas.push({ codigo: 'EMISOR_DIRECCION', mensaje: 'Falta la dirección de casa matriz (Art. 10 num. 1 d).', campo: 'emisor.direccionCasaMatriz' });
-    if (!e.direccionEstablecimiento?.trim())
-      problemas.push({ codigo: 'EMISOR_DIRECCION_ESTABLECIMIENTO', mensaje: 'Falta la dirección del establecimiento donde está el punto de emisión (Art. 10 num. 1 d).', campo: 'emisor.direccionEstablecimiento' });
-    if (!e.telefono?.trim()) problemas.push({ codigo: 'EMISOR_TELEFONO', mensaje: 'Falta el número telefónico del emisor (Art. 10 num. 1 e).', campo: 'emisor.telefono' });
-    if (!e.correo?.trim()) problemas.push({ codigo: 'EMISOR_CORREO', mensaje: 'Falta el correo electrónico del emisor (Art. 10 num. 1 f).', campo: 'emisor.correo' });
-    else if (!PATRON_CORREO.test(e.correo.trim()))
-      problemas.push({ codigo: 'EMISOR_CORREO', mensaje: `El correo del emisor no parece válido: "${e.correo}".`, campo: 'emisor.correo' });
-  }
+  problemas.push(...validarEmisor(entrada.emisor));
 
   // Cliente
   const c = entrada.cliente ?? {};
@@ -318,9 +358,27 @@ export function validarEntrada(
     }
   }
 
-  const errores = problemas.filter((p) => !esAdvertencia(p));
+  const errores = problemas.filter((p) => !esAdvertencia(p)).map(conSolucion);
   const advertencias = problemas.filter(esAdvertencia);
   return { ok: errores.length === 0, errores, advertencias };
+}
+
+/**
+ * Equivalente en lempiras del ISV y del total de un documento en moneda extranjera, con su tipo de cambio:
+ * importe en centavos × tipo de cambio, redondeado al centavo (mitad lejos de cero, Ley del ISV Art. 9).
+ * Información para el adquirente; los importes del documento siguen en su moneda. Se calcula al emitir y se
+ * guarda, así el impreso no cambia al reimprimir. null si el documento está en lempiras.
+ */
+function calcularEquivalenteLempiras(doc: DocumentoFiscal): EquivalenteLempiras | null {
+  if (doc.moneda === 'HNL' || doc.tipoCambio === undefined) return null;
+  const tc = parsearDecimal(doc.tipoCambio, 6, 'tipoCambio');
+  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
+  const t = doc.totales;
+  return {
+    ...(t.isv15 > 0 ? { isv15: L(t.isv15) } : {}),
+    ...(t.isv18 > 0 ? { isv18: L(t.isv18) } : {}),
+    total: L(t.total),
+  };
 }
 
 /**
@@ -396,6 +454,10 @@ export function construirDocumento(
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
   if (entrada.operador) doc.operador = entrada.operador.trim();
+  // Una autorización de prueba (`prueba: true` o CAI ficticio) marca el documento; uno real no lleva el campo.
+  if (esAutorizacionDePrueba(autorizacion)) doc.modo = 'prueba';
+  const equivalente = calcularEquivalenteLempiras(doc);
+  if (equivalente) doc.equivalenteLempiras = equivalente;
   // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
   return congelar(doc);
 }

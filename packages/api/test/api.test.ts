@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
 import { generarLlave } from '../src/llaves';
 import { crearLlaveOperador } from '../src/operador';
-import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
+import { cerrarPool, cliente, crearCaja, FECHA_LIMITE, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -22,7 +22,14 @@ conBase('autenticación y roles', () => {
     const otraFirma = llaveAdmin.slice(0, -4) + (llaveAdmin.endsWith('AAAA') ? 'BBBB' : 'AAAA');
     const r = await cliente(app, otraFirma)('GET', '/v1/autorizaciones');
     expect(r.status).toBe(401);
-    expect(await json(r)).toEqual({ error: { codigo: 'NO_AUTENTICADO', mensaje: 'Falta la llave de API o no es válida.' } });
+    expect(await json(r)).toEqual({
+      error: {
+        codigo: 'NO_AUTENTICADO',
+        mensaje: 'Falta la llave de API o no es válida.',
+        solucion: expect.stringContaining('Authorization: Bearer fhn_<prefijo>_<secreto>'),
+        documentacion: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#no_autenticado',
+      },
+    });
 
     const caja = await crearCaja(admin, '001');
     const prefijo = caja.split('_')[1]!;
@@ -39,7 +46,7 @@ conBase('autenticación y roles', () => {
     const { documento } = await json(r);
     expect((await caja('GET', `/v1/documentos/${documento.numero}`)).status).toBe(200);
     for (const [m, ruta, cuerpo] of [
-      ['POST', '/v1/autorizaciones', { cai: 'X', tipoDocumento: '01', establecimiento: '000', puntoEmision: '009', rangoInicial: 1, rangoFinal: 2, fechaLimiteEmision: '2027-01-01' }],
+      ['POST', '/v1/autorizaciones', { cai: 'X', tipoDocumento: '01', establecimiento: '000', puntoEmision: '009', rangoInicial: 1, rangoFinal: 2, fechaLimiteEmision: FECHA_LIMITE }],
       ['POST', `/v1/documentos/${documento.numero}/anular`, { motivo: 'x' }],
       ['POST', '/v1/series/000-001-01/corregir-fecha', { motivo: 'x' }],
       ['GET', '/v1/bitacora'],
@@ -379,16 +386,19 @@ conBase('documentación', () => {
 });
 
 conBase('correcciones de la revisión de seguridad', () => {
-  it('intentos con un prefijo conocido y secreto falso: 429 antes de tocar la base y sin marcar último uso', async () => {
+  it('intentos con un prefijo conocido y secreto falso: 429 de intentos, sin marcar último uso ni bloquear la llave', async () => {
     const { llaveAdmin, pool, tenant } = await tenantListo();
-    const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 } });
+    const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 }, limiteIntentos: { porSegundo: 0.01, rafaga: 2 } });
     const falsa = `${llaveAdmin.slice(0, 17)}${'A'.repeat(43)}`;
     const uso = async () => (await pool.query('SELECT ultimo_uso FROM api_llaves WHERE tenant = $1', [tenant])).rows[0].ultimo_uso;
     const antes = await uso();
-    const rs = await Promise.all(Array.from({ length: 6 }, () => cliente(app, falsa)('GET', '/v1/autorizaciones')));
-    expect(rs.map((r) => r.status).sort()).toEqual([401, 401, 429, 429, 429, 429]);
+    const estados: number[] = [];
+    for (let i = 0; i < 6; i++) estados.push((await cliente(app, falsa, { ip: '192.0.2.1' })('GET', '/v1/autorizaciones')).status);
+    expect(estados).toEqual([401, 401, 429, 429, 429, 429]);
     // El secreto falso no actualiza el último uso de la llave verdadera.
     expect(await uso()).toEqual(antes);
+    // Ni gasta su límite: desde su propia dirección, la llave verdadera entra.
+    expect((await cliente(app, llaveAdmin, { ip: '192.0.2.2' })('GET', '/v1/autorizaciones')).status).toBe(200);
   });
 
   it('el esquema Bearer no distingue mayúsculas', async () => {
@@ -442,7 +452,10 @@ conBase('correcciones de la revisión de seguridad', () => {
     }
     const r = await emitir(cliente(app, llave), venta('10.00', { puntoEmision: '002' }));
     expect(r.status).toBe(403);
-    expect((await json(r)).error.codigo).toBe('CAJA_SIN_PUNTO');
+    expect((await json(r)).error).toMatchObject({ codigo: 'CAJA_SIN_PUNTO', solucion: expect.stringContaining('POST /v1/llaves'), documentacion: expect.stringMatching(/#caja_sin_punto$/) });
+    // GET /v1/sesion dice lo mismo, sin mostrar puntos de otras cajas.
+    const { sesion } = await json(await cliente(app, llave)('GET', '/v1/sesion'));
+    expect(sesion).toMatchObject({ puedeEmitir: false, puntos: [], pendientes: [{ codigo: 'CAJA_SIN_PUNTO' }] });
     // Sigue autenticando para leer: el disparador no toca el UPDATE de ultimo_uso.
     expect((await cliente(app, llave)('GET', '/v1/autorizaciones')).status).toBe(200);
   });

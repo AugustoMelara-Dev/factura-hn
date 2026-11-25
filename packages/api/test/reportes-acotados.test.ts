@@ -10,7 +10,7 @@ import { fechaHonduras, filaLibroVentas, noUtilizadosDelAlmacen, type AlmacenFis
 import { crearApp } from '../src/app';
 import { exportarTextoAnterior } from '../../core/test/exportacion-anterior';
 import { libroVentasCSVAnterior, resumenVentasAnterior } from '../../core/test/libro-anterior';
-import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
+import { cerrarPool, cliente, crearCaja, fechaEn, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
 
 afterAll(cerrarPool);
 
@@ -128,13 +128,13 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     const filas = docs.map(filaLibroVentas);
     const libro = await admin('GET', `/v1/libro-ventas?${PERIODO}`);
     expect(libro.headers.get('content-type')).toBe('application/json');
-    expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas) }));
+    expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas), excluidos: 0 }));
     const csv = await admin('GET', `/v1/libro-ventas?${PERIODO}&formato=csv`);
     expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8');
     expect(Buffer.from(await csv.arrayBuffer()).equals(Buffer.from(libroVentasCSVAnterior(filas), 'utf8'))).toBe(true);
     // Sin documentos también.
     const vacio = `desde=${diasAntes(HOY, 60)}&hasta=${diasAntes(HOY, 31)}`;
-    expect(await (await admin('GET', `/v1/libro-ventas?${vacio}`)).text()).toBe(JSON.stringify({ filas: [], resumen: resumenVentasAnterior([]) }));
+    expect(await (await admin('GET', `/v1/libro-ventas?${vacio}`)).text()).toBe(JSON.stringify({ filas: [], resumen: resumenVentasAnterior([]), excluidos: 0 }));
     const csvVacio = Buffer.from(await (await admin('GET', `/v1/libro-ventas?${vacio}&formato=csv`)).arrayBuffer());
     expect(csvVacio.equals(Buffer.from(libroVentasCSVAnterior([]), 'utf8'))).toBe(true);
   }, 120_000);
@@ -147,9 +147,10 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     expect(await almacen.transaccion((tx) => tx.correlativos!('000-001-01'))).toEqual([1, 2, 3]);
     // Sin `correlativos` el núcleo recurre a los documentos completos: el resultado debe ser el mismo.
     const sinProyeccion: AlmacenFiscal = { transaccion: (fn) => almacen.transaccion((tx) => fn({ ...tx, correlativos: undefined })) };
-    for (const hoy of ['2026-12-01', '2027-11-20']) {
-      const proyectado = await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy, evento: hoy < '2027' ? { causal: 5, fecha: hoy } : undefined });
-      const completo = await noUtilizadosDelAlmacen(sinProyeccion, '000-001-01', { hoy, evento: hoy < '2027' ? { causal: 5, fecha: hoy } : undefined });
+    // Antes de la fecha límite, con un evento (causal 5); después, por vencimiento.
+    for (const [hoy, conEvento] of [[fechaEn(7), true], [fechaEn(320), false]] as const) {
+      const proyectado = await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy, evento: conEvento ? { causal: 5, fecha: hoy } : undefined });
+      const completo = await noUtilizadosDelAlmacen(sinProyeccion, '000-001-01', { hoy, evento: conEvento ? { causal: 5, fecha: hoy } : undefined });
       expect(proyectado).toEqual(completo);
       expect(proyectado.map((r) => [r.desde, r.hasta])).toEqual([[4, 1000]]);
     }

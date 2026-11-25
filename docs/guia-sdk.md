@@ -7,6 +7,35 @@ central, usa la [API REST](api.md).
 > Los datos de esta guía son ficticios: el CAI, los RTN (prefijo 9999) y los correos (`.example`). Usa los de
 > tu resolución del SAR.
 
+## 0. Prueba en un minuto
+
+Sin CAI real ni base de datos, para ver una factura antes de configurar nada:
+
+```bash
+npx factura-hn demo     # emite una factura de prueba y escribe factura-demo.html
+npx factura-hn init     # crea emitir.mjs y emisor.json en este directorio
+node emitir.mjs         # emite con los datos de emisor.json y escribe factura.html
+```
+
+Lo mismo en código, con `factura-hn/demo`: un facturador en memoria con CAI ficticios de factura, nota de
+crédito y nota de débito ya registrados.
+
+```ts
+import { writeFile } from 'node:fs/promises';
+import { renderizarHTML } from 'factura-hn';
+import { crearFacturadorDemo } from 'factura-hn/demo';
+
+const facturador = await crearFacturadorDemo();
+const factura = await facturador.emitir({
+  preciosIncluyenISV: true,
+  lineas: [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
+});
+await writeFile('factura.html', renderizarHTML(factura));
+```
+
+Todo lo que se emite así lleva `modo: 'prueba'` y se imprime con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
+FISCAL» (`LEYENDA_PRUEBA`) en el HTML, el texto y el PDF. Para facturar de verdad, sigue desde el paso 1.
+
 ## 1. Instala
 
 ```bash
@@ -199,6 +228,78 @@ import { filaLibroVentas, libroVentasCSV } from 'factura-hn';
 const docs = await almacen.transaccion((tx) => tx.documentos({ desde: '2026-11-01', hasta: '2026-11-30' }));
 const csv = libroVentasCSV(docs.map(filaLibroVentas)); // en lempiras; los anulados salen con su número y montos en cero
 ```
+
+## 8. Con `crearFacturador`: la configuración una sola vez
+
+`crearFacturador` guarda lo que es del negocio (almacén, emisor y caja) y en cada venta recibe solo lo que es de
+la venta. Por dentro llama a `emitir`, `anular` y `registrarAutorizacion`: misma transacción, mismas
+validaciones y misma bitácora. Valida el almacén y el emisor al crearse, así un error de configuración sale al
+arrancar y no en la primera venta.
+
+<!-- declaraciones:
+import type { AlmacenFiscal, Emisor } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const emisor: Emisor;
+-->
+```ts
+import { crearFacturador } from 'factura-hn';
+
+// Una vez, al arrancar el servidor o la caja.
+const caja = crearFacturador({ almacen, emisor, establecimiento: '000', puntoEmision: '001', preciosIncluyenISV: true });
+
+// Una vez por resolución del SAR: establecimiento y punto de emisión los pone el facturador.
+await caja.registrarAutorizacion({
+  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', tipoDocumento: '01',
+  rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30',
+});
+
+// En cada venta.
+const { totales } = caja.cotizar({ lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '2', precioUnitario: '89.50' }] });
+const factura = await caja.emitir(
+  { cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' }, lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '2', precioUnitario: '89.50' }] },
+  { operador: 'María' },
+);
+
+// Nota de crédito: el cliente, la referencia y la moneda se toman del original guardado.
+const nota = await caja.notaCredito({
+  original: factura.numero,
+  motivo: 'Devolución de 1 bolsa',
+  lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '89.50' }],
+});
+
+await caja.anular(nota.numero, 'Nota duplicada');
+const guardada = await caja.documento(factura.numero);
+const delMes = await caja.documentos({ desde: '2026-11-01', hasta: '2026-11-30' });
+console.log(totales.total, guardada?.estado, delMes.length);
+```
+
+`notaCredito` y `notaDebito` necesitan el CAI de su tipo (`06` y `07`) registrado en la misma caja. Si el
+original no está en el almacén (talonario u otro sistema), pasa `referencia` y `cliente` completos.
+
+## 9. Errores que dicen qué hacer
+
+`ErrorValidacion.errores` trae, en cada problema, `codigo`, `mensaje` y `campo`, y en los del SDK también
+`solucion` (qué hacer) y `documentacion` (enlace al [catálogo de errores](errores.md)). El `message` del error
+los incluye, así que un log o una consola ya dicen cómo resolverlo. Usa `esErrorValidacion(e)` en lugar de
+`instanceof` si tu proyecto puede cargar el paquete dos veces (ESM y CJS).
+
+## 10. Modo de prueba
+
+Una autorización es de prueba si tiene un CAI ficticio, que empieza con `DEMO00-NO-VALIDO-` (`esCAIDemo`), como
+la de `autorizacionDemo()`. Con `prueba: true` y un CAI real, el registro falla (`AUTORIZACION_PRUEBA_CAI_REAL`).
+Cada documento que emite lleva `modo: 'prueba'`; ese campo no cambia nunca, ni al anular. `renderizarHTML`,
+`renderizarTexto` y `@factura-hn/pdf` imprimen la leyenda `LEYENDA_PRUEBA` al inicio y al final. Un documento real
+se imprime igual que siempre.
+
+- Un punto de emisión pasa de prueba a real, nunca al revés: el que tiene o tuvo un CAI real no recibe
+  autorizaciones de prueba (`AUTORIZACION_MODO_MEZCLADO`). Una nota no cruza de un modo a otro
+  (`REFERENCIA_MODO_MEZCLADO`).
+- Para pasar a producción en el mismo almacén, registra el CAI real; la demo de ese punto queda retirada (en
+  todos sus tipos) y los documentos de prueba ya emitidos no cambian. Sus números no se repiten: si ya emitiste
+  documentos de prueba y tu rango empieza en 1, registra el CAI en un almacén nuevo (`RANGO_USADO_EN_PRUEBA`).
+- Prueba en **otro almacén** (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.
+- `exportarTexto` y `libroVentas` dejan fuera los documentos de prueba. `separarDocumentosDePrueba(docs)` dice
+  cuántos quedaron fuera; úsala también si armas el archivo por partes con `lineaExportacion` o `filaLibroVentas`.
 
 ## Con un agente de IA
 

@@ -1,21 +1,28 @@
 # @factura-hn/cliente
 
-Cliente tipado de la API REST de factura-hn (ver `docs/api.md`). Los tipos se generan desde
-`packages/api/openapi.json`; una prueba falla si quedan desactualizados. Sin dependencias pesadas
+Cliente tipado de la API REST de factura-hn (referencia: `docs/api.md` en este paquete o
+[en GitHub](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md)). Los tipos se generan desde
+[`openapi.json`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/api/openapi.json) de la API;
+una prueba falla si quedan desactualizados. Sin dependencias pesadas
 (`openapi-fetch`): Node 20+, navegador, Deno y edge.
 
 ```ts
 import { crearCliente, ErrorFacturaHN } from '@factura-hn/cliente';
 
 const fhn = crearCliente({ url: 'http://127.0.0.1:8787', llave: process.env.FHN_LLAVE! });
+// Una clave por venta: créala al abrir la venta y guárdala con ella. Un reintento de la misma venta usa la
+// misma clave y recibe la misma factura (`repetida: true`); otra venta lleva otra clave.
+const clave = crypto.randomUUID();
 try {
   const { documento, repetida } = await fhn.emitir(
     { documento: { preciosIncluyenISV: true, lineas: [{ descripcion: 'Café', cantidad: 2, precioUnitario: '57.50' }] } },
-    { idempotencyKey: 'venta-0001' }, // estable por venta: reintenta con la misma clave
+    { idempotencyKey: clave },
   );
+  // El número lo asigna la API: tómalo de la respuesta, no lo supongas.
   const pdf = await fhn.descargar(documento.numero, 'pdf', { papel: 'ticket' });
 } catch (e) {
-  if (e instanceof ErrorFacturaHN) console.error(e.codigo, e.errores); // 422: errores fiscales tal cual
+  // 422: errores fiscales tal cual. En los frecuentes, e.solucion dice qué hacer y e.documentacion enlaza la guía.
+  if (e instanceof ErrorFacturaHN) console.error(e.codigo, e.solucion, e.errores);
 }
 ```
 
@@ -23,6 +30,9 @@ try {
 `crearCliente({ url, llave, operador: 'María López' })`. Va en la cabecera `X-Operador` de cada solicitud y
 queda en la bitácora junto a la llave. Para imprimirlo en la factura, emite con `imprimirOperador: true`. Al
 anular: `fhn.anular(numero, motivo, { operador })`.
+
+`emitir` devuelve también `enlaces` (`pdf`, `html`, `txt`): las rutas de la representación impresa. `fhn.sesion()`
+dice con qué llave hablas y, si aún no puedes emitir, qué falta (`pendientes`, con su solución).
 
 `fhn.documentos(desde, hasta)` recorre todas las páginas; `fhn.paginaDocumentos(desde, hasta, { limite, cursor })`
 lee una por una (`hayMas`, `siguiente`).

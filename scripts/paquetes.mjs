@@ -20,6 +20,7 @@ export const REPOSITORIO = 'git+https://github.com/AugustoMelara-Dev/factura-hn.
 export const DOCS_PUBLICOS = [
   'api.md',
   'autoalojamiento.md',
+  'errores.md',
   'guia-sdk.md',
   'normativa.md',
   'persistencia.md',

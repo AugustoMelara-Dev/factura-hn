@@ -7,6 +7,7 @@ const pkg = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url));
 export default defineConfig({
   resolve: {
     alias: [
+      { find: /^factura-hn\/demo$/, replacement: pkg('core/src/demo.ts') },
       { find: /^factura-hn$/, replacement: pkg('core/src/index.ts') },
       { find: /^@factura-hn\/postgres$/, replacement: pkg('postgres/src/index.ts') },
       { find: /^@factura-hn\/pdf$/, replacement: pkg('pdf/src/index.ts') },

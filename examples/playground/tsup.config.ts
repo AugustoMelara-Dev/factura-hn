@@ -12,6 +12,8 @@ export default defineConfig({
   minify: true,
   clean: false,
   esbuildOptions(o) {
-    o.alias = { 'factura-hn': fileURLToPath(new URL('../../packages/core/src/index.ts', import.meta.url)) };
+    o.alias = {
+      'factura-hn/demo': fileURLToPath(new URL('../../packages/core/src/demo.ts', import.meta.url)),
+      'factura-hn': fileURLToPath(new URL('../../packages/core/src/index.ts', import.meta.url)) };
   },
 });

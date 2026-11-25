@@ -11,6 +11,9 @@ import { describe, expect, it } from 'vitest';
 import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 
+/** Fecha (YYYY-MM-DD) a `dias` de hoy: el servidor corre en otro proceso, con el reloj del equipo. */
+const aDiasDeHoy = (dias: number) => new Date(Date.now() + dias * 86_400_000).toISOString().slice(0, 10);
+
 const EMISOR = {
   rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
   direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
@@ -34,7 +37,7 @@ describe('factura-hn-mcp por stdio', () => {
     for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(dir, 'f.db'), FHN_EMISOR: emisorJson }]) {
       const cliente = new Client({ name: 'prueba', version: '1.0.0' });
       await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
-      expect((await cliente.listTools()).tools).toHaveLength(6);
+      expect((await cliente.listTools()).tools).toHaveLength(7);
       await cliente.close();
     }
     // Modo local sin archivo: no arranca (no hay almacén en memoria).
@@ -55,7 +58,9 @@ describe('factura-hn-mcp por stdio', () => {
       }
     };
     expect(arrancar(join(dir, 'no-existe.json'))).toMatch(/No se encontró el archivo del emisor/);
-    expect(arrancar(join(paquete, 'package.json'))).toMatch(/Datos del emisor incompletos[\s\S]*RTN del emisor/);
+    expect(arrancar(join(paquete, 'package.json'))).toMatch(/El archivo del emisor tiene 7 errores \(.*package\.json\):\r?\n- rtn: falta/);
+    // Sin configuración: dice cómo empezar.
+    expect(arrancar('')).toMatch(/Falta FHN_EMISOR/);
   }, 120_000);
 
   it('arranca con FHN_SQLITE y FHN_EMISOR y emite una factura en la base del equipo', async () => {
@@ -66,7 +71,7 @@ describe('factura-hn-mcp por stdio', () => {
     const base = new DatabaseSync(db);
     await registrarAutorizacion(new AlmacenSQLite(base), {
       cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
-      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: '2027-10-31',
+      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: aDiasDeHoy(365),
     });
     base.close();
 

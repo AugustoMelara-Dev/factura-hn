@@ -1,6 +1,6 @@
 # @factura-hn/pdf
 
-PDF de un documento de [factura-hn](../core), en tamaño carta o ticket de 80 mm. Usa `pdf-lib`: no necesita
+PDF de un documento de [factura-hn](https://www.npmjs.com/package/factura-hn), en tamaño carta o ticket de 80 mm. Usa `pdf-lib`: no necesita
 navegador ni dependencias nativas, así que funciona en Node, en funciones serverless y en el navegador.
 
 ```ts

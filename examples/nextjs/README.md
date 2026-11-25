@@ -10,12 +10,25 @@
 - `app/api/webhooks/factura-hn/route.ts`: receptor de webhooks con la firma verificada sobre el texto crudo
   (Web Crypto: sirve también en el runtime edge).
 
+Desde la raíz del repositorio, en tres comandos:
+
 ```bash
-docker compose up -d --build                      # API; la llave de caja demo está en `docker compose logs api`
-pnpm --filter @factura-hn/cliente build
+pnpm install
+docker compose up -d --build                      # API en 127.0.0.1:8787 (Docker Compose v2)
 FHN_LLAVE=fhn_… FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") \
-  pnpm --filter @factura-hn/ejemplo-nextjs dev     # http://localhost:3002
+  pnpm --filter @factura-hn/ejemplo-nextjs dev     # compila el cliente y abre http://localhost:3002
 ```
+
+En PowerShell, el tercer comando es:
+
+```powershell
+$env:FHN_LLAVE = 'fhn_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
+```
+
+La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
+crea otra: `docker compose exec api factura-hn-api demo llave`.
+Cada carga del formulario trae una clave nueva y el número sale de la respuesta: puedes emitir, reiniciar y
+volver a emitir sin chocar con lo anterior.
 
 Variables: `FHN_API_URL` (por defecto `http://127.0.0.1:8787`), `FHN_LLAVE` (llave de **caja**, atada a su
 punto de emisión), `FHN_SECRETO_ENLACES` (32+ caracteres aleatorios, firma los enlaces al PDF) y

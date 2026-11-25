@@ -42,13 +42,16 @@ describe.skipIf(!URL_PG)('contra la API', () => {
       },
     });
     const cai = 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4';
-    await fhn.registrarAutorizacion({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31' });
+    await fhn.registrarAutorizacion({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: new Date(Date.now() + 300 * 86_400_000).toISOString().slice(0, 10) });
 
     const venta = { establecimiento: '000', puntoEmision: '001', documento: { preciosIncluyenISV: true, lineas: [{ descripcion: 'Café', cantidad: 2, precioUnitario: '57.50' }] } };
     const a = await fhn.emitir(venta, { idempotencyKey: 'venta-1' });
     const b = await fhn.emitir(venta, { idempotencyKey: 'venta-1' });
     expect(a.documento.numero).toBe('000-001-01-00000001');
+    expect(a.enlaces.pdf).toBe('/v1/documentos/000-001-01-00000001.pdf');
+    expect(b.enlaces).toEqual(a.enlaces);
     expect(a.documento.totales.total).toBe(115);
+    expect(await fhn.sesion()).toMatchObject({ tenant, puedeEmitir: true, llave: { rol: 'admin' } });
     expect([a.repetida, b.repetida]).toEqual([false, true]);
     expect(b.documento.numero).toBe(a.documento.numero);
 
@@ -61,6 +64,13 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     expect(err).toBeInstanceOf(ErrorFacturaHN);
     expect(err.estado).toBe(422);
     expect(err.errores.length).toBeGreaterThan(0);
+    expect(err.errores[0].documentacion).toMatch(/docs\/errores\.md#[a-z_]+$/);
+
+    // 400 de forma: en español, con el campo, la solución y el enlace.
+    const forma = await fhn.emitir({ documento: { lineas: [] } } as never, { idempotencyKey: 'venta-forma' }).catch((e) => e);
+    expect(forma).toMatchObject({ estado: 400, codigo: 'SOLICITUD_INVALIDA', campo: 'documento.lineas' });
+    expect(forma.solucion).toEqual(expect.any(String));
+    expect(forma.documentacion).toMatch(/#solicitud_invalida$/);
 
     // DEC-031: el operador del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
     const cajero = crearCliente({ url: 'http://api.local', llave: llaveAdmin, operador: 'José Núñez', fetch: fetchApi });
