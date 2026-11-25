@@ -13,6 +13,7 @@
     "test": "pnpm -r --filter \"./packages/*\" test",
     "typecheck": "pnpm -r typecheck",
     "test:pg": "node scripts/test-pg.mjs",
+    "mutacion": "pnpm --filter factura-hn mutacion",
     "ci": "pnpm auditar:datos && pnpm build && pnpm typecheck && pnpm test && pnpm test:ejemplos && pnpm test:pg && node scripts/verificar-dist.mjs && pnpm sitio",
     "verificar:dist": "pnpm build && node scripts/verificar-dist.mjs",
     "humo": "pnpm build && node scripts/humo.mjs",

@@ -1,0 +1,45 @@
+# Mediciones largas de calidad (Lote 5): cada noche y a mano. Cada encargo deja su trabajo en una sección; el
+# integrador las junta. Las acciones van fijadas por SHA, como en ci.yml.
+name: Nocturno
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # 02:00 en Honduras (UTC-6)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nocturno-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # --- Sección lote5/mutacion: pruebas de mutación del núcleo (docs/calidad/mutacion.md) ---
+  mutacion:
+    name: Mutación del núcleo (Stryker, ≥ 85 % por módulo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
+      # Falla si el puntaje global baja de 85 % (thresholds.break) o si algún módulo baja de 85 %.
+      - name: Stryker sobre cálculo, dinero, letras, numeración y validación
+        run: pnpm mutacion
+      - name: Informe HTML y JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutacion
+          path: packages/core/reports/mutacion/
+          retention-days: 14
+  # --- Fin de la sección lote5/mutacion ---

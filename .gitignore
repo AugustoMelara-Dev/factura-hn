@@ -28,3 +28,6 @@ __pycache__/
 .pytest_cache/
 # La llave del demo para Bruno (FHN_LLAVE=…): no se versiona.
 colecciones/bruno/.env
+# Pruebas de mutación (Stryker): copia aislada e informes locales.
+.stryker-tmp/
+packages/core/reports/
