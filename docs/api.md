@@ -103,7 +103,7 @@ DATABASE_URL=postgres://postgres@127.0.0.1:5432/factura_hn FHN_MODO=local FHN_DE
 ```
 
 Así la API corre como dueño de las tablas (lo avisa el log); para un negocio, define además `FHN_MIGRAR_URL` con el
-dueño y deja en `DATABASE_URL` un rol LOGIN propio de la API (ver [autoalojamiento](autoalojamiento.md#poner-en-marcha-un-negocio)).
+dueño y deja en `DATABASE_URL` un rol LOGIN propio de la API (ver [autoalojamiento](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/autoalojamiento.md#poner-en-marcha-un-negocio)).
 La consola del operador es `node packages/api/dist/cli.js <comando>` (p. ej. `node packages/api/dist/cli.js demo llave`),
 con las mismas variables. Por defecto escucha en todas las interfaces (`FHN_HOST=0.0.0.0`, para un contenedor): en tu
 equipo, `127.0.0.1`. El puerto es `PUERTO`; `FHN_PUERTO` es solo el que publica Docker Compose.
