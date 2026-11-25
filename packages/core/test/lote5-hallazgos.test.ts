@@ -21,7 +21,7 @@ describe('letras: billones (escala larga)', () => {
   });
 
   it('billones con millones y miles', () => {
-    expect(montoEnLetras('2500000000000.10')).toBe('DOS BILLONES QUINIENTOS MIL MILLONES DE LEMPIRAS CON 10/100');
+    expect(montoEnLetras(`${2_500_000_000_000}.10`)).toBe('DOS BILLONES QUINIENTOS MIL MILLONES DE LEMPIRAS CON 10/100');
     expect(enteroALetras(1_000_001_000_000)).toBe('UN BILLÓN UN MILLÓN');
     expect(enteroALetras(21_000_000_000_001)).toBe('VEINTIÚN BILLONES UNO');
     expect(centavosEnLetras(MONTO_MAXIMO_CENTAVOS)).toBe(
@@ -43,9 +43,9 @@ describe('cálculo: tope técnico del total (MONTO_FUERA_DE_RANGO)', () => {
   });
 
   it('el tope cuenta el ISV más alto: L 8 billones gravados al 15 % caben; L 8.5 billones, no', () => {
-    expect(validarLineas([{ descripcion: 'x', cantidad: 1, precioUnitario: '8000000000000' }])).toEqual([]);
-    expect(calcularDocumento([{ descripcion: 'x', cantidad: 1, precioUnitario: '8000000000000' }]).totales.total).toBe(9_200_000_000_000);
-    expect(validarLineas([{ descripcion: 'x', cantidad: 1, precioUnitario: '8500000000000' }]).map((p) => p.codigo)).toEqual(['MONTO_FUERA_DE_RANGO']);
+    expect(validarLineas([{ descripcion: 'x', cantidad: 1, precioUnitario: 8_000_000_000_000 }])).toEqual([]);
+    expect(calcularDocumento([{ descripcion: 'x', cantidad: 1, precioUnitario: 8_000_000_000_000 }]).totales.total).toBe(9_200_000_000_000);
+    expect(validarLineas([{ descripcion: 'x', cantidad: 1, precioUnitario: 8_500_000_000_000 }]).map((p) => p.codigo)).toEqual(['MONTO_FUERA_DE_RANGO']);
   });
 });
 
