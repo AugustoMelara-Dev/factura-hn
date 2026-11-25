@@ -13,6 +13,7 @@ la leyenda **DOCUMENTO DE PRUEBA — SIN VALOR FISCAL**.
 `POST /v1/demo/entornos`, sin llave y sin cuerpo, crea un entorno y responde 201 con:
 
 - `llave`: una llave `fhn_test_…` admin del entorno (se muestra una sola vez; la base guarda solo su hash);
+- `api.url`: la URL de la API a la que llamar con esa llave (`FHN_DEMO_URL_API`, o la de la solicitud);
 - `mcp.url`: la URL personal del MCP remoto, `https://…/mcp/fhnmcp_test_…` (si `FHN_DEMO_URL_MCP` está definida);
 - `entorno`: id, creación, vencimiento, límites, emisor ficticio y punto de emisión `000-001`;
 - `ejemplos`: los mismos pasos listos para copiar con curl, con el SDK (`@factura-hn/cliente`) y en un asistente.
@@ -24,6 +25,44 @@ nota de débito (07). Un CAI real no se puede registrar en él: un tenant de pru
 
 A las 24 horas (`FHN_DEMO_HORAS`) la llave deja de servir (401 `ENTORNO_VENCIDO`) y, en el minuto siguiente, el
 entorno se borra con todos sus datos: documentos, series, autorizaciones, llaves, bitácora y uso.
+
+## Probar el modo demo en tu equipo
+
+Sin Docker ni cuentas, desde un clon del repositorio (Node 22.13 o más reciente) y con un PostgreSQL al que llegues.
+Cada proceso tiene su variable de puerto: la API, `PUERTO` (8787); el MCP remoto, `FHN_MCP_PUERTO` o `PORT`
+(8788). `FHN_PUERTO` es otra cosa: el puerto que publica Docker Compose. Las dos escuchan por defecto en todas las
+interfaces (`FHN_HOST` y `FHN_MCP_HOST` valen `0.0.0.0`, para un contenedor): en tu equipo, `127.0.0.1`.
+
+```bash
+pnpm install && pnpm build
+createdb factura_hn_demo      # una base vacía, solo para esto (con Docker: docker compose exec db createdb -U postgres factura_hn_demo)
+
+# 1. La API en modo demo (en una terminal)
+DATABASE_URL=postgres://postgres@127.0.0.1:5432/factura_hn_demo FHN_MODO=demo FHN_PROXIES_DE_CONFIANZA=0   FHN_DEMO_URL_MCP=http://127.0.0.1:8788/mcp FHN_HOST=127.0.0.1 PUERTO=8787 node packages/api/dist/servidor.js
+
+# 2. El MCP remoto (en otra)
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 node packages/mcp/dist/cli.js http
+
+# 3. Un entorno de prueba: guarda la llave y mcp.url de la respuesta
+curl -s -X POST http://127.0.0.1:8787/v1/demo/entornos
+
+# 4. Las herramientas, por el MCP, con el MCP Inspector en modo línea de comandos
+npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp/fhnmcp_test_… --transport http --method tools/list
+```
+
+Lo que avisa el log de la API es lo esperado aquí: sin `FHN_MIGRAR_URL` corre como dueño de las tablas, y sin
+`FHN_DEMO_SECRETO` genera una clave al arrancar. `FHN_PROXIES_DE_CONFIANZA=0` le dice que los clientes llegan
+directo (sin eso no arranca, ver «Arranque seguro»). Con `FHN_DEMO_URL_API` sin definir, los ejemplos usan la URL
+de la solicitud.
+
+Para llamar una herramienta directamente (`--method tools/call --tool-name emitir_factura --tool-arg …`), sin un
+asistente de por medio, `emitir_factura`, `emitir_nota_credito` y `anular_documento` piden `idempotencyKey`: una
+clave de 8 caracteres o más, la misma si repites la llamada por la misma venta (así no se emite dos veces). Un
+asistente la genera solo.
+
+La consola, sin Docker: `node packages/api/dist/cli.js demo estado` (y `demo limpiar`, `demo pausar`,
+`demo reanudar`), con la misma `DATABASE_URL`. En esta guía aparece como `factura-hn-api`, que es como se llama
+dentro de la imagen de Docker y en el paquete.
 
 ## Qué no hay en la demostración
 
@@ -160,7 +199,7 @@ al abrir una más, se cierra la más vieja de esa misma llave, tenant o direcci�
 visitante no llena el cupo global.
 
 En cada solicitud a la API, el MCP manda la dirección del cliente en `X-Forwarded-For`. La API la cree solo si tiene
-la dirección privada del MCP en `FHN_PROXIES_DE_CONFIANZA` (en forma de lista, ver Fly.io más abajo): así los
+la dirección privada del MCP en `FHN_PROXIES_DE_CONFIANZA` (como dirección o como rango CIDR, ver Fly.io más abajo): así los
 intentos con llaves no válidas cuentan por visitante, y una ráfaga de tokens falsos de uno no deja sin sesión a los
 demás. Sin eso, todo lo que llega del MCP cuenta como una sola dirección.
 
@@ -214,35 +253,43 @@ secreto de 256 bits es más simple y funciona igual en web y en el móvil. Riesg
 
 ## En Fly.io con Supabase
 
-Una forma de desplegarlo (no es la única):
+La lista de pasos para desplegarla (aplicaciones, secretos, orden, comprobación, vigilancia y costo) está en
+[despliegue-demo.md](despliegue-demo.md), con `fly.api.toml`, `fly.mcp.toml` y `Dockerfile.mcp` en la raíz del
+repositorio. Lo esencial:
 
-- **Dos aplicaciones de una sola máquina cada una**, en la misma región que la base: la API (`FHN_MODO=demo`) y el
-  MCP remoto (`factura-hn-mcp http`). El MCP llama a la API por la red privada (`FHN_API_URL=http://<app-api>.internal:8787`
-  o una dirección Flycast): ese tráfico no sale a internet ni pasa por el proxy público.
-- **Dirección del cliente.** El proxy de Fly pone la dirección del cliente en `Fly-Client-IP` y la agrega al final de
-  `X-Forwarded-For`. En el MCP: `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=0`. En la API:
-  `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=<dirección privada de la máquina del MCP>`
-  (la que da `fly ips private` en la aplicación del MCP, en forma de lista; varias, separadas por comas). Así las
-  solicitudes públicas cuentan por `Fly-Client-IP` y las del MCP, por el `X-Forwarded-For` que pone el MCP. La
-  dirección privada cambia si la máquina del MCP se recrea: actualiza la variable de la API cuando pase (si no,
-  todo lo del MCP vuelve a contar como una sola dirección, sin dejar de funcionar). Ojo: dentro de la red privada,
-  cualquier máquina de la organización puede poner esa cabecera; no expongas la API de la demostración a otras
-  aplicaciones. `FHN_PROXIES_DE_CONFIANZA=1` (el último salto de `X-Forwarded-For`) también sirve, pero solo si a la
-  API se llega únicamente por el proxy público.
+- **Dos aplicaciones de una sola máquina cada una**, siempre encendidas, en la misma región que la base: la API
+  (`FHN_MODO=demo`) y el MCP remoto (`factura-hn-mcp http`). El MCP llama a la API por la red privada
+  (`FHN_API_URL=http://<app-api>.internal:8787`), que es solo IPv6: la API escucha en `::` (`FHN_HOST`). No por
+  Flycast: ahí la solicitud pasa por el proxy de Fly, que pondría su propio `Fly-Client-IP` con la dirección del MCP.
+- **Dirección del cliente.** El proxy de Fly pone la dirección del cliente en `Fly-Client-IP`. En el MCP:
+  `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=0`. En la API:
+  `FHN_IP_CLIENTE_CABECERA=Fly-Client-IP` y `FHN_PROXIES_DE_CONFIANZA=<red privada de la organización>/48` (por
+  ejemplo `fdaa:0:1a2b::/48`, los tres primeros grupos de `fly ips private`). Un rango y no la dirección de la
+  máquina del MCP, porque esa cambia cuando la máquina se recrea. Así las solicitudes públicas cuentan por
+  `Fly-Client-IP` y las del MCP, por el `X-Forwarded-For` que pone el MCP. Ojo: dentro de la red privada,
+  cualquier máquina de la organización puede poner esas cabeceras; usa una organización sin otras aplicaciones.
 - **Base.** `DATABASE_URL` con el rol de la API (`fhn_api`) y `FHN_MIGRAR_URL` con el usuario `postgres` de Supabase,
-  que puede crear roles pero no es superusuario: alcanza, porque todas las migraciones y la limpieza corren en
-  transacciones y nada necesita superusuario. Por el pooler (Supavisor), mejor en modo sesión; en modo transacción
-  también funciona porque todo lo que la API fija en la conexión (`set_config(…, true)`) vale solo para su
-  transacción. El MCP remoto no tiene `DATABASE_URL`.
+  que puede crear roles pero no es superusuario ni salta las políticas de fila: alcanza (las pruebas cubren un dueño
+  así: migración, revisión de arranque, entornos y limpieza). La migración corre antes de cada despliegue
+  (`release_command = "factura-hn-api migrar"`). Mejor la conexión directa (IPv6) o el pooler en modo sesión; en modo
+  transacción también funciona porque todo lo que la API fija en la conexión (`SET LOCAL ROLE`,
+  `set_config(…, true)`) vale solo para su transacción. Node no conoce la autoridad del certificado de Supabase:
+  `sslmode=verify-full&sslrootcert=…` con el certificado del proyecto. El MCP remoto no tiene `DATABASE_URL`.
 - **API de datos de Supabase.** Supabase publica por HTTP (PostgREST) los esquemas que se le indiquen, con los roles
-  `anon`, `authenticated` y `service_role`. No publiques el esquema de factura-hn: quita su nombre de «Exposed
-  schemas» en la configuración de la API de datos (o desactívala). Además, la migración les quita a esos roles el
-  permiso de ejecutar las funciones de la API y de la demostración aunque los privilegios por defecto de Supabase se
-  lo den; solo el rol de la aplicación las ejecuta.
+  `anon`, `authenticated` y `service_role`, y la llave `anon` es pública por diseño. Desactiva la API de datos, o
+  quita de «Exposed schemas» el esquema de factura-hn (`public`, si no le diste otro). Además, cada migración les
+  quita a esos roles todo permiso sobre las tablas, secuencias y funciones de factura-hn, aunque los privilegios por
+  defecto de Supabase se los den; las tablas sin políticas de fila (el interruptor global, las migraciones) quedarían
+  si no modificables desde internet.
 - **Gasto.** El tráfico saliente se cobra por GB y no hay tope de gasto: deja los límites por defecto, revisa
   `demo estado` y ten a mano `demo pausar` (o `FHN_DEMO_PAUSADO=1` y reiniciar).
-- **Limpieza.** La API ya limpia cada minuto; si quieres una tarea aparte, una máquina programada que corra
-  `factura-hn-api demo limpiar` con `FHN_MIGRAR_URL` y `DATABASE_URL`.
+- **Limpieza.** La API ya limpia al arrancar y cada minuto: no hace falta una tarea programada aparte (por qué, en
+  [despliegue-demo.md](despliegue-demo.md#limpieza-a-las-24-horas-el-reinicio-automático-de-los-datos)).
+- **El sitio.** La página «Pruébalo ahora» llama a `POST /v1/demo/entornos` desde el navegador. Toma la URL de la API
+  de `PUBLIC_FHN_DEMO_API`, una variable de la construcción del sitio que el flujo de Pages llena con la variable del
+  repositorio `FHN_DEMO_API` (Settings > Secrets and variables > Actions > Variables). Sin ella, la página explica
+  cómo probar en tu equipo. Al cambiarla, vuelve a publicar el sitio. El origen del sitio debe estar en
+  `FHN_DEMO_ORIGENES`.
 
 ## Seguridad: lo que conviene saber
 

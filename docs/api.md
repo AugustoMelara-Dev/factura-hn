@@ -92,6 +92,22 @@ Con `docker-compose.dev.yml` agrega `-f docker-compose.yml -f docker-compose.dev
 Para desarrollo, `docker-compose.dev.yml` publica Postgres en 127.0.0.1:54329 (sin contraseña: no lo uses en
 el equipo de un negocio).
 
+### Sin Docker
+
+Con Node 20 o más reciente y un PostgreSQL al que llegues (13 o más reciente), desde un clon del repositorio:
+
+```sh
+pnpm install && pnpm build
+createdb factura_hn                                   # o la base que quieras, vacía
+DATABASE_URL=postgres://postgres@127.0.0.1:5432/factura_hn FHN_MODO=local FHN_DEMO=1   FHN_HOST=127.0.0.1 PUERTO=8787 node packages/api/dist/servidor.js
+```
+
+Así la API corre como dueño de las tablas (lo avisa el log); para un negocio, define además `FHN_MIGRAR_URL` con el
+dueño y deja en `DATABASE_URL` un rol LOGIN propio de la API (ver [autoalojamiento](autoalojamiento.md#poner-en-marcha-un-negocio)).
+La consola del operador es `node packages/api/dist/cli.js <comando>` (p. ej. `node packages/api/dist/cli.js demo llave`),
+con las mismas variables. Por defecto escucha en todas las interfaces (`FHN_HOST=0.0.0.0`, para un contenedor): en tu
+equipo, `127.0.0.1`. El puerto es `PUERTO`; `FHN_PUERTO` es solo el que publica Docker Compose.
+
 Clientes: en TypeScript, `@factura-hn/cliente` (tipos generados de esta especificación, con
 `verificarFirmaWebhook`); para agentes de IA, el servidor MCP `@factura-hn/mcp` (vía esta API, con una llave de
 caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README.md`.
@@ -164,13 +180,13 @@ Python contra la imagen de Docker en cada cambio.
 |---|---|---|
 | `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13; sirve Supabase). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas: migra y prepara el modo local al arrancar, y la usa la consola. Sin ella, la API usa `DATABASE_URL` para todo, corre como dueño de las tablas y lo avisa en el log |
-| `FHN_MODO` | `local` | `local` o `alojado`. Sin definir, la API avisa en el log que corre en modo local |
+| `FHN_MODO` | `local` | `local`, `alojado` o `demo` (la demostración pública, ver [demo](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
-| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor. El puerto publicado por Compose es `FHN_PUERTO` (8787 por defecto) |
+| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz donde escucha el proceso. `::` escucha en IPv6 e IPv4 (una red privada solo IPv6, como la de Fly.io). Con Docker Compose, el puerto publicado en el equipo es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
-| `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o rangos CIDR (`fdaa:0:1a2b::/48`), o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
 | `FHN_CONSOLA` | `node packages/api/dist/cli.js` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
 | `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
 | `FHN_POOL` | `20` | Conexiones del pool de la API a Postgres (`DATABASE_URL`) |
