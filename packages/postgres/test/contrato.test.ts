@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buscarDocumento, emitir, registrarAutorizacion, type AlmacenFiscal } from 'factura-hn';
+import { anular, buscarDocumento, emitir, registrarAutorizacion, type AlmacenFiscal } from 'factura-hn';
 import { DATOS_CONTRATO as D, ejecutarContratoAlmacen } from 'factura-hn/pruebas';
 import { AlmacenPostgres } from '../src';
 
@@ -38,7 +38,8 @@ const pausa = (yo: ReturnType<typeof senal>, otro: ReturnType<typeof senal>) => 
     await Promise.race([otro.p, new Promise((r) => setTimeout(r, 500))]);
   };
 };
-const conPausa = (almacen: AlmacenFiscal, despues: () => Promise<void>): AlmacenFiscal =>
+// `bloqueos`, si se pasa, recibe cada serie que la transacción bloquea, en orden.
+const conPausa = (almacen: AlmacenFiscal, despues: () => Promise<void>, bloqueos?: string[]): AlmacenFiscal =>
   new Proxy(almacen, {
     get(o, p) {
       const v = Reflect.get(o, p, o) as unknown;
@@ -52,6 +53,7 @@ const conPausa = (almacen: AlmacenFiscal, despues: () => Promise<void>): Almacen
                 if (typeof w !== 'function') return w;
                 if (q !== 'bloquearSerie') return w.bind(t);
                 return async (serie: string) => {
+                  bloqueos?.push(serie);
                   const r = await w.call(t, serie);
                   await despues();
                   return r;
@@ -169,11 +171,17 @@ conPostgres('Postgres', () => {
       for (let ronda = 0; ronda < 3; ronda++) {
         const s1 = senal();
         const s2 = senal();
+        const b1: string[] = [];
+        const b2: string[] = [];
         const r = await Promise.allSettled([
-          emitir(nota(f2), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s1, s2)), establecimiento: '000', puntoEmision: '001', ...reloj }),
-          emitir(nota(f1), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s2, s1)), establecimiento: '000', puntoEmision: '002', ...reloj }),
+          emitir(nota(f2), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s1, s2), b1), establecimiento: '000', puntoEmision: '001', ...reloj }),
+          emitir(nota(f1), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s2, s1), b2), establecimiento: '000', puntoEmision: '002', ...reloj }),
         ]);
         expect(r.map((x) => (x.status === 'rejected' ? String(x.reason) : x.value.referencia?.numero))).toEqual([f2.numero, f1.numero]);
+        // Cada nota bloqueó su serie 06 y luego la 01 del original: el cruce que se busca sí ocurrió.
+        expect([b1, b2]).toEqual([['000-001-06', '000-002-01'], ['000-002-06', '000-001-01']]);
+        // Los originales se encontraron en el almacén (si no, no se bloquea su serie y la prueba no probaría nada).
+        for (const x of r) if (x.status === 'fulfilled') expect(x.value.advertencias.map((p) => p.codigo)).not.toContain('AVISO_ORIGINAL_EXTERNO');
       }
     });
 
@@ -207,11 +215,25 @@ conPostgres('Postgres', () => {
       );
       expect(e?.errores?.[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo: 'lineas[0].descripcion' });
     }
+    // Sin límite de profundidad y también en los nombres de los campos (antes, 22P05 de Postgres).
+    const cliente = { nombre: 'Ana', extra: { a: { b: { c: { d: { e: 'x\u0000' } } } } } };
+    for (const [entrada, campo] of [
+      [D.entrada({ cliente } as never), 'cliente.extra.a.b.c.d.e'],
+      [D.entrada({ cliente: { nombre: 'Ana', 'k\u0000': 'v' } } as never), 'cliente.k<U+0000>'],
+    ] as const) {
+      const e = await emitir(entrada, caja).then(() => null, (x: { errores?: Array<{ codigo: string; campo?: string }> }) => x);
+      expect(e?.errores?.[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo });
+    }
     // Sin número consumido, y el listado sin líneas (datos::jsonb - 'lineas') sigue funcionando.
     const doc = await emitir(D.entrada(), caja);
     expect(doc.correlativo).toBe(1);
     const pagina = await a.transaccion((tx) => tx.paginaDocumentos!({}, { limite: 10, sinLineas: true }));
     expect(pagina.map((d) => d.numero)).toEqual([doc.numero]);
+    // El motivo de anulación también (antes, 22P05 del disparador de anulación).
+    const e = await anular(doc.numero, { almacen: a, motivo: 'Error\u0000' }).then(() => null, (x: { errores?: Array<{ codigo: string }> }) => x);
+    expect(e?.errores?.[0]?.codigo).toBe('TEXTO_CARACTER_NO_PERMITIDO');
+    expect((await buscarDocumento(a, doc.numero))!.estado).toBe('EMITIDO');
+    expect((await anular(doc.numero, { almacen: a, motivo: 'Error de precio' })).estado).toBe('ANULADO');
   });
 
   it('un tenant no ve los documentos de otro', async () => {
