@@ -271,8 +271,8 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   series (facturas, notas), en el mismo orden y con las mismas filas que el libro del tenant filtrado a ese
   punto. El resumen, el tope, `excluidos` y la cabecera `Documentos-Prueba-Excluidos` cuentan solo ese punto, y el
   CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de
-  emisión (anterior a DEC-035) recibe 403 `CAJA_SIN_PUNTO`. Con llave admin, el libro es de todo el tenant. La
-  exportación para el SAR sigue siendo solo de admin.
+  emisión (de antes de atar cada caja a su punto) recibe 403 `CAJA_SIN_PUNTO`. Con llave admin, el libro es de
+  todo el tenant. La exportación para el SAR sigue siendo solo de admin.
 - **Bitácora de la exportación.** Cada exportación queda en la bitácora de la API (`accion: exportacion`) con
   el período, el formato y los documentos contados. Se registra antes de enviar la última parte: si no se puede
   registrar, la respuesta se corta con error. Una exportación cortada (cliente, plazo o error) queda con
