@@ -30,15 +30,16 @@ imprime en columnas distintas.
 :::caution[Por confirmar con fuente]
 **La tasa del 18 %.** El código usa 15 % y 18 %, y atribuye el 18 % al Decreto 278-2013, Art. 16. Ese texto no
 está entre las fuentes primarias del repositorio, y la copia de la Ley del ISV que sí está aún muestra las tasas
-anteriores. Falta el texto oficial del decreto y la lista vigente de bienes y servicios al 18 % (pregunta P-11,
-F-01). Hasta entonces es una interpretación pendiente: DEC-069 [REVISAR]. Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+anteriores. Falta el texto oficial del decreto y la lista vigente de bienes y servicios al 18 % (pregunta P-11).
+Hasta entonces es una interpretación pendiente: DEC-069 [REVISAR]. Ver la
+[consulta al SAR](/produccion/consulta-sar/) y [Decisiones](/referencia/decisiones/).
 :::
 
 :::caution[Por confirmar con fuente]
 **Qué producto lleva qué tratamiento.** El SDK no decide qué va al 18 %, qué es exento ni qué es gravado 0 %: lo
 indica tu sistema en cada línea, guardado en el producto. El repositorio no tiene la lista de bienes al 18 %
-(P-11, F-01) ni la de bienes exentos (F-02). Decídelo con tu contador.
+(P-11) ni la de bienes exentos, que aún no tiene pregunta propia en la consulta. Decídelo con tu contador. Ver la
+[consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ```js
@@ -69,7 +70,7 @@ la tasa por la base impresa, y el total cuadra con la suma de importes más impu
 :::caution[Por confirmar con fuente]
 Calcular por grupo de tasa y no por línea es una lectura del proyecto: el Art. 9 de la Ley del ISV habla del
 «precio del artículo vendido» y el Art. 11 num. 1 h-i del Reglamento pide subtotales e impuestos por tarifa.
-Está en la consulta al SAR como P-10 (F-10).
+Está en la consulta al SAR como P-10. Ver la [consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Precios con ISV incluido
@@ -124,7 +125,8 @@ Qué hacer en tu sistema:
 ## Descuentos
 
 `descuento` es un monto por línea, no un porcentaje. Reduce la base antes del ISV: según el Art. 3 de la Ley del
-ISV, los descuentos efectivos que constan en la factura no forman parte de la base gravable.
+ISV, los descuentos efectivos que constan en la factura, siempre que sean normales según la costumbre
+comercial, no forman parte de la base gravable.
 
 ```js
 calcularDocumento([
@@ -158,7 +160,7 @@ artículos, emite dos facturas: una con `exoneracion` y los artículos cubiertos
 
 :::caution[Por confirmar con fuente]
 Aceptar el registro SAG/RUPNSA sin la orden ni la constancia es la lectura del Art. 11 num. 4 que adoptó el
-proyecto (DEC-021); falta confirmarla (P-08, F-11).
+proyecto (DEC-021); falta confirmarla (P-08). Ver la [consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Exportaciones
@@ -167,7 +169,8 @@ Una exportación de mercancías gravadas va con `isv: 'GRAVADO0'` (Art. 12), no 
 
 :::caution[Por confirmar con fuente]
 El Reglamento (Art. 12) habla de tasa cero, y la Ley del ISV dice que los bienes que se exportan quedan exentos.
-El documento sigue al Reglamento hasta que la autoridad responda (P-09, F-09).
+El documento sigue al Reglamento hasta que la autoridad responda (P-09). Ver la
+[consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Dinero exacto
