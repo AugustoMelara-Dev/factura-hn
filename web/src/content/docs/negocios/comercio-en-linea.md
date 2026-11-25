@@ -125,6 +125,7 @@ No son reglas fiscales: son la forma segura de integrar.
   cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento» (F-09, pregunta P-09).
 - **Moneda de cobro frente a moneda del documento**: si la tienda cobra en dólares, qué moneda y qué tipo de cambio
   lleva la factura. El repositorio solo cubre el tipo de cambio vigente a la fecha (Art. 11, párrafo final).
+- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
 - **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio (F-14,
   pregunta P-05), y el encaje de una API alojada con los Arts. 47 y 61 (F-05, pregunta P-02).
 

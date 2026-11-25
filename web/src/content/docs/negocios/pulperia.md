@@ -128,6 +128,7 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
   del Decreto 278-2013, Art. 16, que no está en texto primario (F-01, pregunta P-11; DEC-069 [REVISAR]).
 - **Si una pulpería está obligada a facturar con un sistema** o puede usar talonarios de imprenta, según su tamaño
   (F-20).
+- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
 - **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» que menciona
   (F-08, pregunta P-07).
 
