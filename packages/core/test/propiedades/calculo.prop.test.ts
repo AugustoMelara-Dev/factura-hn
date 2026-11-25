@@ -15,6 +15,7 @@ import {
   calcularCentavos,
   calcularDocumento,
   centavosEnLetras,
+  ErrorCalculo,
   escaladoATexto,
   impuestoArt9,
   MONTO_MAXIMO_CENTAVOS,
@@ -240,16 +241,20 @@ describe('cálculo: la salida en lempiras es exacta', () => {
   }, TIEMPO);
 
   it('un total por encima de MONTO_MAXIMO_CENTAVOS se rechaza con MONTO_FUERA_DE_RANGO, nunca con un RangeError', () => {
+    // Montos a los dos lados del tope (L 8 a 12 billones) y muy por encima. El tope es técnico, no fiscal: se mide
+    // con el ISV de cada grupo de tasa, así que una línea exenta cabe hasta el tope y una al 18 % hasta ~L 8.47 billones.
+    const lempiras = fc.oneof(fc.bigInt({ min: 8_000_000_000_000n, max: 12_000_000_000_000n }), fc.bigInt({ min: 10n ** 13n, max: 10n ** 20n }));
+    const tasaDe: Record<TratamientoISV, number> = { ISV15: 15, ISV18: 18, GRAVADO0: 0, EXENTO: 0 };
     fc.assert(
-      fc.property(fc.bigInt({ min: 10n ** 13n, max: 10n ** 20n }), fc.constantFrom(...TRATAMIENTOS), (lempiras, isv) => {
-        const l: LineaEntrada = { descripcion: 'x', cantidad: '1', precioUnitario: lempiras.toString(), isv };
-        const problemas = validarLineas([l]);
-        const cabe = (lempiras * 100n * 118n) / 100n + 1n <= MONTO_MAXIMO_CENTAVOS;
-        expect(problemas.map((p) => p.codigo)).toEqual(cabe ? [] : ['MONTO_FUERA_DE_RANGO']);
-        if (cabe) {
-          const d = calcularDocumento([l]);
-          expect(cent(d.totales.total) <= MONTO_MAXIMO_CENTAVOS).toBe(true);
-        }
+      fc.property(fc.array(fc.tuple(lempiras, fc.constantFrom(...TRATAMIENTOS)), { minLength: 1, maxLength: 3 }), (partes) => {
+        const ls: LineaEntrada[] = partes.map(([l, isv]) => ({ descripcion: 'x', cantidad: '1', precioUnitario: l.toString(), isv }));
+        const base: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, GRAVADO0: 0n, EXENTO: 0n };
+        for (const [l, isv] of partes) base[isv] += l * 100n;
+        const total = (Object.keys(base) as TratamientoISV[]).reduce((s, k) => s + base[k] + impuestoArt9(base[k], tasaDe[k]), 0n);
+        const cabe = total <= MONTO_MAXIMO_CENTAVOS;
+        expect(validarLineas(ls).map((p) => p.codigo)).toEqual(cabe ? [] : ['MONTO_FUERA_DE_RANGO']);
+        if (cabe) expect(cent(calcularDocumento(ls).totales.total)).toBe(total);
+        else expect(() => calcularDocumento(ls)).toThrow(ErrorCalculo);
       }),
     );
   }, TIEMPO);

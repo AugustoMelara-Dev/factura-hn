@@ -405,9 +405,15 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### MONTO_FUERA_DE_RANGO
 
-- **Qué significa:** la suma de las líneas da un total, con el ISV, mayor que L 9,999,999,999,999.99
-  (`MONTO_MAXIMO_CENTAVOS`). No es una regla fiscal: es el mayor total que el SDK representa con exactitud
-  (los importes salen como `number` con 15 cifras y el total en letras). En la API es un 422.
+- **Qué significa:** el total del documento pasaría de L 9,999,999,999,999.99 (`MONTO_MAXIMO_CENTAVOS`). No es
+  una regla fiscal: es el mayor total que el SDK representa con exactitud (los importes salen como `number` con 15
+  cifras y el total en letras). En la API es un 422 y no consume número. Se revisa en dos sitios:
+  - `validarLineas` (campo `lineas`): suma el importe neto de las líneas por tasa y le agrega a cada grupo su ISV
+    (15 % o 18 %; exento y alícuota cero, sin ISV), como si los precios no incluyeran el ISV y sin exoneración. Es
+    el total exacto en ese caso; con el ISV incluido en el precio o con exoneración el total real es menor o igual,
+    así que en esos dos casos el tope puede rechazar un documento cuyo total real cabría.
+  - `validarEntrada` (campo `tipoCambio`): en moneda extranjera, el total en lempiras al tipo de cambio del
+    documento (el que se guarda en `equivalenteLempiras`) tampoco puede pasar del tope.
 - **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
   centavos, o la cantidad y el precio intercambiados.
 

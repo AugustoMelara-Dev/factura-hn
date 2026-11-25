@@ -2,7 +2,7 @@
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
 import { congelar } from './inmutable';
-import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, validarLineas } from './calculo';
+import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, MONTO_MAXIMO_CENTAVOS, validarLineas } from './calculo';
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
@@ -409,6 +409,18 @@ export function validarEntrada(
     const umbral = opciones.umbralIdentificacionConsumidorFinal ?? UMBRAL_CONSUMIDOR_FINAL;
     const umbral6 = parsearDecimal(umbral, 2, 'umbralIdentificacionConsumidorFinal') * ESCALA_TC;
     problemas.push(...advertenciasDeCalculo(totales));
+    // Tope técnico, no fiscal (ver MONTO_MAXIMO_CENTAVOS): el equivalente en lempiras del total también debe caber,
+    // porque se guarda en el documento (equivalenteLempiras) y sale en el libro de ventas.
+    if (tipoCambio !== null) {
+      const totalLempiras = dividirRedondeando(totalLempiras6, ESCALA_TC);
+      if (totalLempiras > MONTO_MAXIMO_CENTAVOS) {
+        problemas.push({
+          codigo: 'MONTO_FUERA_DE_RANGO',
+          mensaje: `El total en lempiras, al tipo de cambio, sería L ${centavosATexto(totalLempiras)}: supera el máximo que se puede emitir, L ${centavosATexto(MONTO_MAXIMO_CENTAVOS)}.`,
+          campo: 'tipoCambio',
+        });
+      }
+    }
     // Art. 11 num. 3: si la factura mezcla ventas exentas (o exoneradas) y gravadas, para el crédito fiscal del
     // comprador solo cuentan las gravadas. Se avisa cuando el comprador se identifica con RTN.
     const noGravado = totales.importeExento + totales.importeExonerado;

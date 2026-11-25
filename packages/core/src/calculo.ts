@@ -108,7 +108,8 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
     problemas.push({ codigo: 'SIN_LINEAS', mensaje: 'El documento debe tener al menos una línea.', campo: 'lineas' });
     return problemas;
   }
-  let suma = 0n;
+  // Importe neto por grupo de tasa: el tope se mide con el ISV que corresponde a cada grupo.
+  const grupos = { ISV15: 0n, ISV18: 0n, sinISV: 0n };
   let leidas = true;
   lineas.forEach((l, i) => {
     const campo = `lineas[${i}]`;
@@ -117,14 +118,19 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
     if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
     const leida = leerLinea(l, i, problemas);
-    if (leida) suma += bruto(leida) - leida.descuento;
+    const grupo = l.isv === 'EXENTO' || l.isv === 'GRAVADO0' ? 'sinISV' : l.isv === undefined || l.isv === 'ISV15' ? 'ISV15' : 'ISV18';
+    if (leida) grupos[grupo] += bruto(leida) - leida.descuento;
     else leidas = false;
   });
-  // Tope técnico, no fiscal (DEC de lote 5): el total con el ISV más alto (18 %) debe caber en MONTO_MAXIMO_CENTAVOS.
-  if (leidas && (suma * BigInt(100 + TASAS_ISV.ISV18)) / 100n + 1n > MONTO_MAXIMO_CENTAVOS) {
+  // Tope técnico, no fiscal (ver MONTO_MAXIMO_CENTAVOS). Se mide el total con el ISV de cada grupo de tasa sumado
+  // aparte (precios sin ISV y sin exoneración): con el ISV incluido en el precio o con exoneración, el total real
+  // es menor o igual. Una tasa inválida cuenta como 18 % (ya hay un error LINEA_ISV).
+  const totalMaximo =
+    grupos.sinISV + grupos.ISV15 + impuestoArt9(grupos.ISV15, TASAS_ISV.ISV15) + grupos.ISV18 + impuestoArt9(grupos.ISV18, TASAS_ISV.ISV18);
+  if (leidas && totalMaximo > MONTO_MAXIMO_CENTAVOS) {
     problemas.push({
       codigo: 'MONTO_FUERA_DE_RANGO',
-      mensaje: `La suma de las líneas (L ${centavosATexto(suma)}) supera el máximo que se puede emitir: el total, con el ISV, debe ser como máximo L ${centavosATexto(MONTO_MAXIMO_CENTAVOS)}.`,
+      mensaje: `El total de las líneas con su ISV sería L ${centavosATexto(totalMaximo)}: supera el máximo que se puede emitir, L ${centavosATexto(MONTO_MAXIMO_CENTAVOS)}.`,
       campo: 'lineas',
     });
   }
