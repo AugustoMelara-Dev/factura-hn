@@ -49,7 +49,10 @@ conBase('API1 · autorización a nivel de objeto', () => {
     const b = await tenantListo();
     const secretoA = [a.numero, a.cai, a.webhookId, a.entregaId, a.prefijoCaja, a.emisorId, a.tenant];
     for (const ruta of ['/v1/emisores', '/v1/autorizaciones', `/v1/documentos?${PERIODO}`, '/v1/llaves', '/v1/webhooks', '/v1/bitacora', '/v1/bitacora?origen=api', '/v1/sesion', `/v1/libro-ventas?${PERIODO}`, `/v1/exportacion?${PERIODO}`]) {
-      const texto = await (await b.admin('GET', ruta)).text();
+      const r = await b.admin('GET', ruta);
+      const texto = await r.text();
+      // Una lectura de admin responde 200: un cuerpo de error no cuenta como «no trae nada de A».
+      expect(r.status, `${ruta}: ${texto.slice(0, 200)}`).toBe(200);
       // El número no se busca en la sesión: el siguiente número de B puede ser el mismo que el de A.
       for (const s of secretoA) if (!(ruta === '/v1/sesion' && s === a.numero)) expect(texto, `${ruta} trae ${s}`).not.toContain(s);
     }
@@ -81,7 +84,10 @@ conBase('API1 · autorización a nivel de objeto', () => {
     const otro = await emitir(caja1, venta('10.00', { establecimiento: '001' }));
     expect(otro.status).toBe(403);
     // El documento de la caja 001 (el del fixture) no aparece en el libro de la caja 002.
-    const libro2 = await json(await caja2('GET', `/v1/libro-ventas?${PERIODO}`));
+    const r2 = await caja2('GET', `/v1/libro-ventas?${PERIODO}`);
+    expect(r2.status).toBe(200);
+    const libro2 = await json(r2);
+    expect(libro2.filas).toEqual([]);
     expect(JSON.stringify(libro2)).not.toContain(t.numero);
     const sesion2 = (await json(await caja2('GET', '/v1/sesion'))).sesion;
     expect(sesion2.puntos.map((p: { puntoEmision: string }) => p.puntoEmision)).toEqual(['002']);

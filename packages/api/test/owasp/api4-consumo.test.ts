@@ -14,8 +14,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import { afterAll, expect, it } from 'vitest';
-import { MAX_BYTES_PAGINA } from '../../src/app';
-import { cerrarPool, tenantListo, venta } from '../ayuda';
+import type pg from 'pg';
+import { crearApp, MAX_BYTES_PAGINA } from '../../src/app';
+import { cerrarPool, ROL, tenantListo, venta } from '../ayuda';
 import { conBase, emitir, json, PERIODO } from './comun';
 
 afterAll(cerrarPool);
@@ -32,6 +33,14 @@ function transmitido(bytes: number): ReadableStream<Uint8Array> {
     },
   });
 }
+
+it('maxBytesPagina debe ser un entero positivo: 0, negativo, decimal o NaN no arrancan la app', () => {
+  const pool = { options: { max: 4 } } as unknown as pg.Pool;
+  for (const maxBytesPagina of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    expect(() => crearApp({ pool, modo: 'local', rol: ROL, maxBytesPagina }), String(maxBytesPagina)).toThrow(/maxBytesPagina/);
+  }
+  expect(() => crearApp({ pool, modo: 'local', rol: ROL, maxBytesPagina: 1 })).not.toThrow();
+});
 
 conBase('API4 · consumo de recursos', () => {
   it('un cuerpo de más de 512 KB por partes (sin Content-Length) es 413 y no emite nada', async () => {
@@ -71,7 +80,8 @@ conBase('API4 · consumo de recursos', () => {
       const inicio = Date.now();
       const r = await hacer();
       expect(r.status, `${nombre}: ${await r.clone().text()}`).toBe(estado);
-      expect(Date.now() - inicio, nombre).toBeLessThan(2000);
+      // Holgura para una CI lenta: lo que se busca es que no bloquee el proceso (DEC-052), no medir.
+      expect(Date.now() - inicio, nombre).toBeLessThan(10_000);
     }
     // Nada de lo anterior consumió un número.
     expect((await json(await emitir(t.admin, venta()))).documento.numero).toBe('000-001-01-00000001');

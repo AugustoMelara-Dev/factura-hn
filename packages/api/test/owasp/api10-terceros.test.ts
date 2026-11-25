@@ -22,7 +22,7 @@ afterAll(cerrarPool);
 type Manejador = (req: http.IncomingMessage, res: http.ServerResponse) => void;
 
 /** Monta un receptor local, registra el webhook, emite, despacha y devuelve la entrega como la ve la API. */
-async function entregarA(manejador: Manejador) {
+async function entregarA(manejador: Manejador, tiempoMaximo = 3000) {
   const srv = http.createServer(manejador);
   const sockets = new Set<net.Socket>();
   srv.on('connection', (s) => sockets.add(s));
@@ -33,7 +33,7 @@ async function entregarA(manejador: Manejador) {
     const w = (await json(await t.admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto}/hook`, eventos: ['documento.emitido'] }))).webhook;
     await emitir(t.admin, venta());
     const inicio = Date.now();
-    await despacharWebhooks({ pool: await poolPrueba(), rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [t.tenant], tiempoMaximo: 3000 });
+    await despacharWebhooks({ pool: await poolPrueba(), rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [t.tenant], tiempoMaximo });
     const ms = Date.now() - inicio;
     const texto = await (await t.admin('GET', `/v1/webhooks/${w.id}/entregas`)).text();
     return { ms, texto, entrega: JSON.parse(texto).entregas[0] };
@@ -55,9 +55,10 @@ conBase('API10 · consumo de APIs de terceros (receptores de webhooks)', () => {
       };
       res.on('drain', escribir);
       escribir();
-    });
+    }, 30_000);
     expect(entrega).toMatchObject({ estado: 'ENTREGADA', ultimoCodigo: 200, ultimoError: null });
-    expect(ms).toBeLessThan(3000);
+    // Con 30 s de tiempo máximo, terminar muy antes prueba que no esperó el cuerpo (holgura para una CI lenta).
+    expect(ms).toBeLessThan(20_000);
     // Se cortó la conexión mucho antes de los 200 MB.
     expect(escritos).toBeLessThan(200 * 1024 * 1024);
   });

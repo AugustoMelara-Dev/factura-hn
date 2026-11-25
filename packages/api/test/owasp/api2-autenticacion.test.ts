@@ -6,8 +6,8 @@
  * equivocada (DEC-118), y un límite de intentos fallidos por prefijo y por dirección (DEC-035).
  *
  * Ataque: todas las operaciones sin llave; la llave en otros lugares (consulta, cookie, Basic, otra cabecera);
- * llaves mal formadas; un 401 que distinga «no existe» de «secreto equivocado»; fuerza bruta sobre un prefijo
- * cambiando `X-Forwarded-For`.
+ * llaves mal formadas; un 401 que distinga «no existe» de «secreto equivocado»; fuerza bruta sobre un prefijo; prefijos
+ * inventados desde una dirección que cambia `X-Forwarded-For` para parecer muchas.
  */
 import { afterAll, expect, it } from 'vitest';
 import { generarLlave, leerLlave } from '../../src/llaves';
@@ -91,7 +91,7 @@ conBase('API2 · autenticación', () => {
     expect((await cliente(t.app, caja)('GET', '/v1/sesion')).status).toBe(200);
   });
 
-  it('fuerza bruta sobre un prefijo: 429 DEMASIADOS_INTENTOS aunque cambie X-Forwarded-For (sin proxies de confianza se ignora)', async () => {
+  it('fuerza bruta sobre un prefijo que existe: 429 DEMASIADOS_INTENTOS tras la ráfaga, sin dejar fuera al dueño', async () => {
     const t = await tenantListo({ limiteIntentos: { porSegundo: 0.001, rafaga: 5 } });
     const { prefijo } = leerLlave(t.llaveAdmin)!;
     const estados: number[] = [];
@@ -108,6 +108,27 @@ conBase('API2 · autenticación', () => {
     expect(estados.slice(5).every((e) => e === 429)).toBe(true);
     // El dueño de la llave no queda fuera.
     expect((await t.admin('GET', '/v1/sesion')).status).toBe(200);
+  });
+
+  it('prefijos inventados con X-Forwarded-For cambiante: sin proxies de confianza cuentan todos a la dirección del socket', async () => {
+    // El límite por dirección solo frena con el semáforo de consultas lleno (DEC-035): una consulta a la vez y
+    // todas las demás llegan mientras tanto. Cada prefijo es nuevo, así que lo que frena es la cubeta de la dirección,
+    // no la del prefijo. La misma ráfaga, desde el mismo socket, con 0 y con 1 proxy de confianza.
+    const rafaga = async (proxiesDeConfianza: number) => {
+      const t = await tenantListo({ proxiesDeConfianza, limiteIntentos: { porSegundo: 0.001, rafaga: 3, consultasSimultaneas: 1 } });
+      const r = await Promise.all(
+        Array.from({ length: 30 }, (_, i) =>
+          cliente(t.app, generarLlave('produccion').llave, { ip: '203.0.113.7' })('GET', '/v1/sesion', undefined, { 'x-forwarded-for': `198.51.100.${i + 1}` }),
+        ),
+      );
+      const estados = r.map((x) => x.status);
+      expect(estados.every((e) => e === 401 || e === 429)).toBe(true);
+      return estados.filter((e) => e === 429).length;
+    };
+    // Sin proxies, X-Forwarded-For se ignora: las 30 son de 203.0.113.7 y casi todas se frenan sin consultar la base.
+    expect(await rafaga(0)).toBeGreaterThanOrEqual(20);
+    // Control: con 1 proxy de confianza, cada X-Forwarded-For es otra dirección con su propia cubeta: ninguna se frena.
+    expect(await rafaga(1)).toBe(0);
   });
 
   it('las llaves no se guardan en claro: la base tiene solo el SHA-256 y la respuesta de creación es la única que trae el secreto', async () => {

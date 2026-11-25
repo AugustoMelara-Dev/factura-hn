@@ -15,13 +15,11 @@
  * validación no decía la verdad. Ahora se quita el punto final antes de comparar.
  */
 import { randomUUID } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
 import http from 'node:http';
 import net from 'node:net';
-import { hostname } from 'node:os';
 import { afterAll, expect, it } from 'vitest';
 import { crearApp } from '../../src/app';
-import { CofreSecretos, despacharWebhooks, esIPPrivada, problemaDeURL } from '../../src/webhooks';
+import { CofreSecretos, crearLookupSeguro, despacharWebhooks, problemaDeURL, type Resolver } from '../../src/webhooks';
 import { cerrarPool, cliente, poolPrueba, ROL, tenantListo, venta } from '../ayuda';
 import { comoDueno, conBase, emitir, json } from './comun';
 
@@ -31,7 +29,7 @@ const INTERNAS = [
   // Nombres con punto final (FQDN): el hallazgo.
   'https://localhost./x', 'https://LOCALHOST./x', 'https://api.localhost./x', 'https://servicio.internal./x', 'https://impresora.local./x', 'https://./x',
   // Formas numéricas de 127.0.0.1 que la URL normaliza.
-  'https://2130706433/x', 'https://0x7f.1/x', 'https://017700000001/x', 'https://127.1/x', 'https://0/x', 'https://127.0.0.1./x',
+  'https://2130706433/x', 'https://0x7f.1/x', 'https://017700000001/x', 'https://127.1/x', 'https://0/x', 'https://127.0.0.1./x', 'https://127.0.0.1../x', 'https://10.0.0.1../x',
   // Metadatos de nubes y redes privadas.
   'https://169.254.169.254/latest/meta-data/', 'https://[fd00:ec2::254]/x', 'https://100.100.100.200/x', 'https://[fe80::1]/x',
   // IPv4 dentro de IPv6.
@@ -51,14 +49,32 @@ async function contador() {
   return { puerto: (srv.address() as net.AddressInfo).port, conexiones: () => conexiones, cerrar: () => new Promise<void>((r) => srv.close(() => r())) };
 }
 
-const despachar = async (tenant: string, permitirRedInterna: boolean) =>
-  despacharWebhooks({ pool: await poolPrueba(), rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna, soloTenants: [tenant], tiempoMaximo: 3000 });
+const despachar = async (tenant: string, permitirRedInterna: boolean, resolver?: Resolver) =>
+  despacharWebhooks({ pool: await poolPrueba(), rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna, soloTenants: [tenant], tiempoMaximo: 3000, resolver });
 
-/** El nombre de este equipo, si resuelve (sin DNS externo: archivo hosts o la red local) solo a direcciones internas. */
-const nombreInterno = await lookup(hostname(), { all: true }).then(
-  (d) => (d.length > 0 && d.every((x) => esIPPrivada(x.address)) ? hostname() : null),
-  () => null,
-);
+/** Un resolvedor de prueba que contesta siempre las mismas direcciones, sin DNS. */
+const resolverFijo = (...direcciones: string[]): Resolver => (_host, _o, cb) =>
+  cb(null, direcciones.map((address) => ({ address, family: address.includes(':') ? 6 : 4 })));
+
+/** El resultado de `lookupSeguro` con un resolvedor dado. */
+const resolverSeguro = (resolver: Resolver, all = false) =>
+  new Promise<{ error: string | null; dir: unknown }>((r) =>
+    crearLookupSeguro(resolver)('hooks.ejemplo.example', all ? { all: true } : {}, (e, dir) => r({ error: e?.message ?? null, dir })),
+  );
+
+it('lookupSeguro: rechaza un nombre que resuelve a loopback, a ::1 o a una mezcla de pública e interna; acepta solo públicas', async () => {
+  const interna = 'El nombre resuelve a una dirección interna.';
+  for (const dirs of [['127.0.0.1'], ['::1'], ['93.184.215.14', '10.0.0.7'], ['2606:4700:4700::1111', 'fd00::1'], ['169.254.169.254']]) {
+    expect((await resolverSeguro(resolverFijo(...dirs))).error, dirs.join(',')).toBe(interna);
+  }
+  // Sin direcciones también se rechaza; un error del resolvedor pasa tal cual.
+  expect((await resolverSeguro(resolverFijo())).error).toBe(interna);
+  const fallo: Resolver = (_h, _o, cb) => cb(Object.assign(new Error('ENOTFOUND'), { code: 'ENOTFOUND' }), []);
+  expect((await resolverSeguro(fallo)).error).toBe('ENOTFOUND');
+  // Solo públicas: la primera (o todas, con `all`), que es a la que se conecta.
+  expect(await resolverSeguro(resolverFijo('93.184.215.14', '2606:4700:4700::1111'))).toEqual({ error: null, dir: '93.184.215.14' });
+  expect((await resolverSeguro(resolverFijo('93.184.215.14'), true)).dir).toEqual([{ address: '93.184.215.14', family: 4 }]);
+});
 
 it('modo alojado: cada forma de escribir un destino interno se rechaza al validar', () => {
   for (const url of INTERNAS) expect(problemaDeURL(url, false), url).not.toBeNull();
@@ -95,16 +111,26 @@ conBase('API7 · SSRF en webhooks', () => {
     }
   });
 
-  it.runIf(nombreInterno)('un nombre que resuelve a la red interna pasa la validación pero se frena al conectar', async () => {
-    const t = await tenantListo();
-    const url = `https://${nombreInterno}:9/x-${randomUUID()}`;
-    expect(problemaDeURL(url, false)).toBeNull(); // el nombre no dice nada; lo dice la resolución
-    const alojado = cliente(crearApp({ pool: t.pool, modo: 'alojado', rol: ROL, registrar: () => undefined }), t.llaveAdmin);
-    expect((await alojado('POST', '/v1/webhooks', { url, eventos: ['documento.emitido'] })).status).toBe(201);
-    await emitir(t.admin, venta());
-    expect(await despachar(t.tenant, false)).toBe(1);
-    const e = (await comoDueno<{ ultimo_error: string; ultimo_codigo: number | null }>(t.pool, t.tenant, 'SELECT ultimo_error, ultimo_codigo FROM api_entregas WHERE tenant = $1', [t.tenant])).rows[0]!;
-    expect(e).toEqual({ ultimo_error: 'El nombre resuelve a una dirección interna.', ultimo_codigo: null });
+  it('un nombre que resuelve a la red interna pasa la validación pero se frena al conectar: ninguna conexión al receptor', async () => {
+    const receptor = await contador();
+    try {
+      const t = await tenantListo();
+      // El nombre parece público; el resolvedor de la prueba lo lleva al receptor local (como un DNS hostil).
+      const url = `https://hooks.ejemplo.example:${receptor.puerto}/x-${randomUUID()}`;
+      expect(problemaDeURL(url, false)).toBeNull(); // el nombre no dice nada; lo dice la resolución
+      const alojado = cliente(crearApp({ pool: t.pool, modo: 'alojado', rol: ROL, registrar: () => undefined }), t.llaveAdmin);
+      expect((await alojado('POST', '/v1/webhooks', { url, eventos: ['documento.emitido'] })).status).toBe(201);
+      await emitir(t.admin, venta());
+      for (const dirs of [['127.0.0.1'], ['::1'], ['93.184.215.14', '127.0.0.1']]) {
+        await comoDueno(t.pool, t.tenant, "UPDATE api_entregas SET estado = 'PENDIENTE', proximo = now() WHERE tenant = $1", [t.tenant]);
+        expect(await despachar(t.tenant, false, resolverFijo(...dirs))).toBe(1);
+        const e = (await comoDueno<{ ultimo_error: string; ultimo_codigo: number | null }>(t.pool, t.tenant, 'SELECT ultimo_error, ultimo_codigo FROM api_entregas WHERE tenant = $1', [t.tenant])).rows[0]!;
+        expect(e, dirs.join(',')).toEqual({ ultimo_error: 'El nombre resuelve a una dirección interna.', ultimo_codigo: null });
+      }
+      expect(receptor.conexiones()).toBe(0);
+    } finally {
+      await receptor.cerrar();
+    }
   });
 
   it('las redirecciones no se siguen: el receptor que redirige recibe el aviso y el destino de la redirección, nada', async () => {

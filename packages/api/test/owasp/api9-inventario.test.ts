@@ -34,6 +34,14 @@ describe('API9 · inventario de rutas y versiones', () => {
     expect(rutasServidor()).toEqual([...publicadas, 'GET /openapi.json', 'GET /docs', 'GET /'].sort());
   });
 
+  it('los middleware (método ALL) son exactamente los conocidos: un manejador con app.all() no se cuela sin documentar', () => {
+    // Por orden de registro: id de solicitud y cabeceras comunes (*), límite del cuerpo, autenticación y UTF-8 (/v1/*),
+    // y los cupos de los tres reportes. Cualquier otro ALL es una ruta que atiende todos los métodos fuera de la especificación.
+    expect(app.routes.filter((r) => r.method === 'ALL').map((r) => r.path)).toEqual([
+      '/*', '/*', '/v1/*', '/v1/*', '/v1/*', '/v1/libro-ventas', '/v1/exportacion', '/v1/series/:identificador/no-utilizados',
+    ]);
+  });
+
   it('la especificación versionada (packages/api/openapi.json) tiene las mismas operaciones y versión que la servida', () => {
     expect(opsDe(versionado).map((o) => `${o.clave} ${o.operationId}`).sort()).toEqual(opsDe(vivo).map((o) => `${o.clave} ${o.operationId}`).sort());
     expect(versionado.info.version).toBe(vivo.info.version);

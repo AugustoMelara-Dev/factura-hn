@@ -111,9 +111,15 @@ conBase('API3 · propiedades de los objetos', () => {
       '/v1/sesion', '/v1/llaves', '/v1/webhooks', `/v1/webhooks/${t.webhookId}/entregas`, '/v1/bitacora', '/v1/bitacora?origen=api',
       '/v1/emisores', '/v1/autorizaciones', `/v1/documentos?${PERIODO}`, `/v1/documentos/${t.numero}`,
     ];
+    // Las de admin: una caja recibe 403 (y se revisa igual que su cuerpo no traiga nada).
+    const deAdmin = new Set(['/v1/llaves', '/v1/webhooks', `/v1/webhooks/${t.webhookId}/entregas`, '/v1/bitacora', '/v1/bitacora?origen=api']);
     for (const ruta of lecturas) {
       for (const llave of [t.llaveAdmin, t.caja]) {
-        const texto = await (await cliente(t.app, llave)('GET', ruta)).text();
+        const r = await cliente(t.app, llave)('GET', ruta);
+        const texto = await r.text();
+        // Un cuerpo de error no cuenta como «no trae secretos»: cada lectura responde lo que debe.
+        const esperado = llave === t.caja && deAdmin.has(ruta) ? 403 : 200;
+        expect(r.status, `${ruta} con ${llave === t.caja ? 'caja' : 'admin'}: ${texto.slice(0, 200)}`).toBe(esperado);
         for (const p of prohibidos) expect(texto.includes(p), `${ruta} trae ${p.slice(0, 12)}…`).toBe(false);
       }
     }
