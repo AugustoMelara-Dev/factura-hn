@@ -1343,12 +1343,425 @@ intentos de la API se corrigió en DEC-070.
   clientes remite a su documentación. No es una regla fiscal: falta que el responsable lo pruebe una vez.
 - **Alternativa:** solo enlazar el archivo.
 
-### Pendiente para el Lote 4 · El libro de ventas con llave de caja
-`GET /v1/libro-ventas` acepta una llave de caja y devuelve el libro de todo el tenant, no solo el de su punto de
-emisión. Ya era así en la 0.2.0. No se corrige en este lote: hay que decidir si una caja debe verlo (y si filtrado
-por su punto) o si es solo para admin, junto con la exportación.
+### Resuelto en el Lote 4
+- El libro de ventas con llave de caja: DEC-122.
+- `AVISO_VIGENCIA_MAYOR_1_ANIO` al registrar: DEC-124 y la integración.
 
-### Pendiente · `AVISO_VIGENCIA_MAYOR_1_ANIO` no sale al registrar
-`registrarAutorizacion` acepta sin aviso una autorización cuya fecha límite está a más de un año de
-`fechaAutorizacion`; el aviso lo devuelven `validarAutorizacion` y las `advertencias` de cada documento emitido con
-ella. `/conceptos/cai/` lo documenta así. Queda decidir si el registro debe devolverlo.
+## Lote 4: API para integradores (Etapa 3)
+
+<!-- El contrato de la API (rama lote4/contrato) -->
+
+### DEC-104 · `operationId`: verbo + recurso, en español, fijados por una prueba
+- **Contexto:** `api-rest.md` §3.1 y §6 (P0), plan-v1 3.1. La especificación no tenía ningún `operationId`, así
+  que los generadores de otros lenguajes inventaban los nombres a partir de la ruta.
+- **Elegida:** las 24 operaciones llevan un id en camelCase, con verbo + recurso: `obtenerSalud`, `crearEmisor`,
+  `listarEmisores`, `obtenerEmisor`, `actualizarEmisor`, `registrarAutorizacion`, `listarAutorizaciones`,
+  `obtenerEstadoAutorizacion`, `obtenerSesion`, `emitirDocumento`, `listarDocumentos`, `obtenerDocumento`,
+  `anularDocumento`, `corregirFechaSerie`, `listarNoUtilizados`, `obtenerLibroVentas`, `exportarPeriodo`,
+  `listarBitacora`, `crearLlave`, `listarLlaves`, `revocarLlave`, `crearWebhook`, `listarWebhooks`,
+  `desactivarWebhook`. El verbo es el de la acción real (`revocar` y `desactivar`, no `eliminar`: no se borra
+  nada; `registrar` para el CAI, que lo otorga el SAR).
+- `packages/api/test/contrato.test.ts` falla si una operación no tiene id, si se repite, si no es camelCase o si
+  no empieza por un verbo de la lista (`VERBOS`). Una segunda prueba fija los 24 ids actuales: cambiarlos rompe
+  los clientes generados.
+- **Para el integrador:** las ramas `webhooks` y `llaves` que agreguen rutas deben ponerles `operationId`
+  (`listarEntregasWebhook`, `reenviarEntregaWebhook`…); si usan otro verbo, se agrega a `VERBOS`.
+
+### DEC-105 · Cada operación declara solo los estados de error que su código devuelve
+- **Contexto:** `api-rest.md` §3.1: todas las rutas compartían `respuestasError` (400, 401, 403, 422, 429), así
+  que el 422 aparecía en los `GET`, y el 413 y el 500 no estaban.
+- **Elegida:** un catálogo (`CATALOGO_ERRORES`: 400, 401, 403, 413, 422, 429, 500) y `respuestasDe(...)`, que
+  elige por ruta. Criterios, comprobados leyendo cada manejador:
+  - 401, 429 y 500 en toda operación de `/v1` (autenticación, límite de la llave, `onError`). `/salud` solo 500.
+  - 400 solo si la operación tiene parámetros, consulta o cuerpo que validar.
+  - 403 solo donde hay `exigirAdmin` o las comprobaciones de caja de la emisión.
+  - 413 en toda operación que no es `GET`. El `bodyLimit` cubre todo `/v1/*` y cualquier método: un `DELETE` o un
+    `POST` sin cuerpo esperado (`revocarLlave`, `desactivarWebhook`, y en la rama `webhooks` `probarWebhook` o
+    `reenviarEntregaWebhook`) también da 413 si le mandan más de 512 KB. Solo un `GET` no lo da: no tiene cuerpo.
+    La prueba exige «413 si y solo si el método no es GET».
+  - 422 en las que validan reglas fiscales (emisor, autorizaciones, emitir, anular, corregir fecha, URL del
+    webhook) y en los reportes con tope de documentos (`libro-ventas`, `exportacion`: `PERIODO_DEMASIADO_GRANDE`).
+    Ningún otro `GET`.
+- `respuestasError` sigue existiendo (= 400, 401, 403, 413, 422, 429, 500, para operaciones con cuerpo y reglas
+  fiscales) para que las ramas paralelas que lo usan sigan compilando. La prueba de contrato fallará si una de
+  ellas declara 422 en un `GET`, le falta 401, 429 o 500, o le falta 413 sin ser `GET`: el integrador ajusta esas
+  rutas con `respuestasDe`.
+
+### DEC-106 · `Solicitud-Id` en todas las respuestas y en `error.solicitud`
+- **Contexto:** `api-rest.md` §3.2 (P0): el 500 decía «se registró para revisión» sin nada que citar.
+- **Elegida:**
+  - Primer middleware de la app: si el cliente manda `Solicitud-Id` con la forma
+    `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, se respeta; si no, `randomUUID()`. La forma corta evita inyectar
+    saltos de línea o texto arbitrario en el log y en las cabeceras.
+  - La cabecera va en **todas** las respuestas (también `/docs`, `/openapi.json` y 404 de ruta).
+  - En el cuerpo, `error.solicitud` (dentro de `error`, junto a `documentacion`, como el `request_log_url` de
+    Stripe), en todos los errores JSON: forma (400), `ErrorApi`, `ErrorValidacion`, 404 de ruta y 500. Se envía
+    siempre, pero en el esquema `Error` es **opcional** (la descripción dice que está presente desde la 0.2.0): un
+    cliente generado, p. ej. en Python, fallaría con `KeyError` ante el error de un proxy o de un servidor anterior.
+  - El log no confía en el id del cliente, que no tiene por qué ser único: cada solicitud tiene además un id del
+    servidor. El 500 se registra como `Error interno (solicitud <uuid>)` o, si el cliente mandó el suyo,
+    `Error interno (solicitud <uuid> (cliente <id>))`. El cuerpo y la cabecera repiten el del cliente, para que él
+    correlacione.
+  - Solo se lee `Solicitud-Id`, no `Request-Id` ni `X-Request-Id`: un nombre por concepto y sin prefijo `X-`
+    (RFC 6648).
+- **Alternativa descartada:** declarar `Solicitud-Id` como parámetro de entrada en cada operación del OpenAPI.
+  Cambiaría la firma de las 24 operaciones en los clientes generados (TS incluido) para algo opcional; queda
+  documentado en la descripción de la cabecera de respuesta y en `docs/api.md`. **Propuesta**, si un integrador
+  lo pide: un parámetro `components.parameters.SolicitudId` referenciado en cada operación.
+
+### DEC-107 · `FacturaHN-Version` en todas las respuestas
+- Cabecera con `VERSION_API` (la de `/salud` e `info.version`). Es el primer paso de §3.5; el aviso de versión en
+  el cliente y `Deprecation`/`Sunset` no entran en este lote (el cliente no debía cambiar de comportamiento).
+
+### DEC-108 · Cabeceras `RateLimit-Policy` y `RateLimit` de la cubeta de cada llave
+- **Contexto:** `api-rest.md` §3.8 (P2), borrador IETF draft-ietf-httpapi-ratelimit-headers.
+- **Elegida:** `RateLimit-Policy: "llave";q=<rafaga>;w=<ceil(rafaga / porSegundo)>` y
+  `RateLimit: "llave";r=<fichas enteras que quedan>;t=<segundos hasta llenar la cubeta>`. Con los valores por
+  defecto (20/s, ráfaga 40): `q=40;w=2`.
+- **Por qué `w=2` y no `w=1`** como proponía el análisis: `q=40;w=1` diría 40 por segundo sostenidas, y la cubeta
+  da 20 por segundo con ráfaga de 40. Como cuota por ventana, lo exacto es «40 que se recuperan enteras en 2 s».
+- Solo con el secreto correcto: en las respuestas autenticadas y en el 429 `DEMASIADAS_SOLICITUDES`. No en un
+  413 (el límite del cuerpo corre antes de la autenticación) ni en un 401 (tampoco el de una llave ya validada y luego revocada: el 401 debe ser idéntico al de un prefijo
+  inexistente) ni en el 429 `DEMASIADOS_INTENTOS`, que es otra cubeta (por dirección o prefijo) y no se publica.
+- Se agrega `LimitadorSolicitudes.estado(clave)` (lee sin gastar) y `porSegundo`/`rafaga` pasan a ser públicos
+  de solo lectura.
+- `FacturaHN-Limite: rafaga|mensual`, que sugería el análisis, no se agregó: el `error.codigo` del 429 ya lo dice.
+
+### DEC-109 · `Retry-After` en `LIMITE_MENSUAL`
+- El 429 `LIMITE_MENSUAL` trae `Retry-After` con los segundos hasta el día 1 del mes siguiente al de la emisión,
+  a las 00:00 de Honduras, calculado como las 06:00 UTC (Honduras está en UTC-6 todo el año, sin horario de
+  verano desde 2006; `segundosHastaElMesSiguiente`, con prueba). Mínimo 1 s. Sigue siendo 429 (pasarlo a 403 es
+  incompatible, §5).
+
+### DEC-110 · Un cuerpo que no es JSON es 400 `JSON_INVALIDO` con la forma de error de la API
+- **Contexto:** el validador de Hono lanza `HTTPException(400)` con texto plano («Malformed JSON…»), aunque el
+  OpenAPI dice que el 400 es `application/json` con el esquema `Error`.
+- **Elegida:** `onError` convierte ese 400 en `{ error: { codigo: 'JSON_INVALIDO', mensaje, solicitud } }`. Mismo
+  estado; el cuerpo pasa de texto a JSON, que es lo que ya prometía la especificación. Nuevo código en
+  `docs/errores.md`. Solo se convierte el caso del JSON mal formado (el mensaje exacto del validador de Hono,
+  `MENSAJE_JSON_MAL_FORMADO`); cualquier otro `HTTPException`, también de 400, sigue con su respuesta.
+
+### DEC-111 · Las cabeceras comunes se agregan a la especificación en un solo lugar
+- `/openapi.json` ya no usa `app.doc31`: sirve `app.getOpenAPI31Document(...)` pasado por `conCabecerasComunes`
+  (`packages/api/src/contrato.ts`), que agrega `components.headers` (`Solicitud-Id`, `FacturaHN-Version`,
+  `RateLimit-Policy`, `RateLimit`, `Retry-After`) y los referencia en cada respuesta: las dos primeras en todas,
+  `RateLimit*` en las de `/v1` salvo 401 y 413 (se responden antes de validar la llave; en el 429 son opcionales,
+  porque el de `DEMASIADOS_INTENTOS` no las trae), `Retry-After` en los 429. Una prueba exige que ningún 401 las
+  declare. Así una ruta nueva las hereda sin tocarla. Una prueba
+  comprueba que estén en todas las respuestas.
+- `info.license` (MIT) y `security: []` explícito en `/salud`, que pedían las reglas del linter y son ciertos.
+
+### DEC-112 · Linter de OpenAPI: Redocly CLI
+- **Elegida:** `@redocly/cli` 2.82.0 (fijada) como dependencia de desarrollo de la raíz. Viene empaquetada, sin
+  dependencias transitivas (el lockfile agrega un solo paquete), frente a Spectral, que trae decenas.
+  `pnpm lint:openapi` = `redocly lint packages/api/openapi.json`; paso «Linter de OpenAPI» en `ci.yml`, después de
+  comprobar que `openapi.json` está al día.
+- `redocly.yaml`: reglas `recommended`, `telemetry: off` (no se envía nada desde la CI ni desde los equipos), y
+  `operation-operationId`, `-unique` y `-url-safe` como error. Desactivada `no-empty-servers`: la API no tiene URL
+  fija (cada negocio la levanta en su máquina o servidor) y un `servers` fijo haría que «Try it out» de `/docs`
+  llame a otra máquina.
+- `.redocly.lint-ignore.yaml`: una excepción, `operation-4xx-response` en `GET /salud`, que es público y solo
+  responde 200 o 500. Resultado: 0 errores y 0 avisos.
+
+### DEC-113 · `@hono/swagger-ui` fuera de las dependencias
+- No se importaba en ningún lado: `/docs` sirve una Swagger UI fija desde el CDN con SRI (DEC-052). Quitada de
+  `packages/api/package.json` y del lockfile. `docs/avance.md` (línea que dice que «quedó sin usarse») queda para
+  el integrador: esta rama no toca `avance.md`.
+
+<!-- Webhooks (rama lote4/webhooks) -->
+
+### DEC-114 · Reintentos de webhooks durante unos 3 días, con fluctuación
+- **Contexto:** `api-rest.md` §3.9 y §6 (P0). El análisis citaba 8 intentos (unos 64 min); el código de `main` ya
+  tenía 12 (unas 14 h y media) y `docs/api.md` lo decía bien. Aun así, un receptor caído un fin de semana perdía
+  avisos fiscales. Stripe reintenta hasta 3 días.
+- **Elegida:** `MAX_INTENTOS = 22`. Espera base después del intento n: `min(30 s × 2ⁿ⁻¹, 6 h)` (se conserva el tope
+  de 6 h), multiplicada por un factor al azar entre 0,8 y 1,2 (±20 %). Suma de las 21 esperas: 74,5 h de media
+  (de 59,6 a 89,4 h en los extremos imposibles de que todas caigan en el mismo borde). Al agotarse, `FALLIDA`.
+- **Por qué ±20 % y no «full jitter» (0 a 100 %):** el calendario sigue siendo predecible y documentable («unos
+  3 días»), y aun así reparte en el tiempo los reintentos de muchas entregas que fallaron juntas.
+- **Inyectable:** `despacharWebhooks({ reintentos: { maxIntentos, espera } })`. Las pruebas usan 3 intentos y
+  espera 0. `esperaReintento(n, azar)` recibe el azar; `esperaBase(n)` da la base.
+- **Compatibilidad:** compatible según `api-rest.md` §5 (pueden llegar avisos más tarde; el receptor ya debe
+  deduplicar). Las entregas que ya estaban PENDIENTE al actualizar siguen hasta 22 intentos; las que ya quedaron
+  FALLIDA con 12 se pueden reenviar.
+
+### DEC-115 · Verificadores con varias firmas `v1`
+- **Contexto:** `api-rest.md` §3.9 y §5: el verificador armaba un `Map` de la cabecera y con dos `v1` se quedaba
+  con el último. Había que corregirlo **antes** de la rotación.
+- **Elegida:** la cabecera se recorre entera: se juntan todos los `v1` bien formados (64 hex), se ignoran las
+  entradas de otros esquemas y los `v1` mal formados, y basta con que uno verifique. Más de un `t` es ambiguo y se
+  rechaza; sin ningún `v1` bien formado, también. Se comparan todos (sin cortar en el primer acierto). Igual en
+  `@factura-hn/api` (`leerFirma` + `verificarFirmaWebhook`, Node) y en `@factura-hn/cliente` (Web Crypto). Los
+  ejemplos Express y Next.js ya usaban el del cliente: sus pruebas suman casos con dos firmas, una válida y otra no.
+- **Cambio menor:** el verificador de la API ahora rechaza un secreto vacío, como ya hacía el del cliente.
+- **Tope de 8 `v1`** por cabecera en los dos verificadores (la API manda a lo sumo dos). El del cliente calcula un
+  solo HMAC y compara cada `v1` en tiempo constante (antes, un HMAC completo por cada `v1`).
+
+### DEC-116 · Rutas de entregas, reenvío y evento de prueba
+- **Contexto:** `api-rest.md` §3.9 y §6 (P1): `api_entregas` guardaba estado e intentos, pero ninguna ruta lo
+  exponía.
+- **Elegida** (todas admin, RLS por tenant, `operationId` en español):
+  - `GET /v1/webhooks/{id}/entregas` (`listarEntregasWebhook`): de la más reciente a la más antigua, paginada como
+    DEC-047. El cursor es `[creada en µs, uuid de la entrega]`: no expone el bigserial interno (esquema v5). Filtro
+    opcional `estado`. **No** devuelve el cuerpo del aviso (puede ser un documento entero por fila; para el
+    contenido está `GET /v1/documentos/{numero}`). Índice nuevo `(webhook_id, creada DESC, entrega DESC)`.
+  - `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` (`reenviarEntregaWebhook`), 202: el reenvío **no** hace
+    el HTTP dentro de la solicitud; devuelve la entrega a la bandeja de salida (`PENDIENTE`, `proximo = now()`) y
+    el despachador la entrega en segundos, con la misma protección SSRF y el mismo tiempo máximo. Una FALLIDA o
+    ENTREGADA reinicia `intentos` a 0 (otros 3 días); una PENDIENTE solo se adelanta y conserva sus intentos (si
+    estaba en vuelo, el resultado de ese vuelo se descarta por el arrendamiento y puede llegar dos veces, con el
+    mismo id). El último código y error se conservan hasta el próximo intento.
+  - `POST /v1/webhooks/{id}/probar` (`probarWebhook`), 202: encola `webhook.prueba` solo para ese webhook, sin
+    suscripción. `webhook.prueba` **no** se agrega a `EVENTOS_WEBHOOK` (no se puede suscribir). Su clave es
+    `webhook.prueba:<uuid>`; la retención la borra como a `documento.*`.
+  - Pruebas acotadas (revisión independiente): `webhook.prueba` se intenta a lo sumo `MAX_INTENTOS_PRUEBA = 3`
+    veces (inyectable con `reintentos.maxIntentosPrueba`) y cada webhook tiene a lo sumo
+    `MAX_PRUEBAS_PENDIENTES = 5` pruebas PENDIENTE; más allá, 409 `LIMITE_PRUEBAS`, también al reenviar una prueba
+    terminada. El conteo corre con la fila del webhook bloqueada, así que dos pruebas simultáneas no lo pasan.
+  - Candados: las rutas que escriben bloquean el webhook y la entrega con `FOR NO KEY UPDATE` (no estorba a las
+    llaves foráneas de `api_entregas`); la lista no bloquea nada.
+  - Cursores: se validan antes de la base (microsegundos de 0 a 9999-12-31, UUID estricto en minúsculas). Un cursor
+    fuera de rango daba 500; ahora 400 `CURSOR_INVALIDO`. Lo mismo para el cursor de `GET /v1/bitacora` (19 dígitos
+    que desbordaban bigint).
+  - Errores nuevos: 409 `WEBHOOK_INACTIVO` (reenviar, probar o rotar un webhook desactivado; listar sí se puede)
+    y 409 `ENTREGA_VENCIDA` (reenviar una lápida de `autorizacion.*` con el cuerpo vacío, ENTREGADA o FALLIDA; una
+    de `documento.*` o `webhook.prueba` tan vieja ya se borró y da 404). 404 `NO_ENCONTRADO` para
+    webhook o entrega de otro tenant o inexistente.
+  - Bitácora de la API: `webhook.entrega_reenviada`, `webhook.prueba`, `webhook.secreto_rotado` (sin secretos).
+
+### DEC-117 · Rotación del secreto de webhooks con gracia
+- **Contexto:** `api-rest.md` §3.9 y §6 (P2), después de los verificadores.
+- **Elegida:** `POST /v1/webhooks/{id}/rotar-secreto` (`rotarSecretoWebhook`), cuerpo opcional
+  `{ graciaHoras }` de 0 a 168 (24 por defecto). Responde `{ webhook, secreto }`; el secreto nuevo se muestra solo
+  esa vez. Esquema v8: `api_webhooks.secreto_anterior` (cifrado igual que `secreto`: se mueve tal cual, sin
+  descifrar) y `anterior_hasta`. El rol de la aplicación recibe `UPDATE (secreto, secreto_anterior,
+  anterior_hasta)`. Durante la gracia, el despachador firma con los dos. Con `graciaHoras: 0` no hay gracia.
+  Rotar otra vez durante una gracia (un reintento, un doble clic) **conserva el secreto más viejo** (el que el
+  receptor puede seguir usando), descarta el intermedio y deja la gracia hasta la más tardía de las dos
+  (`greatest`); con `graciaHoras: 0` la gracia termina en el acto. Revisión independiente: la versión anterior
+  copiaba siempre el secreto actual, y una rotación repetida dejaba sin firma válida al receptor con el primero. `Webhook.graciaHasta` (campo
+  nuevo, aditivo) dice hasta cuándo. El mantenimiento de cada hora borra el secreto anterior vencido (dentro del
+  bucle por tenant de `fhn_api_mantenimiento`, porque `api_webhooks` fuerza RLS también al dueño).
+- **Orden de las firmas: primero el `v1` del secreto anterior y después el del nuevo.** Un receptor con el
+  verificador viejo (el que se queda con el último `v1`) que cambia su secreto al nuevo durante la gracia sigue
+  verificando. Con el orden contrario, ese receptor fallaría desde que cambia el secreto hasta que termina la
+  gracia, que es justo lo que la gracia debe evitar. El que no cambia el secreto ni el verificador falla al rotar
+  en los dos órdenes: por eso la guía pide actualizar el verificador primero (§5: la rotación es incompatible con
+  el verificador viejo).
+- **Marca de la v8:** `exigirEsquemaApi` además exige que el rol de la API pueda actualizar
+  `api_webhooks.anterior_hasta` (se busca en `pg_attribute` antes de preguntar el privilegio, que fallaría si la
+  columna no existe). El integrador debe renumerar si otra rama sube también la v8.
+
+#### Propuestas que quedaron fuera (webhooks)
+- `evento_id` estable entre webhooks, `version` y `modo` en el sobre, `PATCH /v1/webhooks/{id}` y el evento del
+  plazo del Art. 42 (P3 de `api-rest.md` §6): no son parte de este encargo.
+- Métodos del cliente TS para las rutas nuevas (`fhn.entregasWebhook()`, etc.): el cliente no tenía métodos para
+  webhooks; los tipos generados ya las incluyen.
+- Ver el cuerpo de una entrega por la API (`GET …/entregas/{entrega}`): no hizo falta para reenviar.
+
+<!-- Llaves y sandbox local (rama lote4/llaves) -->
+
+### DEC-118 · Llaves `fhn_live_` y `fhn_test_`; la fuente de verdad es el modo del tenant
+- **Contexto:** `api-rest.md` §4.3 y plan v1 3.3: las llaves de prueba y de producción no se distinguían
+  (`fhn_<prefijo>_…` en los dos casos).
+- **Elegida:**
+  - Las llaves nuevas son `fhn_live_<12 hex>_<43>` (tenant de producción) o `fhn_test_<12 hex>_<43>` (tenant de
+    prueba). `leerLlave` devuelve prefijo y modo; `prefijoDe` acepta las tres formas. El prefijo de 12 hex sigue
+    siendo la clave en la base y en `DELETE /v1/llaves/{prefijo}`.
+  - `api_tenants.modo` (`prueba` | `produccion`, esquema v8) es la fuente de verdad. `fhn_api_autenticar` lo
+    devuelve. Una llave con marca que no coincide con el modo de su tenant recibe el mismo 401 `NO_AUTENTICADO`
+    que una llave inexistente, y se cobra igual que un secreto equivocado (límite de fallos por prefijo, 429
+    `DEMASIADOS_INTENTOS` al agotarse) y saca la llave de la memoria de llaves validadas. Como el SHA-256 cubre la
+    llave completa, marca incluida, cambiar `live` por `test` da otra llave: el caso solo ocurre si el operador
+    cambia el modo del tenant en la base.
+  - Las llaves sin marca (`fhn_<prefijo>_…`) siguen valiendo en su tenant **sea cual sea su modo**. `api-rest.md`
+    §4.3 decía que «cuentan como live»; aplicado al pie de la letra, las llaves que ya tiene el `demo` (que pasa a
+    prueba) dejarían de entrar, y eso rompe la compatibilidad (§5: «Llaves `fhn_live_` y `fhn_test_` aceptando las
+    viejas»).
+  - El modo de un tenant no cambia por la API (el rol `fhn_api` solo tiene SELECT en `api_tenants`) ni por la
+    consola. Se fija al crearlo: `tenant crear --modo produccion|prueba` (por defecto `produccion`); el `local`
+    nace en producción y el `demo`, en prueba.
+  - `POST /v1/llaves`, `llave crear` y `demo llave` crean la llave con la marca del modo de su tenant.
+  - `exigirEsquemaApi` también exige la columna `api_tenants.modo`: una base en v7 no arranca con este código.
+- **Alternativas:** (1) guardar el modo en cada llave (`api_llaves.modo`): duplica el dato y permite que se
+  contradigan. (2) Un dígito de control (CRC) al final, que §4.3 deja como opcional: no se hizo, porque una llave
+  mal copiada ya recibe 401 y el límite de intentos cubre el abuso.
+
+### DEC-119 · Modo de los tenants y de las llaves que ya existen
+- **Contexto:** el encargo pide decidir y documentar qué modo tienen los tenants y las llaves anteriores.
+- **Elegida:**
+  - Al migrar a v8 (una sola vez, al crear la columna) todos los tenants quedan en `produccion`, salvo el tenant
+    `demo` **de demostración** (el del emisor RTN `99990000000000` o con algún CAI `DEMO00-NO-VALIDO-…`, el mismo
+    criterio que `esDemoFicticio`) que además **no tiene ninguna autorización ni ningún documento con un CAI
+    real**: ese queda en `prueba`. La 0.2.0 no impedía registrar un CAI real en `demo`, ni crear en modo alojado un
+    tenant real con ese nombre: un `demo` así queda en `produccion`, la migración lo avisa (`RAISE NOTICE`) y
+    `demo llave` se niega a crearle llaves (serían `fhn_live_` con el aviso de CAI ficticio).
+  - `sesion.demo` exige además `modoTenant = 'prueba'`.
+  - Las llaves viejas no cambian: siguen sin marca y valen en su tenant (DEC anterior).
+  - Las autorizaciones ficticias que un tenant de producción ya tenía registradas (con `prueba: true`, que
+    DEC-093 permitía) no se tocan: siguen emitiendo con la leyenda de prueba y fuera de los reportes. Solo se
+    rechazan las nuevas. Retirarlas sería borrar o modificar autorizaciones, que son inmutables.
+- **Alternativa:** poner en prueba todo tenant cuyas autorizaciones sean todas ficticias. Adivina la intención
+  del operador y puede cambiar el comportamiento de un tenant real que solo estaba probando antes de su CAI.
+
+### DEC-120 · `modoTenant` en la sesión y cabecera `FacturaHN-Modo`
+- **Contexto:** §4.3 pide el modo «visible en todo» y §4.4 habla de «`GET /v1/sesion` confirma `modo:
+  produccion`». Pero `sesion.modo` ya existe y es el modo del **servidor** (`local` | `alojado`, DEC-072).
+- **Elegida:**
+  - Campo nuevo `sesion.modoTenant` (`prueba` | `produccion`). `modo` y `demo` no cambian de significado (cambiarlo
+    es incompatible, §5).
+  - Cabecera `FacturaHN-Modo: prueba|produccion` en toda respuesta de `/v1/*` después de autenticar, también en
+    los errores (403, 422…) y en las respuestas transmitidas. Las respuestas sin autenticar (401, 429 de intentos,
+    `/salud`) no la llevan: no se sabe el tenant.
+- **Alternativa:** renombrar `modo` a `modoServidor` y usar `modo` para el tenant. Solo en `/v2`.
+
+### DEC-121 · CAI ficticio según el modo del tenant · [REVISAR]
+- **Contexto:** DEC-063 dice que una autorización es de prueba si tiene `prueba: true` o un CAI ficticio, y DEC-093
+  permitía en la API registrar un CAI ficticio en un tenant real con `"prueba": true`. El encargo (§4.3 punto 1)
+  pide que el sandbox solo registre CAI ficticios y que en producción queden prohibidos.
+- **Elegida** (salvaguarda del producto, no regla fiscal: ningún artículo del Acuerdo 481-2017 regula CAI
+  ficticios ni tenants de prueba):
+  - Tenant de **prueba**: `POST /v1/autorizaciones` rechaza todo CAI que no sea ficticio (`esCAIDemo`) con 422
+    `AUTORIZACION_REAL_EN_DEMO`. Se conserva ese código (ya era el del tenant `demo`) en vez de crear otro: un
+    cliente que ya lo maneja sigue funcionando. No hace falta `"prueba": true`: todo el tenant es de prueba y el
+    núcleo ya marca de prueba un CAI ficticio.
+  - Tenant de **producción**: rechaza todo CAI ficticio, con o sin `"prueba": true`, con 422 `CAI_DE_PRUEBA`
+    (nombre de §4.3). `AUTORIZACION_DEMO_SIN_PRUEBA` ya no lo devuelve la API: `docs/errores.md` lo dice y remite
+    a `CAI_DE_PRUEBA`.
+  - **Qué cambia de DEC-093:** ya no se puede probar con un CAI ficticio dentro de un tenant de producción; para
+    probar está el tenant de prueba (`demo` en modo local, o `tenant crear --modo prueba` en alojado). `api-rest.md`
+    §5 lo clasifica como «prácticamente compatible»: rompe solo a quien registraba CAI ficticios en un tenant real.
+  - **También en la base:** un disparador `BEFORE INSERT` en `fhn_autorizaciones`, creado por la migración de la
+    API (v8), aplica la misma regla a cualquier camino, incluido el SDK con un `AlmacenPostgres` sobre un tenant de
+    la API. Lee el modo con `fhn_api_modo_tenant` (`SECURITY DEFINER`, mismo patrón que `fhn_api_autenticar`) y no
+    hace nada si el tenant no tiene fila en `api_tenants` (uso del SDK solo). El error es `check_violation` con el
+    código al inicio del mensaje. La API valida antes, así que por la API sigue siendo un 422 con su guía. Solo
+    actúa al insertar: las autorizaciones que ya estaban no se tocan.
+  - **Qué no cambia:** el núcleo (`registrarAutorizacion`, `esAutorizacionDePrueba`, DEC-063, DEC-091), el SDK con
+    su propia base y el MCP en modo SQLite siguen igual. Las pruebas que simulan un tenant real con un punto de
+    prueba (datos anteriores) pasan el tenant a prueba solo mientras registran.
+- **Por qué [REVISAR]:** cambia la interpretación de DEC-063/DEC-093 sobre dónde puede vivir un CAI ficticio en la
+  API. El responsable debe confirmar que un tenant de producción no debe aceptar autorizaciones de prueba.
+- **Alternativa:** mantener DEC-093 (ficticio con `"prueba": true` en producción). Deja la puerta abierta a un
+  punto de emisión real convertido en «de prueba» por error, que es lo que el modo del tenant viene a cerrar.
+
+### DEC-122 · El libro de ventas con llave de caja (resuelve el pendiente del Lote 4)
+- **Contexto:** `GET /v1/libro-ventas` aceptaba una llave de caja y devolvía el libro de todo el tenant (pendiente
+  «El libro de ventas con llave de caja» en `docs/decisiones.md`).
+- **Elegida:**
+  - Una llave de caja recibe el libro **solo de su punto de emisión** (establecimiento y punto), con todos sus
+    tipos de documento. Igual criterio que `GET /v1/sesion` y DEC-072, donde una caja no ve la actividad de las
+    demás (`documentosDelMes` es `null` para caja).
+  - Mismas filas, en el mismo orden, que el libro del tenant filtrado a ese punto: el almacén pagina por número, y
+    el número empieza por el punto, así que se recorren en orden las series del punto que tienen documentos en el
+    período. El conteo (tope `PERIODO_DEMASIADO_GRANDE`, `excluidos`, `Documentos-Prueba-Excluidos`) es solo del
+    punto, en la misma instantánea.
+  - El CSV de una caja se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`; el de una admin no
+    cambia.
+  - Una caja sin punto de emisión (anterior a DEC-035) recibe 403 `CAJA_SIN_PUNTO` (falla cerrado, como al emitir).
+  - Una llave admin sigue recibiendo el libro de todo el tenant. La exportación (Art. 53 num. 5) sigue siendo solo
+    de admin.
+- **Alternativas:** (1) solo admin (403 `SOLO_ADMIN` para la caja): rompe a quien hoy lo pide con caja (§5). (2)
+  Un filtro `puntoEmision` en `FiltroDocumentos` del núcleo: cambia el contrato del almacén para todos los
+  adaptadores, como ya se descartó en DEC-087.
+  - Una nota de crédito de la caja A sobre una factura de la caja B va en el libro de A (su número es de A), no en el
+    de B. Tiene prueba.
+- **Límite conocido:** no es un límite de confidencialidad. `GET /v1/documentos` y `GET /v1/documentos/{numero}`
+  con llave de caja siguen mostrando documentos de todo el tenant, como en la 0.2.0; `docs/api.md` lo dice. Acotarlos
+  al punto sería otra decisión (y quizá incompatible para un POS que consulta ventas de otra caja); queda como
+  propuesta. La descripción de `libro_ventas` del MCP y su README dicen que con llave de caja es solo su punto.
+
+#### Propuestas que quedaron fuera (llaves)
+- `modo` en el sobre de los webhooks y secretos por modo (§4.3 puntos 4 y 7): `webhooks.ts` lo cambia en paralelo
+  la rama `lote4/webhooks`; el documento ya lleva `modo: "prueba"` en `datos`.
+- Límites más bajos para los tenants de prueba (§4.3 punto 6) y el reloj simulado (punto 8, P3).
+- Nombre y encabezado «PRUEBA» en los reportes de un tenant de prueba (§4.3 punto 5): hoy salen vacíos con
+  `excluidos` y el aviso (DEC-087), que ya los distingue del archivo del Art. 53 num. 5.
+- En modo alojado, el enlace `<tenant>` ↔ `<tenant>-prueba` (`tenant_produccion`): sin el modo alojado como
+  servicio (P-02) no hace falta.
+- Detección de filtraciones (una `fhn_live_` es urgente y una `fhn_test_` no): la marca ya lo permite; registrar
+  el patrón en un escáner de secretos queda para cuando haya publicación.
+
+<!-- Pendientes del núcleo y de Postgres (rama lote4/pendientes) -->
+
+### DEC-123 · Caracteres no permitidos en los textos de entrada (`TEXTO_CARACTER_NO_PERMITIDO`)
+- **Contexto:** un NUL en un texto de la venta se guardaba en `fhn_documentos.datos` (columna `json`, que lo
+  acepta) y después fallaba todo lo que convierte a `jsonb`: el listado sin líneas (`datos::jsonb - 'lineas'`,
+  500 en `GET /v1/documentos`) y el disparador `fhn_solo_anular` (la anulación). Una mitad suelta de un par
+  sustituto UTF-16 (`\ud800`, que `JSON.parse` acepta) falla igual: lo comprobé contra Postgres (`22P05` y `22P02`).
+- **Elegida:** `validarEntrada` (y por tanto `emitir`, antes de guardar, sin consumir número) rechaza con
+  `TEXTO_CARACTER_NO_PERMITIDO` todo texto de la entrada que lleve:
+  - un carácter de control Unicode (categoría Cc: C0, DEL y C1), **salvo** tabulador, salto de línea y retorno de
+    carro, que tienen sentido en descripciones, direcciones y observaciones y que hoy se aceptan;
+  - la mitad suelta de un par sustituto (los emojis completos sí pasan).
+  Recorre todos los textos de la entrada (emisor, cliente, líneas, referencia, exoneración, motivo, observaciones
+  y cualquier campo extra) **y los nombres de los campos**, a cualquier profundidad (recorrido iterativo, con un
+  `WeakSet` contra ciclos), con un problema por campo y `campo` con la ruta (`lineas[0].descripcion`; un nombre
+  de campo malo se escribe `cliente.k<U+0000>`, para no devolver el carácter). `operador` se omite porque ya lo
+  valida `OPERADOR` (más estricto: sin saltos de línea). Se exporta `problemasDeTexto(valor)` para que la API lo
+  use en otros cuerpos.
+  `anularDocumento` (y por tanto `anular` y `corregirFechaAdelantada`) revisa igual el motivo antes de guardar:
+  antes, un NUL en el motivo daba 22P05 en el disparador de anulación (500 en la API).
+  No es regla fiscal: es integridad de datos (Postgres) y defensa de la impresora (DEC-060). Lleva `solucion` y su
+  entrada en `docs/errores.md`.
+- **Emisor configurado:** la revisión incluye `emisor`, que no viene de la venta sino de la configuración
+  (`crearFacturador({ emisor })` o `api_emisores`). Un tenant con un carácter de control guardado en su emisor
+  recibe 422 en toda emisión con `campo: 'emisor.…'`. Esos problemas traen una `solucion` propia: corregir la
+  configuración (en la API, `PATCH /v1/emisores/{id}`). El integrador agrega la validación en `POST`/`PATCH
+  /v1/emisores` con `problemasDeTexto`. Está dicho en el changeset.
+- **Compatibilidad:** se rechaza una entrada que antes se aceptaba. Solo cambia para textos con caracteres
+  invisibles que de todos modos rompían Postgres o la impresión. Changeset `minor` (0.x).
+- **Límite conocido:** los documentos ya guardados con un NUL no se tocan (son inmutables); si existen, el listado
+  sin líneas de ese tenant sigue fallando. No hay migración para eso.
+- **Alternativa:** limpiar los caracteres en silencio. Cambiaría lo que el cliente envió en un documento fiscal
+  sin decirlo.
+
+### DEC-124 · `registrarAutorizacionConAvisos` (pendiente `AVISO_VIGENCIA_MAYOR_1_ANIO`)
+- **Contexto:** `registrarAutorizacion` aceptaba sin aviso una autorización con la fecha límite a más de un año de
+  `fechaAutorizacion` (Art. 62). Los códigos ya quedaban en el detalle del evento `AUTORIZACION_REGISTRADA`, pero
+  quien registraba no recibía el aviso. Devolverlo en `registrarAutorizacion` cambiaría su firma
+  (`Promise<AutorizacionCAI>`), que usan la API, el MCP, la fachada y los ejemplos.
+- **Elegida:** función nueva `registrarAutorizacionConAvisos(almacen, autorizacion, opciones?)` →
+  `{ autorizacion, advertencias }`, con los `AVISO_*` de `validarAutorizacion` (el mismo mensaje con la cita al
+  Art. 62). `registrarAutorizacion` delega en ella y devuelve solo la autorización, sin propiedades nuevas. La
+  bitácora sigue guardando los códigos. Tipos exportados: `OpcionesRegistroAutorizacion`, `RegistroAutorizacion`.
+- **Para el integrador (API):** en `POST /v1/autorizaciones` (`packages/api/src/app.ts`, hoy línea ~655), cambiar
+  `registrarAutorizacion(...)` por `registrarAutorizacionConAvisos(...)` y responder
+  `{ autorizacion, advertencias }` (campo nuevo, compatible según `api-rest.md` §5), con `advertencias` en el
+  esquema de la respuesta 201. El MCP (`registrar-cai`) ya imprime el aviso con `validarAutorizacion`.
+- **No se tocó:** la fachada `crearFacturador().registrarAutorizacion`; agregarle un método cambiaría la
+  interfaz `Facturador`. Queda como propuesta.
+- **Alternativa:** una opción `alAdvertir(advertencias)` en `registrarAutorizacion`. Un callback para un dato de
+  retorno es más difícil de usar y de probar.
+
+### DEC-125 · Dos notas de crédito sobre documentos de puntos distintos: no se reproduce el bloqueo mutuo
+- **Contexto:** se sospechaba que dos notas de crédito simultáneas, la de 000-001 sobre una factura de 000-002 y la
+  de 000-002 sobre una de 000-001, podían esperarse en ciclo (40P01 → 500).
+- **Resultado:** no se reproduce. Cada nota bloquea su serie 06 y después la serie del original, que por
+  `REFERENCIA_TIPO` (Art. 4 num. 32) es un comprobante fiscal, nunca una nota: 000-001-06 → 000-002-01 y
+  000-002-06 → 000-001-01. Con DEC-092 todos los caminos ya siguen un orden global: series de notas (06, 07) antes
+  que las demás, y dentro de cada grupo en orden del identificador (el registro toma las de un punto en
+  06, 07, 01, 04…; la emisión, la anulación y los no utilizados, una sola). Además, el `INSERT` de
+  `api_idempotencia` y `api_uso` en `alEmitir` va después de todas las series.
+- **Prueba:** `packages/postgres/test/contrato.test.ts`, «dos notas de crédito cruzadas entre puntos de emisión»:
+  fuerza el cruce (cada transacción se detiene tras su primer bloqueo hasta que la otra tenga el suyo) tres veces y
+  las dos notas terminan. Una prueba de control con el mismo arnés toma 000-002-01 y luego 000-001-06 (el orden
+  inverso) contra la nota de 000-001 y sí obtiene 40P01: el arnés detectaría el ciclo. La prueba registra las
+  series que bloquea cada nota y exige `['000-001-06','000-002-01']` y `['000-002-06','000-001-01']`, y que las
+  notas no traigan `AVISO_ORIGINAL_EXTERNO`: si el original dejara de bloquearse, falla. Los ayudantes del cruce
+  (`senal`, `pausa`, `conPausa`) pasan al nivel del archivo para compartirlos con la prueba de DEC-092.
+- **Código:** sin cambio de orden; solo un comentario en `problemasDeNotaCredito` que explica el invariante.
+- **Alternativa:** un candado consultivo por tenant para las notas. Serializaría todas las notas de un tenant sin
+  necesidad.
+
+### DEC-126 · Integración del Lote 4
+- **Contexto:** las ramas `webhooks` y `llaves` subieron cada una el esquema de la API a la v8; `pendientes` dejó a
+  la API el registro con avisos.
+- **Elegida:**
+  - Una sola v8 con las dos partes (rotación del secreto de webhooks y modo del tenant). `exigirEsquemaApi` pide las
+    dos columnas. Ninguna v8 se publicó, así que no hay bases a medio migrar fuera del desarrollo.
+  - `POST /v1/autorizaciones` usa `registrarAutorizacionConAvisos` y responde `{ autorizacion, advertencias }`
+    (campo nuevo, compatible).
+  - `FacturaHN-Modo` queda declarada en el OpenAPI junto con las demás cabeceras comunes.
+  - El cursor de `GET /v1/documentos` exige una fecha del calendario (antes, `2024-99-99` daba 500).
+- **Alternativa:** v8 y v9 por separado, con el mismo resultado y una migración más.
