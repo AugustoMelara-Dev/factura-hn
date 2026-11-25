@@ -118,7 +118,8 @@ La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV so
 :::caution[Interpretación pendiente de revisión]
 Ningún artículo fija un tope numérico para la Nota de Crédito. El tope y la regla de la tasa se derivan del
 Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así que no puede devolver más de lo vendido ni a
-otra tasa. Es la DEC-051, marcada [REVISAR], y va en la [consulta al SAR](/produccion/consulta-sar/).
+otra tasa. Es la DEC-051, marcada [REVISAR]. Todavía no está en la [consulta al SAR](/produccion/consulta-sar/);
+consulta con tu contador.
 :::
 
 ## El RTN del adquirente

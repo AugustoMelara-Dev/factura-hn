@@ -126,9 +126,9 @@ resolución.
   bienes al 18 % (DEC-069, pendiente de revisión). Confirma la tasa de cada producto con tu contador.
 - **ISV por grupo de tasa (P-10).** El SDK calcula el impuesto por grupo de tasa, no línea por línea.
 - **Entrega del original a distancia.** Si un PDF por correo cumple la entrega del original en una venta por
-  internet no está confirmado (Arts. 5 y 14).
+  internet no está confirmado (Arts. 5 y 14). Este tema aún no tiene pregunta propia en la consulta al SAR.
 
-Las preguntas están en la [consulta al SAR](/produccion/consulta-sar/), aún sin respuesta.
+P-09, P-10 y P-11 están en la [consulta al SAR](/produccion/consulta-sar/), aún sin respuesta.
 :::
 
 ## Errores frecuentes
