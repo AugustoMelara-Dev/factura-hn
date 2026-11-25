@@ -24,7 +24,8 @@ al crédito y devuelven material. Algunos son exonerados. Ciertos productos se c
 | **Impreso** | Carta (`renderizarHTML` o el PDF carta) para clientes con RTN y ventas al crédito; ticket en el mostrador |
 | **Documentos** | Factura (01), Nota de Crédito (06) y, si el contador lo indica, Nota de Débito (07). Cada tipo tiene su propia autorización y su serie en cada caja |
 
-Ver [Varias cajas](/guias/varias-cajas/) y [Clientes especiales](/guias/clientes-especiales/).
+Ver [Varias cajas](/guias/varias-cajas/), [exonerados](/conceptos/isv-y-montos/#exonerado) y [Factura](/documentos/factura/) para
+la moneda extranjera.
 
 ## Reglas que aplican, con su fuente
 
@@ -150,7 +151,7 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
   sabe que está en el Art. 29, sin su contenido, y factura-hn todavía no la emite (aún sin pregunta propia en la consulta).
 - **Retenciones** de grandes contribuyentes y el Comprobante de Retención (05): el repositorio solo sabe que está en
   el Art. 33 (aún sin pregunta propia en la consulta). factura-hn no lo emite.
-- **Usos concretos de la Nota de Débito (07)**: intereses, fletes, diferencias de precio. El Reglamento solo dice
+- **Usos concretos de la [Nota de Débito (07)](/documentos/nota-debito/)**: intereses, fletes, diferencias de precio. El Reglamento solo dice
   «ajustes» (Art. 4 num. 32; aún sin pregunta propia en la consulta).
 - **Exonerado agroindustrial solo con el registro SAG/RUPNSA**, sin Orden de Compra Exenta: es la lectura adoptada
   (DEC-021), pendiente de confirmación (pregunta P-08).

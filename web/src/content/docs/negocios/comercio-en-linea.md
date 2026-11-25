@@ -111,7 +111,7 @@ No son reglas fiscales: son la forma segura de integrar.
 - **El pago se confirmó dos veces** (la pasarela reenvió el aviso). La misma clave `pedido-<id>` devuelve la misma
   factura; no se emite otra.
 - **El cliente devuelve el producto.** Si la factura tiene su RTN, Nota de Crédito (06) sobre ella (Art. 4 num. 32;
-  ver [Nota de Crédito](/documentos/06-nota-de-credito/)). Si se emitió con un error, un supervisor la anula
+  ver [Nota de Crédito](/documentos/nota-credito/)). Si se emitió con un error, un supervisor la anula
   (Art. 41).
 - **El pedido se cancela antes de pagar.** No hay nada que emitir: la factura sale con el pago.
 

@@ -25,7 +25,7 @@ enviado.
 
 | # | Etapa | Quién | Detalle |
 |---|---|---|---|
-| 1 | Probar con la demo y decidir el camino (SDK, API o MCP) | Desarrollador | [Empezar](/empezar/) |
+| 1 | Probar con la demo y decidir el camino (SDK, API o MCP) | Desarrollador | [Tu primera factura](/empezar/primera-factura/) |
 | 2 | Revisar con el contador la modalidad, los documentos y la clasificación de cada producto | Dueño y contador | [Contador](#el-contador) |
 | 3 | Inscripción y registro como autoimpresor por sistema | Dueño, con el contador | Arts. 45 y 47 |
 | 4 | Declaración Jurada del sistema | Dueño, con datos del desarrollador | Art. 53, [ficha del Art. 53](/produccion/ficha-art-53/) |
@@ -66,7 +66,8 @@ enviado.
    listas de productos; la clasificación la pone el negocio. La tasa del 18 % no tiene texto primario en el
    repositorio (P-11, DEC-069 [REVISAR]); ver [Estado legal](/produccion/estado-legal/).
 3. **Clientes especiales**, si los hay: exonerados (Art. 11 num. 4), ventas en moneda extranjera (Art. 11,
-   párrafo final), exportaciones (Art. 12, con la reserva de P-09). Ver [Clientes especiales](/guias/clientes-especiales/).
+   párrafo final), exportaciones (Art. 12, con la reserva de P-09). Ver [exonerados](/conceptos/isv-y-montos/#exonerado) y
+   [Factura](/documentos/factura/) para la moneda extranjera y la exportación.
 4. **Revisar las interpretaciones pendientes** que afectan al negocio: la lista está en
    [Estado legal](/produccion/estado-legal/#interpretaciones-pendientes).
 5. **Revisar la primera factura real** contra los requisitos del Art. 10 y del Art. 11.

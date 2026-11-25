@@ -18,7 +18,7 @@ los reportes. Los artículos son del Reglamento del Régimen de Facturación (Ac
 | [Respaldos](#respaldos-y-conservación) | Cada día, y una prueba de restauración periódica | Arts. 41 y 43 |
 
 Los ejemplos de código usan el SDK sobre tu almacén (`almacen`). Con la API y el MCP se indica la ruta o la
-herramienta equivalente.
+herramienta equivalente. Los reportes en detalle están en [Reportes](/guias/reportes/).
 
 ## Libro de ventas
 
@@ -124,7 +124,7 @@ P-04). Ver [Consulta al SAR](/produccion/consulta-sar/).
 
 Un documento con errores se anula: lleva la leyenda «ANULADA», conserva su número y se resguarda el original y la
 copia en orden cronológico (Art. 41, C L.1943-1955). En factura-hn se anula con `anular`, con un motivo
-obligatorio (DEC-001). Nada se borra.
+obligatorio (DEC-001). Nada se borra. Ver [Anular](/guias/anular/).
 
 Al cerrar el mes, revisa las anulaciones con su motivo y quién las hizo:
 
@@ -144,7 +144,7 @@ Qué mirar:
 - Que cada anulación tenga un motivo claro. Muchas anulaciones por el mismo motivo suelen indicar un problema de
   la caja o de la capacitación.
 - Que no se haya anulado una venta correcta para «corregir» una devolución o un descuento. Esos casos van con Nota
-  de Crédito (06) sobre el documento vigente (Art. 4 num. 32). Ver [Nota de Crédito](/documentos/06-nota-de-credito/).
+  de Crédito (06) sobre el documento vigente (Art. 4 num. 32). Ver [Nota de Crédito](/documentos/nota-credito/).
 - Que el original anulado se recupere del cliente cuando sea posible (Art. 41: resguardo de original y copia).
 
 ## Renovación del CAI

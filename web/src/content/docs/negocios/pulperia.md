@@ -115,7 +115,7 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
 - **Se equivocó la cajera.** Se anula el documento con un motivo y se emite uno nuevo (Art. 41). El número anulado
   sigue consumido.
 - **El cliente devuelve un producto de una compra con RTN.** Nota de Crédito (06) sobre la factura (Art. 4
-  num. 32). Requiere el CAI de la serie 06. Ver [Nota de Crédito](/documentos/06-nota-de-credito/).
+  num. 32). Requiere el CAI de la serie 06. Ver [Nota de Crédito](/documentos/nota-credito/).
 - **El reloj de la caja se adelantó.** factura-hn lo detecta (`RELOJ_ADELANTADO_SOSPECHOSO`). Ver
   [Reloj](/guias/reloj/).
 
