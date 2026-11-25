@@ -5,12 +5,17 @@
 > inscribirte en el Régimen de Facturación, registrarte como autoimpresor y obtener tu CAI y rango.
 > La normativa cambia: revisa los acuerdos vigentes en sar.gob.hn antes de salir a producción.
 
+Cada requisito, con su artículo, cómo lo cumple factura-hn y la prueba que lo verifica, está en la
+[matriz de cumplimiento](cumplimiento.md). Donde el Reglamento no es literal, esta página y la matriz dicen qué
+lectura aplica factura-hn, para que la revises con tu contador.
+
 ## Base normativa
 
 - **Acuerdo 481-2017**, Reglamento del Régimen de Facturación, Otros Documentos Fiscales y Registro Fiscal
   de Imprentas (La Gaceta, 10 ago 2017), con sus reformas (Acuerdos 609-2017 y 725-2018, entre otros).
 - **Ley del Impuesto Sobre Ventas**: tasa general 15%; 18% para bebidas alcohólicas, cigarrillos y boletos
-  aéreos en clase ejecutiva/primera (sin fuente primaria; en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/)).
+  aéreos en clase ejecutiva/primera (Decreto 278-2013, Art. 16; factura-hn no tiene su texto primario, así que
+  qué productos van al 18 % lo decide quien integra).
 - Situación de la factura electrónica (nov. 2026): el régimen vigente es el de **CAI + rango autorizado**.
   La modalidad electrónica es la de *autoimpresor* (sistema computarizado) dentro de ese régimen; no hay un
   esquema XML obligatorio con validación previa del SAR. Si el SAR publica uno, se agregará como módulo.
@@ -36,8 +41,8 @@
 | Exportaciones con tasa cero (Art. 12) | `isv: 'GRAVADO0'`, `totales.importeGravado0` |
 | Crédito fiscal: en ventas mixtas solo cuentan las gravadas (Art. 11 num. 3) | `totales.baseCreditoFiscal`, `AVISO_VENTA_MIXTA` |
 | Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41): tipo, CAI, número, fecha, RTN, estado, moneda y tipo de cambio | `REFERENCIA_*` en `emitir` |
-| Nota de crédito: la suma de las notas sobre un original no supera su total ni, a cada tasa, su gravado y su ISV; no cambia la tasa de ISV ni lleva ISV sobre un original exonerado (Art. 4 num. 32; tope derivado, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/)) | `NOTA_SUPERA_ORIGINAL` (con el saldo disponible), `NOTA_TASA_DISTINTA` y el aviso `AVISO_NOTA_EXONERACION_DISTINTA` en `emitir` |
-| Un documento con notas vigentes no se anula: primero se anulan las notas (Arts. 41 y 4 num. 32; regla derivada, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/)) | `DOCUMENTO_CON_NOTAS` en `anular` |
+| Nota de crédito: la suma de las notas sobre un original no supera su total ni, a cada tasa, su gravado y su ISV; no cambia la tasa de ISV ni lleva ISV sobre un original exonerado (Art. 4 num. 32; el tope no es literal: es la lectura que aplica factura-hn) | `NOTA_SUPERA_ORIGINAL` (con el saldo disponible), `NOTA_TASA_DISTINTA` y el aviso `AVISO_NOTA_EXONERACION_DISTINTA` en `emitir` |
+| Un documento con notas vigentes no se anula: primero se anulan las notas (Arts. 41 y 4 num. 32; la regla no es literal: es la lectura que aplica factura-hn) | `DOCUMENTO_CON_NOTAS` en `anular` |
 | Tipos que un sistema no puede emitir: 04, 09, 10, 12 (Arts. 4 num. 43, 46, 47) | `TIPO_NO_EMITIBLE` |
 | Importe total en número y letras, moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |
@@ -62,10 +67,10 @@
   así el total siempre cuadra con la suma de importes más ISV.
 - La leyenda "La factura es beneficio de todos, exíjala" **no** la exige el reglamento; es opcional (`leyenda`).
 - Documentos en moneda extranjera: el libro de ventas los convierte a lempiras campo por campo con el tipo de
-  cambio del documento, y el impreso agrega el equivalente en lempiras del ISV y del total. Son lecturas del
-  proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
+  cambio del documento, y el impreso agrega el equivalente en lempiras del ISV y del total. El Reglamento no
+  lo dice de forma literal: son lecturas que aplica factura-hn.
 - Una nota sobre una factura a CONSUMIDOR FINAL (sin RTN) acepta el RTN que indiques, con el aviso
-  `AVISO_ORIGINAL_SIN_RTN`; en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
+  `AVISO_ORIGINAL_SIN_RTN`. Los Arts. 26 y 28 no lo resuelven de forma literal: es la lectura que aplica factura-hn.
 
 ## Referencias y créditos
 

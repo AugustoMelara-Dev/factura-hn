@@ -1,7 +1,7 @@
 # Sitio de documentación en GitHub Pages.
 #
-# Apagado hasta que el responsable active Pages (origen: GitHub Actions) y la variable PUBLICAR_SITIO = "true"
-# (ver docs/lanzamiento.md).
+# Apagado hasta que el responsable active Pages (origen: GitHub Actions) y la variable del repositorio
+# PUBLICAR_SITIO valga "true".
 name: Sitio
 
 on:

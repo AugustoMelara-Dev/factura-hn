@@ -33,7 +33,7 @@ de `@factura-hn/cliente`.
 
 ## 0.2.0 — 2026-11-24
 
-Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles
+Se cubren los requisitos pendientes de la matriz de cumplimiento (`docs/cumplimiento.md`). Mientras la versión sea 0.x, los cambios incompatibles
 van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0.0.
 
 ### Cambios incompatibles
@@ -43,27 +43,27 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   misma transacción). `construirDocumento` y `anularDocumento` dejan de exportarse. Usa
   `registrarAutorizacion`, `emitir` y `anular` sobre un `AlmacenFiscal`. La 0.1.0 no se publicó en npm.
 
-- **Dinero sin punto flotante (B-17).** Cantidad, precio unitario, descuento, tipo de cambio y umbral aceptan
+- **Dinero sin punto flotante.** Cantidad, precio unitario, descuento, tipo de cambio y umbral aceptan
   `number | string` (se recomienda texto: `"19.99"`). Un `number` se lee por su texto decimal exacto. Si trae
   más decimales de los permitidos (cantidad y precio: 4; descuento: 2; tipo de cambio: 6), se rechaza en lugar
   de redondearse: `0.1 + 0.2` como precio da `LINEA_PRECIO`. Antes el precio se redondeaba a centavos en silencio.
   En texto, la coma solo separa miles en grupos de 3 (`"1,234.50"`): `"89,50"` da `ErrorMonto`. Antes se leía
   como 8950, un monto 100 veces mayor, sin ningún aviso.
-- **ISV estatutario con precios con ISV incluido (B-03, D-01).** El ISV impreso es siempre la tasa × la base
+- **ISV estatutario con precios con ISV incluido (Ley del ISV, Art. 9).** El ISV impreso es siempre la tasa × la base
   impresa con el redondeo del Art. 9 de la Ley del ISV. Antes se calculaba por diferencia y quedaba 1 centavo
   por encima de la regla en el 4.35 % (15 %) y el 6.78 % (18 %) de los montos. Cuando un precio no tiene base
   exacta, el total queda 1 centavo **por debajo** del precio (nunca por encima), con
   `totales.ajustePorRedondeo` y el aviso `AVISO_AJUSTE_CENTAVO`. El POS debe cobrar `totales.total`.
-- **No se puede retrofechar (B-08).** La fecha de emisión la pone el reloj (`opciones.reloj`, por defecto
+- **No se puede retrofechar.** La fecha de emisión la pone el reloj (`opciones.reloj`, por defecto
   `() => new Date()`) en America/Tegucigalpa. Una `fechaEmision` distinta de hoy en Honduras es el error
   `FECHA_EMISION_NO_ES_HOY` (Reglamento Arts. 14 y 43).
 - **Documentos inmutables.** `emitir` y `anular` devuelven el documento congelado en
   profundidad (`Object.freeze`) y con `estado: 'EMITIDO'`. Si tu código modificaba el documento, copia antes.
 
-- **Datos del emisor obligatorios (B-05, Art. 10 num. 1).** `nombreComercial`, `direccionEstablecimiento`,
+- **Datos del emisor obligatorios (Art. 10 num. 1).** `nombreComercial`, `direccionEstablecimiento`,
   `telefono` y `correo` pasan a ser obligatorios en `Emisor` (errores `EMISOR_*`). Desaparece el aviso
   `AVISO_EMISOR_CONTACTO`.
-- **Exoneración (B-12, Art. 11 num. 4).** Los tres campos de `Exoneracion` son opcionales: se exige OCE y
+- **Exoneración (Art. 11 num. 4).** Los tres campos de `Exoneracion` son opcionales: se exige OCE y
   constancia, o solo `registroSAG` (RUPNSA).
 - `filaLibroVentas(doc)` ya no recibe `{ anulado }`: el estado sale del documento. El CSV del libro agrega la
   columna «Gravado 0%».
@@ -71,19 +71,21 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   notas de crédito vigentes supera su total; el mensaje trae el saldo) y `NOTA_TASA_DISTINTA`. En la API, una NC
   sobre un original externo requiere llave admin (403 `SOLO_ADMIN` con llave de caja). `FiltroDocumentos` acepta
   `tipoDocumento` y `referencia` (opcionales para adaptadores propios: el núcleo vuelve a filtrar).
-- **Libro de ventas en lempiras (DEC-050).** `filaLibroVentas` convierte los documentos en moneda extranjera con
+- **Libro de ventas en lempiras.** El ISV se declara en lempiras; cada documento se convierte con el tipo de cambio
+  que imprime (Art. 11, párrafo final). El Reglamento no fija el formato del libro: es la lectura que aplica
+  factura-hn. `filaLibroVentas` convierte los documentos en moneda extranjera con
   su tipo de cambio y agrega `moneda`, `tipoCambio` y `totalMonedaOriginal`. El CSV suma tres columnas al final.
   Antes `resumenVentas` sumaba dólares como lempiras.
 - `TIPO_NO_EMITIBLE` (en lugar de `TIPO_NO_SOPORTADO`) para 04, 09, 10 y 12, también al registrar la
-  autorización (B-15, Arts. 4 num. 43, 46 y 47).
+  autorización (Arts. 4 num. 43, 46 y 47).
 
-- **CAI (B-09):** desaparece `CAI_FORMATO_ADVERTENCIA`. Por defecto el CAI solo debe tener letras, dígitos
+- **CAI:** desaparece `CAI_FORMATO_ADVERTENCIA`. Por defecto el CAI solo debe tener letras, dígitos
   y guiones entre grupos (Art. 4 num. 7: «serie alfanumérica»); el patrón 6-6-6-6-6-2 se exige solo con
   `caiEstricto: true`, como error `CAI_FORMATO`.
 
 ### Agregado
 
-- **Operador en la bitácora (DEC-031).**
+- **Operador en la bitácora (Art. 53 num. 2, controles de auditoría).**
   - `emitir`, `anular`, `corregirFechaAdelantada` y `registrarAutorizacion` aceptan `operador` (p. ej. el
     cajero). Queda en `EventoAuditoria.operador`.
   - Cada emisión deja un evento `DOCUMENTO_EMITIDO`.
@@ -98,7 +100,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   y por mes; webhooks firmados con HMAC y reintentos; PDF/HTML/TXT, libro de ventas, exportación y bitácora.
   Rechaza cuerpos que no son UTF-8 válido (`CUERPO_NO_UTF8`) y sigue en pie si Postgres se reinicia.
   Cada recurso va envuelto con su nombre y cada lista es `{ <plural>, hayMas, siguiente }`; documentos y
-  bitácora se paginan con `limite` y `cursor` (DEC-047). Montos de salida en lempiras con 2 decimales (DEC-048).
+  bitácora se paginan con `limite` y `cursor`. Montos de salida en lempiras con 2 decimales.
   `docker compose up --build` levanta API + Postgres con datos de demostración. Ver `docs/api.md`.
 - **`@factura-hn/cliente`** (0.2.0): cliente tipado de la API generado desde OpenAPI (`openapi-fetch`), con
   `emitir` (idempotente), `descargar` (PDF/HTML/TXT), `anular`, `documentos` (recorre las páginas) y
@@ -111,10 +113,9 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - AGENTS.md, llms.txt y la skill: prompts de una línea para el SDK y para la API, comprobados por prueba.
 - `textoSeguroCSV`: `libroVentasCSV` y `exportarTexto(…, { formato: 'csv' })` anteponen `'` al texto que
   empieza con `= + - @` (inyección de fórmulas en hojas de cálculo).
-- Notas sobre facturas en moneda extranjera (DEC-018): se emiten en lempiras con el tipo de cambio del
+- Notas sobre facturas en moneda extranjera (Arts. 26 num. 9 y 28 num. 8, moneda nacional): se emiten en lempiras con el tipo de cambio del
   original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
-- CAI (DEC-013): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
-- `docs/consulta-sar.md`: consulta formal con las preguntas abiertas.
+- CAI (Art. 4 num. 7, «serie alfanumérica»): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
 - Revisión interna de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
@@ -123,29 +124,29 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   de la autorización quedan en el evento `AUTORIZACION_REGISTRADA` de la bitácora.
 - Paquetes compilados con tipos separados para ESM (`.d.ts`) y CJS (`.d.cts`); `pnpm verificar:dist` carga
   cada paquete por `import` y por `require`.
-- Matriz de cumplimiento con una prueba por fila (`docs/investigacion.md`, `test/matriz.test.ts`).
+- Matriz de cumplimiento con una prueba por fila (`docs/cumplimiento.md`, `test/matriz.test.ts`).
 - **`@factura-hn/pdf`:** `renderizarPDF(doc, { formato: 'carta' | 'ticket' })` con pdf-lib, sin navegador;
   leyenda y marca de agua ANULADA; salida determinista.
-- **Exportación a texto (B-10, Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con
+- **Exportación a texto (Art. 53 num. 5):** `exportarTexto` en `jsonl` (sin pérdida, con
   `leerExportacionJSONL`), `csv` y `txt`; importes escritos desde centavos.
 - **Integración contable (Art. 53 num. 1):** interfaz `LibroContable`, que corre dentro de la transacción de
   `emitir`, `anular` y `corregirFechaAdelantada`; si falla, se revierte y el número no se consume.
-- **Documentos no utilizados (B-07, Art. 42):** `documentosNoUtilizados` y `noUtilizadosDelAlmacen` devuelven
+- **Documentos no utilizados (Art. 42):** `documentosNoUtilizados` y `noUtilizadosDelAlmacen` devuelven
   los rangos sin usar, la causal (numerales 1 a 12) y la fecha límite del aviso (décimo día hábil del mes
   siguiente; feriados opcionales).
 - `estadoAutorizacion` avisa la renovación desde dos meses de calendario antes de la fecha límite (antes 30
-  días), según el Art. 59 (B-11).
-- **Gravado 0 % (B-01, Arts. 11 y 12):** `isv: 'GRAVADO0'` y `totales.importeGravado0`, discriminado en
+  días), según el Art. 59.
+- **Gravado 0 % (Arts. 11 y 12):** `isv: 'GRAVADO0'` y `totales.importeGravado0`, discriminado en
   render y libro.
-- **Crédito fiscal (B-02, Art. 11 num. 3):** `totales.baseCreditoFiscal` y el aviso `AVISO_VENTA_MIXTA` cuando
+- **Crédito fiscal (Art. 11 num. 3):** `totales.baseCreditoFiscal` y el aviso `AVISO_VENTA_MIXTA` cuando
   el comprador tiene RTN.
-- **Coherencia de notas (B-13):** la NC solo sobre Comprobantes Fiscales (Art. 6) y nunca con fecha anterior
+- **Coherencia de notas (Arts. 26 num. 3 y 28 num. 3):** la NC solo sobre Comprobantes Fiscales (Art. 6) y nunca con fecha anterior
   al original. Dentro de `emitir`, contra el almacén: el original debe existir, no estar ANULADO y coincidir en
-  CAI, fecha y RTN (`REFERENCIA_*`). Si no está en el almacén (talonario, otro sistema, antes de la migración), `AVISO_ORIGINAL_EXTERNO` (DEC-004). `AutorizacionCAI.ultimoEmitidoAntes` para migrar una serie existente.
+  CAI, fecha y RTN (`REFERENCIA_*`). Si no está en el almacén (talonario, otro sistema, antes de la migración), `AVISO_ORIGINAL_EXTERNO`: no hay con qué comparar, así que es aviso y no error (decisión de diseño de factura-hn). `AutorizacionCAI.ultimoEmitidoAntes` para migrar una serie existente.
 
 - `parsearDecimal`, `redondearDecimal`, `dividirRedondeando`, `centavosATexto`, `escaladoATexto`, `ErrorMonto`,
   `centavosEnLetras`, `calcularCentavos` (totales en `bigint`), `impuestoArt9`.
-- **`AlmacenFiscal` y emisión atómica (B-04, B-18).** `emitir(entrada, { almacen, establecimiento,
+- **`AlmacenFiscal` y emisión atómica.** `emitir(entrada, { almacen, establecimiento,
   puntoEmision })` bloquea la serie del identificador `NNN-NNN-TT`, elige la autorización vigente que cubre el
   siguiente número (la numeración continúa de un CAI al siguiente; los números de un CAI vencido se saltan y
   nunca se emiten), valida, construye y guarda en una sola transacción. Si algo falla, el número no se consume.
@@ -161,7 +162,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
   Postgres, tabla `fhn_eventos` de solo inserción.
 - **`factura-hn/pruebas`:** `ejecutarContratoAlmacen({ describe, it }, config)`, la batería de contrato que
   debe pasar cualquier adaptador, con 50 emisiones concurrentes desde 5 cajas.
-- **Anulación (B-06, Art. 41):** `anular(numero, { almacen, motivo })` guarda un documento nuevo con
+- **Anulación (Art. 41):** `anular(numero, { almacen, motivo })` guarda un documento nuevo con
   `estado: 'ANULADO'` y `anulacion { motivo, fecha, hora }`; el número se conserva. El HTML y el texto imprimen
   la leyenda «ANULADA». `filaLibroVentas` toma el estado del documento. `estaAnulado`, `LEYENDA_ANULADA`,
   `congelar`.
@@ -171,15 +172,15 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - El precio unitario se imprime con hasta 4 decimales cuando los trae.
 - Prueba estructural que prohíbe el punto flotante en la ruta del dinero.
 - Paquetes listos para npm: `repository`, `homepage`, `bugs`, publicación pública y `LICENSE` dentro de cada
-  paquete. La 0.2.0 se publica sin procedencia; las versiones que publique la CI la llevan firmada (DEC-042). `@factura-hn/pdf` se publica junto con los demás.
+  paquete. La 0.2.0 se publica sin procedencia; las versiones que publique la CI la llevan firmada. `@factura-hn/pdf` se publica junto con los demás.
 - Guía rápida del SDK (`docs/guia-sdk.md`, con sus ejemplos compilados en las pruebas) y guía de
   autoalojamiento con Docker (`docs/autoalojamiento.md`).
 - Sitio de documentación en español para GitHub Pages (`pnpm sitio`): inicio, SDK, API con referencia generada
-  desde OpenAPI, autoalojamiento, playground, matriz de cumplimiento y consulta al SAR.
+  desde OpenAPI, autoalojamiento, playground y matriz de cumplimiento.
 
 ### Seguridad y operación
 
-Correcciones de la auditoría de seguridad del 24-11-2026 y de la validación de sus pistas (DEC-052 a DEC-060).
+Correcciones de la auditoría de seguridad del 24-11-2026 y de la validación de sus pistas.
 
 - **Montos acotados.** La notación científica rechaza con `ErrorMonto` exponentes de más de ±30 o más de 40
   dígitos, antes de calcular nada: «1e10000000» bloqueaba el proceso varios segundos.
@@ -216,9 +217,9 @@ Correcciones de la auditoría de seguridad del 24-11-2026 y de la validación de
 
 ### Cambiado
 
-- **MCP local solo con SQLite en archivo (DEC-040).** `BackendLocal` recibe `{ db, emisor, … }` en lugar de
+- **MCP local solo con SQLite en archivo.** `BackendLocal` recibe `{ db, emisor, … }` en lugar de
   `{ almacen, claves }`, y se elimina `clavesEnMemoria`. Una base en memoria se rechaza.
-- **La bitácora de la API ya no usa el prefijo de la llave como actor** (DEC-031): si filtrabas por
+- **La bitácora de la API ya no usa el prefijo de la llave como actor**: si filtrabas por
   `llave:<prefijo>`, usa el id de `GET /v1/llaves`.
 
 - `pnpm` workspaces: el SDK vive en `packages/core`.

@@ -1,6 +1,6 @@
 # Propiedades, contrato OpenAPI y fuzzing
 
-Medido el 2026-11-25 (rama `lote5/propiedades`, Node 24, Windows y Postgres 16 local).
+Medido el 2026-11-25 (Node 24, Windows y Postgres 16 local).
 
 ## Resultado
 
@@ -41,7 +41,7 @@ La corrida nocturna de prueba (antes de que el fuzz metiera caracteres de contro
 | Documento en dólares por encima del tope en lempiras | núcleo, API | se emitía y el equivalente en lempiras perdía centavos | `MONTO_FUERA_DE_RANGO` en `tipoCambio` |
 | Respuestas sin declarar | `openapi.json` | `Idempotency-Replayed`, CSV y TXT de la exportación, 403 del libro de ventas, `FacturaHN-Modo` en los 429 | declaradas |
 
-Cada uno tiene su caso fijo en `packages/core/test/lote5-hallazgos.test.ts` o
+Cada uno tiene su caso fijo en `packages/core/test/casos-limite.test.ts` o
 `packages/api/test/hallazgos-fuzz.test.ts`. Ninguno cambió una regla fiscal.
 
 ## Cómo se reproduce

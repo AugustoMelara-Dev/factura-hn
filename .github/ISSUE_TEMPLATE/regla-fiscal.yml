@@ -24,7 +24,7 @@ body:
     id: actual
     attributes:
       label: Qué hace factura-hn hoy
-      description: Si aplica, la fila de docs/investigacion.md o la decisión de docs/decisiones.md.
+      description: Si aplica, la fila de la matriz de cumplimiento (docs/cumplimiento.md) o el código de error.
     validations:
       required: true
   - type: textarea

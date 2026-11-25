@@ -13,6 +13,6 @@ Mientras la versión sea 0.x, un cambio incompatible es `minor` y va en su chang
 incompatibles:**` (en negrita, no un título `##`: el changeset queda dentro de una lista del `CHANGELOG.md` del
 paquete). Cada changeset describe el cambio neto desde la última versión publicada: si un cambio posterior lo
 corrige, se corrige también el changeset anterior. Al fusionar en `main`, el flujo «Release» abre un PR «Versión
-de paquetes»; al fusionar ese PR, publica en npm con procedencia (ver `docs/lanzamiento.md`). `pnpm run version`
+de paquetes»; al fusionar ese PR, publica en npm con procedencia (ver `.github/workflows/release.yml`). `pnpm run version`
 corre `changeset version` y después `scripts/fijar-versiones.mjs` (la API, `openapi.json`, los bloques
 `mcpServers` y la sección del `CHANGELOG.md` de la raíz).

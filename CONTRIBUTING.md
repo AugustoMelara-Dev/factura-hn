@@ -6,9 +6,9 @@ negocio. Por eso las reglas de abajo no son opcionales.
 ## Reglas del proyecto
 
 1. **No se inventan reglas fiscales.** Cada validación cita su artículo (Reglamento del Régimen de
-   Facturación, Acuerdo 481-2017, u otra norma) en un comentario y tiene una prueba. Si una regla es una
-   interpretación, se registra en `docs/decisiones.md` con la etiqueta **[REVISAR]** hasta que el responsable la
-   apruebe. La fuente de verdad es `docs/investigacion.md`.
+   Facturación, Acuerdo 481-2017, u otra norma) en un comentario y tiene una prueba. Si el texto no lo dice de
+   forma literal y la regla es una lectura, el comentario y la documentación lo dicen así, y el PR explica la
+   interpretación. La matriz de cumplimiento (`docs/cumplimiento.md`) es la fuente de verdad.
 2. **Sin punto flotante en dinero.** Montos como texto decimal o enteros escalados.
 3. **Correlativos atómicos y sin huecos.** Un número nunca se borra ni se reutiliza. Si algo falla, se revierte
    la transacción o el documento se anula.
@@ -35,7 +35,7 @@ pnpm sitio:ver          # el sitio construido en http://localhost:4321/factura-h
 ## Antes de abrir un PR
 
 - Pruebas nuevas para lo que cambias. Una regla fiscal nueva va con su caso positivo y negativo, y la fila de
-  la matriz (`docs/investigacion.md`) se actualiza. En la columna «Prueba», cita el archivo y el título de la
+  la matriz (`docs/cumplimiento.md`) se actualiza. En la columna «Prueba», cita el archivo y el título de la
   prueba entre comillas latinas (`matriz.test.ts` «Art. 9 …»): `pnpm sitio` falla si una fila cubierta o parcial
   no tiene prueba o cita una que no existe.
 - `pnpm changeset` si el cambio afecta a un paquete publicado. Describe el cambio en español, para quien lo

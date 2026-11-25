@@ -7,8 +7,9 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `local` (por defecto) | Un negocio con su propio servidor y base en el establecimiento (Art. 47) | Uno: `local` | http o https, también hacia la red del negocio |
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
-> **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») está
-> pendiente de una consulta al SAR que todavía no se ha enviado. Mientras tanto, la recomendación es el modo local.
+> **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») no está
+> claro en el Reglamento, que no prevé de forma literal un servidor de un tercero. Mientras el SAR no lo aclare, la
+> recomendación es el modo local.
 
 ## La primera factura (3 pasos)
 

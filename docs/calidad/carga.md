@@ -75,12 +75,12 @@ Fijados en `packages/api/carga/perfiles.json`. Una medición que no los cumple t
 - **El despacho de webhooks no alcanzaba a la emisión.** Entregaba a lo sumo 20 avisos por tenant cada 5 s (4 por
   segundo); con más de 100 documentos por segundo la cola crecía sin fin. Ahora sigue con el lote siguiente
   mientras haya vencidos (sin reclamar lotes nuevos pasados 30 s): los avisos quedan entregados segundos después de la carga.
-- **De noche, la cola de webhooks tarda más que 2 min en vaciarse** (primera corrida tras el Lote 6, 25-11-2026, en
+- **De noche, la cola de webhooks tarda más que 2 min en vaciarse** (primera corrida tras la versión 0.3.0, 25-11-2026, en
   GitHub con 4 vCPU). Hubo 91 017 documentos con 0 duplicados y 0 huecos, y p95 de 11,3 ms a 30/s. A los 120 s
   de terminar la carga había 71 327 avisos entregados y ninguno perdido. El despacho entregó unos 100 avisos por
   segundo, contra 274 documentos por segundo en saturación. Con la emisión saturada de forma sostenida, la cola
   crece y se vacía después. Por eso el perfil `nocturno` espera hasta 15 min (`vaciarS`) y exige igual que se
-  entreguen todos. Entregar en paralelo dentro de cada pasada queda como propuesta de rendimiento (DEC-204).
+  entreguen todos. Entregar en paralelo dentro de cada pasada queda como propuesta de rendimiento.
 - **`fechaHonduras` creaba un `Intl.DateTimeFormat` en cada llamada**, cerca del 8 % del CPU de la API en la
   emisión. Ahora lo reusa: de unos 107 a unos 124 documentos/s en saturación (base nativa, con webhook).
 
