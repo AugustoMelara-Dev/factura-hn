@@ -399,6 +399,9 @@ BEGIN
       RAISE WARNING 'factura-hn: el entorno de demostración %% no es de prueba; no se borra', v_tenant;
       CONTINUE;
     END IF;
+    -- Cada entorno en su propio bloque: si la base niega borrar algo (p. ej. un CAI real, que un tenant de prueba
+    -- no puede tener), ese entorno queda con un aviso y los demás se borran igual.
+    BEGIN
     PERFORM set_config('factura_hn.purga_prueba', v_tenant, true);
     DELETE FROM api_entregas WHERE tenant = v_tenant;
     DELETE FROM api_webhooks WHERE tenant = v_tenant;
@@ -415,6 +418,10 @@ BEGIN
     DELETE FROM api_tenants WHERE tenant = v_tenant;
     PERFORM set_config('factura_hn.purga_prueba', '', true);
     v_n := v_n + 1;
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM set_config('factura_hn.purga_prueba', '', true);
+      RAISE WARNING 'factura-hn: el entorno de demostración %% no se pudo borrar: %%', v_tenant, SQLERRM;
+    END;
   END LOOP;
   PERFORM set_config('factura_hn.purga_prueba', '', true);
   PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);

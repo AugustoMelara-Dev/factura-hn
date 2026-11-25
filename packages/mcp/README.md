@@ -225,6 +225,30 @@ para imprimir «Atendido por» en el documento.
 | `FHN_OPERADOR` | Opcional. Quién opera con el agente, para la bitácora. |
 | `FHN_MCP_PERMITIR_DESTRUCTIVAS` | Opcional. `1` deja anular y registrar CAI con un cliente MCP que no ofrece elicitación (ver «Seguridad»). Sin ella, esas herramientas se niegan en esos clientes. |
 
+## MCP remoto (Streamable HTTP)
+
+`npx -y @factura-hn/mcp http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por
+HTTP, para agregarlo como conector personalizado en Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo
+con el MCP Inspector. Corre aparte de la API y la llama por HTTP con la llave de cada conexión; no guarda datos ni
+credenciales.
+
+```bash
+FHN_API_URL=http://127.0.0.1:8787 npx -y @factura-hn/mcp http     # escucha en el puerto 8788
+```
+
+- `/mcp/<token>`: la URL personal (`fhnmcp_…`) que da `POST /v1/demo/entornos` en la demostración pública. Es la
+  que se pega en Claude o ChatGPT.
+- `/mcp` con `Authorization: Bearer <llave fhn_…>`: para clientes que mandan cabeceras, p. ej.
+  `npx @modelcontextprotocol/inspector --server-url http://127.0.0.1:8788/mcp --transport http`.
+
+Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Hay límites por dirección, por llave y de
+sesiones, y un resultado de más de 64 KB se recorta con un aviso. Las variables (`FHN_MCP_*`), el despliegue y
+las notas de seguridad están en [docs/demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md#mcp-remoto);
+cómo agregar el conector, en la [guía del sitio](https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/).
+
+Por HTTP no hay `FHN_MCP_PERMITIR_DESTRUCTIVAS`: anular y registrar CAI piden confirmación por elicitación y, con
+un cliente que no la ofrece, se niegan sobre datos reales (sobre datos de prueba siguen, como por stdio).
+
 ## Comandos
 
 Todos en español. `npx -y @factura-hn/mcp ayuda` los lista.
@@ -233,6 +257,7 @@ Todos en español. `npx -y @factura-hn/mcp ayuda` los lista.
 |---|---|
 | *(ninguno)* | Arranca el servidor MCP por stdio. Lo hace tu cliente MCP. |
 | `init` (o `iniciar`) | Crea la base y el emisor e imprime el bloque `mcpServers`. Opciones: `--demo`, `--dir`, `--establecimiento`, `--punto`, `--forzar`. |
+| `http` | Arranca el MCP remoto por Streamable HTTP (ver «MCP remoto»). Se configura con variables de entorno. |
 | `registrar-cai` | Registra el CAI de una resolución del SAR, en la base SQLite o vía la API. Opciones: `--cai`, `--tipo`, `--establecimiento`, `--punto`, `--desde`, `--hasta`, `--fecha-limite`, `--fecha-autorizacion`, `--ultimo-emitido-antes`, `--base`, `--api-url`, `--llave`. |
 | `ayuda` | La ayuda. |
 

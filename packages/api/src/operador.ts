@@ -340,21 +340,21 @@ export function errorDatosRealesEnDemo(motivos: string[]): string {
 }
 
 /**
- * Borra los entornos de demostración vencidos a la hora `ahora`, de a `lote` por transacción, hasta que no quede
+ * Borra los entornos de demostración vencidos a la hora `ahora`, de a `porTransaccion` (50) por transacción, hasta que no quede
  * ninguno. `fhn_api_purgar_demo` corre como el dueño de las tablas (SECURITY DEFINER): sirve desde la API (con el rol
  * de la aplicación) y desde la consola del operador. Devuelve cuántos borró.
  */
-export async function purgarEntornosDemo(pool: pg.Pool, o: { rol?: string; ahora?: Date; lote?: number } = {}): Promise<number> {
+export async function purgarEntornosDemo(pool: pg.Pool, o: { rol?: string; ahora?: Date; porTransaccion?: number } = {}): Promise<number> {
   const almacen = new AlmacenPostgres(pool, o.rol ? { rol: o.rol } : {});
-  const lote = o.lote ?? 50;
+  const porTransaccion = o.porTransaccion ?? 50;
   let total = 0;
   for (;;) {
     const n = await almacen.transaccion(async (t) => {
       const tx = t as unknown as { consulta: <F>(sql: string, p?: unknown[]) => Promise<{ rows: F[] }> };
-      return (await tx.consulta<{ n: number }>('SELECT fhn_api_purgar_demo($1, $2) AS n', [o.ahora ?? new Date(), lote])).rows[0]!.n;
+      return (await tx.consulta<{ n: number }>('SELECT fhn_api_purgar_demo($1, $2) AS n', [o.ahora ?? new Date(), porTransaccion])).rows[0]!.n;
     });
     total += n;
-    if (n < lote) return total;
+    if (n < porTransaccion) return total;
   }
 }
 

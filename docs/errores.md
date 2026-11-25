@@ -816,7 +816,7 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### CUERPO_DEMASIADO_GRANDE
 
-- **Qué significa (413):** el cuerpo supera 512 KB.
+- **Qué significa (413):** el cuerpo supera 512 KB (32 KB en la demostración pública, `FHN_DEMO_MAX_CUERPO`).
 - **Solución:** divide la operación.
 
 ### CUERPO_NO_UTF8
@@ -907,6 +907,53 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.
 - **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, busca en el log del servidor la línea con el
   id de `error.solicitud` (o de la cabecera `Solicitud-Id`).
+
+## API REST: demostración pública
+
+Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](demo.md)). Todos traen el mismo cuerpo
+`{ "error": { "codigo", "mensaje" } }` y, los 429 y 503, la cabecera `Retry-After`.
+
+### DEMO_PAUSADO
+
+- **Qué significa (503):** quien opera la demostración la puso en pausa (`demo pausar` o `FHN_DEMO_PAUSADO=1`):
+  no se crean entornos y los que hay no atienden.
+- **Solución:** reintenta más tarde, después de los segundos de `Retry-After`.
+
+### DEMO_LIMITE_ENTORNOS
+
+- **Qué significa (429):** se alcanzó el límite de entornos de prueba: por dirección por día
+  (`FHN_DEMO_ENTORNOS_POR_IP`), por minuto en todo el servicio (`FHN_DEMO_CREACIONES_POR_MINUTO`) o vigentes a la vez
+  (`FHN_DEMO_MAX_ENTORNOS`).
+- **Solución:** usa el entorno que ya creaste o reintenta después de los segundos de `Retry-After`.
+
+### DEMO_SOLO_PRUEBA
+
+- **Qué significa (403):** la llave no es de un entorno creado con `POST /v1/demo/entornos`. El servidor de
+  demostración no atiende otras.
+- **Solución:** crea un entorno con `POST /v1/demo/entornos` y usa su llave.
+
+### ENTORNO_VENCIDO
+
+- **Qué significa (401):** el entorno de prueba pasó sus 24 horas (`FHN_DEMO_HORAS`). Se borra con todos sus datos
+  en el minuto siguiente.
+- **Solución:** crea otro con `POST /v1/demo/entornos`.
+
+### DEMO_NO_DISPONIBLE
+
+- **Qué significa (403):** la operación no existe en la demostración pública: webhooks (la demostración no hace
+  solicitudes salientes), cambiar el emisor ficticio o crear llaves.
+- **Solución:** pruébala en tu propia instalación ([autoalojamiento](autoalojamiento.md)).
+
+### DEMO_LIMITE_SOLICITUDES
+
+- **Qué significa (429):** el entorno usó todas sus solicitudes (`FHN_DEMO_SOLICITUDES_POR_ENTORNO`). Por minuto,
+  el límite es `DEMASIADAS_SOLICITUDES`.
+- **Solución:** crea otro entorno.
+
+### DEMO_LIMITE_DOCUMENTOS
+
+- **Qué significa (429):** el entorno emitió todos los documentos que permite (`FHN_DEMO_DOCUMENTOS`).
+- **Solución:** crea otro entorno.
 
 ## Servidor MCP
 

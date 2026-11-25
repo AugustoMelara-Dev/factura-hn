@@ -2,7 +2,7 @@
 title: llms.txt y Markdown
 description: Para qué sirven llms.txt, llms-full.txt y la versión .md de cada página, y cómo dárselos a un agente.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Este sitio publica tres recursos en texto plano para que un agente de IA lea la documentación sin pasar por el

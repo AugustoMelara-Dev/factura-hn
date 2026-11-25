@@ -418,6 +418,46 @@ conBase('arranque en modo demo', () => {
     }
   });
 
+  it('la limpieza salta un entorno con un CAI real (forzado a mano) y borra los demás vencidos', async () => {
+    const b = await baseAparte();
+    const p = new pg.Pool({ connectionString: b.url, max: 2 });
+    try {
+      await migrarApi(p, ROL);
+      const { crearTenant } = await import('../src/operador');
+      const vence = new Date(Date.UTC(1990, 0, 1));
+      const c = await p.connect();
+      try {
+        for (const t of ['con-real', 'normal']) {
+          await crearTenant(p, { tenant: t, nombre: 'Entorno', modo: 'prueba' });
+          await c.query('BEGIN');
+          await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [t]);
+          await c.query('INSERT INTO api_demo_entornos (tenant, creado, expira, origen) VALUES ($1, $2, $2, $3)', [t, vence, '0'.repeat(32)]);
+          if (t === 'con-real') {
+            // Saltando el disparador que lo impide (solo el dueño puede): un dato que no debería existir.
+            await c.query('ALTER TABLE fhn_autorizaciones DISABLE TRIGGER fhn_api_autorizacion_por_modo');
+            await c.query("INSERT INTO fhn_autorizaciones (tenant, identificador, cai, rango_inicial, rango_final, datos) VALUES ($1, '000-001-01', $2, 1, 10, '{}')", [t, caiAleatorio()]);
+            await c.query('ALTER TABLE fhn_autorizaciones ENABLE TRIGGER fhn_api_autorizacion_por_modo');
+          }
+          await c.query('COMMIT');
+        }
+        expect(await purgarEntornosDemo(p, { rol: ROL, ahora: new Date(Date.UTC(1990, 0, 2)) })).toBe(1);
+        await c.query('BEGIN');
+        for (const [t, queda] of [['con-real', 1], ['normal', 0]] as const) {
+          await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [t]);
+          expect((await c.query('SELECT 1 FROM api_tenants WHERE tenant = $1', [t])).rowCount).toBe(queda);
+          expect((await c.query('SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1', [t])).rowCount).toBe(queda);
+        }
+        await c.query('COMMIT');
+        expect(await datosRealesEnBase(p)).toEqual([expect.stringMatching(/«con-real» tiene autorizaciones con un CAI real/)]);
+      } finally {
+        c.release();
+      }
+    } finally {
+      await p.end();
+      await b.cerrar();
+    }
+  });
+
   it('arranca con una base limpia y crea entornos', async () => {
     const b = await baseAparte();
     try {
