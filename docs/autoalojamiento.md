@@ -175,7 +175,7 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 |---|---|---|
 | `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres 13 o más reciente). En Compose, el rol `fhn_api`, que no es dueño de las tablas |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas, para migrar al arrancar y para la consola. Sin ella, la API corre como dueño de las tablas y lo avisa en el log |
-| `FHN_MODO` | `local` | `local` (un negocio), `alojado` (varios tenants) o `demo` (la demostración pública: solo entornos de prueba que se borran a las 24 h, ver [demo.md](demo.md)). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
+| `FHN_MODO` | `local` | `local` (un negocio), `alojado` (varios tenants) o `demo` (la demostración pública: solo entornos de prueba que se borran a las 24 h, ver [demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo 7). La clave en sí no caduca |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de los webhooks. Obligatoria en `alojado` |

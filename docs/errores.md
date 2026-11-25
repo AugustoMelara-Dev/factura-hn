@@ -910,7 +910,7 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ## API REST: demostración pública
 
-Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](demo.md)). Todos traen el mismo cuerpo
+Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Todos traen el mismo cuerpo
 `{ "error": { "codigo", "mensaje" } }` y, los 429 y 503, la cabecera `Retry-After`.
 
 ### DEMO_PAUSADO
