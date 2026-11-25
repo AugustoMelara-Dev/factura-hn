@@ -6,19 +6,27 @@ import { redondearDecimal, type Monto } from './dinero';
 import type { Moneda } from './tipos';
 
 const UNIDADES = [
-  '', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE',
+  // Stryker disable next-line StringLiteral: mutante equivalente, el índice 0 nunca se lee (menorQueMil solo lo pide con r > 0 o u > 0).
+  '',
+  'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE',
   'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE',
   'VEINTE', 'VEINTIUNO', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS',
   'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE',
 ];
-const DECENAS = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+const DECENAS = [
+  // Stryker disable next-line StringLiteral: mutantes equivalentes, las decenas 0 a 2 nunca se leen (r < 30 usa UNIDADES).
+  '', '', '',
+  'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA',
+];
 const CENTENAS = [
-  '', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS',
+  // Stryker disable next-line StringLiteral: mutante equivalente, el índice 0 nunca se lee (solo se pide con c > 0).
+  '',
+  'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS',
   'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS',
 ];
 
+/** De 1 a 999 (quien llama ya descarta el 0). */
 function menorQueMil(n: number): string {
-  if (n === 0) return '';
   if (n === 100) return 'CIEN';
   const c = Math.floor(n / 100);
   const r = n % 100;
@@ -37,6 +45,9 @@ function menorQueMil(n: number): string {
 
 /** "UNO" → "UN" al final cuando precede a un sustantivo (mil, millones, lempiras). */
 function apocopar(texto: string): string {
+  // Quitar el ancla $ es un mutante equivalente: cada bloque que no es el último ya sale apocopado (VEINTIÚN MIL,
+  // UN MILLÓN), así que VEINTIUNO y UNO solo pueden aparecer al final del texto.
+  // Stryker disable next-line Regex: equivalente (ver arriba)
   return texto.replace(/VEINTIUNO$/, 'VEINTIÚN').replace(/UNO$/, 'UN');
 }
 
@@ -46,11 +57,17 @@ export function enteroALetras(n: number): string {
   if (n === 0) return 'CERO';
   if (n >= 1e15) throw new RangeError('Monto demasiado grande para convertir a letras');
 
-  const millones = Math.floor(n / 1_000_000);
+  // Escala larga del español: un billón es un millón de millones (10^12). Antes, de 10^12 en adelante salía
+  // «UN MILLÓN MILLONES» (lo encontraron las pruebas de mutación, docs/calidad/mutacion.md).
+  const billones = Math.floor(n / 1_000_000_000_000);
+  const millones = Math.floor((n % 1_000_000_000_000) / 1_000_000);
   const miles = Math.floor((n % 1_000_000) / 1000);
   const resto = n % 1000;
   const partes: string[] = [];
 
+  if (billones > 0) {
+    partes.push(billones === 1 ? 'UN BILLÓN' : `${apocopar(menorQueMil(billones))} BILLONES`);
+  }
   if (millones > 0) {
     partes.push(millones === 1 ? 'UN MILLÓN' : `${apocopar(enteroALetras(millones))} MILLONES`);
   }
@@ -80,9 +97,9 @@ export function centavosEnLetras(centavos: bigint, moneda: Moneda = 'HNL'): stri
   const enteros = Number(centavos / 100n);
   const fraccion = (centavos % 100n).toString().padStart(2, '0');
   const nombre = NOMBRE_MONEDA[moneda];
-  const palabras = enteros === 0 ? 'CERO' : apocopar(enteroALetras(enteros));
-  // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS"
-  const conDe = /MILLÓN$|MILLONES$/.test(palabras) ? ' DE' : '';
+  const palabras = apocopar(enteroALetras(enteros)); // 0 → «CERO»
+  // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS", "UN BILLÓN DE LEMPIRAS"
+  const conDe = /(?:MILLÓN|MILLONES|BILLÓN|BILLONES)$/.test(palabras) ? ' DE' : '';
   const sustantivo = enteros === 1 ? nombre.singular : nombre.plural;
   return `${palabras}${conDe} ${sustantivo} CON ${fraccion}/100`;
 }
