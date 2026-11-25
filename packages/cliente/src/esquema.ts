@@ -2082,7 +2082,7 @@ export interface paths {
         };
         /**
          * Entregas de un webhook, de la más reciente a la más antigua (paginada)
-         * @description Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Las entregas terminadas se borran pasados `FHN_RETENCION_DIAS` días.
+         * @description Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y `webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío.
          */
         get: operations["listarEntregasWebhook"];
         put?: never;
@@ -2104,7 +2104,7 @@ export interface paths {
         put?: never;
         /**
          * Vuelve a poner una entrega en la cola
-         * @description Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.
+         * @description Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el webhook ya tiene 5 pendientes.
          */
         post: operations["reenviarEntregaWebhook"];
         delete?: never;
@@ -2124,7 +2124,7 @@ export interface paths {
         put?: never;
         /**
          * Encola un evento de prueba (`webhook.prueba`) para este webhook
-         * @description Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado y con los mismos reintentos que los demás. `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`.
+         * @description Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. A lo sumo 5 pruebas pendientes por webhook: más allá, 409 `LIMITE_PRUEBAS`.
          */
         post: operations["probarWebhook"];
         delete?: never;
@@ -2144,7 +2144,7 @@ export interface paths {
         put?: never;
         /**
          * Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)
-         * @description Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia descarta el secreto más viejo: solo valen el actual y el nuevo.
+         * @description Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia conserva el secreto más viejo (el que el receptor puede seguir usando), descarta el intermedio y alarga la gracia si la nueva termina después. Con `graciaHoras: 0` la gracia termina en el acto.
          */
         post: operations["rotarSecretoWebhook"];
         delete?: never;
@@ -2707,7 +2707,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Webhook desactivado (WEBHOOK_INACTIVO) o cuerpo borrado por retención (ENTREGA_VENCIDA) */
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO), cuerpo vaciado por retención (ENTREGA_VENCIDA) o demasiadas pruebas pendientes (LIMITE_PRUEBAS) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2783,7 +2783,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Webhook desactivado (WEBHOOK_INACTIVO) */
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) o demasiadas pruebas pendientes (LIMITE_PRUEBAS) */
             409: {
                 headers: {
                     [name: string]: unknown;

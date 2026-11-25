@@ -10,6 +10,8 @@ import {
   firmar,
   leerFirma,
   MAX_INTENTOS,
+  MAX_INTENTOS_PRUEBA,
+  MAX_PRUEBAS_PENDIENTES,
   MAX_WEBHOOKS_ACTIVOS,
   problemaDeURL,
   verificarFirmaWebhook,
@@ -94,6 +96,9 @@ describe('firma HMAC', () => {
     expect(verificarFirmaWebhook(cuerpo, `t=${t},t=${t + 1},${valida}`, 'whsec_nuevo', { ahora })).toBe(false);
     expect(verificarFirmaWebhook(cuerpo, `t=${t},v1=abc`, 'whsec_nuevo', { ahora })).toBe(false);
     expect(leerFirma(`t=${t},${otra},v1=xyz,${valida}`)).toEqual({ t, v1: [otra.slice(3), valida.slice(3)] });
+    // Solo cuentan las 8 primeras firmas v1.
+    expect(verificarFirmaWebhook(cuerpo, [`t=${t}`, ...Array(7).fill(otra), valida].join(','), 'whsec_nuevo', { ahora })).toBe(true);
+    expect(verificarFirmaWebhook(cuerpo, [`t=${t}`, ...Array(8).fill(otra), valida].join(','), 'whsec_nuevo', { ahora })).toBe(false);
     // Secreto vacío: nunca verifica.
     expect(verificarFirmaWebhook(cuerpo, firmar('', cuerpo, t), '', { ahora })).toBe(false);
   });
@@ -662,5 +667,110 @@ describe.skipIf(!URL_PG)('rutas de entregas, prueba y rotación: permisos, RLS y
       await propio.end();
       await p.query(`DROP SCHEMA ${esquema} CASCADE`);
     }
+  });
+});
+
+describe.skipIf(!URL_PG)('revisión: rotación doble, tope de pruebas y cursores falsos', () => {
+  const correr = (pool: import('pg').Pool, tenant: string, fetchFalso: typeof fetch) =>
+    despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant], fetch: fetchFalso, reintentos: { espera: () => 0 } });
+
+  it('rotar dos veces durante la gracia conserva el secreto más viejo hasta que la gracia termina', async () => {
+    const { admin, tenant, pool } = await tenantListo();
+    const alta = await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido'] });
+    const { webhook, secreto: s0 } = (await alta.json()) as { webhook: { id: string }; secreto: string };
+    const rotar = async (graciaHoras?: number) =>
+      (await (await admin('POST', `/v1/webhooks/${webhook.id}/rotar-secreto`, graciaHoras === undefined ? undefined : { graciaHoras })).json()) as {
+        secreto: string; webhook: { graciaHasta: string | null };
+      };
+    const r1 = await rotar(2);
+    // Un reintento o un doble clic: la segunda rotación no tira s0. La gracia dura hasta la más tardía.
+    const r2 = await rotar(1);
+    expect(r2.webhook.graciaHasta).toBe(r1.webhook.graciaHasta);
+    const firmas: { cuerpo: string; firma: string }[] = [];
+    const fetchFalso = (async (_u: string, init: RequestInit) => {
+      firmas.push({ cuerpo: String(init.body), firma: new Headers(init.headers).get('x-facturahn-firma')! });
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+    await admin('POST', `/v1/webhooks/${webhook.id}/probar`);
+    await correr(pool, tenant, fetchFalso);
+    const f = firmas.at(-1)!;
+    expect(leerFirma(f.firma)!.v1).toHaveLength(2);
+    expect(verificarFirmaWebhook(f.cuerpo, f.firma, s0)).toBe(true);
+    expect(verificarFirmaWebhook(f.cuerpo, f.firma, r2.secreto)).toBe(true);
+    // El intermedio se descarta.
+    expect(verificarFirmaWebhook(f.cuerpo, f.firma, r1.secreto)).toBe(false);
+    // Una tercera rotación con más gracia la alarga, y s0 sigue valiendo.
+    const r3 = await rotar(5);
+    expect(Date.parse(r3.webhook.graciaHasta!)).toBeGreaterThan(Date.parse(r1.webhook.graciaHasta!));
+    await admin('POST', `/v1/webhooks/${webhook.id}/probar`);
+    await correr(pool, tenant, fetchFalso);
+    expect(verificarFirmaWebhook(firmas.at(-1)!.cuerpo, firmas.at(-1)!.firma, s0)).toBe(true);
+    // Al terminar la gracia, s0 deja de valer; la rotación siguiente toma el secreto actual como anterior.
+    await pool.query("UPDATE api_webhooks SET anterior_hasta = now() - interval '1 second' WHERE id = $1", [webhook.id]);
+    const r4 = await rotar(1);
+    await admin('POST', `/v1/webhooks/${webhook.id}/probar`);
+    await correr(pool, tenant, fetchFalso);
+    const g = firmas.at(-1)!;
+    expect(verificarFirmaWebhook(g.cuerpo, g.firma, s0)).toBe(false);
+    expect(verificarFirmaWebhook(g.cuerpo, g.firma, r3.secreto)).toBe(true);
+    expect(verificarFirmaWebhook(g.cuerpo, g.firma, r4.secreto)).toBe(true);
+    // Con graciaHoras 0 en plena gracia, la gracia termina en el acto.
+    expect((await rotar(0)).webhook.graciaHasta).toBeNull();
+  });
+
+  it(`a lo sumo ${MAX_PRUEBAS_PENDIENTES} pruebas pendientes por webhook, y cada prueba se intenta ${MAX_INTENTOS_PRUEBA} veces`, async () => {
+    const { admin, tenant, pool } = await tenantListo();
+    const { webhook } = (await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido'] })).json()) as { webhook: { id: string } };
+    const probar = () => admin('POST', `/v1/webhooks/${webhook.id}/probar`);
+    for (let i = 0; i < MAX_PRUEBAS_PENDIENTES; i++) expect((await probar()).status).toBe(202);
+    const sobra = await probar();
+    expect(sobra.status).toBe(409);
+    expect((await sobra.json()).error.codigo).toBe('LIMITE_PRUEBAS');
+    expect(MAX_INTENTOS_PRUEBA).toBe(3);
+
+    // Un aviso real y las pruebas fallan juntos: las pruebas quedan FALLIDA a los 3 intentos; el aviso sigue.
+    expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
+    const falla = (async () => new Response(null, { status: 503 })) as unknown as typeof fetch;
+    for (let i = 0; i < MAX_INTENTOS_PRUEBA; i++) await correr(pool, tenant, falla);
+    const filas = (await pool.query('SELECT evento, estado, intentos FROM api_entregas WHERE tenant = $1 ORDER BY id', [tenant])).rows;
+    expect(filas.filter((f) => f.evento === 'webhook.prueba')).toEqual(
+      Array(MAX_PRUEBAS_PENDIENTES).fill({ evento: 'webhook.prueba', estado: 'FALLIDA', intentos: MAX_INTENTOS_PRUEBA }),
+    );
+    expect(filas.find((f) => f.evento === 'documento.emitido')).toEqual({ evento: 'documento.emitido', estado: 'PENDIENTE', intentos: MAX_INTENTOS_PRUEBA });
+
+    // Con las pruebas terminadas hay cupo otra vez; reenviar una prueba también respeta el tope.
+    const ids = ((await (await admin('GET', `/v1/webhooks/${webhook.id}/entregas?estado=FALLIDA`)).json()) as { entregas: Entrega[] }).entregas.map((e) => e.id);
+    for (let i = 0; i < MAX_PRUEBAS_PENDIENTES - 1; i++) expect((await probar()).status).toBe(202);
+    expect((await admin('POST', `/v1/webhooks/${webhook.id}/entregas/${ids[0]}/reenviar`)).status).toBe(202);
+    const reenvio = await admin('POST', `/v1/webhooks/${webhook.id}/entregas/${ids[1]}/reenviar`);
+    expect(reenvio.status).toBe(409);
+    expect((await reenvio.json()).error.codigo).toBe('LIMITE_PRUEBAS');
+  });
+
+  it('un cursor armado a mano da 400 CURSOR_INVALIDO, no 500 (entregas y bitácora)', async () => {
+    const { admin, tenant } = await tenantListo();
+    const { webhook } = (await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/hook-${tenant}`, eventos: ['documento.emitido'] })).json()) as { webhook: { id: string } };
+    const cursor = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    const uuid = randomUUID();
+    for (const v of [
+      ['99999999999999999999', uuid], // más de 19 dígitos
+      ['9223372036854775807', uuid], // cabe en bigint pero desborda timestamptz
+      ['999999999999999999', uuid],
+      ['-1', uuid],
+      ['1700000000000000', '------------------------------------'],
+      ['1700000000000000', 'zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz'],
+      ['1700000000000000', uuid.toUpperCase()],
+    ]) {
+      const r = await admin('GET', `/v1/webhooks/${webhook.id}/entregas?cursor=${cursor(v)}`);
+      expect(r.status, JSON.stringify(v)).toBe(400);
+      expect((await r.json()).error.codigo).toBe('CURSOR_INVALIDO');
+    }
+    expect((await admin('GET', `/v1/webhooks/${webhook.id}/entregas?cursor=${cursor(['1700000000000000', uuid])}`)).status).toBe(200);
+    for (const v of ['9999999999999999999', '9223372036854775808']) {
+      const r = await admin('GET', `/v1/bitacora?origen=api&cursor=${cursor(v)}`);
+      expect(r.status, v).toBe(400);
+      expect((await r.json()).error.codigo).toBe('CURSOR_INVALIDO');
+    }
+    expect((await admin('GET', `/v1/bitacora?origen=api&cursor=${cursor('9223372036854775807')}`)).status).toBe(200);
   });
 });

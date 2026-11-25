@@ -66,7 +66,16 @@ import {
 import { EMISOR_DEMO, TENANT_DEMO } from './operador';
 import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
 import * as S from './esquemas';
-import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
+import {
+  CofreSecretos,
+  comoTransaccionPostgres,
+  encolarEvento,
+  MAX_INTENTOS_PRUEBA,
+  MAX_PRUEBAS_PENDIENTES,
+  MAX_WEBHOOKS_ACTIVOS,
+  problemaDeURL,
+  type EventoWebhook,
+} from './webhooks';
 import {
   exigirPeriodoAcotado,
   maxDocumentosReporte,
@@ -231,6 +240,11 @@ const LIMITE_POR_DEFECTO = 100;
 /** Avisos de una nota de crédito que la API solo acepta con llave admin (DEC-051). */
 const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_ORIGINAL_EXTERNO']);
 const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
+/** Validación de cursores antes de la base: un valor fuera de rango daría 500 en lugar de 400 `CURSOR_INVALIDO`. */
+const BIGINT_MAXIMO = 9_223_372_036_854_775_807n;
+/** Microsegundos de 9999-12-31T23:59:59.999999Z: un `creada` real nunca pasa de ahí. */
+const MICROS_MAXIMOS = 253_402_300_799_999_999n;
+const UUID_ESTRICTO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** El cursor es opaco para el cliente: la llave de orden del último elemento, en JSON y base64url. */
 const escribirCursor = (llave: unknown) => Buffer.from(JSON.stringify(llave)).toString('base64url');
@@ -1287,7 +1301,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       exigirAdmin(c);
       const q = c.req.valid('query');
       const limite = q.limite ?? LIMITE_POR_DEFECTO;
-      const antesDe = q.cursor ? leerCursor(q.cursor, (v): v is string => typeof v === 'string' && /^\d{1,19}$/.test(v)) : null;
+      const antesDe = q.cursor ? leerCursor(q.cursor, (v): v is string => typeof v === 'string' && /^\d{1,19}$/.test(v) && BigInt(v) <= BIGINT_MAXIMO) : null;
       const sql = q.origen === 'api'
         ? "SELECT id::text AS id, json_build_object('id', id, 'instante', instante, 'actor', actor, 'operador', operador, 'accion', accion, 'detalle', detalle) AS evento FROM api_bitacora"
         : 'SELECT id::text AS id, datos AS evento FROM fhn_eventos';
@@ -1464,14 +1478,29 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     proximoIntento: f.estado === 'PENDIENTE' ? f.proximo.toISOString() : null,
     ultimoCodigo: f.ultimo_codigo, ultimoError: f.ultimo_error, creada: f.creada.toISOString(),
   });
-  /** El webhook del tenant, bloqueado hasta el fin de la transacción; 404 si no existe. */
-  const webhookDelTenant = async (tx: TransaccionPostgres, id: string) => {
-    const w = (await tx.consulta<{ activo: boolean }>('SELECT activo FROM api_webhooks WHERE tenant = $1 AND id = $2 FOR UPDATE', [tx.tenant, id])).rows[0];
+  /**
+   * El webhook del tenant; 404 si no existe. Con `bloquear`, la fila queda bloqueada hasta el fin de la transacción
+   * con FOR NO KEY UPDATE (no estorba a las entregas que la referencian); la lista no bloquea nada.
+   */
+  const webhookDelTenant = async (tx: TransaccionPostgres, id: string, bloquear = true) => {
+    const w = (await tx.consulta<{ activo: boolean }>(
+      `SELECT activo FROM api_webhooks WHERE tenant = $1 AND id = $2${bloquear ? ' FOR NO KEY UPDATE' : ''}`, [tx.tenant, id],
+    )).rows[0];
     if (!w) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Webhook no encontrado.');
     return w;
   };
   const exigirActivo = (w: { activo: boolean }, accion: string) => {
     if (!w.activo) throw new ErrorApi(409, 'WEBHOOK_INACTIVO', `El webhook está desactivado: no se puede ${accion}. Crea otro con POST /v1/webhooks.`);
+  };
+  /** 409 `LIMITE_PRUEBAS` si el webhook ya tiene el máximo de pruebas pendientes. Corre con el webhook bloqueado. */
+  const exigirCupoPruebas = async (tx: TransaccionPostgres, id: string) => {
+    const n = (await tx.consulta<{ n: number }>(
+      "SELECT count(*)::int AS n FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND evento = 'webhook.prueba' AND estado = 'PENDIENTE'",
+      [tx.tenant, id],
+    )).rows[0]!.n;
+    if (n >= MAX_PRUEBAS_PENDIENTES) {
+      throw new ErrorApi(409, 'LIMITE_PRUEBAS', `Este webhook ya tiene ${MAX_PRUEBAS_PENDIENTES} pruebas pendientes: espera a que se entreguen o fallen (GET /v1/webhooks/{id}/entregas).`);
+    }
   };
   const IdWebhook = z.object({ id: z.string().uuid() });
 
@@ -1481,7 +1510,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       summary: 'Entregas de un webhook, de la más reciente a la más antigua (paginada)',
       description:
         'Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` ' +
-        '(se agotaron los intentos o el webhook se desactivó). Las entregas terminadas se borran pasados `FHN_RETENCION_DIAS` días.',
+        '(se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y ' +
+        '`webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío.',
       request: {
         params: IdWebhook,
         query: z.object({
@@ -1496,12 +1526,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const { id } = c.req.valid('param');
       const q = c.req.valid('query');
       const limite = q.limite ?? LIMITE_POR_DEFECTO;
+      // Un cursor armado a mano no llega a la base: microsegundos dentro del rango de timestamptz y un UUID estricto.
       const antesDe = q.cursor
         ? leerCursor(q.cursor, (v): v is [string, string] =>
-            Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && /^-?\d{1,19}$/.test(v[0]) && typeof v[1] === 'string' && /^[0-9a-f-]{36}$/.test(v[1]))
+            Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && /^\d{1,18}$/.test(v[0]) && BigInt(v[0]) <= MICROS_MAXIMOS &&
+            typeof v[1] === 'string' && UUID_ESTRICTO.test(v[1]))
         : null;
       const filas = await enTenant(c, async (tx) => {
-        await webhookDelTenant(tx, id);
+        await webhookDelTenant(tx, id, false);
         const params: unknown[] = [tx.tenant, id];
         let sql = `SELECT ${COLUMNAS_ENTREGA} FROM api_entregas WHERE tenant = $1 AND webhook_id = $2`;
         if (q.estado) sql += ` AND estado = $${params.push(q.estado)}`;
@@ -1523,12 +1555,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       description:
         'Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en ' +
         'segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. ' +
-        '409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.',
+        '409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se ' +
+        'vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el ' +
+        `webhook ya tiene ${MAX_PRUEBAS_PENDIENTES} pendientes.`,
       request: { params: IdWebhook.extend({ entrega: z.string().uuid() }) },
       responses: {
         202: json(S.RespuestaEntregaWebhook, 'En la cola'),
         404: json(S.ErrorRespuesta, 'El webhook o la entrega no existen'),
-        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO) o cuerpo borrado por retención (ENTREGA_VENCIDA)'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO), cuerpo vaciado por retención (ENTREGA_VENCIDA) o demasiadas pruebas pendientes (LIMITE_PRUEBAS)'),
         ...respuestasSinFiscal,
       },
     }),
@@ -1537,12 +1571,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const { id, entrega } = c.req.valid('param');
       const fila = await enTenant(c, async (tx) => {
         exigirActivo(await webhookDelTenant(tx, id), 'reenviar una entrega');
-        const e = (await tx.consulta<{ vacia: boolean }>(
-          "SELECT cuerpo = '{}'::jsonb AS vacia FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 FOR UPDATE",
+        const e = (await tx.consulta<{ vacia: boolean; evento: string; estado: string }>(
+          "SELECT cuerpo = '{}'::jsonb AS vacia, evento, estado FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 FOR NO KEY UPDATE",
           [tx.tenant, id, entrega],
         )).rows[0];
         if (!e) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Entrega no encontrada.');
         if (e.vacia) throw new ErrorApi(409, 'ENTREGA_VENCIDA', 'El cuerpo de esta entrega ya se borró por retención (FHN_RETENCION_DIAS): no se puede reenviar.');
+        if (e.evento === 'webhook.prueba' && e.estado !== 'PENDIENTE') await exigirCupoPruebas(tx, id);
         // En el lado derecho de SET, `estado` es el valor anterior.
         const r = await tx.consulta<FilaEntrega>(
           `UPDATE api_entregas SET estado = 'PENDIENTE', intentos = CASE WHEN estado = 'PENDIENTE' THEN intentos ELSE 0 END, proximo = now()
@@ -1561,13 +1596,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/webhooks/{id}/probar', tags: ['Webhooks'], security: seguridad, operationId: 'probarWebhook',
       summary: 'Encola un evento de prueba (`webhook.prueba`) para este webhook',
       description:
-        'Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado y con los mismos reintentos que ' +
-        'los demás. `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`.',
+        `Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo ${MAX_INTENTOS_PRUEBA} ` +
+        'veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. ' +
+        `A lo sumo ${MAX_PRUEBAS_PENDIENTES} pruebas pendientes por webhook: más allá, 409 \`LIMITE_PRUEBAS\`.`,
       request: { params: IdWebhook },
       responses: {
         202: json(S.RespuestaEntregaWebhook, 'En la cola'),
         404: json(S.ErrorRespuesta, 'El webhook no existe'),
-        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO)'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO) o demasiadas pruebas pendientes (LIMITE_PRUEBAS)'),
         ...respuestasSinFiscal,
       },
     }),
@@ -1577,6 +1613,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const cuerpo = { evento: 'webhook.prueba', creado: reloj().toISOString(), datos: { webhookId: id, mensaje: 'Evento de prueba de factura-hn. No representa ningún documento.' } };
       const fila = await enTenant(c, async (tx) => {
         exigirActivo(await webhookDelTenant(tx, id), 'enviar un evento de prueba');
+        await exigirCupoPruebas(tx, id);
         const r = await tx.consulta<FilaEntrega>(
           `INSERT INTO api_entregas (tenant, webhook_id, evento, clave, cuerpo)
            VALUES ($1, $2, 'webhook.prueba', 'webhook.prueba:' || gen_random_uuid(), $3::jsonb) RETURNING ${COLUMNAS_ENTREGA}`,
@@ -1596,7 +1633,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       description:
         'Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del ' +
         'secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. ' +
-        'Rotar otra vez durante una gracia descarta el secreto más viejo: solo valen el actual y el nuevo.',
+        'Rotar otra vez durante una gracia conserva el secreto más viejo (el que el receptor puede seguir usando), descarta el intermedio ' +
+        'y alarga la gracia si la nueva termina después. Con `graciaHoras: 0` la gracia termina en el acto.',
       request: { params: IdWebhook, body: { content: { 'application/json': { schema: S.RotacionSecreto } }, required: false } },
       responses: {
         200: json(S.RespuestaSecretoRotado, 'Rotado'),
@@ -1613,11 +1651,17 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const secreto = `whsec_${randomBytes(24).toString('base64url')}`;
       const fila = await enTenant(c, async (tx) => {
         exigirActivo(await webhookDelTenant(tx, id), 'rotar su secreto');
-        // En el lado derecho de SET, `secreto` es el valor anterior (ya guardado como lo guarda el cofre).
+        // En el lado derecho de SET, las columnas tienen su valor anterior (los secretos, ya guardados por el cofre).
+        // Con una gracia en curso se conserva el secreto más viejo: una rotación repetida (un reintento, un doble
+        // clic) no deja sin firma válida al receptor que aún usa el secreto de antes de la primera rotación. El
+        // intermedio se descarta y la gracia dura hasta la más tardía de las dos.
         const r = await tx.consulta<FilaWebhook>(
           `UPDATE api_webhooks SET
-             secreto_anterior = CASE WHEN $3::int > 0 THEN secreto END,
-             anterior_hasta = CASE WHEN $3::int > 0 THEN now() + make_interval(hours => $3::int) END,
+             secreto_anterior = CASE WHEN $3::int = 0 THEN NULL
+                                     WHEN anterior_hasta > now() THEN secreto_anterior ELSE secreto END,
+             anterior_hasta = CASE WHEN $3::int = 0 THEN NULL
+                                   WHEN anterior_hasta > now() THEN greatest(anterior_hasta, now() + make_interval(hours => $3::int))
+                                   ELSE now() + make_interval(hours => $3::int) END,
              secreto = $4
            WHERE tenant = $1 AND id = $2 RETURNING ${COLUMNAS_WEBHOOK}`,
           [tx.tenant, id, graciaHoras, cofre.guardar(secreto)],

@@ -35,6 +35,12 @@ export type EventoEntrega = EventoWebhook | 'webhook.prueba';
  * reenviar a mano (`POST /v1/webhooks/{id}/entregas/{entrega}/reenviar`).
  */
 export const MAX_INTENTOS = 22;
+/** Intentos de un evento de prueba (`webhook.prueba`): una prueba no se reintenta durante días. */
+export const MAX_INTENTOS_PRUEBA = 3;
+/** Pruebas pendientes por webhook como máximo (`POST /v1/webhooks/{id}/probar`); más allá, 409 `LIMITE_PRUEBAS`. */
+export const MAX_PRUEBAS_PENDIENTES = 5;
+/** Firmas `v1` que se consideran por cabecera; las demás se ignoran (la API manda a lo sumo dos). */
+export const MAX_FIRMAS_V1 = 8;
 /** Espera máxima entre dos intentos, antes de la fluctuación. */
 export const ESPERA_MAXIMA_MS = 6 * 3600 * 1000;
 /** Fluctuación de cada espera: ±20 %. Reparte en el tiempo los reintentos de muchas entregas que fallaron juntas. */
@@ -63,8 +69,8 @@ export function firmar(secreto: string | readonly string[], cuerpo: string, t: n
 
 /**
  * Lee la cabecera de firma: el instante `t` y **todas** las firmas `v1` bien formadas. Las entradas de otros
- * esquemas (`v0=`, `v2=`…) y los `v1` mal formados se ignoran. Sin `t`, con más de un `t` o sin ningún `v1`
- * bien formado, null.
+ * esquemas (`v0=`, `v2=`…), los `v1` mal formados y los que pasan de los primeros `MAX_FIRMAS_V1` se ignoran.
+ * Sin `t`, con más de un `t` o sin ningún `v1` bien formado, null.
  */
 export function leerFirma(cabecera: string | null | undefined): { t: number; v1: string[] } | null {
   if (!cabecera) return null;
@@ -76,7 +82,7 @@ export function leerFirma(cabecera: string | null | undefined): { t: number; v1:
     const clave = parte.slice(0, i).trim();
     const valor = parte.slice(i + 1).trim();
     if (clave === 't') ts.push(valor);
-    else if (clave === 'v1' && /^[0-9a-f]{64}$/.test(valor)) v1.push(valor);
+    else if (clave === 'v1' && /^[0-9a-f]{64}$/.test(valor) && v1.length < MAX_FIRMAS_V1) v1.push(valor);
   }
   if (ts.length !== 1 || !/^\d{1,15}$/.test(ts[0]!) || !v1.length) return null;
   return { t: Number(ts[0]), v1 };
@@ -300,10 +306,10 @@ export interface OpcionesDespacho {
   /** Solo para pruebas: atiende solo estos tenants (la base de pruebas es compartida). */
   soloTenants?: readonly string[];
   /**
-   * El calendario de reintentos. Por defecto `MAX_INTENTOS` y `esperaReintento`. Las pruebas lo cambian para no
-   * esperar 3 días de verdad.
+   * El calendario de reintentos. Por defecto `MAX_INTENTOS`, `MAX_INTENTOS_PRUEBA` (para `webhook.prueba`) y
+   * `esperaReintento`. Las pruebas lo cambian para no esperar 3 días de verdad.
    */
-  reintentos?: { maxIntentos?: number; espera?: (intentos: number) => number };
+  reintentos?: { maxIntentos?: number; maxIntentosPrueba?: number; espera?: (intentos: number) => number };
 }
 
 /**
@@ -379,12 +385,14 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
   );
   if (resultados.length) {
     const maxIntentos = o.reintentos?.maxIntentos ?? MAX_INTENTOS;
+    const maxIntentosPrueba = o.reintentos?.maxIntentosPrueba ?? MAX_INTENTOS_PRUEBA;
     const espera = o.reintentos?.espera ?? ((n: number) => esperaReintento(n));
     await almacen.transaccion(async (t) => {
       const tx = comoTransaccionPostgres(t);
       for (const { e, ok, codigo, error } of resultados) {
         const intentos = e.intentos + 1;
-        const estado = ok ? 'ENTREGADA' : intentos >= maxIntentos ? 'FALLIDA' : 'PENDIENTE';
+        const tope = e.evento === 'webhook.prueba' ? maxIntentosPrueba : maxIntentos;
+        const estado = ok ? 'ENTREGADA' : intentos >= tope ? 'FALLIDA' : 'PENDIENTE';
         // Si el arrendamiento venció y otra pasada ya reclamó (o entregó) la entrega, este resultado se descarta:
         // nunca devuelve a PENDIENTE una entrega ENTREGADA ni pisa el conteo de intentos de la otra pasada.
         await tx.consulta(

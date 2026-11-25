@@ -26,5 +26,7 @@ export {
   leerFirma,
   EVENTOS_WEBHOOK,
   MAX_INTENTOS,
+  MAX_INTENTOS_PRUEBA,
+  MAX_PRUEBAS_PENDIENTES,
 } from './webhooks';
 export type { EventoEntrega, EventoWebhook } from './webhooks';
