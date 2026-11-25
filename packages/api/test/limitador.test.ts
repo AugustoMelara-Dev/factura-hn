@@ -61,6 +61,26 @@ describe('LimitadorSolicitudes', () => {
     expect(l.tiene('y1')).toBe(true);
     expect(l.tiene('otra')).toBe(true);
   });
+
+  it('al desalojar solo mira las primeras 64 cubetas; más allá no busca llenas', () => {
+    let t = 0;
+    const m = new LimitadorSolicitudes(1, 2, () => t);
+    const vaciar = (k: string) => {
+      m.tomar(k);
+      m.tomar(k);
+    };
+    // Las 64 más antiguas quedan vacías; la 65.ª gasta una sola ficha y se llena antes.
+    for (let i = 0; i < LimitadorSolicitudes.REVISAR_AL_DESALOJAR; i++) vaciar(`y${i}`);
+    m.tomar('llena');
+    for (let i = LimitadorSolicitudes.REVISAR_AL_DESALOJAR + 1; i < LimitadorSolicitudes.MAX_CUBETAS; i++) vaciar(`w${i}`);
+    t = 1500;
+    m.tomar('nueva');
+    // Ninguna de las 64 revisadas está llena: sale la más antigua y la llena queda fuera del recorrido.
+    expect(m.tiene('y0')).toBe(false);
+    expect(m.tiene('y1')).toBe(true);
+    expect(m.tiene('llena')).toBe(true);
+    expect(m.tiene('nueva')).toBe(true);
+  });
 });
 
 describe('Semaforo', () => {

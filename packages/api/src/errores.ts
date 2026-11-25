@@ -152,15 +152,19 @@ export class LimitadorSolicitudes {
   }
   static readonly MAX_CUBETAS = 10_000;
   /**
-   * Con demasiadas cubetas, descarta primero las llenas: no guardan nada que no se recupere al recrearlas. Solo si
-   * ninguna está llena, la más antigua. Así, crear muchas claves nuevas no borra la cubeta vacía de quien ataca.
+   * Con demasiadas cubetas, descarta primero las llenas: no guardan nada que no se recupere al recrearlas. Mira
+   * solo las `REVISAR_AL_DESALOJAR` más antiguas (el costo por clave nueva queda acotado); si ninguna está llena,
+   * descarta la más antigua. Así, crear muchas claves nuevas no borra la cubeta vacía de quien ataca.
    */
   private desalojar(t: number): void {
+    let vistas = 0;
     for (const [clave, c] of this.cubetas) {
+      if (++vistas > LimitadorSolicitudes.REVISAR_AL_DESALOJAR) break;
       if (c.fichas + ((t - c.t) / 1000) * this.porSegundo >= this.rafaga) this.cubetas.delete(clave);
     }
     if (this.cubetas.size >= LimitadorSolicitudes.MAX_CUBETAS) this.cubetas.delete(this.cubetas.keys().next().value!);
   }
+  static readonly REVISAR_AL_DESALOJAR = 64;
 }
 
 /** El semáforo no admite más espera: la cola está llena o se pasó el tiempo máximo en cola. */
