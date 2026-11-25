@@ -3,16 +3,18 @@
  */
 import { congelar } from './inmutable';
 import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, validarLineas } from './calculo';
-import { centavosATexto, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, type Monto } from './dinero';
+import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import { conSolucion } from './errores';
+import { esAutorizacionDePrueba } from './modo';
 import type {
   AutorizacionCAI,
   DocumentoEntrada,
   Emisor,
   DocumentoFiscal,
+  EquivalenteLempiras,
   OpcionesDocumento,
   Problema,
   ResultadoValidacion,
@@ -362,6 +364,24 @@ export function validarEntrada(
 }
 
 /**
+ * Equivalente en lempiras del ISV y del total de un documento en moneda extranjera, con su tipo de cambio:
+ * importe en centavos × tipo de cambio, redondeado al centavo (mitad lejos de cero, Ley del ISV Art. 9).
+ * Información para el adquirente; los importes del documento siguen en su moneda. Se calcula al emitir y se
+ * guarda, así el impreso no cambia al reimprimir. null si el documento está en lempiras.
+ */
+function calcularEquivalenteLempiras(doc: DocumentoFiscal): EquivalenteLempiras | null {
+  if (doc.moneda === 'HNL' || doc.tipoCambio === undefined) return null;
+  const tc = parsearDecimal(doc.tipoCambio, 6, 'tipoCambio');
+  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
+  const t = doc.totales;
+  return {
+    ...(t.isv15 > 0 ? { isv15: L(t.isv15) } : {}),
+    ...(t.isv18 > 0 ? { isv18: L(t.isv18) } : {}),
+    total: L(t.total),
+  };
+}
+
+/**
  * Construye el documento con un correlativo ya asignado. Función pura.
  * Lanza `ErrorValidacion` si la entrada no es válida o el correlativo está fuera del rango.
  */
@@ -434,8 +454,10 @@ export function construirDocumento(
   if (entrada.condicionPago) doc.condicionPago = entrada.condicionPago;
   if (entrada.observaciones) doc.observaciones = entrada.observaciones;
   if (entrada.operador) doc.operador = entrada.operador.trim();
-  // Una autorización de prueba marca el documento; uno real no lleva el campo.
-  if (autorizacion.prueba === true) doc.modo = 'prueba';
+  // Una autorización de prueba (`prueba: true` o CAI ficticio) marca el documento; uno real no lleva el campo.
+  if (esAutorizacionDePrueba(autorizacion)) doc.modo = 'prueba';
+  const equivalente = calcularEquivalenteLempiras(doc);
+  if (equivalente) doc.equivalenteLempiras = equivalente;
   // Documento emitido = inmutable. Corregir es anular (Art. 41) o emitir una nota 06/07.
   return congelar(doc);
 }

@@ -13,7 +13,9 @@ const EMISOR = {
   telefono: '0000-0001', correo: 'ventas@ejemplo.example',
 };
 
-describe('documento en USD: el impreso da el equivalente en lempiras (Art. 11, párrafo final)', () => {
+// Información para el adquirente, decisión del producto: ningún artículo revisado exige imprimir el equivalente.
+// Se calcula con el tipo de cambio del documento (el que pide el Art. 11, párrafo final) y se guarda al emitir.
+describe('documento en USD: el impreso muestra el equivalente en lempiras guardado al emitir', () => {
   // 200.00 al 15 % (ISV 30.00) y 10.00 al 18 % (ISV 1.80): total 241.80 USD.
   // Con L 24.6517 por USD: ISV 15 % L 739.55 (739.551), ISV 18 % L 44.37 (44.37306), total L 5,960.78 (5960.78106).
   const doc = construirDocumento(

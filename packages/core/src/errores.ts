@@ -34,7 +34,13 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   AUTORIZACION_DUPLICADA:
     'Ese CAI ya está registrado en esta serie: no hace falta registrarlo otra vez. Si es una resolución nueva, revisa que copiaste el CAI nuevo.',
   AUTORIZACION_MODO_MEZCLADO:
-    'Una serie no mezcla documentos de prueba y reales. Prueba en otro almacén (p. ej. `AlmacenFiscalMemoria`) o en otro punto de emisión.',
+    'Un punto de emisión es entero de prueba o entero real. Prueba en otro almacén (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.',
+  AUTORIZACION_PRUEBA_FORMATO: 'Pon `prueba: true` (booleano, sin comillas) en una autorización de prueba, u omítelo en una real.',
+  AUTORIZACION_PRUEBA_CAI_REAL:
+    'Quita `prueba: true` si el CAI es real. Para probar, usa `autorizacionDemo()` de `factura-hn/demo`, con un CAI `DEMO00-NO-VALIDO-…`, en otro almacén.',
+  REFERENCIA_MODO_MEZCLADO:
+    'Emite la nota en el mismo modo que el documento: una nota de prueba sobre un documento de prueba, una real sobre uno real.',
+  FECHA_DEMO: 'Pasa en «hoy» un `Date` válido o un texto `YYYY-MM-DD` (p. ej. `2026-11-24`), u omítelo para usar la fecha actual.',
   AUTORIZACION_TIPO: 'Usa la autorización del mismo tipo de documento que emites (01 factura, 06 nota de crédito, 07 nota de débito).',
   CAI_REQUERIDO: `Indica el CAI de la autorización. ${RESOLUCION}`,
   CAI_FORMATO: `Quita espacios y signos del CAI: solo letras, dígitos y guiones. ${RESOLUCION}`,

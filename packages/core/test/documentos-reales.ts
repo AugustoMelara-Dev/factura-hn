@@ -64,3 +64,26 @@ export function documentosReales(): { simple: DocumentoFiscal; mixta: DocumentoF
   );
   return { simple, mixta, anulada, nota };
 }
+
+/**
+ * Factura real en USD tal como la guardó una versión anterior: sin `equivalenteLempiras`. Al reimprimirla debe
+ * dar los mismos bytes que entonces (Art. 38): el equivalente solo se imprime si el documento lo guardó al emitirse.
+ */
+export function facturaUSDAntes(): DocumentoFiscal {
+  const doc = construirDocumento(
+    {
+      emisor: EMISOR,
+      cliente: { nombre: 'Importadora Ejemplo', rtn: '99990000000002' },
+      horaEmision: '11:15',
+      moneda: 'USD',
+      tipoCambio: '24.6517',
+      lineas: [
+        { descripcion: 'Servicio de consultoría', cantidad: 1, precioUnitario: '200.00' },
+        { descripcion: 'Licencia anual', cantidad: 1, precioUnitario: '10.00', isv: 'ISV18' },
+      ],
+    },
+    autorizacion('01'), 3, { reloj },
+  );
+  const { equivalenteLempiras: _quitado, ...antes } = doc;
+  return antes;
+}

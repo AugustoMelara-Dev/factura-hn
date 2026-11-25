@@ -5,6 +5,7 @@ import type { AutorizacionCAI, Problema } from './tipos';
 import { CORRELATIVO_MAXIMO, TIPOS_DOCUMENTO } from './numeracion';
 import { esCAIValido, normalizarCAI, PATRON_CAI_BASICO } from './identificacion';
 import { conSolucion } from './errores';
+import { esCAIDemo } from './modo';
 
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -116,6 +117,21 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
         });
       }
     }
+  }
+  // Producto, no regla fiscal: `prueba` es booleano, y solo un CAI ficticio puede ser de prueba. Así un CAI
+  // con forma real nunca gasta correlativos en documentos «sin valor fiscal».
+  if (aut.prueba !== undefined && typeof aut.prueba !== 'boolean') {
+    problemas.push({
+      codigo: 'AUTORIZACION_PRUEBA_FORMATO',
+      mensaje: `«prueba» debe ser true o false (booleano), no ${JSON.stringify(aut.prueba)}.`,
+      campo: 'prueba',
+    });
+  } else if (aut.prueba === true && aut.cai && !esCAIDemo(aut.cai)) {
+    problemas.push({
+      codigo: 'AUTORIZACION_PRUEBA_CAI_REAL',
+      mensaje: `El CAI ${aut.cai} no es ficticio: una autorización de prueba usa un CAI que empieza con DEMO00-NO-VALIDO-.`,
+      campo: 'prueba',
+    });
   }
   return problemas.map((p) => (esAdvertencia(p) ? p : conSolucion(p)));
 }

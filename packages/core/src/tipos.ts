@@ -278,6 +278,18 @@ export interface DocumentoFiscal {
    * existiera este campo. No cambia nunca, ni al anular.
    */
   modo?: 'prueba';
+  /**
+   * Solo en moneda extranjera: equivalente en lempiras del ISV y del total, con `tipoCambio`, calculado al
+   * emitir. El impreso lo muestra si está; un documento guardado sin él se reimprime igual que se emitió.
+   */
+  equivalenteLempiras?: EquivalenteLempiras;
+}
+
+/** Equivalente en lempiras de un documento en moneda extranjera. `isv15` e `isv18`, solo si son mayores que 0. */
+export interface EquivalenteLempiras {
+  isv15?: number;
+  isv18?: number;
+  total: number;
 }
 
 /**

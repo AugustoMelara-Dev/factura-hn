@@ -6,12 +6,13 @@
  *   const factura = await facturador.emitir({ lineas: [{ descripcion: 'Café 1 lb', cantidad: 2, precioUnitario: '120.00' }] });
  */
 import { AlmacenFiscalMemoria, identificadorDe, type AlmacenFiscal } from './almacen';
-import { fechaHonduras } from './autorizacion';
+import { esFechaValida, fechaHonduras } from './autorizacion';
+import { ErrorValidacion } from './documento';
 import { crearFacturador, type ConfigFacturador, type Facturador } from './facturador';
-import { LEYENDA_PRUEBA } from './modo';
+import { esCAIDemo, LEYENDA_PRUEBA } from './modo';
 import type { AutorizacionCAI, Emisor, TipoDocumentoSoportado } from './tipos';
 
-export { LEYENDA_PRUEBA };
+export { esCAIDemo, LEYENDA_PRUEBA };
 
 /** Emisor ficticio. La razón social dice que no es real. */
 export const EMISOR_DEMO: Readonly<Emisor> = Object.freeze({
@@ -24,24 +25,23 @@ export const EMISOR_DEMO: Readonly<Emisor> = Object.freeze({
   correo: 'demo@ejemplo.example',
 });
 
-/** Prefijo de los CAI ficticios; el CAI de cada tipo termina en su código (`…-01`, `…-06`, `…-07`). */
-export const PREFIJO_CAI_DEMO = 'DEMO00-NO-VALIDO-0000-0000-0000-';
-
 /**
- * true si el CAI es el ficticio de demostración (prefijo `DEMO00-NO-VALIDO-`), sin importar mayúsculas ni espacios
- * en los extremos. Un CAI real del SAR no puede empezar así. Sirve para documentos emitidos antes de que existiera
- * `modo: 'prueba'` (la API y el MCP los reconocen solo por el CAI); para lo nuevo, usa `esDocumentoDePrueba`.
+ * Prefijo con el que se construyen los CAI demo; el CAI de cada tipo termina en su código (`…-01`, `…-06`,
+ * `…-07`). Para reconocer un CAI ficticio usa `esCAIDemo`, que acepta cualquier `DEMO00-NO-VALIDO-…`.
  */
-export function esCAIDemo(cai: string): boolean {
-  return typeof cai === 'string' && cai.trim().toUpperCase().startsWith(PREFIJO_CAI_DEMO.toUpperCase());
-}
+export const PREFIJO_CAI_DEMO = 'DEMO00-NO-VALIDO-0000-0000-0000-';
 
 /** Días de vigencia de una autorización demo, contados desde hoy en Honduras. */
 export const DIAS_VIGENCIA_DEMO = 180;
 
-/** CAI ficticio de un tipo de documento. */
-export function caiDemo(tipoDocumento: TipoDocumentoSoportado = '01'): string {
-  return `${PREFIJO_CAI_DEMO}${tipoDocumento}`;
+/**
+ * CAI ficticio de un tipo de documento. Con `renovacion` (una fecha `YYYY-MM-DD`), el CAI de una demo renovada:
+ * `DEMO00-NO-VALIDO-0000-0000-AAAAMMDD-TT`. Los dos cumplen `esCAIDemo`.
+ */
+export function caiDemo(tipoDocumento: TipoDocumentoSoportado = '01', renovacion?: string): string {
+  return renovacion
+    ? `DEMO00-NO-VALIDO-0000-0000-${renovacion.replace(/-/g, '')}-${tipoDocumento}`
+    : `${PREFIJO_CAI_DEMO}${tipoDocumento}`;
 }
 
 export interface OpcionesAutorizacionDemo {
@@ -52,6 +52,22 @@ export interface OpcionesAutorizacionDemo {
   puntoEmision?: string | number;
   rangoInicial?: number;
   rangoFinal?: number;
+  /** true para el CAI de una demo renovada (`caiDemo(tipo, hoy)`), distinto del de la primera. */
+  renovacion?: boolean;
+}
+
+/** Hoy en Honduras, de una fecha o de un texto `YYYY-MM-DD`. Otra cosa es `FECHA_DEMO`. */
+function fechaDeHoy(hoy: Date | string | undefined): string {
+  if (hoy === undefined) return fechaHonduras(new Date());
+  if (hoy instanceof Date && !Number.isNaN(hoy.getTime())) return fechaHonduras(hoy);
+  if (typeof hoy === 'string' && esFechaValida(hoy)) return hoy;
+  throw new ErrorValidacion([
+    {
+      codigo: 'FECHA_DEMO',
+      mensaje: `autorizacionDemo: «hoy» debe ser una fecha (Date) o un texto YYYY-MM-DD válido, no ${JSON.stringify(String(hoy))}.`,
+      campo: 'hoy',
+    },
+  ]);
 }
 
 /** `fecha` (YYYY-MM-DD) más `dias` días de calendario. */
@@ -64,10 +80,10 @@ function sumarDias(fecha: string, dias: number): string {
  * límite a 180 días de hoy en Honduras. No caduca en los ejemplos porque se calcula cada vez.
  */
 export function autorizacionDemo(opciones: OpcionesAutorizacionDemo = {}): AutorizacionCAI {
-  const hoy = typeof opciones.hoy === 'string' ? opciones.hoy : fechaHonduras(opciones.hoy ?? new Date());
+  const hoy = fechaDeHoy(opciones.hoy);
   const tipoDocumento = opciones.tipoDocumento ?? '01';
   return {
-    cai: caiDemo(tipoDocumento),
+    cai: caiDemo(tipoDocumento, opciones.renovacion ? hoy : undefined),
     tipoDocumento,
     establecimiento: String(opciones.establecimiento ?? '000').padStart(3, '0'),
     puntoEmision: String(opciones.puntoEmision ?? '001').padStart(3, '0'),
@@ -87,18 +103,32 @@ export interface OpcionesFacturadorDemo extends Partial<Omit<ConfigFacturador, '
 
 /**
  * Facturador listo para emitir documentos de prueba: emisor ficticio, almacén en memoria y CAI demo de
- * factura, nota de crédito y nota de débito ya registrados en la caja 000-001. Si el almacén ya tiene los CAI
- * demo de esa caja, no los repite.
+ * factura, nota de crédito y nota de débito ya registrados en la caja 000-001.
+ *
+ * Con un almacén persistente se puede llamar cada vez: si ya hay una demo vigente, no registra otra. Si la
+ * demo del almacén venció (dura 180 días), registra una nueva con otro CAI ficticio (`caiDemo(tipo, hoy)`) y el
+ * rango a continuación del anterior. Es solo para pruebas: un almacén con CAI demo no admite CAI reales en la
+ * misma caja.
  */
 export async function crearFacturadorDemo(opciones: OpcionesFacturadorDemo = {}): Promise<Facturador> {
   const { almacen = new AlmacenFiscalMemoria(), tipos = ['01', '06', '07'], ...config } = opciones;
   const facturador = crearFacturador({ emisor: EMISOR_DEMO, actor: 'demo', ...config, almacen });
-  const hoy = (config.reloj ?? (() => new Date()))();
+  const ahora = (config.reloj ?? (() => new Date()))();
+  const hoy = fechaHonduras(ahora);
   for (const tipoDocumento of tipos) {
-    const aut = autorizacionDemo({ hoy, tipoDocumento, establecimiento: facturador.establecimiento, puntoEmision: facturador.puntoEmision });
-    const ya = await almacen.transaccion((tx) => tx.autorizaciones(identificadorDe(aut)));
-    if (ya.some((a) => a.cai === aut.cai)) continue;
-    await facturador.registrarAutorizacion(aut);
+    const base = { hoy, tipoDocumento, establecimiento: facturador.establecimiento, puntoEmision: facturador.puntoEmision };
+    const ya = await almacen.transaccion((tx) => tx.autorizaciones(identificadorDe(autorizacionDemo(base))));
+    const demos = ya.filter((a) => esCAIDemo(a.cai));
+    if (demos.length === 0) {
+      await facturador.registrarAutorizacion(autorizacionDemo(base));
+      continue;
+    }
+    if (demos.some((a) => a.fechaLimiteEmision >= hoy)) continue;
+    // Todas vencidas: una demo nueva, con otro CAI y el rango a continuación (los rangos no se solapan).
+    const desde = Math.max(...ya.map((a) => a.rangoFinal)) + 1;
+    const renovada = autorizacionDemo({ ...base, renovacion: true, rangoInicial: desde, rangoFinal: Math.min(desde + 999_999, 99_999_999) });
+    if (ya.some((a) => a.cai === renovada.cai)) continue;
+    await facturador.registrarAutorizacion(renovada);
   }
   return facturador;
 }

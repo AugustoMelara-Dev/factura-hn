@@ -44,8 +44,8 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### ALMACEN_REQUERIDO
 
-- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `buscarDocumento` o
-  `crearFacturador` sin almacén fiscal.
+- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `buscarDocumento`,
+  `eventosAuditoria`, `corregirFechaAdelantada` o `crearFacturador` sin almacén fiscal.
 - **Causa:** falta `almacen` en la configuración, o no es un `AlmacenFiscal` (no tiene `transaccion`).
 - **Solución:** pasa un almacén: `new AlmacenFiscalMemoria()` para probar; `AlmacenSQLite` o `AlmacenPostgres`
   para guardar de verdad. Créalo una vez al arrancar, no en cada venta.
@@ -96,12 +96,26 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### AUTORIZACION_MODO_MEZCLADO
 
-- **Qué significa:** se intentó registrar una autorización de prueba en una serie con autorizaciones reales, o al
-  revés.
+- **Qué significa:** se intentó registrar una autorización de prueba en un punto de emisión con autorizaciones
+  reales, o al revés. Un punto de emisión es entero de prueba o entero real, en todos los tipos de documento.
 - **Causa:** se usó el mismo almacén y la misma caja para probar con `autorizacionDemo()` y para facturar.
-- **Solución:** prueba en otro almacén (por ejemplo `AlmacenFiscalMemoria`) o en otro punto de emisión. Los
-  documentos de prueba no deben consumir números de una serie real.
+- **Solución:** prueba en otro almacén: otra base de datos, o `AlmacenFiscalMemoria`. No pruebes en otro punto
+  de emisión del almacén real: sus documentos de prueba se mezclarían con los reales en las consultas.
 - **Base:** ninguna fiscal: protege la numeración real de los documentos de prueba.
+
+### AUTORIZACION_PRUEBA_FORMATO
+
+- **Qué significa:** el campo `prueba` de la autorización no es booleano (por ejemplo, el texto `'true'`).
+- **Solución:** pon `prueba: true`, sin comillas, en una autorización de prueba; omítelo en una real.
+- **Base:** ninguna fiscal: el modo de prueba es del producto.
+
+### AUTORIZACION_PRUEBA_CAI_REAL
+
+- **Qué significa:** una autorización con `prueba: true` trae un CAI que no es ficticio.
+- **Causa:** se marcó como prueba un CAI real, o uno inventado sin el prefijo `DEMO00-NO-VALIDO-`.
+- **Solución:** si el CAI es real, quita `prueba: true`. Para probar, usa `autorizacionDemo()` de
+  `factura-hn/demo` en otro almacén. Así un CAI real nunca gasta números en documentos sin valor fiscal.
+- **Base:** ninguna fiscal: el modo de prueba es del producto.
 
 ### AUTORIZACION_TIPO
 
@@ -177,6 +191,14 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Qué significa:** al migrar, `ultimoEmitidoAntes` no está entre el inicio del rango menos uno y el final.
 - **Solución:** indica el último correlativo de esa autorización que emitiste fuera de este sistema; si no
   emitiste ninguno, omite el campo.
+
+### FECHA_DEMO
+
+- **Qué significa:** `autorizacionDemo({ hoy })` recibió una fecha que no se puede leer, por ejemplo
+  `'24/11/2026'`.
+- **Solución:** pasa un `Date` válido o un texto `YYYY-MM-DD` (`'2026-11-24'`), u omítelo para usar la fecha
+  actual.
+- **Base:** ninguna fiscal: solo afecta a la demo.
 
 ### CORRELATIVO_FUERA_DE_RANGO
 
@@ -405,6 +427,14 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** el número del original pertenece a una autorización de este sistema y todavía no se ha
   emitido.
 - **Solución:** revisa el número.
+
+### REFERENCIA_MODO_MEZCLADO
+
+- **Qué significa:** la nota y el documento original no son del mismo modo: una nota de prueba sobre un
+  documento real, o una real sobre uno de prueba.
+- **Solución:** emite la nota en el mismo modo que el original. Un documento de prueba no tiene valor fiscal y
+  no se ajusta con una nota real.
+- **Base:** ninguna fiscal: el modo de prueba es del producto.
 
 ### REFERENCIA_ANULADA
 
@@ -652,6 +682,12 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 - **Qué significa (400):** el cuerpo no es UTF-8 válido.
 - **Solución:** envía el JSON en UTF-8; con curl, guárdalo en un archivo y usa `--data-binary @archivo.json`.
+
+### DEMASIADOS_INTENTOS
+
+- **Qué significa (429):** hubo demasiados intentos con llaves no válidas.
+- **Solución:** revisa que la llave esté completa y activa, y reintenta después de los segundos de la cabecera
+  `Retry-After`.
 
 ### DEMASIADAS_SOLICITUDES
 

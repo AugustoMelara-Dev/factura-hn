@@ -114,8 +114,8 @@ export type { OpcionesEmision } from './emision';
 export { crearFacturador } from './facturador';
 export type { AutorizacionCaja, ConfigFacturador, Facturador, NotaEntrada, OpcionesOperacion, Venta } from './facturador';
 export { conSolucion, enlaceError, SOLUCIONES, URL_ERRORES } from './errores';
-export { esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
-export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, VERSION_EXPORTACION } from './exportacion';
+export { esAutorizacionDePrueba, esCAIDemo, esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
+export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, separarDocumentosDePrueba, VERSION_EXPORTACION } from './exportacion';
 export type { FormatoExportacion, LibroContable } from './exportacion';
 export {
   CAUSALES_NO_UTILIZACION,
@@ -130,5 +130,5 @@ export { renderizarHTML, renderizarTexto } from './render';
 export type { OpcionesRender } from './render';
 export { contarDocumentos, correlativosDe, documentosPorPaginas, TAMANO_PAGINA, TAMANO_PAGINA_COMPLETOS } from './paginas';
 export type { OpcionesPaginas } from './paginas';
-export { acumuladorResumenVentas, filaLibroVentas, inicioLibroVentasCSV, libroVentasCSV, lineaLibroVentasCSV, resumenVentas } from './reportes';
+export { acumuladorResumenVentas, filaLibroVentas, inicioLibroVentasCSV, libroVentas, libroVentasCSV, lineaLibroVentasCSV, resumenVentas } from './reportes';
 export type { FilaLibroVentas, ResumenVentas } from './reportes';

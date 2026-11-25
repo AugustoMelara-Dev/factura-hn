@@ -7,6 +7,7 @@
  * la regla del Art. 9 de la Ley del ISV. Así el resumen nunca suma dólares como si fueran lempiras.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, parsearDecimal, redondearDecimal, textoSeguroCSV } from './dinero';
+import { separarDocumentosDePrueba } from './exportacion';
 import type { ResumenDocumento } from './tipos';
 
 export interface FilaLibroVentas {
@@ -34,8 +35,19 @@ export interface FilaLibroVentas {
 }
 
 /**
+ * Libro de ventas de un período: una fila por documento real y el resumen. Los documentos de prueba
+ * (`esDocumentoDePrueba`) no entran, porque no tienen valor fiscal; `excluidos` dice cuántos quedaron fuera.
+ */
+export function libroVentas(docs: readonly ResumenDocumento[]): { filas: FilaLibroVentas[]; resumen: ResumenVentas; excluidos: number } {
+  const { reales, excluidos } = separarDocumentosDePrueba(docs);
+  const filas = reales.map(filaLibroVentas);
+  return { filas, resumen: resumenVentas(filas), excluidos };
+}
+
+/**
  * Una fila por documento. Los anulados (Art. 41) se registran con su número y montos en cero, para que la
- * numeración del libro no tenga huecos. El estado se toma del propio documento.
+ * numeración del libro no tenga huecos. El estado se toma del propio documento. No filtra los documentos de
+ * prueba: usa `libroVentas`, o `separarDocumentosDePrueba` antes de llamarla.
  */
 export function filaLibroVentas(doc: ResumenDocumento): FilaLibroVentas {
   const anulado = doc.estado === 'ANULADO';

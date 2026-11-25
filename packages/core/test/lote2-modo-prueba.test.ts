@@ -7,6 +7,7 @@ import {
   esDocumentoDePrueba,
   exportarTexto,
   leerExportacionJSONL,
+  lineaExportacion,
   registrarAutorizacion,
   renderizarHTML,
   renderizarTexto,
@@ -44,6 +45,7 @@ describe('factura-hn/demo', () => {
     expect(esCAIDemo('A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4')).toBe(false);
     expect(esCAIDemo('X DEMO00-NO-VALIDO-0000')).toBe(false);
     expect(esCAIDemo('DEMO00-NO-VALID')).toBe(false);
+    expect(esCAIDemo('DEMO00-NO-VALIDO-EXTERNO')).toBe(true); // basta el prefijo corto
     expect(esCAIDemo('')).toBe(false);
   });
 
@@ -76,7 +78,7 @@ describe('modo de prueba (documento)', () => {
     expect(esDocumentoDePrueba(real)).toBe(false);
   });
 
-  it('es inmutable, sobrevive a la anulación y viaja en la exportación JSONL', async () => {
+  it('es inmutable, sobrevive a la anulación y viaja en la línea JSONL', async () => {
     const almacen = new AlmacenFiscalMemoria();
     const f = await crearFacturadorDemo({ almacen });
     const doc = await f.emitir(venta);
@@ -85,8 +87,10 @@ describe('modo de prueba (documento)', () => {
     }).toThrow();
     const anulado = await anular(doc.numero, { almacen, motivo: 'Prueba' });
     expect(anulado).toMatchObject({ estado: 'ANULADO', modo: 'prueba' });
-    const [leido] = leerExportacionJSONL(exportarTexto([anulado], { formato: 'jsonl' }));
+    const [leido] = leerExportacionJSONL(lineaExportacion(anulado, 'jsonl'));
     expect(leido!.modo).toBe('prueba');
+    // exportarTexto deja fuera los documentos de prueba.
+    expect(exportarTexto([anulado], { formato: 'jsonl' })).toBe('');
     // Lo anulado y de prueba lleva las dos leyendas.
     const texto = renderizarTexto(anulado);
     expect(texto).toContain('*** ANULADA ***');

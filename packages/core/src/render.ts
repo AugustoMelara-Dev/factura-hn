@@ -2,7 +2,7 @@
  * Representación impresa del documento: HTML (carta o ticket 80 mm) y texto plano
  * para impresoras térmicas. Incluye todos los campos de los Arts. 10 y 11.
  */
-import { deCentavos, dividirRedondeando, escaladoATexto, formatearMonto, parsearDecimal, redondearDecimal } from './dinero';
+import { escaladoATexto, formatearMonto, parsearDecimal } from './dinero';
 import { formatearDNI, formatearRTN } from './identificacion';
 import { esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
 import type { DocumentoFiscal, TratamientoISV } from './tipos';
@@ -68,20 +68,17 @@ function filasTotales(doc: DocumentoFiscal): Array<[string, number, boolean?]> {
 }
 
 /**
- * Equivalente en lempiras de los impuestos y el total de un documento en moneda extranjera, con su tipo de
- * cambio (Reglamento Art. 11, párrafo final: la tasa de cambio vigente a la fecha). Es información para el
- * adquirente: los importes del documento siguen en su moneda. Cálculo exacto en centavos, redondeado al
- * centavo. null si el documento está en lempiras.
+ * Equivalente en lempiras guardado en el documento al emitirlo (`DocumentoFiscal.equivalenteLempiras`), como
+ * filas para imprimir. null si el documento no lo tiene: en lempiras, o en otra moneda pero guardado antes de
+ * que existiera el campo (se reimprime igual que se emitió).
  */
 function equivalenteLempiras(doc: DocumentoFiscal): Array<[string, number]> | null {
-  if (doc.moneda === 'HNL' || !doc.tipoCambio) return null;
-  const tc = parsearDecimal(doc.tipoCambio, 6, 'tipoCambio');
-  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
-  const t = doc.totales;
+  const e = doc.equivalenteLempiras;
+  if (!e) return null;
   return [
-    ...(t.isv15 > 0 ? [['I.S.V. 15%', L(t.isv15)] as [string, number]] : []),
-    ...(t.isv18 > 0 ? [['I.S.V. 18%', L(t.isv18)] as [string, number]] : []),
-    ['Total', L(t.total)],
+    ...(e.isv15 !== undefined ? [['I.S.V. 15%', e.isv15] as [string, number]] : []),
+    ...(e.isv18 !== undefined ? [['I.S.V. 18%', e.isv18] as [string, number]] : []),
+    ['Total', e.total],
   ];
 }
 
