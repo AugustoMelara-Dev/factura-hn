@@ -31,7 +31,7 @@
     "changeset": "changeset",
     "release": "pnpm build && node scripts/verificar-dist.mjs && node scripts/publicar.mjs",
     "sitio": "pnpm playground && pnpm --filter @factura-hn/sitio construir",
-    "version": "changeset version && node scripts/fijar-version-mcp.mjs",
+    "version": "changeset version && node scripts/fijar-versiones.mjs",
     "sitio:ver": "pnpm --filter @factura-hn/sitio preview"
   },
   "devDependencies": {

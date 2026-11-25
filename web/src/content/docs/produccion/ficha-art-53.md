@@ -27,7 +27,7 @@ regula el Registro Fiscal de Imprentas (Arts. 66-70), que no aplica a un softwar
 Fuente: Art. 53, C L.2161-2188. La [matriz de cumplimiento](/referencia/cumplimiento/) tiene, en la fila 53, el
 archivo y el título de la prueba automatizada de cada numeral.
 
-| Num. | Exigencia | Qué implementa factura-hn 0.2.0 | Lo que pone el negocio |
+| Num. | Exigencia | Qué implementa factura-hn | Lo que pone el negocio |
 |---|---|---|---|
 | 1 | Integración con al menos un sistema contable o de inventarios | Interfaz `LibroContable` (opción `libroContable`) y gancho `alEmitir`, que corren **dentro** de la transacción de la emisión: si el asiento falla, no hay documento (DEC-012 [REVISAR]) | El sistema contable o de inventario al que se conecta, y la conexión misma |
 | 2 | Seguridad y controles de auditoría | Bitácora de solo inserción (`eventosAuditoria`): autorizaciones, emisiones, anulaciones y correcciones de fecha, con actor y operador. Disparadores en SQLite y Postgres que impiden borrar documentos y autorizaciones, cambiar un documento salvo de EMITIDO a ANULADO y retroceder la serie. En la API: llaves con roles (`caja`, `admin`), bitácora de la API con el actor y aislamiento por tenant con RLS | Quién tiene acceso al equipo, a la base y a las llaves; contraseñas y TLS |
@@ -43,7 +43,7 @@ encuentra el servidor** y los **puntos de emisión**.
 | Dato | Lo llena factura-hn | Lo llena el negocio |
 |---|---|---|
 | Nombre del software | factura-hn | |
-| Versión | La versión instalada de cada paquete (`npm ls factura-hn`). Esta ficha describe la 0.2.0 | Anotar la versión instalada al declarar, y revisar la ficha si actualiza |
+| Versión | La versión instalada de cada paquete (`npm ls factura-hn`). Esta ficha describe la versión más reciente publicada; el [CHANGELOG](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/CHANGELOG.md) dice qué cambió entre versiones | Anotar la versión instalada al declarar, y revisar la ficha si actualiza |
 | Licencia | MIT (código abierto) | |
 | Paquetes en uso | `factura-hn` y el almacén elegido; opcionales `@factura-hn/pdf`, `@factura-hn/api`, `@factura-hn/mcp` | Cuáles usa su instalación |
 | Establecimiento donde está el servidor | | La dirección del equipo donde corre la base o la API |
