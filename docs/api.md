@@ -208,8 +208,8 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
 - Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
   `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`, `{ "entrega": … }`. Al crear una
-  llave o un webhook, o al rotar el secreto de un webhook, la respuesta trae además `secreto` (la llave completa `fhn_…` o el secreto de firma `whsec_…`), que solo se
-  muestra esa vez.
+  llave o un webhook, o al rotar el secreto de un webhook, la respuesta trae además `secreto` (la llave completa
+  `fhn_…` o el secreto de firma `whsec_…`), que solo se muestra esa vez.
 - Cada lista es `{ "<plural>": [...], "hayMas": bool, "siguiente": "cursor" | null }`. Si `hayMas`, pide la
   página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
   El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
@@ -385,12 +385,14 @@ Todas con la llave admin, y solo sobre los webhooks del propio tenant (RLS):
 - `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` responde 202 `{ entrega }`. Una entrega `FALLIDA` o
   `ENTREGADA` vuelve a `PENDIENTE` con el calendario completo (otros 3 días) y sale en segundos, con el mismo `id`.
   Una `PENDIENTE` se adelanta a ahora y conserva sus intentos (si justo se estaba enviando, puede llegar dos
-  veces: el receptor ya descarta repetidos por `id`). 409 `WEBHOOK_INACTIVO` si el webhook está desactivado y 409
-  `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.
+  veces: el receptor ya descarta repetidos por `id`). 409 `WEBHOOK_INACTIVO` si el webhook está desactivado. 409
+  `ENTREGA_VENCIDA` si es una entrega de `autorizacion.*` (`ENTREGADA` o `FALLIDA`) cuyo cuerpo ya se vació por
+  retención; una de `documento.*` o `webhook.prueba` tan vieja ya se borró y da 404 `NO_ENCONTRADO`.
 - `POST /v1/webhooks/{id}/probar` responde 202 `{ entrega }` y encola un aviso `webhook.prueba` solo para ese
   webhook, aunque no esté suscrito a él: `{ id, evento: "webhook.prueba", creado, datos: { webhookId, mensaje } }`,
-  firmado y con los mismos reintentos. Sirve para probar el receptor sin emitir un documento. 409
-  `WEBHOOK_INACTIVO` si está desactivado.
+  firmado. Una prueba se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). Sirve para probar el
+  receptor sin emitir un documento. Cada webhook tiene a lo sumo 5 pruebas pendientes: más allá, 409
+  `LIMITE_PRUEBAS` (también al reenviar una prueba terminada). 409 `WEBHOOK_INACTIVO` si está desactivado.
 
 ### Rotación del secreto
 
@@ -398,8 +400,10 @@ Todas con la llave admin, y solo sobre los webhooks del propio tenant (RLS):
 `{ webhook, secreto }` con el secreto nuevo, que solo se muestra esta vez. Durante la gracia, cada entrega lleva
 **dos** firmas `v1`: primero la del secreto anterior y después la del nuevo. `webhook.graciaHasta` dice hasta
 cuándo; al terminar, solo la del nuevo, y el servidor borra el secreto anterior en su mantenimiento de cada hora.
-Con `graciaHoras: 0`, el secreto anterior deja de valer en el acto. Rotar otra vez durante una gracia descarta el
-secreto más viejo: solo valen el actual y el nuevo. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado.
+Con `graciaHoras: 0`, el secreto anterior deja de valer en el acto. Rotar otra vez durante una gracia (un
+reintento, un doble clic) **conserva el secreto más viejo**, el que el receptor puede seguir usando: valen ese y el
+nuevo, el intermedio se descarta y la gracia dura hasta la más tardía de las dos. 409 `WEBHOOK_INACTIVO` si el
+webhook está desactivado.
 
 Pasos: actualiza el receptor a un verificador que acepte varios `v1` (`@factura-hn/cliente` desde esta versión),
 rota, cambia el secreto del receptor antes de que termine la gracia y comprueba con `probar`.

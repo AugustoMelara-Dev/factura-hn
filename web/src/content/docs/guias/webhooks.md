@@ -126,8 +126,9 @@ falta consultando la API: por ejemplo, `GET /v1/documentos?desde&hasta` para el 
 
 Con la llave admin:
 
-- `POST /v1/webhooks/{id}/probar` encola un aviso `webhook.prueba` solo para ese webhook, firmado y con los mismos
-  reintentos. Sirve para probar el receptor sin emitir un documento. Su `datos` trae `webhookId` y un mensaje.
+- `POST /v1/webhooks/{id}/probar` encola un aviso `webhook.prueba` solo para ese webhook, firmado. Se intenta a lo
+  sumo 3 veces, no 3 días. Sirve para probar el receptor sin emitir un documento. Su `datos` trae `webhookId` y un
+  mensaje. Cada webhook tiene a lo sumo 5 pruebas pendientes.
 - `GET /v1/webhooks/{id}/entregas` lista las entregas, de la más reciente a la más antigua, paginadas como las
   demás listas, con `?estado=PENDIENTE|ENTREGADA|FALLIDA` opcional. Cada una trae su estado, sus intentos, el
   próximo intento y el último código o error del receptor.
@@ -138,7 +139,9 @@ Con la llave admin:
 
 `POST /v1/webhooks/{id}/rotar-secreto` crea un secreto nuevo y lo muestra **solo esa vez**. Durante la gracia
 (`graciaHoras`, 24 por defecto, de 0 a 168), cada entrega se firma con los dos secretos; al terminar, solo con el
-nuevo. `webhook.graciaHasta` dice hasta cuándo.
+nuevo. `webhook.graciaHasta` dice hasta cuándo. Si rotas otra vez durante la gracia (por ejemplo, un reintento),
+se conserva el secreto más viejo, el que tu receptor puede seguir usando: valen ese y el último, y el intermedio se
+descarta.
 
 1. Asegúrate de que el receptor usa un verificador que acepta varios `v1` (`verificarFirmaWebhook` de
    `@factura-hn/cliente` lo hace).
@@ -154,7 +157,8 @@ nuevo. `webhook.graciaHasta` dice hasta cuándo.
 | [`WEBHOOK_URL`](/referencia/errores/#webhook_url) | URL ilegible, con usuario o contraseña, hacia una dirección interna o, en modo alojado, sin HTTPS |
 | [`SOLO_ADMIN`](/referencia/errores/#solo_admin) | Los webhooks se administran con la llave admin |
 | [`WEBHOOK_INACTIVO`](/referencia/errores/#webhook_inactivo) | Reenviar, probar o rotar un webhook desactivado |
-| [`ENTREGA_VENCIDA`](/referencia/errores/#entrega_vencida) | Reenviar una entrega cuyo cuerpo ya se borró por retención |
+| [`ENTREGA_VENCIDA`](/referencia/errores/#entrega_vencida) | Reenviar un aviso de autorización cuyo cuerpo ya se vació por retención |
+| [`LIMITE_PRUEBAS`](/referencia/errores/#limite_pruebas) | Ya hay 5 eventos de prueba pendientes para ese webhook |
 
 En el receptor, una firma que no verifica no es un código de la API: es tu respuesta 400. Las causas habituales
 son el cuerpo ya convertido a JSON, el secreto equivocado o el reloj del receptor desfasado.

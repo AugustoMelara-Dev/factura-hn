@@ -12,7 +12,7 @@ Webhooks robustos en la API REST y el cliente.
 - Rutas nuevas, solo con llave admin: `GET /v1/webhooks/{id}/entregas` (paginada), `POST
   /v1/webhooks/{id}/entregas/{entrega}/reenviar`, `POST /v1/webhooks/{id}/probar` (evento `webhook.prueba`) y
   `POST /v1/webhooks/{id}/rotar-secreto` (secreto nuevo con gracia de 24 h por defecto: durante la gracia, cada
-  entrega lleva dos `v1`). Los webhooks traen `graciaHasta`. Errores nuevos: 409 `WEBHOOK_INACTIVO` y 409
-  `ENTREGA_VENCIDA`.
+  entrega lleva dos `v1`). Los webhooks traen `graciaHasta`. Una prueba se intenta a lo sumo 3 veces y cada webhook tiene a lo sumo 5
+  pendientes. Errores nuevos: 409 `WEBHOOK_INACTIVO`, 409 `ENTREGA_VENCIDA` y 409 `LIMITE_PRUEBAS`.
 - `AvisoWebhook.evento` incluye `webhook.prueba`.
 - Esquema de la API v8: migra antes de arrancar esta versión.

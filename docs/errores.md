@@ -779,9 +779,17 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### ENTREGA_VENCIDA
 
-- **Qué significa (409):** se pidió reenviar una entrega cuyo cuerpo ya se borró por retención
-  (`FHN_RETENCION_DIAS`, 30 días por defecto). Queda solo como registro de que el aviso se envió.
+- **Qué significa (409):** se pidió reenviar una entrega de `autorizacion.*`, `ENTREGADA` o `FALLIDA`, cuyo cuerpo
+  ya se vació por retención (`FHN_RETENCION_DIAS`, 30 días por defecto). Queda solo como registro de que el aviso
+  se intentó. Una entrega de `documento.*` o `webhook.prueba` tan vieja ya se borró: da 404 `NO_ENCONTRADO`.
 - **Solución:** consulta el dato en la API (por ejemplo, `GET /v1/autorizaciones/{cai}/estado`).
+
+### LIMITE_PRUEBAS
+
+- **Qué significa (409):** el webhook ya tiene 5 eventos de prueba (`webhook.prueba`) pendientes; vale también al
+  reenviar una prueba terminada.
+- **Solución:** espera a que se entreguen o fallen (cada prueba se intenta a lo sumo 3 veces) y revisa su estado
+  con `GET /v1/webhooks/{id}/entregas`.
 
 ### ERROR_INTERNO
 
