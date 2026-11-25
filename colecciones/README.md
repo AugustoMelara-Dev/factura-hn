@@ -11,8 +11,15 @@ si no coinciden con las versionadas.
 Cómo usarlas, y cómo generar un cliente en Python u otro lenguaje: sección «Colecciones de Bruno y Postman, y
 clientes en otros lenguajes» de [docs/api.md](../docs/api.md).
 
-Correr la primera factura con la CLI de Bruno, con la API en marcha y una llave de caja del demo:
+Correr la primera factura con la CLI de Bruno, con la API en marcha y una llave de caja del demo en `FHN_LLAVE`
+(el entorno `demo` la lee de ahí, o de `bruno/.env`, que git ignora; así no pasa por la línea de órdenes):
 
 ```bash
-pnpm --filter @factura-hn/colecciones bruno --env-var "llave=$LLAVE"
+export FHN_LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+pnpm --filter @factura-hn/colecciones bruno
 ```
+
+Al regenerar, `generar.mjs` reemplaza y borra solo lo suyo: los `.bru` de las carpetas, `bruno.json`,
+`environments/demo.bru` y los dos archivos de `postman/`. Tus otros entornos (`bruno/environments/*.bru`), tu
+`bruno/.env` y otros archivos de `postman/` se conservan. Una solicitud propia guardada dentro de `bruno/` sí se
+borra: guárdala en otra colección.

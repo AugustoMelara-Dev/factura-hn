@@ -13,8 +13,8 @@
  * si no coincide con la versionada. No edites a mano lo que hay en bruno/ y postman/: cambia este script, los
  * ejemplos (ejemplos.mjs) o la especificación, y vuelve a generar.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CUERPOS, PARAMETROS_RUTA } from './ejemplos.mjs';
 
@@ -262,7 +262,7 @@ const DOCS_COLECCION = [
   spec.info.description,
   '',
   'Colección generada de `packages/api/openapi.json` con `pnpm colecciones`: no la edites a mano.',
-  'Entorno `demo`: `baseUrl` es la API local y `llave` (secreta) la llave de caja que da `factura-hn-api demo llave`.',
+  'Entorno `demo`: `baseUrl` es la API local y `llave` la llave de caja que da `factura-hn-api demo llave --solo-llave`. En Bruno, `llave` sale de la variable de entorno `FHN_LLAVE` (o de un archivo `.env` en la carpeta de la colección, que no se versiona); en Postman es una variable secreta donde la pegas.',
 ].join('\n');
 
 // ── Bruno ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -302,7 +302,6 @@ function bruCarpeta(nombre, seq, docs) {
 
 function generarBruno(grupos) {
   const dir = join(aqui, 'bruno');
-  rmSync(dir, { recursive: true, force: true });
   const archivos = new Map();
   archivos.set('bruno.json', `${JSON.stringify({ version: '1', name: NOMBRE, type: 'collection', ignore: ['node_modules', '.git'] }, null, 2)}\n`);
   archivos.set(
@@ -315,7 +314,8 @@ function generarBruno(grupos) {
       bloque('docs', DOCS_COLECCION),
     ].join('\n'),
   );
-  archivos.set(join('environments', 'demo.bru'), [bloque('vars', `baseUrl: ${URL_DEMO}`), 'vars:secret [\n  llave\n]\n'].join('\n'));
+  // La llave no va en ningún archivo versionado ni en la línea de órdenes: Bruno la lee de la variable FHN_LLAVE.
+  archivos.set(join('environments', 'demo.bru'), bloque('vars', `baseUrl: ${URL_DEMO}\nllave: {{process.env.FHN_LLAVE}}`));
 
   archivos.set(join(PRIMERA.carpeta, 'folder.bru'), bruCarpeta(PRIMERA.nombre, 1, PRIMERA.docs));
   PRIMERA.pasos.forEach((p, i) => {
@@ -336,7 +336,7 @@ function generarBruno(grupos) {
       );
     });
   }
-  escribir(dir, archivos);
+  escribir(dir, archivos, esDeBruno);
   return archivos.size;
 }
 
@@ -389,7 +389,6 @@ function pmSolicitud({ nombre, metodo, url, ruta, deRuta = [], deConsulta = [], 
 
 function generarPostman(grupos) {
   const dir = join(aqui, 'postman');
-  rmSync(dir, { recursive: true, force: true });
   const items = [
     {
       name: PRIMERA.nombre,
@@ -424,18 +423,41 @@ function generarPostman(grupos) {
     [`${NOMBRE}.postman_collection.json`, `${JSON.stringify(coleccion, null, 2)}\n`],
     ['demo.postman_environment.json', `${JSON.stringify(entorno, null, 2)}\n`],
   ]);
-  escribir(dir, archivos);
+  escribir(dir, archivos, esDePostman);
   return archivos.size;
 }
 
 // ── Escritura ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-function escribir(dir, archivos) {
+// Lo que es del generador, para borrar lo que ya no genera (p. ej. el .bru de una operación que desapareció). Lo
+// demás se conserva: otros entornos (environments/*.bru), el .env de Bruno con FHN_LLAVE, entornos de Postman propios.
+const esDeBruno = (ruta) =>
+  ruta === 'bruno.json' || (ruta.endsWith('.bru') && (!ruta.startsWith('environments/') || ruta === 'environments/demo.bru'));
+const esDePostman = (ruta) => ruta === `${NOMBRE}.postman_collection.json` || ruta === 'demo.postman_environment.json';
+
+/** Las rutas (con /) de los archivos bajo `dir`. */
+function listar(dir, base = dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? listar(join(dir, e.name), base) : [relative(base, join(dir, e.name)).split(sep).join('/')],
+  );
+}
+
+/** Borra las carpetas vacías bajo `dir` (no `dir`). */
+function podarVacias(dir, raiz = dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) if (e.isDirectory()) podarVacias(join(dir, e.name), raiz);
+  if (dir !== raiz && readdirSync(dir).length === 0) rmdirSync(dir);
+}
+
+function escribir(dir, archivos, esDelGenerador) {
+  const nuevos = new Set([...archivos.keys()].map((r) => r.split(sep).join('/')));
+  for (const ruta of listar(dir)) if (esDelGenerador(ruta) && !nuevos.has(ruta)) rmSync(join(dir, ruta));
   for (const [ruta, contenido] of archivos) {
     const destino = join(dir, ruta);
     mkdirSync(dirname(destino), { recursive: true });
     writeFileSync(destino, contenido.replace(/\r\n/g, '\n'));
   }
+  podarVacias(dir);
 }
 
 const grupos = operaciones();

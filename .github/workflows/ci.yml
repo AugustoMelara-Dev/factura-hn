@@ -149,7 +149,8 @@ jobs:
           echo "::add-mask::$LLAVE"
           echo "FHN_LLAVE=$LLAVE" >> "$GITHUB_ENV"
       - name: 'Bruno: primera factura (sesión, emitir y PDF)'
-        run: pnpm --filter @factura-hn/colecciones bruno --env-var "llave=$FHN_LLAVE"
+        # El entorno demo lee la llave de FHN_LLAVE (definida arriba): no pasa por la línea de órdenes.
+        run: pnpm --filter @factura-hn/colecciones bruno
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
@@ -160,7 +161,7 @@ jobs:
           FHN_API_URL: http://127.0.0.1:8787
         run: |
           python -m venv .venv-python
-          .venv-python/bin/pip install -r clientes/python/requirements.txt
+          .venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt
           .venv-python/bin/python clientes/python/generar.py
           .venv-python/bin/python -m pytest clientes/python -v
       - if: failure()

@@ -32,5 +32,5 @@ docs {
   5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.
 
   Colección generada de `packages/api/openapi.json` con `pnpm colecciones`: no la edites a mano.
-  Entorno `demo`: `baseUrl` es la API local y `llave` (secreta) la llave de caja que da `factura-hn-api demo llave`.
+  Entorno `demo`: `baseUrl` es la API local y `llave` la llave de caja que da `factura-hn-api demo llave --solo-llave`. En Bruno, `llave` sale de la variable de entorno `FHN_LLAVE` (o de un archivo `.env` en la carpeta de la colección, que no se versiona); en Postman es una variable secreta donde la pegas.
 }

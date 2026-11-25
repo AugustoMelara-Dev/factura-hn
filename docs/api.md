@@ -102,21 +102,23 @@ Para probar la API sin programar, el repositorio trae dos colecciones generadas 
 (`pnpm colecciones`; no se editan a mano): `colecciones/bruno/` y `colecciones/postman/`. Las dos tienen una
 carpeta por etiqueta, con una solicitud por operación, y antes la carpeta **Primera factura**: sesión, emitir y
 descargar el PDF, con pruebas. Las dos traen el entorno `demo` (`baseUrl` = `http://127.0.0.1:8787` y `llave`,
-secreta y vacía) y un script previo que pone una `Idempotency-Key` nueva en cada solicitud: cada envío de
-«Emitir» es otra venta y emite otra factura de prueba. En tu sistema la clave es estable por venta (el id del
-pedido), no una nueva por intento.
+que no se guarda en el repositorio) y un script previo que pone una `Idempotency-Key` nueva en cada solicitud:
+cada envío de «Emitir» es otra venta y emite otra factura de prueba. En tu sistema la clave es estable por venta
+(el id del pedido), no una nueva por intento.
 
 Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea una llave de caja del demo con
 `docker compose exec -T api factura-hn-api demo llave --solo-llave`.
 
-- **Bruno** ([usebruno.com](https://www.usebruno.com/), sin cuenta): abre la carpeta `colecciones/bruno` como
-  colección, elige el entorno `demo` y pega la llave en `llave`. Desde la terminal, con la CLI que trae el
-  repositorio como dependencia de desarrollo:
+- **Bruno** ([usebruno.com](https://www.usebruno.com/), sin cuenta): el entorno `demo` lee la llave de la
+  variable de entorno `FHN_LLAVE`. En la app, crea `colecciones/bruno/.env` con la línea `FHN_LLAVE=fhn_test_…`
+  (git lo ignora), abre la carpeta `colecciones/bruno` como colección y elige el entorno `demo`. Desde la
+  terminal, con la CLI que trae el repositorio como dependencia de desarrollo (la llave no pasa por la línea de
+  órdenes ni sale en la salida):
 
   ```bash
   pnpm install
-  LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
-  pnpm --filter @factura-hn/colecciones bruno --env-var "llave=$LLAVE"            # corre «Primera factura»
+  export FHN_LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+  pnpm --filter @factura-hn/colecciones bruno                                    # corre «Primera factura»
   ```
 
   Con la API en otro puerto, agrega `--env-var baseUrl=http://127.0.0.1:8788`.
@@ -126,14 +128,15 @@ Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea 
 
 **Python.** `clientes/python/` genera un cliente con
 [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) y lo prueba emitiendo una
-factura de prueba (correlativo, total y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»). El código generado no
+factura de prueba (correlativo, idempotencia, total, desglose del ISV y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
+FISCAL»). El código generado no
 se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual dentro del repositorio:
 
 ```bash
 python -m venv .venv-python
-.venv-python/bin/pip install -r clientes/python/requirements.txt     # en Windows: .venv-python\Scripts\pip
+.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt   # Windows: .venv-python\Scripts\pip
 .venv-python/bin/python clientes/python/generar.py
-FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=$LLAVE .venv-python/bin/python -m pytest clientes/python
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python   # con FHN_LLAVE exportada
 ```
 
 En tu proyecto, `from factura_hn_api import AuthenticatedClient` y

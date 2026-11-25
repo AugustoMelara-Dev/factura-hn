@@ -26,3 +26,5 @@ clientes/python/generado/
 !clientes/python/requirements.txt
 __pycache__/
 .pytest_cache/
+# La llave del demo para Bruno (FHN_LLAVE=…): no se versiona.
+colecciones/bruno/.env
