@@ -36,7 +36,9 @@ Para elegir el camino en general, ver [Elegir camino](/empezar/elegir-camino/).
 
 ## Lo que vale para todos
 
-Estas reglas aplican a cualquier negocio que factura con un sistema, y factura-hn las hace cumplir:
+Estas reglas aplican a cualquier negocio que factura con un sistema. factura-hn valida las que dependen del documento
+(un documento por venta, consumidor final, RTN, fecha, anulación, tipos no emitibles); el momento de emisión y la
+contingencia dependen del negocio.
 
 - **Un documento por venta**, aunque sea pequeña. La exención de L 50 diarios no aplica a los sistemas
   computarizados (Reglamento, Art. 9, C L.559-566).
