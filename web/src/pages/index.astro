@@ -7,24 +7,10 @@ import { conBase } from '../datos/navegacion';
 import { PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
 import { matriz, version } from '../datos/proyecto';
 import { REPO } from '../../sitio.config.mjs';
+import { API_DEMO, PRUEBA } from '../datos/demo';
+import { EJEMPLO_PORTADA, temasCodigo } from '../datos/ejemplo.mjs';
 
-const ejemplo = `import { renderizarTexto } from 'factura-hn';
-import { crearFacturadorDemo } from 'factura-hn/demo';
-
-// Emisor y CAI ficticios: modo de prueba.
-const caja = await crearFacturadorDemo();
-
-const factura = await caja.emitir({
-  preciosIncluyenISV: true,
-  lineas: [{
-    descripcion: 'Café molido 1 lb',
-    cantidad: 2,
-    precioUnitario: '115.00',
-  }],
-});
-
-console.log(factura.numero); // 000-001-01-00000001
-console.log(renderizarTexto(factura)); // el ticket`;
+const temas = await temasCodigo();
 
 const productos = [
   {
@@ -75,21 +61,21 @@ const garantias = [
 
 <Sitio
 	titulo="factura-hn: facturación para Honduras, de código abierto"
-	descripcion="Facturación según el Reglamento del Régimen de Facturación de Honduras (Acuerdo 481-2017): SDK de TypeScript, CLI, API REST y servidor MCP de código abierto, con cada regla citada y probada. Proyecto independiente, no afiliado al SAR."
+	descripcion="Facturación según el Reglamento del Régimen de Facturación de Honduras (Acuerdo 481-2017): SDK de TypeScript, CLI, API REST y servidor MCP de código abierto, con cada regla que implementa citada y probada. Proyecto independiente, no afiliado al SAR."
 	ruta="/"
 >
 	<section class="heroe">
 		<div class="contenedor heroe-rejilla">
 			<div class="heroe-texto">
 				<a class="etiqueta etiqueta-punto" href={conBase('/ayuda/cambios/')}>Versión {version} · código abierto, MIT</a>
-				<h1>Facturación para Honduras, con cada regla citada y probada.</h1>
+				<h1>Facturación para Honduras, con cada regla que implementa citada y probada.</h1>
 				<p class="heroe-entrada">
 					factura-hn emite facturas, notas de crédito y notas de débito según el Reglamento del Régimen de Facturación del
 					SAR (Acuerdo 481-2017). Úsalo como SDK, desde la línea de comandos, como API REST o desde tu asistente de IA
 					con MCP.
 				</p>
 				<div class="botones">
-					<a class="boton boton-primario" href={conBase('/probar/')}>Pruébalo ahora</a>
+					<a class="boton boton-primario" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
 					<a class="boton boton-secundario" href={conBase('/empezar/primera-factura/')}>Leer la documentación</a>
 				</div>
 				<p class="heroe-nota">
@@ -100,7 +86,7 @@ const garantias = [
 			<div class="heroe-codigo">
 				<div class="codigo">
 					<div class="codigo-barra"><span>emitir.ts</span><span>factura-hn</span></div>
-					<Code code={ejemplo} lang="ts" themes={{ light: 'github-light', dark: 'github-dark' }} defaultColor={false} />
+					<Code code={EJEMPLO_PORTADA} lang="ts" themes={temas} defaultColor={false} />
 				</div>
 			</div>
 		</div>
@@ -116,7 +102,7 @@ const garantias = [
 					todos empiezan en modo de prueba, con un CAI ficticio.
 				</p>
 			</div>
-			<div class="rejilla rejilla-4">
+			<div class="rejilla rejilla-2 productos">
 				{
 					productos.map((p) => (
 						<a class="tarjeta" href={conBase(p.ruta)}>
@@ -232,12 +218,21 @@ const garantias = [
 	<section class="seccion cierre">
 		<div class="contenedor cierre-caja">
 			<h2 class="titulo-seccion">Pruébalo sin instalar nada.</h2>
-			<p class="entrada">
-				Crea un entorno de prueba con tu propia llave y una URL del MCP para tu asistente. Dura 24 horas y no tiene
-				datos reales.
-			</p>
+			{
+				API_DEMO ? (
+					<p class="entrada">
+						Crea un entorno de prueba con tu propia llave y una URL del MCP para tu asistente. Dura 24 horas y no tiene
+						datos reales.
+					</p>
+				) : (
+					<p class="entrada">
+						El playground corre el SDK en tu navegador: emite una factura de prueba y mira el ticket, sin cuenta y sin
+						instalar nada.
+					</p>
+				)
+			}
 			<div class="botones">
-				<a class="boton boton-primario" href={conBase('/probar/')}>Pruébalo ahora</a>
+				<a class="boton boton-primario" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
 				<a class="boton boton-secundario" href={conBase('/precios/')}>Ver precios</a>
 			</div>
 		</div>

@@ -93,6 +93,27 @@ for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {
   });
 }
 
+// El código resaltado de la portada: cada color que Shiki le da, en los dos temas, sobre el fondo del bloque
+// (.codigo en sitio.css: --fhn-fondo).
+// Shiki llega con Astro (no es dependencia directa del sitio): se carga desde ahí.
+test('contraste AA del código resaltado de la portada', async () => {
+  const { createRequire } = await import('node:module');
+  const { pathToFileURL } = await import('node:url');
+  const desdeAstro = createRequire(createRequire(import.meta.url).resolve('astro/package.json'));
+  const { codeToTokens } = await import(pathToFileURL(desdeAstro.resolve('shiki')).href);
+  const { EJEMPLO_PORTADA, temasCodigo } = await import('../src/datos/ejemplo.mjs');
+  const { tokens } = await codeToTokens(EJEMPLO_PORTADA, { lang: 'ts', themes: await temasCodigo() });
+  const fallos = new Set();
+  for (const t of tokens.flat().filter((x) => x.content.trim())) {
+    for (const [nombreTema, tema, clave] of [['claro', claro, 'color'], ['oscuro', oscuro, '--shiki-dark']]) {
+      const c = t.htmlStyle?.[clave]?.slice(0, 7);
+      const r = contraste(c, color(tema, '--fhn-fondo'));
+      if (r < 4.5) fallos.add(`${nombreTema}: «${t.content.trim()}» ${c} = ${r.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual([...fallos], []);
+});
+
 // `node scripts/contraste.test.mjs --tabla` imprime la tabla de contrastes de cada tema.
 if (process.argv.includes('--tabla')) {
   for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {

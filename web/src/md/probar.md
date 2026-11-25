@@ -1,3 +1,23 @@
+<!-- sin-demo -->
+
+:::caution[La demostración pública aún no está en línea]
+Cuando lo esté, esta página creará con un clic un entorno de prueba de factura-hn. Mientras tanto, prueba el SDK
+en el [playground](/empezar/playground/), que corre en el navegador, o levanta la demostración en tu equipo con la
+receta
+[Probar el modo demo en tu equipo](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md#probar-el-modo-demo-en-tu-equipo).
+:::
+
+Con la API en modo demostración en tu equipo (puerto por defecto, 8787), el entorno se crea así:
+
+```bash
+curl -X POST http://127.0.0.1:8787/v1/demo/entornos
+```
+
+Lo que sigue es lo que recibes, en tu equipo o en la demostración pública cuando esté en línea.
+
+<!-- /sin-demo -->
+<!-- con-demo -->
+
 La página «Pruébalo ahora» crea con un clic un entorno de prueba en la demostración pública de factura-hn: un
 emisor y un CAI ficticios solo para ti, sin cuenta y sin instalar nada. En el navegador necesita JavaScript; sin
 él, o desde un agente, se crea con una solicitud a la API de la demostración:
@@ -6,16 +26,15 @@ emisor y un CAI ficticios solo para ti, sin cuenta y sin instalar nada. En el na
 curl -X POST https://API_DE_LA_DEMO/v1/demo/entornos
 ```
 
-`API_DE_LA_DEMO` es la dirección de la demostración que muestra la página. Si la página dice «La demo en línea aún
-no está publicada», usa el [playground](/empezar/playground/) o [instala la API](/guias/autoalojar/) en tu equipo.
+<!-- /con-demo -->
 
 ## Qué recibes
 
 La respuesta (201) trae:
 
 - `llave`: una llave `fhn_test_…` para la cabecera `Authorization: Bearer`, con curl o el SDK `@factura-hn/cliente`;
-- `mcp.url`: tu URL personal del MCP, para pegar como conector personalizado en Claude o ChatGPT (o `null` si el
-  servidor no tiene MCP remoto);
+- `mcp.url`: tu URL personal del MCP (`https://…/mcp/fhnmcp_test_<prefijo>_<secreto>`), para pegar como conector
+  personalizado en Claude o ChatGPT (o `null` si el servidor no tiene MCP remoto);
 - `entorno`: el emisor ficticio, el punto de emisión `000-001`, cuándo se borra y los límites;
 - `ejemplos`: los mismos pasos listos para copiar con curl, con el SDK y para el conector MCP.
 
@@ -34,13 +53,16 @@ que venza.
 
 ## Conecta tu asistente
 
-**Claude (web, escritorio y móvil).** En claude.ai, abre Customize > Connectors y pulsa + > Add custom connector.
-Ponle un nombre (por ejemplo, «factura-hn prueba»), pega tu URL del MCP y deja vacíos los campos de OAuth. En una
-conversación nueva, activa el conector y pide una factura de prueba. El conector agregado en la web aparece también
-en la aplicación de escritorio y en la del teléfono. Guía:
+Pasos verificados el 25-11-2026 con la ayuda oficial; el detalle está en [MCP remoto](/ia/mcp-remoto/).
+
+**Claude (web, escritorio y móvil).** Desde claude.ai en un navegador (sirve el del teléfono; no desde la
+aplicación móvil): Customize > Connectors > + Add > Add custom connector. Nombre «factura-hn prueba», tu URL del
+MCP y, en Authentication, «No sign in». Después aparece también en la aplicación de escritorio y en la del
+teléfono: en una conversación, pulsa + abajo a la izquierda, entra a Connectors y actívalo. Guía:
 [custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp).
 
-**ChatGPT.** Activa el modo de desarrollador según tu plan, agrega un servidor MCP propio con tu URL del MCP y
-autenticación «sin autenticación», y actívalo en una conversación. Con todas las herramientas solo en los planes
-Business, Enterprise y Edu, en la web. Guía:
-[developer mode and full MCP connectors](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta).
+**ChatGPT (solo en la web).** Plugins > + > Add custom MCP server. Nombre «factura-hn prueba», tu URL del MCP en
+Connection y la opción sin autenticación; acepta el aviso («I understand and want to continue») y pulsa «Create as
+a plugin». En una conversación, escribe @ y elige el plugin. Con todas las herramientas solo en Business,
+Enterprise y Edu; en Pro, solo lectura. Guía:
+[connecting custom MCP servers in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta).

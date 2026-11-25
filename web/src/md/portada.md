@@ -1,5 +1,6 @@
 factura-hn emite facturas, notas de crédito y notas de débito según el Reglamento del Régimen de Facturación del
-SAR de Honduras (Acuerdo 481-2017). Es de código abierto (MIT) y cada regla cita su artículo y tiene una prueba.
+SAR de Honduras (Acuerdo 481-2017). Es de código abierto (MIT), y cada regla que implementa cita su artículo y
+tiene una prueba.
 
 ```bash
 npm install factura-hn
@@ -28,7 +29,14 @@ node emitir.mjs         # emite la factura de prueba
 ```
 
 Ver [Tu primera factura](/empezar/primera-factura/) o el [playground](/empezar/playground/), que corre el SDK en el
-navegador. Sin instalar nada, [Pruébalo ahora](/probar/) crea un entorno de prueba con tu llave y tu URL del MCP.
+navegador sin instalar nada.
+
+<!-- con-demo -->
+
+También sin instalar nada, [Pruébalo ahora](/probar/) crea un entorno de prueba en la demostración pública, con tu
+llave de la API y tu URL del MCP.
+
+<!-- /con-demo -->
 
 ## Lo que resuelve
 

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Imagen para compartir el sitio (og:image). scripts/og.mjs la convierte en public/og.png. -->
+  <rect width="1200" height="630" fill="#ffffff"/>
+  <rect x="0" y="0" width="1200" height="8" fill="#0b5fff"/>
+  <g transform="translate(96 104) scale(2.6)">
+    <rect x="3" y="2" width="18" height="20" rx="3" fill="#0b5fff"/>
+    <path d="M7.5 8h9M7.5 12h9M7.5 16h5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+  </g>
+  <text x="172" y="150" font-family="IBM Plex Mono" font-weight="500" font-size="40" fill="#0a0a0a" letter-spacing="-0.8">factura-hn</text>
+  <text font-family="Figtree" font-weight="600" font-size="64" fill="#0a0a0a" letter-spacing="-2.4">
+    <tspan x="96" y="270">Facturación para Honduras,</tspan>
+    <tspan x="96" y="344">con cada regla que implementa</tspan>
+    <tspan x="96" y="418">citada y probada.</tspan>
+  </text>
+  <text x="96" y="492" font-family="Figtree" font-weight="500" font-size="30" fill="#4b5563">SDK de TypeScript · CLI · API REST · Servidor MCP</text>
+  <text x="96" y="560" font-family="Figtree" font-weight="500" font-size="24" fill="#6b7280">Código abierto, MIT · Acuerdo 481-2017 · Proyecto independiente, no afiliado al SAR</text>
+</svg>

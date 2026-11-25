@@ -3,10 +3,10 @@
 //
 // - Estilos: las fuentes, el reset de Astryx con su tema neutral, y encima los tokens del sitio (tokens.css) con el
 //   puente que los asigna a Astryx. El reset de Astryx solo se carga aquí: la documentación sigue con el de
-//   Starlight. Los estilos de los componentes de Astryx (astryx.css, unos 50 KB comprimidos) los importa solo la
-//   página que los usa (Pruébalo); las demás son HTML y CSS propios sobre los mismos tokens.
-// - JavaScript: solo el del selector de tema de Starlight (el mismo de la documentación). Una página que necesita
-//   más (Pruébalo) lo trae en su propia isla.
+//   Starlight. Los estilos de los componentes de Astryx (astryx.css, unos 50 KB comprimidos) los importa la isla
+//   de Pruébalo: solo se cargan cuando la isla está en la página. Lo demás es HTML y CSS propio sobre los mismos tokens.
+// - JavaScript: el del selector de tema de Starlight (el mismo de la documentación) y unas líneas que cierran el
+//   menú del teléfono. Una página que necesita más (Pruébalo) lo trae en su propia isla.
 import '../styles/fuentes.css';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/theme-neutral/theme.css';
@@ -17,7 +17,7 @@ import '../styles/sitio.css';
 import ProveedorTema from '../components/ProveedorTema.astro';
 import Cabecera from '../components/producto/Cabecera.astro';
 import PieSitio from '../components/producto/PieSitio.astro';
-import { BASE, SITIO_URL } from '../../sitio.config.mjs';
+import { BASE, META_SOCIAL, SITIO_URL } from '../../sitio.config.mjs';
 
 interface Props {
   /** Título de la pestaña, sin « | factura-hn» (la portada lo lleva completo). */
@@ -45,8 +45,8 @@ const canonica = `${SITIO_URL}${BASE}${ruta}`;
 		<meta property="og:description" content={descripcion} />
 		<meta property="og:type" content="website" />
 		<meta property="og:url" content={canonica} />
-		<meta property="og:locale" content="es_HN" />
-		<meta name="theme-color" content="#ffffff" />
+		{META_SOCIAL.map((attrs) => <meta {...attrs} />)}
+		<link rel="sitemap" href={`${BASE}/sitemap-index.xml`} />
 		<ProveedorTema />
 		<slot name="head" />
 	</head>

@@ -18,6 +18,18 @@ export const NAV: Enlace[] = [
   { texto: 'GitHub', ruta: REPO, externo: true },
 ];
 
+/**
+ * Las páginas del producto, para la documentación: en el menú del teléfono (MenuMovilDocs.astro) y en el pie
+ * compacto (Pie.astro). Así, desde cualquier página de la documentación se llega a ellas en cualquier pantalla.
+ */
+export const PRODUCTO: Enlace[] = [
+  { texto: 'Portada', ruta: '/' },
+  { texto: 'Pruébalo', ruta: '/probar/' },
+  { texto: 'Precios', ruta: '/precios/' },
+  { texto: 'Cumplimiento', ruta: '/cumplimiento/' },
+  { texto: 'Contacto', ruta: '/contacto/' },
+];
+
 /** Columnas del pie de las páginas del producto. */
 export const PIE: { titulo: string; enlaces: Enlace[] }[] = [
   {
@@ -27,7 +39,7 @@ export const PIE: { titulo: string; enlaces: Enlace[] }[] = [
       { texto: 'CLI', ruta: '/guias/cli/' },
       { texto: 'API REST', ruta: '/guias/api/' },
       { texto: 'MCP', ruta: '/guias/mcp/' },
-      { texto: 'Pruébalo ahora', ruta: '/probar/' },
+      { texto: 'Pruébalo', ruta: '/probar/' },
       { texto: 'Playground', ruta: '/empezar/playground/' },
     ],
   },

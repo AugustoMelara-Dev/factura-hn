@@ -1,5 +1,6 @@
 ---
 // Pie de las páginas del producto: enlaces por columna y el aviso de independencia, el mismo de la documentación.
+import Marca from '../Marca.astro';
 import { conBase, PIE } from '../../datos/navegacion';
 ---
 
@@ -7,7 +8,7 @@ import { conBase, PIE } from '../../datos/navegacion';
 	<div class="contenedor">
 		<div class="pie-rejilla">
 			<div class="pie-marca">
-				<a class="marca" href={conBase('/')}>factura-hn</a>
+				<Marca />
 				<p>Facturación para Honduras según el Acuerdo 481-2017. Código abierto con licencia MIT.</p>
 			</div>
 			{

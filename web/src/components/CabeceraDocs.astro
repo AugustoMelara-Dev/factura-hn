@@ -1,18 +1,19 @@
 ---
-// Cabecera de la documentación (reemplaza a la de Starlight): el título, la navegación principal del sitio (la
-// misma de las páginas del producto), el buscador, GitHub y el selector de tema. En pantallas angostas la
-// navegación se oculta; el título lleva a la portada.
+// Cabecera de la documentación (reemplaza a la de Starlight): la marca y la navegación principal del sitio (las
+// mismas de las páginas del producto), el buscador, el tema, GitHub y el botón de prueba. La navegación se ve desde
+// 50rem; en el teléfono, las páginas del producto van en el menú (MenuMovilDocs.astro).
 import Search from '@astrojs/starlight/components/Search.astro';
-import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
 import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
 import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+import Marca from './Marca.astro';
+import { PRUEBA } from '../datos/demo';
 import { conBase, NAV } from '../datos/navegacion';
 
 const enlaces = NAV.filter((e) => !e.externo);
 ---
 
 <div class="cabecera">
-	<div class="titulo sl-flex"><SiteTitle /></div>
+	<div class="titulo sl-flex"><Marca class="site-title" /></div>
 	<nav class="nav-principal" aria-label="Principal">
 		{enlaces.map((e) => <a href={conBase(e.ruta)} aria-current={e.texto === 'Documentación' ? 'page' : undefined}>{e.texto}</a>)}
 	</nav>
@@ -20,6 +21,7 @@ const enlaces = NAV.filter((e) => !e.externo);
 	<div class="sl-hidden md:sl-flex print:hidden derecha">
 		<div class="sl-flex redes"><SocialIcons /></div>
 		<ThemeSelect />
+		<a class="prueba" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
 	</div>
 </div>
 
@@ -45,31 +47,49 @@ const enlaces = NAV.filter((e) => !e.externo);
 		gap: 1rem;
 		align-items: center;
 	}
+	.redes {
+		display: none;
+	}
 	.redes::after {
 		content: '';
 		height: 1.5rem;
 		border-inline-end: 1px solid var(--sl-color-hairline);
 	}
+	.prueba {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.25rem;
+		padding: 0 0.875rem;
+		border-radius: 8px;
+		background: var(--fhn-acento);
+		color: var(--fhn-sobre-acento);
+		font-size: var(--sl-text-sm);
+		font-weight: 500;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.prueba:hover {
+		background: color-mix(in srgb, var(--fhn-acento) 86%, #000);
+		color: var(--fhn-sobre-acento);
+	}
 	@media (min-width: 50rem) {
 		.cabecera {
 			display: grid;
-			grid-template-columns: auto minmax(0, 1fr) auto;
-			column-gap: 2rem;
+			grid-template-columns: auto auto minmax(0, 1fr) auto;
+			column-gap: 1.5rem;
 		}
 		.buscador {
 			justify-content: flex-end;
 		}
-	}
-	@media (min-width: 72rem) {
-		.cabecera {
-			grid-template-columns: auto auto minmax(0, 1fr) auto;
-		}
 		.nav-principal {
 			display: flex;
-			gap: 1.5rem;
+			gap: 1.25rem;
 			font-size: var(--sl-text-sm);
 		}
 		.nav-principal a {
+			display: inline-flex;
+			align-items: center;
+			min-height: 2.75rem;
 			color: var(--sl-color-gray-2);
 			text-decoration: none;
 			font-weight: 500;
@@ -77,6 +97,17 @@ const enlaces = NAV.filter((e) => !e.externo);
 		.nav-principal a:hover,
 		.nav-principal a[aria-current='page'] {
 			color: var(--sl-color-white);
+		}
+	}
+	@media (min-width: 72rem) {
+		.cabecera {
+			column-gap: 2rem;
+		}
+		.nav-principal {
+			gap: 1.5rem;
+		}
+		.redes {
+			display: flex;
 		}
 	}
 </style>

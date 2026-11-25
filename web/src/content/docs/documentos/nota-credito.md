@@ -202,6 +202,6 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 
 ## Fuentes
 
-- Reglamento, Arts. 4 num. 32, 6, 25, 26 y 41: matriz de [cumplimiento](/referencia/cumplimiento/), filas 4.31-32
-  y 25-28.
+- Reglamento, Arts. 4 num. 32, 6, 25, 26 y 41. En la [matriz de cumplimiento](/referencia/cumplimiento/), busca
+  esos artículos: cada uno tiene su estado y la prueba que lo verifica.
 - Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).
