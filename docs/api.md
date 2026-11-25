@@ -26,12 +26,13 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro pue
    LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
    ```
 
-2. **Emite** con el cuerpo en un archivo UTF-8 (`packages/api/ejemplos/factura.json`). La respuesta trae el
-   documento y `enlaces` a su PDF, HTML y texto:
+2. **Emite** con el cuerpo en un archivo UTF-8 (`packages/api/ejemplos/factura.json`) y una clave de
+   idempotencia nueva para esta venta. La respuesta trae el documento y `enlaces` a su PDF, HTML y texto:
 
    ```bash
+   VENTA="venta-$(date +%s)"
    PDF=$(curl -sf -X POST http://127.0.0.1:8787/v1/documentos \
-     -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
+     -H "authorization: Bearer $LLAVE" -H "idempotency-key: $VENTA" -H "content-type: application/json" \
      --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
    ```
 
@@ -41,7 +42,8 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro pue
    curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
    ```
 
-Repetir el paso 2 con la misma `idempotency-key` devuelve la misma factura; para otra venta, usa otra clave.
+Reenviar la misma venta con la misma clave (`$VENTA`) devuelve la misma factura; repetir el paso 2 completo
+genera otra clave y emite otra factura. El número sale de la respuesta: no lo escribas a mano.
 Con `-f`, curl termina con error si la API responde un error, en vez de seguir con un enlace vacío; para leer el
 cuerpo del error (con su `solucion`), repite el paso sin `-f`.
 
@@ -49,8 +51,9 @@ En PowerShell (Windows PowerShell 5.1 o PowerShell 7), los mismos tres pasos:
 
 ```powershell
 $LLAVE = docker compose exec -T api factura-hn-api demo llave --solo-llave
+$VENTA = "venta-$([guid]::NewGuid())"
 $r = Invoke-RestMethod -UseBasicParsing -Method Post http://127.0.0.1:8787/v1/documentos -ContentType 'application/json' `
-  -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = 'venta-0001' } -InFile (Resolve-Path packages/api/ejemplos/factura.json)
+  -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = $VENTA } -InFile (Resolve-Path packages/api/ejemplos/factura.json)
 Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8787$($r.enlaces.pdf)" -Headers @{ authorization = "Bearer $LLAVE" } -OutFile factura.pdf
 ```
 

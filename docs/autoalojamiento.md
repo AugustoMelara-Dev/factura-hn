@@ -20,8 +20,9 @@ validez fiscal. Su llave de caja sale una vez en el log (`docker compose logs ap
 
 ```bash
 LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)   # 1. otra llave de caja del demo
+VENTA="venta-$(date +%s)"                                                     #    una clave nueva por venta
 PDF=$(curl -sf -X POST http://127.0.0.1:8787/v1/documentos \
-  -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
+  -H "authorization: Bearer $LLAVE" -H "idempotency-key: $VENTA" -H "content-type: application/json" \
   --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')   # 2. emite
 curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"          # 3. el PDF
 ```
