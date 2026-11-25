@@ -12,30 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Estado del servicio */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description En servicio */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            ok: boolean;
-                            version: string;
-                            modo: string;
-                        };
-                    };
-                };
-            };
-        };
+        get: operations["obtenerSalud"];
         put?: never;
         post?: never;
         delete?: never;
@@ -52,157 +29,10 @@ export interface paths {
             cookie?: never;
         };
         /** El emisor del tenant (lista de 0 o 1) */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Lista */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            emisores: components["schemas"]["EmisorGuardado"][];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarEmisores"];
         put?: never;
         /** Registra los datos del obligado tributario (uno por tenant) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Emisor"];
-                };
-            };
-            responses: {
-                /** @description Registrado */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaEmisor"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Ya existe */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["crearEmisor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -217,168 +47,14 @@ export interface paths {
             cookie?: never;
         };
         /** Datos del emisor */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Emisor */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaEmisor"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["obtenerEmisor"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /** Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia) */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["EmisorCambios"];
-                };
-            };
-            responses: {
-                /** @description Actualizado */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaEmisor"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        patch: operations["actualizarEmisor"];
         trace?: never;
     };
     "/v1/autorizaciones": {
@@ -389,148 +65,10 @@ export interface paths {
             cookie?: never;
         };
         /** Autorizaciones registradas */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Lista */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            autorizaciones: components["schemas"]["Autorizacion"][];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarAutorizaciones"];
         put?: never;
         /** Registra una autorización del SAR (CAI, rango y fecha límite) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Autorizacion"];
-                };
-            };
-            responses: {
-                /** @description Registrada */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaAutorizacion"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["registrarAutorizacion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -545,82 +83,7 @@ export interface paths {
             cookie?: never;
         };
         /** Vigencia y rango restante de una autorización (Arts. 59 y 62) */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    cai: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Estado */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaEstado"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["obtenerEstadoAutorizacion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -640,71 +103,7 @@ export interface paths {
          * Con qué llave hablas y qué falta para emitir
          * @description Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Sesión */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaSesion"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["obtenerSesion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -721,171 +120,13 @@ export interface paths {
             cookie?: never;
         };
         /** Documentos de un período, por fecha de emisión y número (paginado) */
-        get: {
-            parameters: {
-                query: {
-                    desde: string;
-                    hasta: string;
-                    identificador?: string;
-                    /** @description Elementos por página (1-500). Por defecto 100. */
-                    limite?: number;
-                    /** @description El valor `siguiente` de la página anterior. */
-                    cursor?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Una página */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            documentos: components["schemas"]["DocumentoFiscal"][];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarDocumentos"];
         put?: never;
         /**
          * Emite una factura, nota de crédito o nota de débito
          * @description Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. `enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header: {
-                    /** @description Clave única por venta (p. ej. un UUID generado por el POS). */
-                    "idempotency-key": string;
-                };
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["SolicitudEmision"];
-                };
-            };
-            responses: {
-                /** @description Emitido */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaEmision"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta registrar el emisor */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["emitirDocumento"];
         delete?: never;
         options?: never;
         head?: never;
@@ -903,88 +144,7 @@ export interface paths {
          * Un documento: JSON, o la representación impresa con .pdf, .html o .txt
          * @description La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).
          */
-        get: {
-            parameters: {
-                query?: {
-                    formato?: "carta" | "ticket";
-                    ancho?: number;
-                };
-                header?: never;
-                path: {
-                    archivo: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Documento */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaDocumento"];
-                        "application/pdf": string;
-                        "text/html": string;
-                        "text/plain": string;
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["obtenerDocumento"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1003,86 +163,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Anula un documento (Art. 41): conserva número y contenido, cambia el estado */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    numero: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Motivo"];
-                };
-            };
-            responses: {
-                /** @description Anulado */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaDocumento"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["anularDocumento"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1099,79 +180,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    identificador: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["Motivo"];
-                };
-            };
-            responses: {
-                /** @description Anulados */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            anulados: components["schemas"]["DocumentoFiscal"][];
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["corregirFechaSerie"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1189,84 +198,7 @@ export interface paths {
          * Números que hay que reportar al SAR como no utilizados (Art. 42)
          * @description Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    identificador: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Rangos */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            rangos: ({
-                                desde: number;
-                                hasta: number;
-                                cantidad: number;
-                                fechaLimiteAviso: string;
-                            } & {
-                                [key: string]: unknown;
-                            })[];
-                            /** @description Solo si la serie tiene autorizaciones de prueba, que no se reportan. */
-                            aviso?: string;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarNoUtilizados"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1283,88 +215,7 @@ export interface paths {
             cookie?: never;
         };
         /** Libro de ventas de un período (las NC restan, las ND suman; anulados en cero) */
-        get: {
-            parameters: {
-                query: {
-                    desde: string;
-                    hasta: string;
-                    formato?: "json" | "csv";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera. */
-                200: {
-                    headers: {
-                        /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
-                        "Documentos-Prueba-Excluidos": string;
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            filas: {
-                                [key: string]: unknown;
-                            }[];
-                            resumen: {
-                                [key: string]: unknown;
-                            };
-                            /** @description Documentos de prueba del período que no entran en el libro. */
-                            excluidos: number;
-                            aviso?: string;
-                        };
-                        "text/csv": string;
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["obtenerLibroVentas"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1381,77 +232,7 @@ export interface paths {
             cookie?: never;
         };
         /** Archivo de texto de un período para el SAR (Art. 53 num. 5) */
-        get: {
-            parameters: {
-                query: {
-                    desde: string;
-                    hasta: string;
-                    formato?: "jsonl" | "csv" | "txt";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`). */
-                200: {
-                    headers: {
-                        /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
-                        "Documentos-Prueba-Excluidos": string;
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": string;
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["exportarPeriodo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1468,86 +249,7 @@ export interface paths {
             cookie?: never;
         };
         /** Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada) */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description `fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks. */
-                    origen?: "fiscal" | "api";
-                    /** @description Elementos por página (1-500). Por defecto 100. */
-                    limite?: number;
-                    /** @description El valor `siguiente` de la página anterior. */
-                    cursor?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Una página */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            eventos: {
-                                [key: string]: unknown;
-                            }[];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarBitacora"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1564,148 +266,10 @@ export interface paths {
             cookie?: never;
         };
         /** Llaves del tenant (sin secretos) */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Lista */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            llaves: components["schemas"]["Llave"][];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarLlaves"];
         put?: never;
         /** Crea una llave (la llave completa se muestra solo esta vez) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["LlaveNueva"];
-                };
-            };
-            responses: {
-                /** @description Creada */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaLlaveNueva"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["crearLlave"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1723,91 +287,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Revoca una llave */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    prefijo: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Revocada */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaLlave"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Última llave admin */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        delete: operations["revocarLlave"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1821,160 +301,13 @@ export interface paths {
             cookie?: never;
         };
         /** Webhooks del tenant */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Lista */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            webhooks: components["schemas"]["Webhook"][];
-                            /** @description true si hay más elementos después de esta página. */
-                            hayMas: boolean;
-                            /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
-                            siguiente: string | null;
-                        };
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        get: operations["listarWebhooks"];
         put?: never;
         /**
          * Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)
          * @description Hasta 20 webhooks activos por tenant: con 20 activos, crear otro es 409 `LIMITE_WEBHOOKS`.
          */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["WebhookNuevo"];
-                };
-            };
-            responses: {
-                /** @description Creado */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaWebhookNuevo"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de 20 webhooks activos por tenant (LIMITE_WEBHOOKS) */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        post: operations["crearWebhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1992,82 +325,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Desactiva un webhook */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Desactivado */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RespuestaWebhook"];
-                    };
-                };
-                /** @description Solicitud mal formada */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Falta la llave de API o no es válida */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description La llave no tiene permiso */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description No existe */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Reglas fiscales: lista de errores */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description Límite de solicitudes o de documentos del mes */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
+        delete: operations["desactivarWebhook"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2077,6 +335,41 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Error: {
+            error: {
+                codigo: string;
+                mensaje: string;
+                /** @description En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`). */
+                campo?: string;
+                /** @description Qué hacer para resolverlo, si se conoce. */
+                solucion?: string;
+                /**
+                 * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
+                 * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
+                 */
+                documentacion?: string;
+                /**
+                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
+                 * @example 0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42
+                 */
+                solicitud?: string;
+            };
+            /** @description En 400 y 422: la lista completa, cada uno con su código y campo. */
+            errores?: components["schemas"]["Problema"][];
+            advertencias?: components["schemas"]["Problema"][];
+        };
+        Problema: {
+            codigo: string;
+            mensaje: string;
+            campo?: string;
+            /** @description Qué hacer para resolverlo, si se conoce. */
+            solucion?: string;
+            /**
+             * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
+             * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
+             */
+            documentacion?: string;
+        };
         RespuestaEmisor: {
             emisor: components["schemas"]["EmisorGuardado"];
         };
@@ -2095,36 +388,6 @@ export interface components {
             direccionesEstablecimiento?: {
                 [key: string]: string;
             };
-        };
-        Error: {
-            error: {
-                codigo: string;
-                mensaje: string;
-                /** @description En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`). */
-                campo?: string;
-                /** @description Qué hacer para resolverlo, si se conoce. */
-                solucion?: string;
-                /**
-                 * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
-                 * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
-                 */
-                documentacion?: string;
-            };
-            /** @description En 400 y 422: la lista completa, cada uno con su código y campo. */
-            errores?: components["schemas"]["Problema"][];
-            advertencias?: components["schemas"]["Problema"][];
-        };
-        Problema: {
-            codigo: string;
-            mensaje: string;
-            campo?: string;
-            /** @description Qué hacer para resolverlo, si se conoce. */
-            solucion?: string;
-            /**
-             * @description Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).
-             * @example https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion
-             */
-            documentacion?: string;
         };
         EmisorCambios: {
             rtn?: string;
@@ -2453,8 +716,2430 @@ export interface components {
     responses: never;
     parameters: never;
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo. */
+        "Solicitud-Id": string;
+        /** @description Versión de la API que respondió (la misma de `/salud` y de `info.version`). */
+        "FacturaHN-Version": string;
+        /** @description Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`. */
+        "RateLimit-Policy": string;
+        /** @description Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`. */
+        RateLimit: string;
+        /** @description Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras). */
+        "Retry-After": number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    obtenerSalud: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description En servicio */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                        version: string;
+                        modo: string;
+                    };
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarEmisores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        emisores: components["schemas"]["EmisorGuardado"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    crearEmisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Emisor"];
+            };
+        };
+        responses: {
+            /** @description Registrado */
+            201: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEmisor"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Ya existe */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerEmisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Emisor */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEmisor"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    actualizarEmisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmisorCambios"];
+            };
+        };
+        responses: {
+            /** @description Actualizado */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEmisor"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarAutorizaciones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        autorizaciones: components["schemas"]["Autorizacion"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    registrarAutorizacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Autorizacion"];
+            };
+        };
+        responses: {
+            /** @description Registrada */
+            201: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaAutorizacion"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerEstadoAutorizacion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cai: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Estado */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEstado"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sesión */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaSesion"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarDocumentos: {
+        parameters: {
+            query: {
+                desde: string;
+                hasta: string;
+                identificador?: string;
+                /** @description Elementos por página (1-500). Por defecto 100. */
+                limite?: number;
+                /** @description El valor `siguiente` de la página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Una página */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        documentos: components["schemas"]["DocumentoFiscal"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    emitirDocumento: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Clave única por venta (p. ej. un UUID generado por el POS). */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudEmision"];
+            };
+        };
+        responses: {
+            /** @description Emitido */
+            201: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEmision"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta registrar el emisor */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerDocumento: {
+        parameters: {
+            query?: {
+                formato?: "carta" | "ticket";
+                ancho?: number;
+            };
+            header?: never;
+            path: {
+                archivo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Documento */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaDocumento"];
+                    "application/pdf": string;
+                    "text/html": string;
+                    "text/plain": string;
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    anularDocumento: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                numero: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Motivo"];
+            };
+        };
+        responses: {
+            /** @description Anulado */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaDocumento"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    corregirFechaSerie: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identificador: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Motivo"];
+            };
+        };
+        responses: {
+            /** @description Anulados */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        anulados: components["schemas"]["DocumentoFiscal"][];
+                    };
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarNoUtilizados: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identificador: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rangos */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rangos: ({
+                            desde: number;
+                            hasta: number;
+                            cantidad: number;
+                            fechaLimiteAviso: string;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                        /** @description Solo si la serie tiene autorizaciones de prueba, que no se reportan. */
+                        aviso?: string;
+                    };
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerLibroVentas: {
+        parameters: {
+            query: {
+                desde: string;
+                hasta: string;
+                formato?: "json" | "csv";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera. */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
+                    "Documentos-Prueba-Excluidos": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        filas: {
+                            [key: string]: unknown;
+                        }[];
+                        resumen: {
+                            [key: string]: unknown;
+                        };
+                        /** @description Documentos de prueba del período que no entran en el libro. */
+                        excluidos: number;
+                        aviso?: string;
+                    };
+                    "text/csv": string;
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    exportarPeriodo: {
+        parameters: {
+            query: {
+                desde: string;
+                hasta: string;
+                formato?: "jsonl" | "csv" | "txt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`). */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    /** @description Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal). */
+                    "Documentos-Prueba-Excluidos": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarBitacora: {
+        parameters: {
+            query?: {
+                /** @description `fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks. */
+                origen?: "fiscal" | "api";
+                /** @description Elementos por página (1-500). Por defecto 100. */
+                limite?: number;
+                /** @description El valor `siguiente` de la página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Una página */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        eventos: {
+                            [key: string]: unknown;
+                        }[];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarLlaves: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        llaves: components["schemas"]["Llave"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    crearLlave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LlaveNueva"];
+            };
+        };
+        responses: {
+            /** @description Creada */
+            201: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaLlaveNueva"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    revocarLlave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prefijo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revocada */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaLlave"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Última llave admin */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lista */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        webhooks: components["schemas"]["Webhook"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    crearWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookNuevo"];
+            };
+        };
+        responses: {
+            /** @description Creado */
+            201: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaWebhookNuevo"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de 20 webhooks activos por tenant (LIMITE_WEBHOOKS) */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Reglas fiscales: lista de errores */
+            422: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    desactivarWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Desactivado */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaWebhook"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+}

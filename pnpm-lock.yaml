@@ -169,6 +169,9 @@ importers:
       '@changesets/cli':
         specifier: 3.0.3
         version: 3.0.3
+      '@redocly/cli':
+        specifier: 2.82.0
+        version: 2.82.0
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.5
@@ -270,9 +273,6 @@ importers:
       '@hono/node-server':
         specifier: 2.1.9
         version: 2.1.9(hono@4.13.19)
-      '@hono/swagger-ui':
-        specifier: 0.6.2
-        version: 0.6.2(hono@4.13.19)
       '@hono/zod-openapi':
         specifier: 1.6.3
         version: 1.6.3(hono@4.13.19)(zod@4.6.7)
@@ -1227,11 +1227,6 @@ packages:
     peerDependencies:
       hono: ^4 || ^5.0.0-0
 
-  '@hono/swagger-ui@0.6.2':
-    resolution: {integrity: sha512-EDLlBS+LwpAhhh5K45YH85Yyk9GJuD2E7rKdjTZsBObksXaBz+8jPsen5XZqOS9unw6H1CDq0LKzp0c51K6lsA==}
-    peerDependencies:
-      hono: '>=4.0.0'
-
   '@hono/zod-openapi@1.6.3':
     resolution: {integrity: sha512-VYR82Y60plu8g3pN60OUXMVKpmxh3R04Qs++3DY9vtwZ9/sA/BRY0PcRIR+Z37/3itWtM7pYwT9bKiH9JhqV6Q==}
     engines: {node: '>=16.0.0'}
@@ -1573,6 +1568,11 @@ packages:
 
   '@redocly/ajv@8.11.2':
     resolution: {integrity: sha512-io1JpnwtIcvojV7QKDUSIuMN/ikdOUd1ReEnUnMKGfDVridQZ31J0MmIuqwuRjWDZfmvr+Q0MqCcfHM2gTivOg==}
+
+  '@redocly/cli@2.82.0':
+    resolution: {integrity: sha512-yyd53xbJgLRa1qyFhaxf9PxOnccjfWJmVRC7uqY7lRUhSq7Zo0id8lHLblpJKMjj4fE2t5zKDF3xml3hnBscJw==}
+    engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
+    hasBin: true
 
   '@redocly/config@0.22.0':
     resolution: {integrity: sha512-gAy93Ddo01Z3bHuVdPWfCwzgfaYgMdaZPcfL7JZ7hWJoK9V0lXDbigTWkhiPFAaLWzbOJ+kbUQG1+XwIm0KRGQ==}
@@ -4802,10 +4802,6 @@ snapshots:
     dependencies:
       hono: 4.13.19
 
-  '@hono/swagger-ui@0.6.2(hono@4.13.19)':
-    dependencies:
-      hono: 4.13.19
-
   '@hono/zod-openapi@1.6.3(hono@4.13.19)(zod@4.6.7)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.6.7)
@@ -5099,6 +5095,8 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
       uri-js-replace: 1.0.3
+
+  '@redocly/cli@2.82.0': {}
 
   '@redocly/config@0.22.0': {}
 

@@ -91,7 +91,10 @@ Clientes: en TypeScript, `@factura-hn/cliente` (tipos generados de esta especifi
 caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README.md`.
 
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
-`packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`).
+`packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`). Cada operación tiene un
+`operationId` estable, en camelCase y en español (verbo + recurso: `emitirDocumento`, `listarDocumentos`,
+`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método. La CI pasa
+la especificación por un linter (`pnpm lint:openapi`, Redocly) y falla con cualquier error.
 
 ### Variables de entorno
 
@@ -212,6 +215,15 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
 
+### Cabeceras de cada respuesta
+
+| Cabecera | En | Qué es |
+|---|---|---|
+| `Solicitud-Id` | todas | Id de la solicitud. Si mandas una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), la API usa la tuya; si no, genera un UUID. Va también en `error.solicitud` y en el log del servidor de un 500, que además lleva siempre un id generado por el servidor |
+| `FacturaHN-Version` | todas | Versión de la API que respondió (la de `/salud`) |
+| `RateLimit-Policy`, `RateLimit` | `/v1`, después de validar la llave (nunca en 401, 413 ni 429 `DEMASIADOS_INTENTOS`) | Límite de la llave (ver «Límites de solicitudes») |
+| `Retry-After` | los 429 | Segundos que conviene esperar antes de reintentar |
+
 ### Reportes de período
 
 `libro-ventas` y `exportacion` responden con el período completo, y `no-utilizados` con la serie completa, con
@@ -257,13 +269,20 @@ antes a centavos.
     "codigo": "VALIDACION",
     "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).",
     "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: POST /v1/autorizaciones …",
-    "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+    "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion",
+    "solicitud": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
   },
   "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "…", "solucion": "…", "documentacion": "…#sin_autorizacion" }]
 }
 ```
 
 - `error.codigo` es estable; `error.mensaje` es para mostrar.
+- `error.solicitud` es el id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Guárdalo con el error: con
+  él se encuentra la línea del log del servidor. Un 500 se registra con un id que genera el servidor, que es el
+  que va en la respuesta si no mandaste el tuyo: «solicitud <uuid>». Si mandaste tu `Solicitud-Id`, la respuesta
+  repite el tuyo y el log lleva los dos: «solicitud <uuid> (cliente <tu id>)», porque el del cliente no tiene por
+  qué ser único. La API lo envía siempre desde la 0.2.0; en el esquema es opcional, para leer sin fallar el error
+  de un proxy o de un servidor anterior.
 - `solucion` dice qué hacer, y `documentacion` enlaza el código en la guía de errores (`docs/errores.md`). Los
   traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
   `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
@@ -271,12 +290,17 @@ antes a centavos.
   (`SOLICITUD_INVALIDA`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
   autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`).
 - **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
-  (p. ej. `documento.lineas`) y `errores` trae todos.
+  (p. ej. `documento.lineas`) y `errores` trae todos. Un cuerpo que no es JSON es 400 `JSON_INVALIDO`.
 - **422 reglas fiscales** (`VALIDACION`): `errores` trae la lista completa, cada uno con su código, campo y
   enlace; el código que importa es `errores[].codigo`. El error principal toma la solución del primero que la
   tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`.
-- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites
-  (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES` y `LIMITE_SOLICITUDES` con `Retry-After`; `LIMITE_MENSUAL`).
+- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
+  `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
+  espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO`.
+- Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
+  401, 429 y 500; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
+  reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 
 ### Sesión
 
@@ -299,7 +323,14 @@ Solo lee datos del tenant de la llave (RLS).
 
 - **Por llave:** 20 solicitudes por segundo, ráfaga de 40 (opción `limiteSolicitudes`). Solo cuentan las
   solicitudes con el secreto correcto: conocer el prefijo de una llave (sale en listados y en la bitácora) no
-  basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`.
+  basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`. Cada respuesta autenticada lo dice con las
+  cabeceras del borrador IETF de RateLimit (draft-ietf-httpapi-ratelimit-headers):
+  `RateLimit-Policy: "llave";q=40;w=2` (la ráfaga, `q`, se recupera entera en `w` segundos) y
+  `RateLimit: "llave";r=39;t=1` (`r` solicitudes que quedan y `t` segundos hasta recuperar la ráfaga completa).
+  Van también en el 429 de la llave, pero no en los 429 `DEMASIADOS_INTENTOS` (otra cubeta, por dirección).
+- **Documentos del mes:** el límite mensual de la llave (consola, `--limite`) es 429 `LIMITE_MENSUAL` con
+  `Retry-After` hasta el primer día del mes siguiente a las 00:00 de Honduras. El documento no se emite y el
+  número no se consume.
 - **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
   (opción `limiteIntentos`). Cada consulta en curso reserva una ficha: sin fichas libres, 429
   `DEMASIADOS_INTENTOS` **sin consultar la base**, aunque lleguen muchas a la vez. Una llave que resulta válida

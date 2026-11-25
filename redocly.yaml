@@ -1,0 +1,15 @@
+# Linter de la especificación OpenAPI de la API (`pnpm lint:openapi`, también en la CI): 0 errores y 0 avisos.
+# Parte de las reglas recomendadas de Redocly y endurece las de `operationId`.
+telemetry: off
+extends:
+  - recommended
+rules:
+  # Cada operación tiene un operationId único, en camelCase y en español (verbo + recurso). Los clientes
+  # generados en otros lenguajes toman de ahí el nombre de cada método: que falte o se repita es un error.
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-url-safe: error
+  # No aplica: la API no tiene una URL fija. Cada negocio la levanta en su máquina (modo local) o en su servidor
+  # (modo alojado). Sin `servers`, Swagger UI (/docs) y los clientes usan el origen que sirve la especificación;
+  # con un `servers` fijo, «Try it out» llamaría a otra máquina.
+  no-empty-servers: off

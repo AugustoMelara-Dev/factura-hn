@@ -28,6 +28,7 @@ conBase('autenticación y roles', () => {
         mensaje: 'Falta la llave de API o no es válida.',
         solucion: expect.stringContaining('Authorization: Bearer fhn_<prefijo>_<secreto>'),
         documentacion: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#no_autenticado',
+        solicitud: r.headers.get('solicitud-id'),
       },
     });
 
@@ -353,7 +354,7 @@ conBase('inyección y entradas hostiles', () => {
     const app = crearApp({ pool, modo: 'local', rol: 'rol_que_no_existe', registrar: () => undefined });
     const r = await cliente(app, llaveAdmin)('GET', '/v1/autorizaciones');
     expect(r.status).toBe(500);
-    expect(await json(r)).toEqual({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } });
+    expect(await json(r)).toEqual({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.', solicitud: r.headers.get('solicitud-id') } });
   });
 });
 

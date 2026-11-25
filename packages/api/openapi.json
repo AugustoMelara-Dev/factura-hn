@@ -3,6 +3,10 @@
   "info": {
     "title": "factura-hn API",
     "version": "0.2.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
     "description": "Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.\n\nMontos: en la entrada, texto decimal (`\"57.50\"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.\n\nRespuestas: cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
   },
   "components": {
@@ -14,6 +18,87 @@
       }
     },
     "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "codigo": {
+                "type": "string"
+              },
+              "mensaje": {
+                "type": "string"
+              },
+              "campo": {
+                "type": "string",
+                "description": "En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`)."
+              },
+              "solucion": {
+                "type": "string",
+                "description": "Qué hacer para resolverlo, si se conoce."
+              },
+              "documentacion": {
+                "type": "string",
+                "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
+                "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+              },
+              "solicitud": {
+                "type": "string",
+                "description": "Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.",
+                "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
+              }
+            },
+            "required": [
+              "codigo",
+              "mensaje"
+            ]
+          },
+          "errores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            },
+            "description": "En 400 y 422: la lista completa, cada uno con su código y campo."
+          },
+          "advertencias": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Problema"
+            }
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Problema": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string"
+          },
+          "mensaje": {
+            "type": "string"
+          },
+          "campo": {
+            "type": "string"
+          },
+          "solucion": {
+            "type": "string",
+            "description": "Qué hacer para resolverlo, si se conoce."
+          },
+          "documentacion": {
+            "type": "string",
+            "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
+            "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+          }
+        },
+        "required": [
+          "codigo",
+          "mensaje"
+        ]
+      },
       "RespuestaEmisor": {
         "type": "object",
         "properties": {
@@ -92,82 +177,6 @@
           "direccionEstablecimiento",
           "telefono",
           "correo"
-        ]
-      },
-      "Error": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "codigo": {
-                "type": "string"
-              },
-              "mensaje": {
-                "type": "string"
-              },
-              "campo": {
-                "type": "string",
-                "description": "En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`)."
-              },
-              "solucion": {
-                "type": "string",
-                "description": "Qué hacer para resolverlo, si se conoce."
-              },
-              "documentacion": {
-                "type": "string",
-                "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
-                "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
-              }
-            },
-            "required": [
-              "codigo",
-              "mensaje"
-            ]
-          },
-          "errores": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Problema"
-            },
-            "description": "En 400 y 422: la lista completa, cada uno con su código y campo."
-          },
-          "advertencias": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Problema"
-            }
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "Problema": {
-        "type": "object",
-        "properties": {
-          "codigo": {
-            "type": "string"
-          },
-          "mensaje": {
-            "type": "string"
-          },
-          "campo": {
-            "type": "string"
-          },
-          "solucion": {
-            "type": "string",
-            "description": "Qué hacer para resolverlo, si se conoce."
-          },
-          "documentacion": {
-            "type": "string",
-            "description": "Enlace al código en la guía de errores (`docs/errores.md#<codigo>`).",
-            "example": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
-          }
-        },
-        "required": [
-          "codigo",
-          "mensaje"
         ]
       },
       "EmisorCambios": {
@@ -1344,14 +1353,53 @@
         ]
       }
     },
-    "parameters": {}
+    "parameters": {},
+    "headers": {
+      "Solicitud-Id": {
+        "description": "Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.",
+        "schema": {
+          "type": "string",
+          "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
+        }
+      },
+      "FacturaHN-Version": {
+        "description": "Versión de la API que respondió (la misma de `/salud` y de `info.version`).",
+        "schema": {
+          "type": "string",
+          "example": "0.2.0"
+        }
+      },
+      "RateLimit-Policy": {
+        "description": "Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.",
+        "schema": {
+          "type": "string",
+          "example": "\"llave\";q=40;w=2"
+        }
+      },
+      "RateLimit": {
+        "description": "Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.",
+        "schema": {
+          "type": "string",
+          "example": "\"llave\";r=39;t=1"
+        }
+      },
+      "Retry-After": {
+        "description": "Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras).",
+        "schema": {
+          "type": "integer",
+          "example": 1
+        }
+      }
+    }
   },
   "paths": {
     "/salud": {
       "get": {
+        "operationId": "obtenerSalud",
         "tags": [
           "Sistema"
         ],
+        "security": [],
         "summary": "Estado del servicio",
         "responses": {
           "200": {
@@ -1378,6 +1426,32 @@
                   ]
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           }
         }
@@ -1385,6 +1459,7 @@
     },
     "/v1/emisores": {
       "post": {
+        "operationId": "crearEmisor",
         "tags": [
           "Emisor"
         ],
@@ -1413,15 +1488,43 @@
                   "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1433,6 +1536,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -1442,6 +1553,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1453,6 +1578,38 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "422": {
@@ -1463,21 +1620,77 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           }
         }
       },
       "get": {
+        "operationId": "listarEmisores",
         "tags": [
           "Emisor"
         ],
@@ -1520,15 +1733,19 @@
                   ]
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Solicitud mal formada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1540,35 +1757,64 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -1577,6 +1823,7 @@
     },
     "/v1/emisores/{id}": {
       "get": {
+        "operationId": "obtenerEmisor",
         "tags": [
           "Emisor"
         ],
@@ -1606,15 +1853,43 @@
                   "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1626,15 +1901,13 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -1646,31 +1919,77 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
         }
       },
       "patch": {
+        "operationId": "actualizarEmisor",
         "tags": [
           "Emisor"
         ],
@@ -1710,15 +2029,43 @@
                   "$ref": "#/components/schemas/RespuestaEmisor"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1730,6 +2077,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -1739,6 +2094,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1750,6 +2119,38 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "422": {
@@ -1760,15 +2161,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -1777,6 +2233,7 @@
     },
     "/v1/autorizaciones": {
       "post": {
+        "operationId": "registrarAutorizacion",
         "tags": [
           "Autorizaciones"
         ],
@@ -1805,15 +2262,43 @@
                   "$ref": "#/components/schemas/RespuestaAutorizacion"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1825,6 +2310,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -1834,6 +2327,38 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -1845,21 +2370,77 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           }
         }
       },
       "get": {
+        "operationId": "listarAutorizaciones",
         "tags": [
           "Autorizaciones"
         ],
@@ -1902,15 +2483,19 @@
                   ]
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Solicitud mal formada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1922,35 +2507,64 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -1959,6 +2573,7 @@
     },
     "/v1/autorizaciones/{cai}/estado": {
       "get": {
+        "operationId": "obtenerEstadoAutorizacion",
         "tags": [
           "Autorizaciones"
         ],
@@ -1989,15 +2604,43 @@
                   "$ref": "#/components/schemas/RespuestaEstado"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2009,15 +2652,13 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -2029,25 +2670,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2056,6 +2742,7 @@
     },
     "/v1/sesion": {
       "get": {
+        "operationId": "obtenerSesion",
         "tags": [
           "Sesión"
         ],
@@ -2075,15 +2762,19 @@
                   "$ref": "#/components/schemas/RespuestaSesion"
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Solicitud mal formada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2095,35 +2786,64 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2132,6 +2852,7 @@
     },
     "/v1/documentos": {
       "post": {
+        "operationId": "emitirDocumento",
         "tags": [
           "Documentos"
         ],
@@ -2173,15 +2894,43 @@
                   "$ref": "#/components/schemas/RespuestaEmision"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2193,6 +2942,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -2202,6 +2959,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2213,6 +2984,38 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "422": {
@@ -2223,21 +3026,77 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           }
         }
       },
       "get": {
+        "operationId": "listarDocumentos",
         "tags": [
           "Documentos"
         ],
@@ -2335,15 +3194,43 @@
                   ]
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2355,35 +3242,64 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2392,6 +3308,7 @@
     },
     "/v1/documentos/{archivo}": {
       "get": {
+        "operationId": "obtenerDocumento",
         "tags": [
           "Documentos"
         ],
@@ -2460,15 +3377,43 @@
                   "type": "string"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2480,15 +3425,13 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -2500,25 +3443,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2527,6 +3515,7 @@
     },
     "/v1/documentos/{numero}/anular": {
       "post": {
+        "operationId": "anularDocumento",
         "tags": [
           "Documentos"
         ],
@@ -2566,15 +3555,43 @@
                   "$ref": "#/components/schemas/RespuestaDocumento"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2586,6 +3603,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -2595,6 +3620,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2606,6 +3645,38 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "422": {
@@ -2616,15 +3687,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2633,6 +3759,7 @@
     },
     "/v1/series/{identificador}/corregir-fecha": {
       "post": {
+        "operationId": "corregirFechaSerie",
         "tags": [
           "Series"
         ],
@@ -2684,15 +3811,43 @@
                   ]
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2704,6 +3859,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -2713,6 +3876,38 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -2724,15 +3919,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2741,6 +3991,7 @@
     },
     "/v1/series/{identificador}/no-utilizados": {
       "get": {
+        "operationId": "listarNoUtilizados",
         "tags": [
           "Series"
         ],
@@ -2808,15 +4059,43 @@
                   ]
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2828,6 +4107,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -2838,25 +4125,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -2865,6 +4197,7 @@
     },
     "/v1/libro-ventas": {
       "get": {
+        "operationId": "obtenerLibroVentas",
         "tags": [
           "Reportes"
         ],
@@ -2912,6 +4245,18 @@
           "200": {
             "description": "Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera.",
             "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
               "Documentos-Prueba-Excluidos": {
                 "schema": {
                   "type": "string",
@@ -2963,12 +4308,26 @@
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2980,15 +4339,13 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
-            }
-          },
-          "403": {
-            "description": "La llave no tiene permiso",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -3000,15 +4357,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3017,6 +4429,7 @@
     },
     "/v1/exportacion": {
       "get": {
+        "operationId": "exportarPeriodo",
         "tags": [
           "Reportes"
         ],
@@ -3065,6 +4478,18 @@
           "200": {
             "description": "Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).",
             "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
               "Documentos-Prueba-Excluidos": {
                 "schema": {
                   "type": "string",
@@ -3084,12 +4509,26 @@
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3101,6 +4540,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3110,6 +4557,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3121,15 +4582,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3138,6 +4654,7 @@
     },
     "/v1/bitacora": {
       "get": {
+        "operationId": "listarBitacora",
         "tags": [
           "Auditoría"
         ],
@@ -3222,15 +4739,43 @@
                   ]
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3242,6 +4787,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3252,25 +4805,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3279,6 +4877,7 @@
     },
     "/v1/llaves": {
       "post": {
+        "operationId": "crearLlave",
         "tags": [
           "Llaves"
         ],
@@ -3307,15 +4906,43 @@
                   "$ref": "#/components/schemas/RespuestaLlaveNueva"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3327,6 +4954,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3337,31 +4972,95 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
         }
       },
       "get": {
+        "operationId": "listarLlaves",
         "tags": [
           "Llaves"
         ],
@@ -3404,15 +5103,19 @@
                   ]
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Solicitud mal formada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3424,6 +5127,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3434,25 +5145,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3461,6 +5217,7 @@
     },
     "/v1/llaves/{prefijo}": {
       "delete": {
+        "operationId": "revocarLlave",
         "tags": [
           "Llaves"
         ],
@@ -3490,15 +5247,43 @@
                   "$ref": "#/components/schemas/RespuestaLlave"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3510,6 +5295,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3519,6 +5312,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3530,6 +5337,20 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "409": {
@@ -3540,25 +5361,88 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3567,6 +5451,7 @@
     },
     "/v1/webhooks": {
       "post": {
+        "operationId": "crearWebhook",
         "tags": [
           "Webhooks"
         ],
@@ -3596,15 +5481,43 @@
                   "$ref": "#/components/schemas/RespuestaWebhookNuevo"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3616,6 +5529,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3625,6 +5546,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3636,6 +5571,38 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "422": {
@@ -3646,21 +5613,77 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           }
         }
       },
       "get": {
+        "operationId": "listarWebhooks",
         "tags": [
           "Webhooks"
         ],
@@ -3703,15 +5726,19 @@
                   ]
                 }
               }
-            }
-          },
-          "400": {
-            "description": "Solicitud mal formada",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3723,6 +5750,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3733,25 +5768,70 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "429": {
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
             }
           },
-          "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }
@@ -3760,6 +5840,7 @@
     },
     "/v1/webhooks/{id}": {
       "delete": {
+        "operationId": "desactivarWebhook",
         "tags": [
           "Webhooks"
         ],
@@ -3789,15 +5870,43 @@
                   "$ref": "#/components/schemas/RespuestaWebhook"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
           "400": {
-            "description": "Solicitud mal formada",
+            "description": "Solicitud mal formada: forma, parámetros, cabeceras o JSON",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3809,6 +5918,14 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "403": {
@@ -3818,6 +5935,20 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3829,25 +5960,88 @@
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
               }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              }
             }
           },
           "429": {
-            "description": "Límite de solicitudes o de documentos del mes",
+            "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
               }
             }
           }

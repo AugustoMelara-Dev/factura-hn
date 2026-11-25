@@ -26,7 +26,6 @@
     "@factura-hn/pdf": "workspace:*",
     "@factura-hn/postgres": "workspace:*",
     "@hono/node-server": "2.1.9",
-    "@hono/swagger-ui": "0.6.2",
     "@hono/zod-openapi": "1.6.3",
     "factura-hn": "workspace:*",
     "hono": "4.13.19",

@@ -18,7 +18,7 @@ export class ErrorApi extends Error {
 export type ProblemaApi = Problema & { solucion?: string; documentacion?: string };
 
 export interface CuerpoError {
-  error: { codigo: string; mensaje: string; campo?: string; solucion?: string; documentacion?: string };
+  error: { codigo: string; mensaje: string; campo?: string; solucion?: string; documentacion?: string; solicitud?: string };
   errores?: ProblemaApi[];
   advertencias?: Problema[];
   [k: string]: unknown;
@@ -119,8 +119,8 @@ export function conSolucion(cuerpo: CuerpoError, tabla: Record<string, string>):
 export class LimitadorSolicitudes {
   private readonly cubetas = new Map<string, { fichas: number; t: number }>();
   constructor(
-    private readonly porSegundo: number,
-    private readonly rafaga: number,
+    readonly porSegundo: number,
+    readonly rafaga: number,
     private readonly ahora: () => number = Date.now,
   ) {}
   /** Devuelve 0 si se permite, o los segundos a esperar. */
@@ -145,6 +145,15 @@ export class LimitadorSolicitudes {
     const c = this.cubetas.get(clave);
     const fichas = (c ? Math.min(this.rafaga, c.fichas + ((this.ahora() - c.t) / 1000) * this.porSegundo) : this.rafaga) - reservadas;
     return fichas >= 1 ? 0 : Math.max(1, Math.ceil((1 - fichas) / this.porSegundo));
+  }
+  /**
+   * Fichas enteras que le quedan a la clave y segundos hasta que su cubeta vuelva a estar llena, sin gastar
+   * nada. Una clave sin cubeta la tiene llena. Para las cabeceras `RateLimit` (ver «Límites de solicitudes» en docs/api.md).
+   */
+  estado(clave: string): { restantes: number; lleno: number } {
+    const c = this.cubetas.get(clave);
+    const fichas = c ? Math.min(this.rafaga, c.fichas + ((this.ahora() - c.t) / 1000) * this.porSegundo) : this.rafaga;
+    return { restantes: Math.max(0, Math.floor(fichas)), lleno: Math.max(0, Math.ceil((this.rafaga - fichas) / this.porSegundo)) };
   }
   /** Si la clave tiene cubeta (gastó alguna ficha y no se descartó). */
   tiene(clave: string): boolean {
