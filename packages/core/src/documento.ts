@@ -29,11 +29,12 @@ export const DESTINO_EJEMPLARES = 'Original: Cliente / Copia: Emisor';
 const ESCALA_TC = 1_000_000n;
 
 function leerTipoCambio(valor: Monto | undefined): bigint | null {
-  if (valor === undefined || valor === null || valor === '') return null;
+  // Sin tipo de cambio (undefined, null, '') parsearDecimal lanza ErrorMonto: también es null.
   try {
-    const tc = parsearDecimal(valor, 6, 'tipoCambio');
+    const tc = parsearDecimal(valor as Monto, 6);
     return tc > 0n ? tc : null;
   } catch (e) {
+    // Siempre es ErrorMonto (parsearDecimal no lanza otra cosa): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
     if (e instanceof ErrorMonto) return null;
     throw e;
   }
@@ -47,7 +48,7 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
  */
 export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoEntrada; problemas: Problema[] } {
   const r = entrada.referencia;
-  const tipo = entrada.tipoDocumento ?? '01';
+  const tipo = entrada.tipoDocumento;
   if ((tipo !== '06' && tipo !== '07') || !r?.moneda || r.moneda === 'HNL') return { entrada, problemas: [] };
   if (r.moneda !== 'USD') {
     return { entrada, problemas: [{ codigo: 'REFERENCIA_MONEDA', mensaje: `Moneda del documento original desconocida: ${String(r.moneda)}.`, campo: 'referencia.moneda' }] };
@@ -65,8 +66,9 @@ export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoE
   }
   try {
     const lineas = entrada.lineas.map((l) => {
-      const precio = parsearDecimal(l.precioUnitario, ESCALA_PRECIO, 'precioUnitario');
-      const descuento = parsearDecimal(l.descuento ?? 0, 2, 'descuento');
+      // Si no se pueden leer, la validación de las líneas reporta el error con su mensaje: aquí no hace falta.
+      const precio = parsearDecimal(l.precioUnitario, ESCALA_PRECIO);
+      const descuento = parsearDecimal(l.descuento ?? 0, 2);
       return {
         ...l,
         precioUnitario: escaladoATexto(dividirRedondeando(precio * tc, ESCALA_TC), ESCALA_PRECIO),
@@ -78,6 +80,7 @@ export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoE
       problemas: [],
     };
   } catch (e) {
+    // Siempre es ErrorMonto (parsearDecimal no lanza otra cosa): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
     if (e instanceof ErrorMonto) return { entrada, problemas: [] };
     throw e;
   }
@@ -85,7 +88,7 @@ export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoE
 
 /** Fecha de hoy en Honduras según el reloj de las opciones. */
 export function hoyHonduras(opciones: Pick<OpcionesDocumento, 'reloj'> = {}): string {
-  return fechaHonduras((opciones.reloj ?? (() => new Date()))());
+  return fechaHonduras(opciones.reloj?.()); // sin reloj, fechaHonduras usa new Date()
 }
 
 const SOPORTADOS: TipoDocumentoSoportado[] = ['01', '06', '07'];
@@ -222,6 +225,8 @@ export function problemasDeTexto(entrada: unknown): Problema[] {
     }
     if (valor === null || typeof valor !== 'object' || vistos.has(valor)) continue;
     vistos.add(valor);
+    // Un elemento extra en la lista inicial sería un texto sin caracteres no permitidos: equivalente.
+    // Stryker disable next-line ArrayDeclaration: equivalente (ver arriba)
     const hijos: Array<{ valor: unknown; campo: string; raiz: boolean }> = [];
     if (Array.isArray(valor)) {
       valor.forEach((v, i) => hijos.push({ valor: v, campo: `${campo}[${i}]`, raiz: false }));
@@ -411,6 +416,8 @@ export function validarEntrada(
     problemas.push(...advertenciasDeCalculo(totales));
     // Art. 11 num. 3: si la factura mezcla ventas exentas (o exoneradas) y gravadas, para el crédito fiscal del
     // comprador solo cuentan las gravadas. Se avisa cuando el comprador se identifica con RTN.
+    // Con exoneración no hay base gravada (baseCreditoFiscal = 0), así que `+` → `-` es equivalente aquí.
+    // Stryker disable next-line ArithmeticOperator: equivalente (ver arriba)
     const noGravado = totales.importeExento + totales.importeExonerado;
     if (c.rtn && noGravado > 0n && totales.baseCreditoFiscal > 0n) {
       problemas.push({
@@ -442,8 +449,8 @@ export function validarEntrada(
  * guarda, así el impreso no cambia al reimprimir. null si el documento está en lempiras.
  */
 function calcularEquivalenteLempiras(doc: DocumentoFiscal): EquivalenteLempiras | null {
-  if (doc.moneda === 'HNL' || doc.tipoCambio === undefined) return null;
-  const tc = parsearDecimal(doc.tipoCambio, 6, 'tipoCambio');
+  if (doc.tipoCambio === undefined) return null; // solo un documento en moneda extranjera lleva tipo de cambio
+  const tc = parsearDecimal(doc.tipoCambio, 6);
   const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
   const t = doc.totales;
   return {

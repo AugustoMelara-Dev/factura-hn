@@ -57,17 +57,17 @@ function descomponer(valor: Monto): { negativo: boolean; digitos: bigint; exp: n
   }
   const m = PATRON_DECIMAL.exec(texto);
   if (!m || (m[2] === '' && (m[3] ?? '') === '')) throw new ErrorMonto(`Monto inválido: "${String(valor)}"`);
-  const enteros = m[2] ?? '';
+  const enteros = m[2]!; // el grupo (\d*) siempre participa: a lo sumo es ''
   const fraccion = m[3] ?? '';
   // Tope de magnitud antes de cualquier potencia de 10: «1e10000000» cabe en 10 caracteres pero
   // `10n ** 10000000n` bloquea el proceso varios segundos. Ningún monto fiscal se acerca a estos topes
   // (los totales en letras ya fallan desde 10^15).
-  const expTexto = Number(m[4] ?? '0');
+  const expTexto = Number(m[4] ?? 0);
   if (!Number.isSafeInteger(expTexto) || Math.abs(expTexto) > EXPONENTE_MAXIMO || enteros.length + fraccion.length > DIGITOS_MAXIMOS) {
     throw new ErrorMonto(`Monto fuera de rango: "${String(valor)}"`);
   }
   const exp = expTexto - fraccion.length;
-  return { negativo: m[1] === '-', digitos: BigInt((enteros + fraccion) || '0'), exp };
+  return { negativo: m[1] === '-', digitos: BigInt(enteros + fraccion), exp }; // nunca vacío: se revisó arriba
 }
 
 
@@ -90,6 +90,8 @@ export function textoSeguroCSV(s: string): string {
  */
 export function dividirRedondeando(numerador: bigint, denominador: bigint): bigint {
   if (denominador === 0n) throw new ErrorMonto('División por cero');
+  // `< 0n` → `<= 0n` en estas tres líneas es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con numerador 0 el cociente es 0n
+  // (y -0n === 0n), y un denominador 0 ya se rechazó arriba.
   const negativo = numerador < 0n !== denominador < 0n;
   const n = numerador < 0n ? -numerador : numerador;
   const d = denominador < 0n ? -denominador : denominador;
@@ -106,6 +108,7 @@ export function parsearDecimal(valor: Monto, escala: number, campo = 'monto'): b
   const { negativo, digitos, exp } = descomponer(valor);
   const desplazamiento = exp + escala;
   let r: bigint;
+  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con desplazamiento 0 la otra rama divide entre 10^0 = 1.
   if (desplazamiento >= 0) r = digitos * potencia10(desplazamiento);
   else {
     const div = potencia10(-desplazamiento);
@@ -121,6 +124,7 @@ export function parsearDecimal(valor: Monto, escala: number, campo = 'monto'): b
 export function redondearDecimal(valor: Monto, escala: number): bigint {
   const { negativo, digitos, exp } = descomponer(valor);
   const desplazamiento = exp + escala;
+  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): dividirRedondeando(d, 10^0) = d.
   const r = desplazamiento >= 0 ? digitos * potencia10(desplazamiento) : dividirRedondeando(digitos, potencia10(-desplazamiento));
   return negativo ? -r : r;
 }
@@ -156,9 +160,8 @@ export function centavosATexto(centavos: number | bigint): string {
 /** Formatea un monto como "1,234.56". */
 export function formatearMonto(monto: Monto): string {
   const [enteros, dec] = centavosATexto(redondearDecimal(monto, 2)).split('.');
-  const negativo = enteros!.startsWith('-');
-  const digitos = negativo ? enteros!.slice(1) : enteros!;
-  return `${negativo ? '-' : ''}${digitos.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
+  // Entre el signo «-» y el primer dígito no hay \B (límite de palabra), así que el signo no recibe coma.
+  return `${enteros!.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${dec}`;
 }
 
 /** Formatea con símbolo: "L 1,234.56" o "$ 1,234.56". */

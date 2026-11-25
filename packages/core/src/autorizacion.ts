@@ -10,6 +10,8 @@ import { esAutorizacionDePrueba, esCAIDemo } from './modo';
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 export function esFechaValida(fecha: string): boolean {
+  // Quitar este filtro o las anclas del patrón es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): la comparación final con
+  // toISOString().slice(0, 10) ya exige exactamente AAAA-MM-DD. Se conserva para no construir un Date con cualquier texto.
   if (!PATRON_FECHA.test(fecha)) return false;
   const d = new Date(`${fecha}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === fecha;
