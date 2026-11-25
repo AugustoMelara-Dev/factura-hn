@@ -11,11 +11,11 @@ mismo SDK. Cambia quién guarda los documentos y desde dónde se emite.
 | | SDK | API REST | Servidor MCP |
 |---|---|---|---|
 | **Para quién** | Proyectos JavaScript o TypeScript | Cualquier lenguaje, o varias cajas contra un servidor | Un asistente de IA que emite, consulta y anula |
-| **Qué instalas** | `npm install factura-hn` (Node 18+) | Docker con PostgreSQL | `npx -y @factura-hn/mcp` (Node 22.13+) |
+| **Qué instalas** | `npm install factura-hn` (Node 20+) | Docker con PostgreSQL | `npx -y @factura-hn/mcp` (Node 22.13+) |
 | **Dónde se guardan los documentos** | En tu base: PostgreSQL, SQLite u otra con su propio almacén | En el PostgreSQL de la API | En un archivo SQLite del equipo, o en la API |
 | **Sin internet** | Sí, con SQLite en la caja | Las cajas necesitan red hasta el servidor de la API | En modo SQLite el servidor no necesita red después de descargarse; el asistente, según el cliente que uses |
 | **Varias cajas** | Sí: un PostgreSQL compartido, o un punto de emisión por caja | Sí: una llave de caja por punto de emisión | Un punto de emisión por servidor |
-| **Empieza en** | [Primera factura: SDK](/empezar/primera-factura/#sdk-node-18-o-más-reciente) | [Primera factura: API](/empezar/primera-factura/#api-rest-docker) | [Primera factura: MCP](/empezar/primera-factura/#mcp-claude-desktop-claude-code-cursor) |
+| **Empieza en** | [Primera factura: SDK](/empezar/primera-factura/#sdk-node-20-o-más-reciente) | [Primera factura: API](/empezar/primera-factura/#api-rest-docker) | [Primera factura: MCP](/empezar/primera-factura/#mcp-claude-desktop-claude-code-cursor) |
 
 Si solo quieres ver cómo sale una factura, el [playground](/empezar/playground/) corre el SDK en tu navegador,
 sin instalar nada y con CAI ficticios.
@@ -33,7 +33,7 @@ sin instalar nada y con CAI ficticios.
 El SDK emite dentro de tu proceso, sobre un [almacén fiscal](/conceptos/almacen/) que tú eliges:
 
 - `@factura-hn/postgres` para un servidor con varias cajas;
-- `@factura-hn/sqlite` para una caja que trabaja sin internet (Node 18+ con `better-sqlite3`; Node 22.13+ con
+- `@factura-hn/sqlite` para una caja que trabaja sin internet (Node 20+ con `better-sqlite3`; Node 22.13+ con
   `node:sqlite`), cada una con su propio punto de
   emisión;
 - tu propia base, implementando la interfaz `AlmacenFiscal` y pasando su batería de pruebas.
