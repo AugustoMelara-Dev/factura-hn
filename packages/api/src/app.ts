@@ -89,7 +89,10 @@ import {
   type Escribir,
 } from './reportes';
 
-export const VERSION_API = '0.2.0';
+// La versión sale de packages/api/package.json (el empaquetador la incrusta; `pnpm run version` la sube con los
+// paquetes publicados). Va en `FacturaHN-Version`, `/salud` y `info.version` de `/openapi.json`.
+import { version as VERSION_PAQUETE } from '../package.json';
+export const VERSION_API: string = VERSION_PAQUETE;
 
 const LOCALE_ES = z.locales.es().localeError;
 const LOCALE_EN = z.locales.en().localeError;

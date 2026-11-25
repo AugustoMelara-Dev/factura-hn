@@ -10,10 +10,13 @@ Pendientes menores del núcleo:
   dice cuál (p. ej. `lineas[0].descripcion`). `anular` y `corregirFechaAdelantada` rechazan igual el motivo. Antes,
   un NUL se guardaba y en PostgreSQL el listado sin líneas y la anulación fallaban (`jsonb`). Nueva:
   `problemasDeTexto`.
-- **Ojo con la configuración del emisor:** la revisión incluye `emisor`. Un emisor configurado con un carácter de
-  control (en `crearFacturador({ emisor })` o guardado en la API) hace fallar toda emisión con `campo:
-  'emisor.…'`, aunque la venta no lo traiga; la `solucion` de esos problemas dice que se corrige la configuración
-  (en la API, `PATCH /v1/emisores/{id}`).
 - Nueva `registrarAutorizacionConAvisos(almacen, autorizacion, opciones?)`: igual que `registrarAutorizacion`, y
   devuelve `{ autorizacion, advertencias }`, p. ej. con `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62).
   `registrarAutorizacion` no cambia de firma.
+
+**Cambios incompatibles:**
+
+- **La configuración del emisor también se revisa.** Un emisor configurado con un carácter de control (en
+  `crearFacturador({ emisor })`, en `emitir({ emisor })` o guardado en la API) hace fallar toda emisión con
+  `TEXTO_CARACTER_NO_PERMITIDO` y `campo: 'emisor.…'`, aunque la venta no lo traiga. Antes se emitía. La
+  `solucion` de esos problemas dice que se corrige la configuración (en la API, `PATCH /v1/emisores/{id}`).

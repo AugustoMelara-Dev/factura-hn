@@ -26,6 +26,9 @@ El MCP se prueba en 3 pasos y registra el CAI sin escribir código.
 - Al arrancar, el servidor escribe en el log del cliente el modo, el punto de emisión y si falta el CAI.
 - `ayuda` lista los comandos en español.
 
-Cambio incompatible para quien usa la librería: `Backend.emitir` devuelve `{ documento, repetido }` en vez del
-documento, y `Backend` pide además `registrarCAI`. Las herramientas `estado_cai`, `libro_ventas` y
+**Cambios incompatibles:**
+
+Para quien usa la librería, `Backend.emitir` devuelve `{ documento, repetido }` en vez del
+documento, `Backend.libroVentas` debe devolver también `excluidos` (cuántos documentos de prueba quedaron fuera) y
+`Backend` pide además `registrarCAI`. Las herramientas `estado_cai`, `libro_ventas` y
 `consultar_documento` devuelven sus errores como resultado (`isError`) en vez de un error de protocolo.

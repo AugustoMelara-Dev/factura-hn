@@ -17,7 +17,7 @@ resolución: ver [Modo de prueba](/empezar/modo-de-prueba/#pasar-al-cai-real).
 ¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Para verlo sin instalar nada, abre el
 [playground](/empezar/playground/).
 
-## SDK (Node 18 o más reciente)
+## SDK (Node 20 o más reciente)
 
 En la carpeta de tu proyecto, o en una nueva:
 

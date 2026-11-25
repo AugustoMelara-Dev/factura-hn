@@ -21,7 +21,7 @@ Elige un camino: SDK, API REST, MCP o Next.js. Los cuatro empiezan en **modo de 
 ficticio. Todo impreso dice **«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Para facturar de verdad, ver
 [Pasar a producción](#pasar-a-producción).
 
-### SDK (Node 18 o más reciente)
+### SDK (Node 20 o más reciente)
 
 En la carpeta de tu proyecto, o en una nueva:
 
