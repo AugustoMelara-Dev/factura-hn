@@ -3351,6 +3351,7 @@
           }
         ],
         "summary": "Documentos de un período, por fecha de emisión y número (paginado)",
+        "description": "Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con `hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.",
         "parameters": [
           {
             "schema": {
@@ -4664,6 +4665,33 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
           },

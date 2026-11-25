@@ -122,7 +122,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Documentos de un período, por fecha de emisión y número (paginado) */
+        /**
+         * Documentos de un período, por fecha de emisión y número (paginado)
+         * @description Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con `hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.
+         */
         get: operations["listarDocumentos"];
         put?: never;
         /**
@@ -2439,6 +2442,20 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {

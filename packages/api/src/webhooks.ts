@@ -209,7 +209,9 @@ export function problemaDeURL(url: string, permitirRedInterna: boolean): string 
   if (u.username || u.password) return 'La URL no puede llevar usuario ni contraseña.';
   if (permitirRedInterna) return u.protocol === 'https:' || u.protocol === 'http:' ? null : 'Solo http o https.';
   if (u.protocol !== 'https:') return 'En el modo alojado los webhooks deben usar https.';
-  const host = u.hostname.replace(/^\[|\]$/g, '');
+  // Sin el punto final: «localhost.» y «servicio.internal.» son los mismos nombres (FQDN) y resuelven igual.
+  const host = u.hostname.replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+  if (!host) return 'URL inválida.';
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) {
     return 'El destino no puede ser una dirección interna.';
   }
@@ -217,18 +219,29 @@ export function problemaDeURL(url: string, permitirRedInterna: boolean): string 
   return null;
 }
 
+/** Resuelve un nombre a todas sus direcciones, con la firma de `dns.lookup(host, { all: true }, cb)`. */
+export type Resolver = (
+  host: string,
+  opciones: { all: true },
+  cb: (e: NodeJS.ErrnoException | null, dirs: { address: string; family: number }[]) => void,
+) => void;
+type CallbackLookup = (e: Error | null, dir: string | { address: string; family: number }[], fam?: number) => void;
+
 /**
  * `lookup` para la conexión: resuelve el nombre y rechaza si alguna dirección es interna. La conexión usa la
  * misma dirección que se validó, así que un DNS que cambia de respuesta (rebinding) no la puede desviar.
+ * `resolver` es el DNS del sistema; las pruebas pasan otro para no depender de la red.
  */
-function lookupSeguro(host: string, opciones: object, cb: (e: Error | null, dir: string | { address: string; family: number }[], fam?: number) => void) {
-  dnsLookup(host, { ...opciones, all: true }, (e, dirs) => {
-    if (e) return cb(e, '', 0);
-    const lista = dirs as { address: string; family: number }[];
-    if (!lista.length || lista.some((d) => esIPPrivada(d.address))) return cb(new Error('El nombre resuelve a una dirección interna.'), '', 0);
-    if ((opciones as { all?: boolean }).all) return cb(null, lista);
-    cb(null, lista[0]!.address, lista[0]!.family);
-  });
+export function crearLookupSeguro(resolver: Resolver = dnsLookup as unknown as Resolver) {
+  return function lookupSeguro(host: string, opciones: object, cb: CallbackLookup): void {
+    resolver(host, { ...opciones, all: true }, (e, dirs) => {
+      if (e) return cb(e, '', 0);
+      const lista = dirs ?? [];
+      if (!lista.length || lista.some((d) => esIPPrivada(d.address))) return cb(new Error('El nombre resuelve a una dirección interna.'), '', 0);
+      if ((opciones as { all?: boolean }).all) return cb(null, lista);
+      cb(null, lista[0]!.address, lista[0]!.family);
+    });
+  };
 }
 
 /**
@@ -236,7 +249,7 @@ function lookupSeguro(host: string, opciones: object, cb: (e: Error | null, dir:
  * `tiempoMaximo` es el tope de TODA la entrega (conexión, envío y cabeceras de la respuesta), no de inactividad:
  * un receptor que responde byte a byte no la alarga. El cuerpo de la respuesta no se lee.
  */
-function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: string, tiempoMaximo: number, permitirRedInterna: boolean): Promise<number> {
+function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: string, tiempoMaximo: number, permitirRedInterna: boolean, resolverDns?: Resolver): Promise<number> {
   return new Promise((resolver, rechazar) => {
     const u = new URL(url);
     const mod = u.protocol === 'https:' ? https : http;
@@ -246,7 +259,7 @@ function enviarHttp(url: string, cabeceras: Record<string, string>, cuerpo: stri
         method: 'POST',
         headers: { ...cabeceras, 'content-length': Buffer.byteLength(cuerpo) },
         timeout: tiempoMaximo,
-        ...(permitirRedInterna ? {} : { lookup: lookupSeguro as never }),
+        ...(permitirRedInterna ? {} : { lookup: crearLookupSeguro(resolverDns) as never }),
       },
       (res) => {
         clearTimeout(tope);
@@ -292,6 +305,11 @@ export interface OpcionesDespacho {
   permitirRedInterna: boolean;
   /** Solo para pruebas: reemplaza el envío HTTP (sin la protección de direcciones al conectar). */
   fetch?: typeof fetch;
+  /**
+   * Solo para pruebas: resuelve los nombres en lugar del DNS del sistema. La revisión de direcciones al conectar
+   * (modo alojado) se aplica igual a lo que devuelva.
+   */
+  resolver?: Resolver;
   /** Milisegundos por entrega. */
   tiempoMaximo?: number;
   lote?: number;
@@ -428,7 +446,7 @@ async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolea
       await resp.body?.cancel().catch(() => undefined);
       estado = resp.status;
     } else {
-      estado = await enviarHttp(e.url, cabeceras, cuerpo, tiempo, o.permitirRedInterna);
+      estado = await enviarHttp(e.url, cabeceras, cuerpo, tiempo, o.permitirRedInterna, o.resolver);
     }
     return estado >= 200 && estado < 300 ? { ok: true, codigo: estado, error: null } : { ok: false, codigo: estado, error: `HTTP ${estado}` };
   } catch (err) {

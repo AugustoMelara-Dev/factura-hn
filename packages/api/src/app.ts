@@ -163,6 +163,11 @@ export interface ConfigApi {
   reportesSimultaneosProceso?: number;
   /** Tiempo máximo de una respuesta transmitida (libro de ventas, exportación). Por defecto 5 minutos. */
   duracionMaxReporteMs?: number;
+  /**
+   * Bytes de documentos como máximo en una página de `GET /v1/documentos` (por defecto 8 MiB). La página se corta
+   * antes del documento que empieza pasado el tope, con `hayMas: true`; siempre trae al menos un documento.
+   */
+  maxBytesPagina?: number;
   registrar?: (mensaje: string, error?: unknown) => void;
 }
 
@@ -253,6 +258,8 @@ const conEnlaces = <R extends { documento: { numero: string } }>(r: R) => ({
 
 // --- Paginación (DEC-047) ------------------------------------------------------------------------------------
 const LIMITE_POR_DEFECTO = 100;
+/** Bytes de documentos por página de `GET /v1/documentos`, por defecto. Ver `ConfigApi.maxBytesPagina`. */
+export const MAX_BYTES_PAGINA = 8 * 1024 * 1024;
 /** Avisos de una nota de crédito que la API solo acepta con llave admin (DEC-051). */
 const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_ORIGINAL_EXTERNO']);
 const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
@@ -337,6 +344,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return { registrado: r.rows[0]?.registrado === true };
     });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
+  const maxBytesPagina = cfg.maxBytesPagina ?? MAX_BYTES_PAGINA;
+  if (!Number.isSafeInteger(maxBytesPagina) || maxBytesPagina < 1) throw new Error('maxBytesPagina debe ser un entero mayor que 0.');
   const ultimoUso = new Map<string, number>();
 
   const app = new OpenAPIHono<Env>({
@@ -1048,6 +1057,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/documentos', operationId: 'listarDocumentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
+      description:
+        'Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con ' +
+        '`hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.',
       request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
       responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 429, 500) },
     }),
@@ -1055,15 +1067,29 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const q = c.req.valid('query');
       const limite = q.limite ?? LIMITE_POR_DEFECTO;
       const despues = q.cursor ? leerCursor(q.cursor, (v): v is [string, string] => Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && esFechaCursor(v[0]) && typeof v[1] === 'string' && v[1].length <= 40) : null;
-      const filas = await enTenant(c, async (tx) => {
+      const { filas, traidas } = await enTenant(c, async (tx) => {
         const params: unknown[] = [tx.tenant, q.desde, q.hasta];
-        let sql = 'SELECT datos, fecha_emision::text AS fecha, numero FROM fhn_documentos WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3';
+        let sql = 'SELECT fecha_emision::text AS fecha, numero, datos, octet_length(datos::text) AS bytes FROM fhn_documentos WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3';
         if (q.identificador) sql += ` AND identificador = $${params.push(q.identificador)}`;
         if (despues) sql += ` AND (fecha_emision, numero) > ($${params.push(despues[0])}::date, $${params.push(despues[1])})`;
         sql += ` ORDER BY fecha_emision, numero LIMIT $${params.push(limite + 1)}`;
-        return (await tx.consulta<{ datos: unknown; fecha: string; numero: string }>(sql, params)).rows;
+        // Tope de bytes por página (API4): la página corta antes del documento que empieza pasado `maxBytesPagina`
+        // (siempre trae al menos uno), así que 500 documentos de 500 KB no llegan juntos a la memoria del proceso.
+        // Los documentos que no entran no salen de la base; `traidas` dice si hubo corte.
+        const r = await tx.consulta<{ datos: unknown; fecha: string; numero: string; traidas: number }>(
+          `SELECT fecha, numero, datos, traidas FROM (
+             SELECT fecha, numero, datos, count(*) OVER ()::int AS traidas,
+                    sum(bytes) OVER (ORDER BY fecha, numero ROWS UNBOUNDED PRECEDING) - bytes AS antes
+               FROM (${sql}) d
+           ) s WHERE antes < $${params.push(maxBytesPagina)} ORDER BY fecha, numero`,
+          params,
+        );
+        return { filas: r.rows, traidas: r.rows[0]?.traidas ?? 0 };
       });
-      const { elementos, hayMas, siguiente } = paginar(filas, limite, (f) => [f.fecha, f.numero]);
+      // Con corte por bytes hay más documentos aunque la página tenga menos de `limite`.
+      const { elementos, hayMas, siguiente } = filas.length < traidas
+        ? { elementos: filas, hayMas: true, siguiente: escribirCursor([filas[filas.length - 1]!.fecha, filas[filas.length - 1]!.numero]) }
+        : paginar(filas, limite, (f) => [f.fecha, f.numero]);
       const documentos = elementos.map((f) => (typeof f.datos === 'string' ? JSON.parse(f.datos) : f.datos));
       return c.json({ documentos: documentos as z.infer<typeof S.DocumentoFiscal>[], hayMas, siguiente }, 200);
     },
@@ -1296,7 +1322,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
             'text/csv': { schema: z.string() },
           },
         },
-        ...respuestasDe(400, 401, 422, 429, 500),
+        // 403 `CAJA_SIN_PUNTO`: una llave de caja sin punto de emisión (DEC-122).
+        ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
     async (c) => {
@@ -1540,7 +1567,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           `INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING ${COLUMNAS_WEBHOOK}`,
           [tx.tenant, b.url, cofre.guardar(secreto), [...new Set(b.eventos)]],
         );
-        await bitacora(tx, actor(c), 'webhook.creado', { id: r.rows[0]!.id, url: b.url, eventos: b.eventos });
+        // Los eventos sin repetir, como en la fila: una lista de 512 KB con el mismo evento no llega a la bitácora.
+        await bitacora(tx, actor(c), 'webhook.creado', { id: r.rows[0]!.id, url: b.url, eventos: r.rows[0]!.eventos });
         return r.rows[0]!;
       });
       return c.json({ webhook: aWebhook(fila), secreto }, 201);
