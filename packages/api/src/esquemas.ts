@@ -9,8 +9,8 @@ import { esFechaValida } from 'factura-hn';
 export const Monto = z.union([z.string().max(32), z.number()]).openapi({ example: '115.00', description: 'Decimal como texto (recomendado) o número.' });
 const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ example: '2026-11-18' });
 /**
- * Fecha de un período de consulta: además de la forma, un día que existe. «2026-02-30» llegaba a Postgres y daba 500
- * (lo encontró el fuzzing, test/fuzz.test.ts). En la emisión no se usa: allí la fecha la revisa el núcleo (422).
+ * Fecha de un período de consulta: además de la forma, un día que existe (Postgres no convierte «2026-02-30»). En
+ * la emisión no se usa: allí la fecha la revisa el núcleo (422).
  */
 const FechaDelCalendario = Fecha.refine(esFechaValida, { message: 'La fecha no existe en el calendario (AAAA-MM-DD).' });
 const Codigo3 = z.string().regex(/^\d{3}$/);

@@ -46,8 +46,7 @@ export function enteroALetras(n: number): string {
   if (n === 0) return 'CERO';
   if (n >= 1e15) throw new RangeError('Monto demasiado grande para convertir a letras');
 
-  // Escala larga del español: 10^12 es un billón («mil millones» es 10^9). Antes de esto, 10^12 salía «UN MILLÓN
-  // MILLONES», que no dice el número (lo encontró test/propiedades/letras.prop.test.ts).
+  // Escala larga del español: 10^12 es un billón («mil millones» es 10^9), no «UN MILLÓN MILLONES».
   const billones = Math.floor(n / 1e12);
   const millones = Math.floor((n % 1e12) / 1_000_000);
   const miles = Math.floor((n % 1_000_000) / 1000);

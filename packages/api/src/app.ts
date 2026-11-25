@@ -412,7 +412,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
       }
       // El validador de Hono responde 415 en texto plano a un cuerpo sin `Content-Type: application/json`: también con
-      // la forma de error de la API (lo encontró el fuzzing, test/fuzz.test.ts).
+      // la forma de error de la API.
       if (e.status === 415) {
         const cuerpo: CuerpoError = { error: { codigo: 'TIPO_DE_CONTENIDO', mensaje: 'El cuerpo debe ser JSON: envía la cabecera Content-Type: application/json.' } };
         return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 415);
@@ -783,8 +783,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
-      // Un NUL no cabe en un texto de Postgres (la consulta fallaba con 500; lo encontró test/fuzz.test.ts): ese CAI no
-      // puede estar registrado.
+      // Un NUL no cabe en un texto de Postgres (la consulta fallaría con 500): ese CAI no puede estar registrado.
       if (cai.includes('\u0000')) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Autorización no encontrada.');
       const r = await enTenant(c, async (tx) => {
         const a = (await tx.consulta<{ datos: AutorizacionCAI; identificador: string }>('SELECT datos, identificador FROM fhn_autorizaciones WHERE tenant = $1 AND cai = $2', [tx.tenant, cai])).rows[0];
