@@ -156,7 +156,7 @@ En Windows:
 
 ```json
 { "mcpServers": { "factura-hn": {
-  "command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp"],
+  "command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.2.0"],
   "env": { "FHN_SQLITE": "C:/negocio/factura.db", "FHN_EMISOR": "C:/negocio/emisor.json",
            "FHN_ESTABLECIMIENTO": "000", "FHN_PUNTO": "001" }
 } } }
@@ -166,7 +166,7 @@ En macOS y Linux:
 
 ```json
 { "mcpServers": { "factura-hn": {
-  "command": "npx", "args": ["-y", "@factura-hn/mcp"],
+  "command": "npx", "args": ["-y", "@factura-hn/mcp@0.2.0"],
   "env": { "FHN_SQLITE": "/srv/negocio/factura.db", "FHN_EMISOR": "/srv/negocio/emisor.json",
            "FHN_ESTABLECIMIENTO": "000", "FHN_PUNTO": "001" }
 } } }
@@ -181,11 +181,11 @@ En macOS y Linux:
 ## Modo API
 
 Contra la API de factura-hn (local con Docker, o alojada). En Windows, usa `"command": "cmd"` y
-`"args": ["/c", "npx", "-y", "@factura-hn/mcp"]`, como arriba:
+`"args": ["/c", "npx", "-y", "@factura-hn/mcp@0.2.0"]`, como arriba:
 
 ```json
 { "mcpServers": { "factura-hn": {
-  "command": "npx", "args": ["-y", "@factura-hn/mcp"],
+  "command": "npx", "args": ["-y", "@factura-hn/mcp@0.2.0"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" }
 } } }
 ```

@@ -293,3 +293,19 @@ it('la base de init --demo queda lista para el SDK, sin documentos, y el emisor 
   db.close();
   expect(readFileSync(join(dir, 'emisor-demo.json'), 'utf8')).toContain(LEYENDA_PRUEBA);
 });
+
+describe('README y versión del paquete', () => {
+  it('los bloques mcpServers de los README fijan la versión de package.json', () => {
+    const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), 'utf8');
+    const { version } = JSON.parse(leer('../package.json')) as { version: string };
+    for (const ruta of ['../README.md', '../../../README.md']) {
+      const texto = leer(ruta);
+      // Toda mención entre comillas (argumento de un bloque) lleva la versión, y es la del paquete. Tras
+      // `changeset version`, cambia el número en los dos README.
+      expect(texto, ruta).not.toContain('"@factura-hn/mcp"');
+      const fijadas = [...texto.matchAll(/"@factura-hn\/mcp@([^"<]+)"/g)].map((m) => m[1]);
+      expect(fijadas.length, ruta).toBeGreaterThan(0);
+      expect(new Set(fijadas), ruta).toEqual(new Set([version]));
+    }
+  });
+});
