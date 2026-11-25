@@ -69,7 +69,7 @@ control (DEC-123).
 
 ## Lo que queda como propuesta
 
-Está en `dec-lote5-owasp.md`:
+Están también en `docs/decisiones.md` (Lote 5, propuestas de OWASP):
 
 - **Representación impresa costosa (API4).** El PDF de un documento de 500 líneas tarda unos 440 ms de CPU en
   el hilo principal. Una caja con 20 solicitudes por segundo puede ocupar el proceso. Propuesta: renderizar en un

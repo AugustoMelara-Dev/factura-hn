@@ -73,10 +73,10 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
     // Rutas que una prueba agrega a la app para provocar un error (p. ej. `/prueba-otro-400` en contrato.test.ts).
     if (ruta.startsWith('/prueba-')) return { clave: 'fuera prueba', operacion: null, violaciones };
     // Ruta u método inexistente: el 404 NO_ENCONTRADO o, en /v1, lo que responden los middlewares de /v1/* antes de
-    // buscar la ruta (401 de la llave, 413 del tamaño, 400 CUERPO_NO_UTF8, 429 de los límites). Siempre con la forma
+    // buscar la ruta, también en /v1 a secas (401 de la llave, 413 del tamaño, 400 CUERPO_NO_UTF8, 429 de los límites). Siempre con la forma
     // de error de la API.
     const ANTES_DE_LA_RUTA: Record<number, string[]> = { 400: ['CUERPO_NO_UTF8'], 401: ['NO_AUTENTICADO'], 413: ['CUERPO_DEMASIADO_GRANDE'], 429: ['DEMASIADOS_INTENTOS', 'DEMASIADAS_SOLICITUDES'] };
-    const codigos = r.status === 404 ? ['NO_ENCONTRADO'] : ruta.startsWith('/v1/') ? ANTES_DE_LA_RUTA[r.status] : undefined;
+    const codigos = r.status === 404 ? ['NO_ENCONTRADO'] : ruta === '/v1' || ruta.startsWith('/v1/') ? ANTES_DE_LA_RUTA[r.status] : undefined;
     if (!codigos) violaciones.push(`${metodo} ${ruta}: no está en la especificación y respondió ${r.status}`);
     else {
       const cuerpo = await leerJSON(r, violaciones);

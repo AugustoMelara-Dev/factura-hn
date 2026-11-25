@@ -11,8 +11,9 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
     seis paquetes.
   - **Lote 2 (Etapa 1, los primeros 5 minutos):** hecho (74a8eea, PR #9).
   - **Lote 3 (sitio Starlight):** hecho (d3cdfc4, PR #10).
-  - **Lote 4 (API para integradores):** en el PR `lote4/integracion`.
-  - **Después:** Lote 5 (calidad medida) y Lote 6 (cierre).
+  - **Lote 4 (API para integradores):** hecho (cc2bbd0, PR #11).
+  - **Lote 5 (calidad medida):** en el PR `lote5/integracion`.
+  - **Después:** Lote 6 (revisión final, versión y reporte).
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
   - **Subagentes** (opus, esfuerzo medio) para el trabajo paralelo. Cada revisión la hace quien no escribió el
@@ -190,17 +191,39 @@ Rama `lote4/integracion`, que une `lote4/contrato`, `lote4/webhooks`, `lote4/lla
 - **Esquema de la API v8** (rotación de secretos y modo del tenant).
 - **Decisiones:** DEC-104 a DEC-134. [REVISAR]: DEC-121 (CAI ficticio según el modo del tenant).
 
+## Hecho (Lote 5)
+
+Rama `lote5/integracion`, que une `lote5/owasp`, `lote5/propiedades`, `lote5/mutacion` y `lote5/resiliencia`. Cada
+rama la revisó un subagente que no la escribió, y su autor corrigió los hallazgos. Resumen y números en
+`docs/calidad.md`, con un informe por tema en `docs/calidad/`.
+
+- **Propiedades, contrato y fuzzing:** 60 propiedades con fast-check (citan su artículo); cada respuesta de las
+  pruebas de la API se valida contra `openapi.json` (Ajv); fuzz de la API desde la especificación, sin 500.
+  Corrigió `MONTO_FUERA_DE_RANGO` (tope técnico por tasa y en lempiras), 415 con forma de error, 400 por
+  caracteres de control en llaves y webhooks, fechas de período imposibles, CAI con NUL y cabeceras sin declarar.
+- **Mutación:** Stryker sobre ocho módulos del núcleo, 67,94 % → 99,11 %, umbral de 85 % por módulo, de noche.
+- **Carga y resiliencia:** `pnpm carga` (p95 37 ms a 30/s en local, sin huecos ni repetidos) y `pnpm resiliencia`
+  (PostgreSQL reiniciado y caído, commit incierto, webhooks caídos). 503 `BASE_NO_DISPONIBLE` con `Retry-After`;
+  el despacho de webhooks vacía lo acumulado; formateadores de fecha reusados.
+- **OWASP API Top 10 (2023):** 55 pruebas en `packages/api/test/owasp/`, 10 de 10 riesgos; tope de 8 MiB por
+  página de documentos, resolvedor inyectable en las entregas, punto final en nombres de host.
+- **`nocturno.yml`:** propiedades y fuzz con 20 000 casos, carga y resiliencia largas, mutación. 07:00 UTC y a mano.
+- **Decisiones:** DEC-135 a DEC-168. [REVISAR]: DEC-152 (ISV redondeado por tasa; remite a la consulta §P-10).
+
 ## Sigue
 
-1. Fusionar el PR del Lote 4 con la CI en verde.
+1. Fusionar el PR del Lote 5 con la CI en verde y calibrar los umbrales del perfil `ci` de la carga con las
+   primeras corridas en GitHub; correr `nocturno.yml` una vez a mano.
 2. El responsable confirma Trusted Publisher en los seis paquetes.
-3. Lote 5: calidad medida (propiedades, contrato y fuzzing; mutación; carga y resiliencia; OWASP API Top 10;
-   workflow nocturno; `docs/calidad.md`).
+3. Lote 6: revisión final (fiscal, seguridad, paquetes, documentación, primeros 5 minutos), versión 0.3.0 con
+   changesets y reporte final.
 4. Pendientes menores:
    - documentos ya guardados con un NUL (anteriores al Lote 4) siguen rompiendo el listado sin líneas de su tenant;
    - etiquetas del OpenAPI con tilde (`Sesión`, `Auditoría`) dan módulos raros en el cliente de Python;
-   - imagen Docker en GHCR, con permiso del responsable.
-5. Lote 6. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
+   - imagen Docker en GHCR, con permiso del responsable;
+   - propuestas de rendimiento de la carga (menos consultas por emisión) y de OWASP (PDF fuera del hilo
+     principal), en `docs/decisiones.md`.
+5. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
 
 ## Cómo correr
 
@@ -209,4 +232,6 @@ pnpm install && pnpm test && pnpm test:ejemplos && pnpm typecheck
 pnpm test:pg      # levanta el Postgres de factura-hn (con docker-compose.dev.yml) y corre lo que lo usa
 pnpm sitio        # genera, construye y verifica el sitio en sitio/; pnpm sitio:ver lo sirve en :4321
 pnpm colecciones  # regenera las colecciones de Bruno y Postman desde el OpenAPI
+pnpm calidad:propiedades && pnpm calidad:owasp && pnpm carga ci && pnpm resiliencia  # ver docs/calidad.md
+pnpm mutacion     # unos 15 min
 ```
