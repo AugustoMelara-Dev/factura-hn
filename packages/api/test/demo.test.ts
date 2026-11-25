@@ -84,6 +84,11 @@ conBase('modo demo', () => {
     expect(e.ejemplos.curl).toContain('https://api.ejemplo.example/v1/documentos');
     expect(e.ejemplos.sdk).toContain('@factura-hn/cliente');
     expect(e.ejemplos.mcp).toContain(e.mcp.url);
+    // El cuerpo del curl va en ASCII (Git Bash en Windows no manda UTF-8) y es la venta del inicio rápido con Docker.
+    const cuerpoCurl = /-d '(.*)'$/.exec(e.ejemplos.curl)![1]!;
+    expect(cuerpoCurl).toMatch(/^[\x20-\x7e]+$/);
+    const delEjemplo = await json(await cliente(app, e.llave)('POST', '/v1/documentos', JSON.parse(cuerpoCurl), { 'idempotency-key': 'ejemplo-curl' }));
+    expect(delEjemplo.documento.totales.total).toBe(115);
 
     const d = await emitir(e.llave, app);
     expect(d.status).toBe(201);
