@@ -1119,13 +1119,13 @@ intentos de la API se corrigió en DEC-070.
 
 ### DEC-091 · El modo mezclado compara solo con autorizaciones en uso
 - **Contexto:** una base de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin `prueba: true` (entonces no existía)
-  junto a CAI reales en el mismo punto. Con la regla de DEC-064, un CAI demo vencido impedía registrar el CAI real
+  junto a CAI reales en el mismo punto. Con la regla de DEC-063, un CAI demo vencido impedía registrar el CAI real
   siguiente: una regresión grave para quien actualiza.
 - **Elegida:** `AUTORIZACION_MODO_MEZCLADO` mira solo las autorizaciones en uso del punto: vigentes (fecha límite
   ≥ hoy, Art. 62) y con números después del último consumido de su serie. Las vencidas o agotadas no cuentan, en
   los dos sentidos. Nota de migración en el changeset.
 - **Alternativa:** ignorar los CAI demo sin `prueba: true`. Dejaría mezclar una demo vigente con un CAI real en el
-  mismo punto, que es lo que DEC-064 evita.
+  mismo punto, que es lo que DEC-063 evita.
 - **Límite conocido [REVISAR]:** si el CAI demo de la 0.2.0 sigue vigente con números libres, el CAI real de ese
   punto se rechaza hasta que venza; las autorizaciones no se borran. Falta decidir si hace falta una salida
   explícita (p. ej. dar de baja una autorización de prueba).
