@@ -44,8 +44,8 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### ALMACEN_REQUERIDO
 
-- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `buscarDocumento`,
-  `eventosAuditoria`, `corregirFechaAdelantada` o `crearFacturador` sin almacén fiscal.
+- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `registrarAutorizacionConAvisos`,
+  `buscarDocumento`, `eventosAuditoria`, `corregirFechaAdelantada` o `crearFacturador` sin almacén fiscal.
 - **Causa:** falta `almacen` en la configuración, o no es un `AlmacenFiscal` (no tiene `transaccion`).
 - **Solución:** pasa un almacén: `new AlmacenFiscalMemoria()` para probar; `AlmacenSQLite` o `AlmacenPostgres`
   para guardar de verdad. Créalo una vez al arrancar, no en cada venta.
@@ -567,13 +567,16 @@ moneda: la mayoría de estos errores desaparecen.
 ### TEXTO_CARACTER_NO_PERMITIDO
 
 - **Qué significa:** un texto de la entrada (emisor, cliente, líneas, referencia, exoneración, motivo,
-  observaciones…) tiene un carácter de control, como NUL (` `) o ESC, o la mitad suelta de un par sustituto
-  UTF-16. `campo` dice cuál, por ejemplo `lineas[0].descripcion`.
+  observaciones…), el nombre de uno de sus campos o el motivo de una anulación tiene un carácter de control, como
+  NUL (U+0000) o ESC (U+001B), o la mitad suelta de un par sustituto UTF-16. `campo` dice cuál, por ejemplo
+  `lineas[0].descripcion`.
 - **Causa:** casi siempre un copiar y pegar, un lector de códigos de barras o un texto mal decodificado.
 - **Solución:** quita esos caracteres. De los de control se permiten el tabulador, el salto de línea y el retorno
-  de carro.
-- **Base:** no es una regla fiscal. PostgreSQL no guarda esos caracteres en `jsonb` (la emisión terminaba en error
-  500) y la impresora toma los de control como comandos (DEC-060). Se rechaza antes de consumir número.
+  de carro. Si `campo` empieza con `emisor.`, el carácter está en la configuración del emisor, no en la venta:
+  corrígela en `crearFacturador({ emisor })` o, en la API, con `PATCH /v1/emisores/{id}`.
+- **Base:** no es una regla fiscal. PostgreSQL no guarda esos caracteres en `jsonb` (el listado y la anulación
+  terminaban en error 500) y la impresora toma los de control como comandos (DEC-060). Se rechaza antes de
+  consumir número.
 
 ## SDK: avisos
 
