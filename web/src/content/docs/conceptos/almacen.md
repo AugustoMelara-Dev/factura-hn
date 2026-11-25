@@ -17,7 +17,7 @@ calcula el siguiente número ni guarda el documento por su cuenta.
 | Proyecto | Almacén |
 |---|---|
 | PostgreSQL (Supabase, Neon, RDS…), un servidor con varias cajas | `@factura-hn/postgres`: `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
-| Una caja sin internet, Electron, una instalación local | `@factura-hn/sqlite`: `new AlmacenSQLite(db)` (Node 22.13+) |
+| Una caja sin internet, Electron, una instalación local | `@factura-hn/sqlite`: `new AlmacenSQLite(db)` (Node 18+ con `better-sqlite3`; Node 22.13+ con `node:sqlite`) |
 | Pruebas y demos | `AlmacenFiscalMemoria`, incluido en `factura-hn`. Se pierde al reiniciar |
 | Otra base (MySQL, SQL Server, IndexedDB…) | Implementa `AlmacenFiscal` y hazlo pasar la batería de contrato |
 
@@ -112,7 +112,8 @@ Haz respaldos del almacén: es tu archivo fiscal.
 
 :::caution[Por confirmar con fuente]
 El plazo de conservación de 5 años (Código Tributario, Arts. 58.4 y 63.3) sale de una compilación de 2024 del
-Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores (P-06, F-07).
+Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores (P-06). Ver la
+[consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Escribir tu propio almacén
@@ -120,6 +121,6 @@ Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas poster
 Si tu base no es PostgreSQL ni SQLite, implementa las interfaces `AlmacenFiscal` y `TransaccionFiscal` y pasa la
 batería `ejecutarContratoAlmacen` de `factura-hn/pruebas`. Verifica la numeración consecutiva, la continuidad
 entre autorizaciones, que un fallo no consuma número, la anulación, el orden cronológico, la bitácora y 50
-emisiones concurrentes desde 5 conexiones. Ver [Almacén propio](/guias/almacen-propio/).
+emisiones concurrentes desde 5 conexiones.
 
-Las clases y las interfaces están en la [referencia del SDK](/referencia/sdk/).
+Las clases, las interfaces y `ejecutarContratoAlmacen` están en la [referencia del SDK](/referencia/sdk/).

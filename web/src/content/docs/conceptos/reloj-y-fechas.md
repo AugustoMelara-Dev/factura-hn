@@ -72,8 +72,8 @@ documentos nuevos con la fecha correcta. El procedimiento paso a paso está en
 
 :::caution[Por confirmar con fuente]
 Un reloj **atrasado** en la primera emisión de una serie no se detecta: no hay una emisión anterior con la cual
-comparar, y la autorización no trae una fecha que sirva de piso. Falta saber si existe esa fecha mínima (P-13,
-F-12). Revisa el reloj de cada caja antes de su primera venta.
+comparar, y la autorización no trae una fecha que sirva de piso. Falta saber si existe esa fecha mínima (P-13).
+Revisa el reloj de cada caja antes de su primera venta. Ver la [consulta al SAR](/produccion/consulta-sar/).
 :::
 
 Las funciones de fecha y `corregirFechaAdelantada` están en la [referencia del SDK](/referencia/sdk/).

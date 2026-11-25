@@ -33,7 +33,8 @@ sin instalar nada y con CAI ficticios.
 El SDK emite dentro de tu proceso, sobre un [almacén fiscal](/conceptos/almacen/) que tú eliges:
 
 - `@factura-hn/postgres` para un servidor con varias cajas;
-- `@factura-hn/sqlite` para una caja que trabaja sin internet (Node 22.13+), cada una con su propio punto de
+- `@factura-hn/sqlite` para una caja que trabaja sin internet (Node 18+ con `better-sqlite3`; Node 22.13+ con
+  `node:sqlite`), cada una con su propio punto de
   emisión;
 - tu propia base, implementando la interfaz `AlmacenFiscal` y pasando su batería de pruebas.
 
@@ -56,7 +57,7 @@ Tiene dos modos:
 
 :::caution[Por confirmar con fuente]
 El encaje del modo alojado con el Art. 47 del Reglamento («el establecimiento donde se encuentre el servidor»)
-está pendiente: es la pregunta P-02, que aún no tiene respuesta (F-05). Mientras tanto, la recomendación es el
+está pendiente: es la pregunta P-02, que aún no tiene respuesta. Mientras tanto, la recomendación es el
 modo local. Ver la [consulta al SAR](/produccion/consulta-sar/).
 :::
 
