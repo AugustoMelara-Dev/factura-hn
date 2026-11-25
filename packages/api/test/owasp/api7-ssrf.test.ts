@@ -158,3 +158,18 @@ conBase('API7 · SSRF en webhooks', () => {
     }
   });
 });
+
+conBase('API7 · SSRF en la demostración pública (FHN_MODO=demo)', () => {
+  it('no hay webhooks: ni a la red interna del proveedor ni a una URL pública; el despachador no corre', async () => {
+    const { configDemo } = await import('../../src/demo');
+    const pool = await poolPrueba();
+    const app = crearApp({ pool, modo: 'demo', rol: ROL, demo: configDemo(), registrar: () => undefined });
+    const e = (await (await app.request('/v1/demo/entornos', { method: 'POST' }, { incoming: { socket: { remoteAddress: '203.0.113.77' } } })).json()) as { llave: string };
+    const c = cliente(app, e.llave);
+    for (const url of ['http://postgres.internal:5432/', 'https://169.254.169.254/latest/meta-data/', 'https://hooks.ejemplo.example/x']) {
+      const r = await c('POST', '/v1/webhooks', { url, eventos: ['documento.emitido'] });
+      expect(r.status, url).toBe(403);
+      expect((await json(r)).error.codigo).toBe('DEMO_NO_DISPONIBLE');
+    }
+  });
+});

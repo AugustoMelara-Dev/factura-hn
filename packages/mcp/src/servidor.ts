@@ -198,6 +198,30 @@ export interface OpcionesServidorMCP {
    * esa confirmación. Lo activa `FHN_MCP_PERMITIR_DESTRUCTIVAS=1`. Por defecto `false`: esas herramientas se niegan.
    */
   permitirDestructivas?: boolean;
+  /**
+   * Caracteres como máximo del resultado de una herramienta (texto y datos juntos, en JSON). Más allá, el texto se
+   * recorta, los datos estructurados se omiten y se avisa. Sin valor, no hay tope (stdio). El MCP remoto lo fija.
+   */
+  maxResultado?: number;
+}
+
+/** Resultado dentro de `max` caracteres (ver `OpcionesServidorMCP.maxResultado`). */
+function acotar(r: CallToolResult, max: number | undefined): CallToolResult {
+  if (!max || JSON.stringify(r).length <= max) return r;
+  const aviso = `
+[Respuesta recortada: supera el límite de ${Math.floor(max / 1024)} KB de este servidor. Pide el formato «resumen» o un período más corto.]`;
+  const presupuesto = Math.max(256, Math.floor(max / 2) - aviso.length);
+  let usado = 0;
+  const content = r.content.map((c) => {
+    if (c.type !== 'text') return c;
+    const texto = c.text.slice(0, Math.max(0, presupuesto - usado));
+    usado += texto.length;
+    return { ...c, text: texto };
+  });
+  let i = content.length - 1;
+  while (i >= 0 && content[i]!.type !== 'text') i--;
+  if (i >= 0) content[i] = { ...(content[i] as { type: 'text'; text: string }), text: (content[i] as { text: string }).text + aviso };
+  return { ...(r.isError ? { isError: true } : {}), content };
 }
 
 const CONFIRMAR = {
@@ -257,7 +281,8 @@ export function crearServidorMCP(backend: Backend, opciones: OpcionesServidorMCP
   const registrarHerramienta = s.registerTool.bind(s);
   s.registerTool = ((nombre: string, config: { inputSchema?: z.ZodRawShape }, manejador: (a: unknown, extra: unknown) => unknown) => {
     esquemas.set(nombre, z.object(config.inputSchema ?? {}));
-    const conValidacion = async (a: unknown, extra: unknown) => (esInvalido(a) ? falloDeArgumentos(a[INVALIDO]) : manejador(a, extra));
+    const conValidacion = async (a: unknown, extra: unknown) =>
+      acotar((await (esInvalido(a) ? falloDeArgumentos(a[INVALIDO]) : manejador(a, extra))) as CallToolResult, opciones.maxResultado);
     return registrarHerramienta(nombre, config as never, conValidacion as never);
   }) as typeof s.registerTool;
 

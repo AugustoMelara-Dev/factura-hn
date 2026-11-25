@@ -51,9 +51,11 @@ conBase('API5 · autorización a nivel de función', () => {
     // externa) y el libro de ventas (caja sin punto).
     expect([...deAdmin, 'emitirDocumento', 'obtenerLibroVentas'].filter((id) => !con403.has(id))).toEqual([]);
     // Además, toda operación de /v1 declara 403 por TENANT_FUERA_DEL_MODO_LOCAL: el servidor en modo local no atiende
-    // llaves de otro tenant. La única sin 403 es /salud, que es pública.
+    // llaves de otro tenant. Las únicas sin 403 son las públicas: /salud y el preflight de la demo. La creación de
+    // entornos de la demo declara 403 por ORIGEN_NO_PERMITIDO (una página de otro sitio).
     const todas = Object.values(spec.paths).flatMap((ops) => Object.values(ops).map((op) => op.operationId));
-    expect(todas.filter((id) => !con403.has(id))).toEqual(['obtenerSalud']);
+    expect(todas.filter((id) => !con403.has(id)).sort()).toEqual(['obtenerSalud', 'preflightEntornoDemo']);
+    expect(con403.has('crearEntornoDemo')).toBe(true);
   });
 
   it('una caja no se crea una llave admin ni otra caja, ni revoca la llave admin', async () => {

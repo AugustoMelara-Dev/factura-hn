@@ -292,3 +292,98 @@ async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promis
   const llaveCaja = await crearLlaveOperador(pool, { tenant: TENANT_DEMO, rol: 'caja', nombre: 'Caja 1 (demo)', establecimiento: '000', puntoEmision: '001' });
   return { llaveAdmin, llaveCaja };
 }
+
+// --- Modo demo (FHN_MODO=demo) -----------------------------------------------------------------------------------
+
+/** Tablas con columna `tenant`: la revisión del modo demo las mira todas. */
+const TABLAS_CON_TENANT = [
+  'api_tenants', 'api_llaves', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_entregas', 'api_uso', 'api_bitacora',
+  'fhn_documentos', 'fhn_autorizaciones', 'fhn_series', 'fhn_eventos',
+] as const;
+
+/**
+ * Por qué una base no sirve para el modo demo, o `[]`. La demostración pública no debe compartir base con datos
+ * reales, y la revisión falla cerrada: cualquier tenant con filas en cualquier tabla (aunque no tenga llaves) que no
+ * sea un entorno de la demostración, cualquier tenant de producción y cualquier CAI real (en autorizaciones o en
+ * documentos) la descartan. Corre con el dueño de las tablas. Como varias tablas fuerzan RLS también a su dueño, en
+ * una transacción que se revierte al final quita ese forzado para ver todas las filas (si el rol no salta RLS ya).
+ */
+export async function datosRealesEnBase(pool: pg.Pool): Promise<string[]> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    const yo = (await c.query<{ salta: boolean }>('SELECT rolsuper OR rolbypassrls AS salta FROM pg_roles WHERE rolname = current_user')).rows[0];
+    if (!yo?.salta) {
+      for (const t of [...TABLAS_CON_TENANT, 'api_demo_entornos']) await c.query(`ALTER TABLE ${t} NO FORCE ROW LEVEL SECURITY`);
+    }
+    const union = TABLAS_CON_TENANT.map((t) => `SELECT tenant FROM ${t}`).join(' UNION ');
+    const f = (await c.query<{ tenant: string; motivo: string }>(
+      `WITH todos AS (${union}),
+            reales AS (
+              SELECT tenant FROM fhn_autorizaciones WHERE NOT starts_with(upper(btrim(cai)), 'DEMO00-NO-VALIDO-')
+              UNION SELECT tenant FROM fhn_documentos WHERE NOT starts_with(upper(btrim(coalesce(datos->>'cai', ''))), 'DEMO00-NO-VALIDO-'))
+       SELECT t.tenant,
+              CASE WHEN (SELECT modo FROM api_tenants a WHERE a.tenant = t.tenant) = 'produccion' THEN 'produccion'
+                   WHEN t.tenant IN (SELECT tenant FROM reales) THEN 'cai_real'
+                   ELSE 'ajeno' END AS motivo
+         FROM todos t
+        WHERE t.tenant IN (SELECT tenant FROM reales)
+           OR t.tenant NOT IN (SELECT e.tenant FROM api_demo_entornos e)
+           OR (SELECT modo FROM api_tenants a WHERE a.tenant = t.tenant) IS DISTINCT FROM 'prueba'
+        ORDER BY t.tenant LIMIT 5`,
+    )).rows;
+    await c.query('ROLLBACK');
+    return f.map(({ tenant, motivo }) =>
+      motivo === 'produccion' ? `el tenant «${tenant}» es de producción`
+        : motivo === 'cai_real' ? `el tenant «${tenant}» tiene un CAI real`
+          : `el tenant «${tenant}» no es un entorno de la demostración`);
+  } catch (e) {
+    await c.query('ROLLBACK').catch(() => undefined);
+    throw e;
+  } finally {
+    c.release();
+  }
+}
+
+/** Mensaje de error del modo demo sobre una base con datos reales. */
+export function errorDatosRealesEnDemo(motivos: string[]): string {
+  return [
+    `FHN_MODO=demo necesita una base solo para la demostración, y esta tiene datos reales: ${motivos.join('; ')}.`,
+    'La demostración pública la usa cualquiera: crea una base aparte para ella (p. ej. factura_hn_demo) y no la compartas',
+    'con la de ningún negocio.',
+  ].join('\n');
+}
+
+/**
+ * Borra los entornos de demostración vencidos a la hora `ahora`, de a `porTransaccion` (50) por transacción, hasta que no quede
+ * ninguno. `fhn_api_purgar_demo` corre como el dueño de las tablas (SECURITY DEFINER): sirve desde la API (con el rol
+ * de la aplicación) y desde la consola del operador. Devuelve cuántos borró.
+ */
+export async function purgarEntornosDemo(pool: pg.Pool, o: { rol?: string; ahora?: Date; porTransaccion?: number } = {}): Promise<number> {
+  const almacen = new AlmacenPostgres(pool, o.rol ? { rol: o.rol } : {});
+  const porTransaccion = o.porTransaccion ?? 50;
+  let total = 0;
+  for (;;) {
+    const n = await almacen.transaccion(async (t) => {
+      const tx = t as unknown as { consulta: <F>(sql: string, p?: unknown[]) => Promise<{ rows: F[] }> };
+      return (await tx.consulta<{ n: number }>('SELECT fhn_api_purgar_demo($1, $2) AS n', [o.ahora ?? new Date(), porTransaccion])).rows[0]!.n;
+    });
+    total += n;
+    if (n < porTransaccion) return total;
+  }
+}
+
+/** Cifras de la demostración: entornos vigentes, vencidos por borrar y si está en pausa. */
+export async function resumenDemo(pool: pg.Pool, o: { rol?: string; ahora?: Date } = {}): Promise<{ activos: number; vencidos: number; pausado: boolean }> {
+  const almacen = new AlmacenPostgres(pool, o.rol ? { rol: o.rol } : {});
+  return almacen.transaccion(async (t) => {
+    const tx = t as unknown as { consulta: <F>(sql: string, p?: unknown[]) => Promise<{ rows: F[] }> };
+    const f = (await tx.consulta<{ activos: string; vencidos: string; pausado: boolean }>('SELECT * FROM fhn_api_demo_resumen($1)', [o.ahora ?? new Date()])).rows[0]!;
+    return { activos: Number(f.activos), vencidos: Number(f.vencidos), pausado: f.pausado };
+  });
+}
+
+/** Interruptor global de la demostración (con el dueño de las tablas). La API lo nota en a lo sumo 5 segundos. */
+export async function pausarDemo(pool: pg.Pool, pausado: boolean, motivo?: string): Promise<void> {
+  await pool.query('UPDATE api_demo_control SET pausado = $1, motivo = $2, cambiado = now() WHERE id', [pausado, motivo?.slice(0, 200) ?? null]);
+}

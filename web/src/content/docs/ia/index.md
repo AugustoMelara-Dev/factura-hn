@@ -21,6 +21,7 @@ Un asistente de IA puede hacer dos trabajos distintos con factura-hn. Cada uno u
 | Que un agente conecte un proyecto de otro lenguaje a la API REST | Prompt de una línea (API) y `openapi.json` | [Prompts](/ia/prompts/) |
 | Darle a Claude el procedimiento completo de integración | La skill `facturacion-sar-hn` | [Skill](/ia/skill/) |
 | Emitir, consultar o anular desde el chat del asistente | El servidor MCP `@factura-hn/mcp` | [Servidor MCP](/ia/mcp/) |
+| Probar desde Claude (también en el móvil) o ChatGPT, sin instalar nada | El MCP remoto con un entorno de prueba | [MCP remoto](/ia/mcp-remoto/) |
 | Que un agente lea esta documentación | `llms.txt`, `llms-full.txt` y el `.md` de cada página | [llms.txt](/ia/llms-txt/) |
 
 Si es la primera vez, empieza por [Integrar con IA en un prompt](/empezar/con-ia/).

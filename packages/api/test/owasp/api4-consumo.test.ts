@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, expect, it } from 'vitest';
 import type pg from 'pg';
 import { crearApp, MAX_BYTES_PAGINA } from '../../src/app';
-import { cerrarPool, ROL, tenantListo, venta } from '../ayuda';
+import { cerrarPool, cliente, poolPrueba, ROL, tenantListo, venta } from '../ayuda';
 import { conBase, emitir, json, PERIODO } from './comun';
 
 afterAll(cerrarPool);
@@ -153,5 +153,20 @@ conBase('API4 · consumo de recursos', () => {
     const evento = (await json(await t.admin('GET', '/v1/bitacora?origen=api&limite=1'))).eventos[0];
     expect(evento.accion).toBe('webhook.creado');
     expect(evento.detalle.eventos).toEqual(['documento.emitido']);
+  });
+});
+
+conBase('API4 · consumo de recursos en la demostración pública (FHN_MODO=demo)', () => {
+  it('cuerpo, página y entornos acotados por defecto (ver demo.test.ts para cada límite con 429 y Retry-After)', async () => {
+    const { configDemo } = await import('../../src/demo');
+    const d = configDemo();
+    expect(d.maxCuerpo).toBeLessThanOrEqual(32 * 1024);
+    expect(d.maxBytesPagina).toBeLessThanOrEqual(256 * 1024);
+    expect(d.entornosPorIp).toBeLessThanOrEqual(3);
+    expect(d.documentos).toBeLessThanOrEqual(50);
+    const app = crearApp({ pool: await poolPrueba(), modo: 'demo', rol: ROL, demo: configDemo({ entornosPorIp: 1000, maxEntornos: 100_000 }), registrar: () => undefined });
+    const e = (await (await app.request('/v1/demo/entornos', { method: 'POST' }, { incoming: { socket: { remoteAddress: '203.0.113.78' } } })).json()) as { llave: string };
+    const r = await cliente(app, e.llave)('POST', '/v1/documentos', { documento: { lineas: [{ descripcion: 'x'.repeat(40_000), cantidad: 1, precioUnitario: '1' }] } }, { 'idempotency-key': 'k-grande-1' });
+    expect(r.status).toBe(413);
   });
 });

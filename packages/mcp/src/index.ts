@@ -7,3 +7,6 @@ export type { Contexto, Salida } from './comandos';
 export { erroresEmisor, leerEmisor, plantillaEmisor } from './emisor';
 export { autorizacionesDemo, esCAIDemo, EMISOR_DEMO, LEYENDA_PRUEBA } from './demo';
 export { enlaceGuia, solucionPara } from './soluciones';
+export { crearManejadorMcpHttp, direccionDelCliente, ipDelCliente, opcionesMcpHttpDesdeEntorno, ORIGENES_MCP_POR_DEFECTO, servirMcpHttp } from './http';
+export type { ManejadorMcpHttp, OpcionesMcpHttp } from './http';
+export { esLlaveApi, llaveDeTokenMcp } from './token';

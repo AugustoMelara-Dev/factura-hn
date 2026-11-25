@@ -7,7 +7,19 @@ import { writeFileSync } from 'node:fs';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
-import { bloqueLlavesDemo, consolaDe, crearLlaveDemo, crearLlaveOperador, crearTenant, errorTenantEnModoLocal, LEYENDA_PRUEBA, TENANTS_RESERVADOS } from './operador';
+import {
+  bloqueLlavesDemo,
+  consolaDe,
+  crearLlaveDemo,
+  crearLlaveOperador,
+  crearTenant,
+  errorTenantEnModoLocal,
+  LEYENDA_PRUEBA,
+  pausarDemo,
+  purgarEntornosDemo,
+  resumenDemo,
+  TENANTS_RESERVADOS,
+} from './operador';
 import { crearPool, urlDueno, usuarioDeUrl } from './pool';
 
 export interface SalidaConsola {
@@ -62,6 +74,39 @@ const COMANDOS: Comando[] = [
     posicionales: { obligatorios: [] },
     opciones: ['rol'],
     banderas: ['solo-llave'],
+    usaBase: true,
+  },
+  {
+    nombre: ['demo', 'limpiar'],
+    uso: 'demo limpiar',
+    descripcion:
+      'Demostración pública (FHN_MODO=demo): borra ya los entornos de prueba vencidos, cada uno con todos sus datos. La API lo ' +
+      'hace sola cada minuto; este comando sirve para una tarea programada aparte. Solo toca entornos de prueba con CAI ficticio.',
+    posicionales: { obligatorios: [] },
+    usaBase: true,
+  },
+  {
+    nombre: ['demo', 'pausar'],
+    uso: 'demo pausar [--motivo "texto"]',
+    descripcion:
+      'Interruptor global de la demostración pública: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO. La API ' +
+      'lo nota en a lo sumo 5 segundos. Se deshace con «demo reanudar».',
+    posicionales: { obligatorios: [] },
+    opciones: ['motivo'],
+    usaBase: true,
+  },
+  {
+    nombre: ['demo', 'reanudar'],
+    uso: 'demo reanudar',
+    descripcion: 'Quita la pausa de la demostración pública (salvo que la API arrancara con FHN_DEMO_PAUSADO=1).',
+    posicionales: { obligatorios: [] },
+    usaBase: true,
+  },
+  {
+    nombre: ['demo', 'estado'],
+    uso: 'demo estado',
+    descripcion: 'Entornos de la demostración pública vigentes y vencidos por borrar, y si está en pausa.',
+    posicionales: { obligatorios: [] },
     usaBase: true,
   },
   {
@@ -233,6 +278,24 @@ export async function ejecutarConsola(
           establecimiento: caja?.[0], puntoEmision: caja?.[1],
         });
         salida.log(`Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
+        return 0;
+      }
+      case 'demo limpiar': {
+        const n = await purgarEntornosDemo(pool);
+        salida.log(`Entornos de prueba vencidos borrados: ${n}.`);
+        return 0;
+      }
+      case 'demo pausar':
+        await pausarDemo(pool, true, opciones.motivo);
+        salida.log('Demostración en pausa: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO (en a lo sumo 5 s).');
+        return 0;
+      case 'demo reanudar':
+        await pausarDemo(pool, false);
+        salida.log('Demostración reanudada.');
+        return 0;
+      case 'demo estado': {
+        const r = await resumenDemo(pool);
+        salida.log(`Entornos vigentes: ${r.activos} · vencidos por borrar: ${r.vencidos} · ${r.pausado ? 'EN PAUSA' : 'activa'}.`);
         return 0;
       }
       case 'demo llave': {

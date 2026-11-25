@@ -13,11 +13,11 @@ import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
 import { EMISOR_DEMO } from 'factura-hn/demo';
 
-export const VERSION_ESQUEMA_API = 9;
+export const VERSION_ESQUEMA_API = 10;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
-export const TABLAS_API_SIN_FORZAR = ['api_llaves', 'api_entregas'] as const;
+export const TABLAS_API_SIN_FORZAR = ['api_llaves', 'api_entregas', 'api_demo_entornos'] as const;
 
 /**
  * Marca de la v9: el comentario de `fhn_api_tenants_con_pendientes()`, que desde la v9 omite los tenants inactivos.
@@ -170,10 +170,42 @@ BEGIN
   END IF;
 END $modo$;
 
+-- v10: entornos de demostración (FHN_MODO=demo). Cada visitante recibe un tenant de prueba propio que vence a las
+-- 24 h y se borra completo. api_demo_entornos se lee sin tenant (cupos y purga), por eso su RLS no se fuerza al
+-- dueño; el rol de la aplicación solo ve el suyo y escribe a través de funciones SECURITY DEFINER acotadas.
+-- origen: huella (HMAC) de la dirección de quien lo creó, para el cupo por dirección; nunca la dirección.
+CREATE TABLE IF NOT EXISTS api_demo_entornos (
+  tenant text PRIMARY KEY REFERENCES api_tenants(tenant),
+  creado timestamptz NOT NULL,
+  expira timestamptz NOT NULL,
+  origen text NOT NULL CHECK (origen ~ '^[0-9a-f]{32}$')
+);
+CREATE INDEX IF NOT EXISTS api_demo_entornos_expira ON api_demo_entornos (expira);
+CREATE INDEX IF NOT EXISTS api_demo_entornos_origen ON api_demo_entornos (origen, creado);
+-- Interruptor global de la demostración: una sola fila, que cambia el dueño con la consola (demo pausar).
+CREATE TABLE IF NOT EXISTS api_demo_control (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  pausado boolean NOT NULL DEFAULT false,
+  motivo text CHECK (motivo IS NULL OR length(motivo) <= 200),
+  cambiado timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO api_demo_control (id) VALUES (true) ON CONFLICT DO NOTHING;
+
 CREATE OR REPLACE FUNCTION fhn_api_solo_insertar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  -- v10: la bitácora de un entorno de demostración vencido se borra con él (fhn_api_purgar_demo). Solo en la
+  -- transacción que pide su purga y solo si el tenant es de prueba.
+  IF TG_OP = 'DELETE' AND coalesce(current_setting('factura_hn.purga_prueba', true), '') = OLD.tenant
+     AND fhn_api_modo_tenant(OLD.tenant) = 'prueba' THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'La bitácora de la API es de solo inserción';
 END $$;
+-- Las funciones de la purga de prueba buscan las tablas solo en este esquema (y pg_catalog), nunca en otro
+-- que esté antes en el search_path de quien las llama.
+DO $sp$ BEGIN
+  EXECUTE format('ALTER FUNCTION fhn_api_solo_insertar() SET search_path = pg_catalog, %I, pg_temp', current_schema());
+END $sp$;
 DROP TRIGGER IF EXISTS fhn_api_bitacora_inmutable ON api_bitacora;
 CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacora
   FOR EACH ROW EXECUTE FUNCTION fhn_api_solo_insertar();
@@ -306,6 +338,113 @@ BEGIN
   RETURN v_modo;
 END
 $$$f$, current_schema());
+
+-- v10: crea el tenant de un entorno de demostración, con los cupos revisados bajo un candado (sin carreras entre
+-- solicitudes simultáneas). Solo crea tenants de prueba y solo el de la transacción de quien llama. Devuelve
+-- 'ok', 'pausado', 'por_origen' o 'global', y en cuántos segundos se libera un cupo.
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_crear_entorno_demo(p_tenant text, p_nombre text, p_creado timestamptz, p_expira timestamptz,
+  p_origen text, p_max_por_origen integer, p_max_activos integer, p_limite_documentos integer)
+RETURNS TABLE (estado text, reintentar_en integer)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+#variable_conflict use_column
+DECLARE
+  v_n integer;
+  v_libre timestamptz;
+BEGIN
+  IF p_tenant IS NULL OR p_tenant <> coalesce(current_setting('factura_hn.tenant', true), '') THEN
+    RAISE EXCEPTION 'fhn_api_crear_entorno_demo: el tenant debe ser el de la transacción';
+  END IF;
+  IF p_expira <= p_creado OR p_expira > p_creado + interval '7 days' THEN
+    RAISE EXCEPTION 'fhn_api_crear_entorno_demo: vencimiento fuera de rango';
+  END IF;
+  PERFORM pg_advisory_xact_lock(4823191);
+  IF coalesce((SELECT c.pausado FROM api_demo_control c WHERE c.id), false) THEN
+    RETURN QUERY SELECT 'pausado'::text, 3600;
+    RETURN;
+  END IF;
+  SELECT count(*), min(e.creado) INTO v_n, v_libre FROM api_demo_entornos e
+   WHERE e.origen = p_origen AND e.creado > p_creado - interval '1 day' AND e.creado <= p_creado;
+  IF v_n >= p_max_por_origen THEN
+    RETURN QUERY SELECT 'por_origen'::text, least(86400, greatest(1, ceil(extract(epoch FROM (v_libre + interval '1 day' - p_creado)))))::integer;
+    RETURN;
+  END IF;
+  SELECT count(*), min(e.expira) INTO v_n, v_libre FROM api_demo_entornos e WHERE e.expira > p_creado AND e.creado <= p_creado;
+  IF v_n >= p_max_activos THEN
+    RETURN QUERY SELECT 'global'::text, least(604800, greatest(60, ceil(extract(epoch FROM (v_libre - p_creado)))))::integer;
+    RETURN;
+  END IF;
+  INSERT INTO api_tenants (tenant, nombre, limite_mensual, modo) VALUES (p_tenant, p_nombre, p_limite_documentos, 'prueba');
+  INSERT INTO api_demo_entornos (tenant, creado, expira, origen) VALUES (p_tenant, p_creado, p_expira, p_origen);
+  INSERT INTO api_bitacora (tenant, actor, accion, detalle)
+    VALUES (p_tenant, 'demo', 'tenant.creado', jsonb_build_object('modo', 'prueba', 'expira', p_expira));
+  RETURN QUERY SELECT 'ok'::text, 0;
+END
+$$$f$, current_schema());
+
+-- v10: borra los entornos de demostración vencidos, cada uno con todos sus datos. Corre como el dueño de las tablas
+-- (el rol de la aplicación no tiene DELETE). Solo toca tenants de prueba registrados en api_demo_entornos; los
+-- disparadores que impiden borrar dejan pasar solo esta purga (factura_hn.purga_prueba = el tenant) y solo con CAI
+-- ficticios. Devuelve cuántos entornos borró.
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_purgar_demo(p_ahora timestamptz, p_maximo integer)
+RETURNS integer
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_tenant text;
+  v_modo text;
+  v_n integer := 0;
+  -- Nunca más adelante que el reloj de la base: quien llama no puede vencer antes de tiempo un entorno vigente.
+  v_ahora timestamptz := least(p_ahora, now());
+BEGIN
+  FOR v_tenant IN SELECT e.tenant FROM api_demo_entornos e WHERE e.expira <= v_ahora ORDER BY e.expira
+                   LIMIT greatest(coalesce(p_maximo, 0), 0) FOR UPDATE SKIP LOCKED LOOP
+    PERFORM set_config('factura_hn.tenant', v_tenant, true);
+    SELECT t.modo INTO v_modo FROM api_tenants t WHERE t.tenant = v_tenant;
+    IF v_modo IS DISTINCT FROM 'prueba' THEN
+      RAISE WARNING 'factura-hn: el entorno de demostración %% no es de prueba; no se borra', v_tenant;
+      CONTINUE;
+    END IF;
+    -- Cada entorno en su propio bloque: si la base niega borrar algo (p. ej. un CAI real, que un tenant de prueba
+    -- no puede tener), ese entorno queda con un aviso y los demás se borran igual.
+    BEGIN
+    PERFORM set_config('factura_hn.purga_prueba', v_tenant, true);
+    DELETE FROM api_entregas WHERE tenant = v_tenant;
+    DELETE FROM api_webhooks WHERE tenant = v_tenant;
+    DELETE FROM api_llaves WHERE tenant = v_tenant;
+    DELETE FROM api_emisores WHERE tenant = v_tenant;
+    DELETE FROM api_uso WHERE tenant = v_tenant;
+    DELETE FROM api_idempotencia WHERE tenant = v_tenant;
+    DELETE FROM api_bitacora WHERE tenant = v_tenant;
+    DELETE FROM fhn_documentos WHERE tenant = v_tenant;
+    DELETE FROM fhn_eventos WHERE tenant = v_tenant;
+    DELETE FROM fhn_series WHERE tenant = v_tenant;
+    DELETE FROM fhn_autorizaciones WHERE tenant = v_tenant;
+    DELETE FROM api_demo_entornos WHERE tenant = v_tenant;
+    DELETE FROM api_tenants WHERE tenant = v_tenant;
+    PERFORM set_config('factura_hn.purga_prueba', '', true);
+    v_n := v_n + 1;
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM set_config('factura_hn.purga_prueba', '', true);
+      RAISE WARNING 'factura-hn: el entorno de demostración %% no se pudo borrar: %%', v_tenant, SQLERRM;
+    END;
+  END LOOP;
+  PERFORM set_config('factura_hn.purga_prueba', '', true);
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  RETURN v_n;
+END
+$$$f$, current_schema());
+
+-- v10: cifras de la demostración, sin datos de ningún entorno (consola y /salud del modo demo).
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_demo_resumen(p_ahora timestamptz)
+RETURNS TABLE (activos bigint, vencidos bigint, pausado boolean)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+  SELECT (SELECT count(*) FROM api_demo_entornos WHERE expira > p_ahora),
+         (SELECT count(*) FROM api_demo_entornos WHERE expira <= p_ahora),
+         coalesce((SELECT pausado FROM api_demo_control WHERE id), false)
+$$$f$, current_schema());
 END $do$;
 
 -- v8: el modo del tenant decide qué CAI se registran, por cualquier camino (la API o el SDK sobre la base de la
@@ -336,6 +475,28 @@ REVOKE ALL ON FUNCTION fhn_api_prefijo_registrado(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_tenants_con_pendientes() FROM PUBLIC;
 COMMENT ON FUNCTION fhn_api_tenants_con_pendientes() IS '${MARCA_PENDIENTES_V9}';
 REVOKE ALL ON FUNCTION fhn_api_marcar_uso(text, bytea) FROM PUBLIC;
+REVOKE ALL ON FUNCTION fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION fhn_api_purgar_demo(timestamptz, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION fhn_api_demo_resumen(timestamptz) FROM PUBLIC;
+-- En un Postgres administrado (Supabase), los privilegios por defecto dan EXECUTE de las funciones nuevas a sus roles
+-- de la API de datos: se quitan también, si existen. Solo el rol de la aplicación las ejecuta.
+DO $do$
+DECLARE
+  v_rol text;
+  v_fn text;
+BEGIN
+  FOREACH v_rol IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+      FOREACH v_fn IN ARRAY ARRAY[
+        'fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer)',
+        'fhn_api_purgar_demo(timestamptz, integer)', 'fhn_api_demo_resumen(timestamptz)', 'fhn_api_modo_tenant(text)',
+        'fhn_api_mantenimiento(integer)', 'fhn_api_autenticar(text)', 'fhn_api_prefijo_registrado(text)',
+        'fhn_api_tenants_con_pendientes()', 'fhn_api_marcar_uso(text, bytea)'] LOOP
+        EXECUTE format('REVOKE ALL ON FUNCTION %s FROM %I', v_fn, v_rol);
+      END LOOP;
+    END IF;
+  END LOOP;
+END $do$;
 `;
 
 const ROL = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -356,6 +517,8 @@ GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_ent
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
 GRANT SELECT, INSERT ON api_bitacora TO ${rol};
 GRANT USAGE ON SEQUENCE api_entregas_id_seq, api_bitacora_id_seq TO ${rol};
+GRANT SELECT ON api_demo_entornos, api_demo_control TO ${rol};
+GRANT EXECUTE ON FUNCTION fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer), fhn_api_purgar_demo(timestamptz, integer), fhn_api_demo_resumen(timestamptz) TO ${rol};
 GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_modo_tenant(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
 }
 
@@ -432,14 +595,15 @@ export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, con
         AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass($3) AND attname = $4 AND NOT attisdropped)
                  THEN has_column_privilege($2, to_regclass($3), $4, 'UPDATE') ELSE false END
         AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_tenants') AND attname = 'modo' AND NOT attisdropped)
-        AND coalesce(obj_description(to_regprocedure('fhn_api_tenants_con_pendientes()'), 'pg_proc'), '') = $5 AS ok`,
+        AND coalesce(obj_description(to_regprocedure('fhn_api_tenants_con_pendientes()'), 'pg_proc'), '') = $5
+        AND coalesce(has_function_privilege($2, to_regprocedure('fhn_api_purgar_demo(timestamptz,integer)'), 'EXECUTE'), false) AS ok`,
     [MARCA_ESQUEMA_API, rol, MARCA_COLUMNA_API.tabla, MARCA_COLUMNA_API.columna, MARCA_PENDIENTES_V9],
   );
   if (r.rows[0]?.ok) return;
   throw new Error(
     `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
       `(falta ${MARCA_ESQUEMA_API}, ${MARCA_COLUMNA_API.tabla}.${MARCA_COLUMNA_API.columna}, ${MARCA_MODO_API} o la v9 de ` +
-      `fhn_api_tenants_con_pendientes(), o el rol de ` +
+      `fhn_api_tenants_con_pendientes(), las funciones de la demostración (v10), o el rol de ` +
       'la API no puede usarlas). Migra antes de arrancar: arranca con ' +
       `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
       'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',

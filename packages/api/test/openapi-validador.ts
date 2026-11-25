@@ -78,7 +78,16 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
     // Ruta u método inexistente: el 404 NO_ENCONTRADO o, en /v1, lo que responden los middlewares de /v1/* antes de
     // buscar la ruta, también en /v1 a secas (401 de la llave, 413 del tamaño, 400 CUERPO_NO_UTF8, 429 de los límites). Siempre con la forma
     // de error de la API.
-    const ANTES_DE_LA_RUTA: Record<number, string[]> = { 400: ['CUERPO_NO_UTF8'], 401: ['NO_AUTENTICADO'], 413: ['CUERPO_DEMASIADO_GRANDE'], 429: ['DEMASIADOS_INTENTOS', 'DEMASIADAS_SOLICITUDES'] };
+    // En modo demo, la autenticación también responde por el entorno (vencido, no es de la demo, operación cerrada,
+    // límites) y por el interruptor global.
+    const ANTES_DE_LA_RUTA: Record<number, string[]> = {
+      400: ['CUERPO_NO_UTF8'],
+      401: ['NO_AUTENTICADO', 'ENTORNO_VENCIDO'],
+      403: ['DEMO_SOLO_PRUEBA', 'DEMO_NO_DISPONIBLE'],
+      413: ['CUERPO_DEMASIADO_GRANDE'],
+      429: ['DEMASIADOS_INTENTOS', 'DEMASIADAS_SOLICITUDES', 'DEMO_LIMITE_SOLICITUDES'],
+      503: ['DEMO_PAUSADO'],
+    };
     const codigos = r.status === 404 ? ['NO_ENCONTRADO'] : ruta === '/v1' || ruta.startsWith('/v1/') ? ANTES_DE_LA_RUTA[r.status] : undefined;
     if (!codigos) violaciones.push(`${metodo} ${ruta}: no está en la especificación y respondió ${r.status}`);
     else {
