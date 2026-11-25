@@ -4,6 +4,7 @@
  * - `BackendLocal`: el SDK sobre un `AlmacenFiscal` (p. ej. SQLite en el equipo del negocio).
  */
 import {
+  esAutorizacionDePrueba,
   anular,
   buscarDocumento,
   emitir,
@@ -52,6 +53,8 @@ export interface EstadoCAI {
   correlativosRestantes: number;
   diasRestantes: number;
   alertas: Problema[];
+  /** Demo de un punto que ya tiene un CAI real: retirada, sin números (DEC-091). */
+  retirada: boolean;
 }
 
 /**
@@ -116,10 +119,10 @@ function exigirCAIReal(a: AutorizacionCAI) {
 /** Advertencias de una autorización válida (el mismo criterio que `esAdvertencia` del núcleo). */
 const advertenciasDe = (a: AutorizacionCAI) => validarAutorizacion(a).filter((p) => p.codigo.startsWith('AVISO_') || p.codigo.endsWith('_ADVERTENCIA'));
 
-const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): EstadoCAI => {
+const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string, puntoConReal: boolean): EstadoCAI => {
   const consumido = Math.max(ultimo ?? 0, a.ultimoEmitidoAntes ?? 0);
   const u = consumido < a.rangoInicial ? null : Math.min(consumido, a.rangoFinal);
-  const e = estadoAutorizacion(a, u, { hoy });
+  const e = estadoAutorizacion(a, u, { hoy, puntoConReal });
   return {
     cai: a.cai,
     tipoDocumento: a.tipoDocumento,
@@ -130,6 +133,7 @@ const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): 
     correlativosRestantes: e.correlativosRestantes,
     diasRestantes: e.diasRestantes,
     alertas: e.alertas,
+    retirada: e.retirada === true,
   };
 };
 
@@ -287,15 +291,19 @@ export class BackendLocal implements Backend {
   async estadoCAI(): Promise<EstadoCAI[]> {
     const hoy = fechaHonduras((this.o.reloj ?? (() => new Date()))());
     return this.almacen.transaccion(async (tx) => {
-      const r: EstadoCAI[] = [];
-      for (const tipoDocumento of ['01', '06', '07'] as const) {
+      // Notas antes que facturas: el mismo orden de bloqueo que registrarAutorizacion (DEC-092).
+      const series: Array<{ auts: AutorizacionCAI[]; ultimo: number | null }> = [];
+      for (const tipoDocumento of ['06', '07', '01'] as const) {
         const id = identificadorDe({ establecimiento: this.o.establecimiento, puntoEmision: this.o.puntoEmision, tipoDocumento });
         const auts = await tx.autorizaciones(id);
         if (!auts.length) continue;
         const { ultimo } = await tx.bloquearSerie(id);
-        r.push(...auts.map((a) => resumirEstado(a, ultimo, hoy)));
+        series.push({ auts, ultimo });
       }
-      return r;
+      const puntoConReal = series.some((s) => s.auts.some((a) => !esAutorizacionDePrueba(a)));
+      return series
+        .flatMap((s) => s.auts.map((a) => resumirEstado(a, s.ultimo, hoy, puntoConReal)))
+        .sort((x, y) => x.serie.localeCompare(y.serie));
     });
   }
   async libroVentas(desde: string, hasta: string) {
@@ -366,6 +374,7 @@ export class BackendApi implements Backend {
           cai: a.cai, tipoDocumento: a.tipoDocumento, serie: `${a.establecimiento}-${a.puntoEmision}-${a.tipoDocumento}`,
           rango: `${a.rangoInicial}–${a.rangoFinal}`, fechaLimiteEmision: a.fechaLimiteEmision, vigente: e.vigente,
           correlativosRestantes: e.correlativosRestantes, diasRestantes: e.diasRestantes, alertas: e.alertas,
+          retirada: e.retirada,
         };
       }),
     );

@@ -1145,6 +1145,8 @@ intentos de la API se corrigió en DEC-070.
   esta corrección: una demo vigente bloqueaba el CAI real hasta vencer, y las autorizaciones no se borran. (2)
   Continuar la numeración real después de los números de prueba: dejaría sin usar los primeros números del rango
   real, que habría que reportar al SAR.
+- **Estado:** `GET /v1/autorizaciones/{cai}/estado`, `estado_cai` del MCP y `estadoAutorizacion` (con
+  `puntoConReal`) muestran la demo retirada como `retirada: true`, no vigente y sin números restantes.
 - **Límite conocido:** quien emitió documentos de prueba en una caja y tiene un CAI real que empieza en 1 debe
   registrarlo en una base nueva: los números de prueba de esa serie no se repiten.
 

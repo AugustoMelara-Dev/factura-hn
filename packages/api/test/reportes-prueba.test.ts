@@ -143,6 +143,11 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     const doc = (await json(e)).documento;
     expect(doc).toMatchObject({ cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04', correlativo: 1 });
     expect(doc.modo).toBeUndefined();
+    // El estado de la demo la muestra retirada, sin números; el de la real, no.
+    const estadoDemo = await json(await admin('GET', `/v1/autorizaciones/${caiDemo('01')}/estado`));
+    expect(estadoDemo.estado).toMatchObject({ retirada: true, vigente: false, correlativosRestantes: 0, siguienteCorrelativo: null, alertas: [] });
+    const estadoReal = await json(await admin('GET', '/v1/autorizaciones/A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04/estado'));
+    expect(estadoReal.estado).toMatchObject({ retirada: false, vigente: true, correlativosRestantes: 499 });
     const otra = await admin('POST', '/v1/autorizaciones', { ...punto, tipoDocumento: '06', cai: caiDemo('06'), rangoInicial: 1, rangoFinal: 100, prueba: true });
     expect(otra.status).toBe(422);
     expect((await json(otra)).errores).toMatchObject([{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }]);

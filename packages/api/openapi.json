@@ -323,6 +323,10 @@
             "items": {
               "$ref": "#/components/schemas/Problema"
             }
+          },
+          "retirada": {
+            "type": "boolean",
+            "description": "true si es una autorización de prueba de un punto que ya tiene una real: está retirada, no se emite con ella y no le quedan números (vigente false, correlativosRestantes 0)."
           }
         },
         "required": [
@@ -331,7 +335,8 @@
           "correlativosRestantes",
           "siguienteCorrelativo",
           "porcentajeUsado",
-          "alertas"
+          "alertas",
+          "retirada"
         ]
       },
       "RespuestaSesion": {

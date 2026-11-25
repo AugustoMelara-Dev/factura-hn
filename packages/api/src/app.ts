@@ -683,13 +683,22 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         const a = (await tx.consulta<{ datos: AutorizacionCAI; identificador: string }>('SELECT datos, identificador FROM fhn_autorizaciones WHERE tenant = $1 AND cai = $2', [tx.tenant, cai])).rows[0];
         if (!a) return null;
         const s = (await tx.consulta<{ ultimo: number | null }>('SELECT ultimo FROM fhn_series WHERE tenant = $1 AND identificador = $2', [tx.tenant, a.identificador])).rows[0];
-        return { aut: a.datos, ultimo: s?.ultimo ?? null };
+        // Una demo de un punto que ya tiene una autorización real (de cualquier tipo) está retirada (DEC-091).
+        let puntoConReal = false;
+        if (esAutorizacionDePrueba(a.datos)) {
+          const delPunto = await tx.consulta<{ datos: AutorizacionCAI }>(
+            'SELECT datos FROM fhn_autorizaciones WHERE tenant = $1 AND left(identificador, 7) = $2',
+            [tx.tenant, a.identificador.slice(0, 7)],
+          );
+          puntoConReal = delPunto.rows.some((f) => !esAutorizacionDePrueba(f.datos));
+        }
+        return { aut: a.datos, ultimo: s?.ultimo ?? null, puntoConReal };
       });
       if (!r) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Autorización no encontrada.');
       const consumido = Math.max(r.ultimo ?? 0, r.aut.ultimoEmitidoAntes ?? 0);
       const ultimo = consumido < r.aut.rangoInicial ? null : Math.min(consumido, r.aut.rangoFinal);
-      const estado = estadoAutorizacion(r.aut, ultimo, { hoy: fechaHonduras(reloj()) });
-      return c.json({ autorizacion: r.aut as unknown as z.infer<typeof S.Autorizacion>, estado }, 200);
+      const estado = estadoAutorizacion(r.aut, ultimo, { hoy: fechaHonduras(reloj()), puntoConReal: r.puntoConReal });
+      return c.json({ autorizacion: r.aut as unknown as z.infer<typeof S.Autorizacion>, estado: { ...estado, retirada: estado.retirada === true } }, 200);
     },
   );
 

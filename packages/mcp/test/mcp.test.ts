@@ -244,6 +244,20 @@ describe('registrar_cai', () => {
 });
 
 describe('registrar_cai: bases de prueba, numeración previa y punto de emisión', () => {
+  it('estado_cai muestra retirada la demo de un punto que ya tiene un CAI real', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    const [demo] = autorizacionesDemo({ hoy: RELOJ() });
+    await registrarAutorizacion(backend.almacenFiscal, demo!);
+    await registrarAutorizacion(backend.almacenFiscal, { ...aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'), rangoInicial: 1, rangoFinal: 100 });
+    const { llamar } = await conectar(backend);
+    const estado = await llamar('estado_cai');
+    expect(estado.datos.autorizaciones.map((e: any) => [e.serie, e.retirada, e.vigente, e.correlativosRestantes])).toEqual([
+      ['000-001-01', true, false, 0],
+      ['000-001-06', false, true, 100],
+    ]);
+    expect(estado.texto).toMatch(/000-001-01 · CAI DEMO00-\S+ · RETIRADA \(el punto ya tiene un CAI real\) · quedan 0/);
+  });
+
   it('BASE_DEMO en toda la base: un CAI real no entra en otra serie de una base de prueba', async () => {
     const db = baseEnArchivo();
     const backend = new BackendLocal({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });

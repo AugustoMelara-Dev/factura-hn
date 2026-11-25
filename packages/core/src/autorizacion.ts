@@ -5,7 +5,7 @@ import type { AutorizacionCAI, Problema } from './tipos';
 import { CORRELATIVO_MAXIMO, TIPOS_DOCUMENTO } from './numeracion';
 import { esCAIValido, normalizarCAI, PATRON_CAI_BASICO } from './identificacion';
 import { conSolucion } from './errores';
-import { esCAIDemo } from './modo';
+import { esAutorizacionDePrueba, esCAIDemo } from './modo';
 
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -151,6 +151,11 @@ export interface EstadoAutorizacion {
   siguienteCorrelativo: number | null;
   porcentajeUsado: number;
   alertas: Problema[];
+  /**
+   * Autorización de prueba de un punto que ya tiene una real: está retirada, no se emite con ella y no le quedan
+   * números (DEC-091). Solo aparece en ese caso.
+   */
+  retirada?: true;
 }
 
 /**
@@ -158,11 +163,13 @@ export interface EstadoAutorizacion {
  * o sin vigencia (la solicitud de un nuevo CAI toma tiempo).
  *
  * @param ultimoCorrelativoEmitido último correlativo usado, o null si no se ha emitido ninguno.
+ * @param opciones.puntoConReal el punto de emisión tiene alguna autorización real (de cualquier tipo). Con eso,
+ *   una autorización de prueba sale `retirada`, no vigente y sin números restantes.
  */
 export function estadoAutorizacion(
   aut: AutorizacionCAI,
   ultimoCorrelativoEmitido: number | null,
-  opciones: { hoy?: string; diasAviso?: number; porcentajeAviso?: number } = {},
+  opciones: { hoy?: string; diasAviso?: number; porcentajeAviso?: number; puntoConReal?: boolean } = {},
 ): EstadoAutorizacion {
   const hoy = opciones.hoy ?? fechaHonduras();
   // Art. 59 (C L.2245-2266): la nueva autorización se solicita «dentro de los dos (2) meses previos» a la
@@ -188,6 +195,9 @@ export function estadoAutorizacion(
   else if (porcentajeUsado >= porcentajeAviso)
     alertas.push({ codigo: 'AVISO_RANGO', mensaje: `Se ha usado el ${porcentajeUsado}% del rango (${restantes} disponibles).` });
 
+  if (opciones.puntoConReal && esAutorizacionDePrueba(aut)) {
+    return { vigente: false, diasRestantes, correlativosRestantes: 0, siguienteCorrelativo: null, porcentajeUsado, alertas: [], retirada: true };
+  }
   return {
     vigente: !vencida && !agotada,
     diasRestantes,

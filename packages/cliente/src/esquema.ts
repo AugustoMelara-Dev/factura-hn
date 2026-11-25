@@ -2168,6 +2168,8 @@ export interface components {
             siguienteCorrelativo: number | null;
             porcentajeUsado: number;
             alertas: components["schemas"]["Problema"][];
+            /** @description true si es una autorización de prueba de un punto que ya tiene una real: está retirada, no se emite con ella y no le quedan números (vigente false, correlativosRestantes 0). */
+            retirada: boolean;
         };
         RespuestaSesion: {
             sesion: components["schemas"]["Sesion"];

@@ -332,7 +332,7 @@ export function crearServidorMCP(backend: Backend): McpServer {
       }
       const texto = lista.length
         ? lista
-            .map((e) => `${e.serie} · CAI ${e.cai} · ${e.vigente ? 'vigente' : 'NO VIGENTE'} · quedan ${e.correlativosRestantes} · vence ${e.fechaLimiteEmision}` +
+            .map((e) => `${e.serie} · CAI ${e.cai} · ${e.retirada ? 'RETIRADA (el punto ya tiene un CAI real)' : e.vigente ? 'vigente' : 'NO VIGENTE'} · quedan ${e.correlativosRestantes} · vence ${e.fechaLimiteEmision}` +
               (e.alertas.length ? `\n  ${e.alertas.map((a) => `[${a.codigo}] ${a.mensaje}`).join('\n  ')}` : ''))
             .join('\n')
         : 'No hay autorizaciones registradas: no se puede emitir. Pide al usuario la resolución del SAR y usa registrar_cai, ' +
