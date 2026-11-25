@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 — 2026-11-25
+
+El detalle de esta versión está en el CHANGELOG de cada paquete (viaja también dentro de cada paquete de npm).
+Los seis comparten número de versión. Busca primero «Cambios incompatibles» en cada uno.
+
+- [`factura-hn`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/core/CHANGELOG.md#030)
+- [`@factura-hn/pdf`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/pdf/CHANGELOG.md#030)
+- [`@factura-hn/postgres`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/postgres/CHANGELOG.md#030)
+- [`@factura-hn/sqlite`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/sqlite/CHANGELOG.md#030)
+- [`@factura-hn/cliente`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/cliente/CHANGELOG.md#030)
+- [`@factura-hn/mcp`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/CHANGELOG.md#030)
+
+La API REST (`@factura-hn/api`, no se publica en npm) sigue la misma versión: sus cambios van en el CHANGELOG
+de `@factura-hn/cliente`.
+
 ## 0.2.0 — 2026-11-24
 
 Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles

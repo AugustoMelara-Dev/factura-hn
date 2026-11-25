@@ -441,11 +441,11 @@ herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `an
 - Vía la API: el bloque `mcpServers` con `FHN_API_URL` y `FHN_LLAVE` (una llave de caja).
 
 ```json
-{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.2.0"],
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.3.0"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
 ```
 
-En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.2.0"]`.
+En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.3.0"]`.
 
 ## Ejemplos
 

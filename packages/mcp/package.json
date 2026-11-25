@@ -1,6 +1,6 @@
 {
   "name": "@factura-hn/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Servidor MCP de factura-hn: emite, consulta y anula documentos SAR Honduras desde un agente de IA, vía la API o el SDK local. Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
