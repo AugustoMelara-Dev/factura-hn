@@ -29,20 +29,27 @@ export async function verificarFirmaWebhook(
     const clave = parte.slice(0, i).trim();
     const valor = parte.slice(i + 1).trim();
     if (clave === 't') ts.push(valor);
-    else if (clave === 'v1' && /^[0-9a-f]{64}$/.test(valor)) firmas.push(valor);
+    // A lo sumo 8 firmas: la API manda una o dos; una cabecera con cientos no multiplica el trabajo.
+    else if (clave === 'v1' && /^[0-9a-f]{64}$/.test(valor) && firmas.length < 8) firmas.push(valor);
   }
   if (ts.length !== 1 || !/^\d{1,15}$/.test(ts[0]!) || !firmas.length) return false;
   const t = Number(ts[0]);
   const ahora = Math.floor((opciones.ahora ?? Date.now)() / 1000);
   if (Math.abs(ahora - t) > (opciones.toleranciaSegundos ?? 300)) return false;
   const texto = new TextEncoder();
-  const clave = await crypto.subtle.importKey('raw', texto.encode(secreto), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const datos = texto.encode(`${t}.${cuerpo}`);
-  // `verify` compara en tiempo constante. Se revisan todas, sin cortar en la primera que coincide.
-  const resultados = await Promise.all(
-    firmas.map((v1) => crypto.subtle.verify('HMAC', clave, new Uint8Array(v1.match(/../g)!.map((h) => parseInt(h, 16))), datos)),
-  );
-  return resultados.some(Boolean);
+  const clave = await crypto.subtle.importKey('raw', texto.encode(secreto), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  // Un solo HMAC; cada `v1` se compara con él en tiempo constante, sin cortar en la primera que coincide.
+  const esperado = new Uint8Array(await crypto.subtle.sign('HMAC', clave, texto.encode(`${t}.${cuerpo}`)));
+  let valida = false;
+  for (const v1 of firmas) valida = igualesEnTiempoConstante(esperado, v1) || valida;
+  return valida;
+}
+
+/** Compara los 32 bytes del HMAC con una firma en hex (64 caracteres ya validados) sin salir antes de tiempo. */
+function igualesEnTiempoConstante(esperado: Uint8Array, hex: string): boolean {
+  let diferencia = 0;
+  for (let i = 0; i < esperado.length; i++) diferencia |= esperado[i]! ^ parseInt(hex.slice(2 * i, 2 * i + 2), 16);
+  return diferencia === 0;
 }
 
 /** Forma del cuerpo de cada entrega. Usa `id` (= cabecera `X-FacturaHN-Entrega`) para descartar repetidos. */
