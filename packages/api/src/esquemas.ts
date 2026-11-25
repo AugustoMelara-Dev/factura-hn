@@ -34,6 +34,12 @@ export const ErrorRespuesta = z
       campo: z.string().optional().openapi({ description: 'En un 400 de forma: el primer campo con problema (p. ej. `documento.lineas`).' }),
       solucion: Solucion,
       documentacion: Documentacion,
+      solicitud: z.string().optional().openapi({
+        description:
+          'Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 ' +
+          'la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.',
+        example: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42',
+      }),
     }),
     errores: z.array(ProblemaConGuia).optional().openapi({ description: 'En 400 y 422: la lista completa, cada uno con su código y campo.' }),
     advertencias: z.array(Problema).optional(),
@@ -229,6 +235,10 @@ export const pagina = <T extends z.ZodTypeAny>(nombre: string, elemento: T) =>
 
 export const RespuestaEmisor = z.object({ emisor: EmisorGuardado }).openapi('RespuestaEmisor');
 export const RespuestaAutorizacion = z.object({ autorizacion: Autorizacion }).openapi('RespuestaAutorizacion');
+/** Al registrar: la autorización y sus avisos (p. ej. `AVISO_VIGENCIA_MAYOR_1_ANIO`, Art. 62). No impiden el registro. */
+export const RespuestaAutorizacionNueva = z
+  .object({ autorizacion: Autorizacion, advertencias: z.array(Problema) })
+  .openapi('RespuestaAutorizacionNueva');
 export const RespuestaEstado = z.object({ autorizacion: Autorizacion, estado: EstadoAutorizacion }).openapi('RespuestaEstado');
 
 export const Motivo = z.object({ motivo: z.string().min(1).max(500), operador: Operador.optional() }).openapi('Motivo');
@@ -266,8 +276,42 @@ export const WebhookNuevo = z
   .object({ url: z.string().url().max(2000), eventos: z.array(z.enum(['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'])).min(1) })
   .openapi('WebhookNuevo');
 export const Webhook = z
-  .object({ id: z.string(), url: z.string(), eventos: z.array(z.string()), activo: z.boolean(), creado: z.string() })
+  .object({
+    id: z.string(),
+    url: z.string(),
+    eventos: z.array(z.string()),
+    activo: z.boolean(),
+    creado: z.string(),
+    graciaHasta: z.string().nullable().openapi({
+      description: 'Tras una rotación del secreto: hasta cuándo se firma también con el secreto anterior (dos `v1`). null si no hay gracia en curso.',
+    }),
+  })
   .openapi('Webhook');
+
+export const EntregaWebhook = z
+  .object({
+    id: z.string().openapi({ description: 'UUID de la entrega: el de la cabecera `X-FacturaHN-Entrega` y el campo `id` del cuerpo.' }),
+    webhookId: z.string(),
+    evento: z.string().openapi({ description: 'Uno de los eventos suscribibles o `webhook.prueba`.' }),
+    estado: z.enum(['PENDIENTE', 'ENTREGADA', 'FALLIDA']),
+    intentos: z.number().int().openapi({ description: 'Intentos hechos desde que se encoló o se reenvió por última vez.' }),
+    proximoIntento: z.string().nullable().openapi({ description: 'Cuándo se intenta de nuevo, si está PENDIENTE; null si ya terminó.' }),
+    ultimoCodigo: z.number().int().nullable().openapi({ description: 'Código HTTP de la última respuesta del receptor; null si no respondió.' }),
+    ultimoError: z.string().nullable().openapi({ description: 'Por qué falló el último intento (`HTTP 503`, `Tiempo agotado`, `Error de red`…).' }),
+    creada: z.string(),
+  })
+  .openapi('EntregaWebhook');
+export const RespuestaEntregaWebhook = z.object({ entrega: EntregaWebhook }).openapi('RespuestaEntregaWebhook');
+
+/** Horas de gracia de una rotación: de 0 (sin gracia) a 7 días, 24 por defecto. */
+export const GRACIA_MAXIMA_HORAS = 168;
+export const RotacionSecreto = z
+  .object({
+    graciaHoras: z.number().int().min(0).max(GRACIA_MAXIMA_HORAS).optional().openapi({
+      description: `Horas en que cada entrega se firma con los dos secretos (0 a ${GRACIA_MAXIMA_HORAS}, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto.`,
+    }),
+  })
+  .openapi('RotacionSecreto');
 
 const AutorizacionVigente = z.object({
   cai: z.string(),
@@ -282,7 +326,12 @@ const AutorizacionVigente = z.object({
 export const Sesion = z
   .object({
     tenant: z.string(),
-    modo: z.enum(['local', 'alojado']),
+    modoTenant: z.enum(['prueba', 'produccion']).openapi({
+      description:
+        'Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o ' +
+        '`produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada.',
+    }),
+    modo: z.enum(['local', 'alojado']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47) o `alojado`.' }),
     demo: z.boolean().openapi({ description: 'true en el tenant de demostración (CAI ficticio, sin validez fiscal).' }),
     llave: z.object({
       id: z.string(),
@@ -322,7 +371,11 @@ export const RespuestaLlave = z.object({ llave: Llave }).openapi('RespuestaLlave
 export const RespuestaLlaveNueva = z
   .object({
     llave: Llave,
-    secreto: z.string().openapi({ description: 'La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez.' }),
+    secreto: z.string().openapi({
+      description:
+        'La llave completa para `Authorization: Bearer`: `fhn_live_<prefijo>_<secreto>` en un tenant de producción o ' +
+        '`fhn_test_<prefijo>_<secreto>` en uno de prueba. Solo se muestra esta vez.',
+    }),
   })
   .openapi('RespuestaLlaveNueva');
 export const RespuestaWebhook = z.object({ webhook: Webhook }).openapi('RespuestaWebhook');
@@ -332,3 +385,9 @@ export const RespuestaWebhookNuevo = z
     secreto: z.string().openapi({ description: 'Secreto de firma (`whsec_…`) para verificar los envíos. Solo se muestra esta vez.' }),
   })
   .openapi('RespuestaWebhookNuevo');
+export const RespuestaSecretoRotado = z
+  .object({
+    webhook: Webhook,
+    secreto: z.string().openapi({ description: 'El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez.' }),
+  })
+  .openapi('RespuestaSecretoRotado');

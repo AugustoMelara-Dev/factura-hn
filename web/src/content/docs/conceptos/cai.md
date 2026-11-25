@@ -75,9 +75,10 @@ Al registrar, el SDK revisa:
 
 Con `fechaAutorizacion`, si la fecha límite queda a más de un año de la resolución (Art. 62), sale el aviso
 [`AVISO_VIGENCIA_MAYOR_1_ANIO`](/referencia/errores/#aviso_vigencia_mayor_1_anio). No bloquea el registro: lo
-devuelve `validarAutorizacion(autorizacion)` y lo llevan en `advertencias` los documentos emitidos con esa
-autorización. Para verlo antes de guardar, llama a `validarAutorizacion` en la pantalla de configuración. Suele
-ser un error al copiar la fecha.
+devuelven `registrarAutorizacionConAvisos(almacen, autorizacion)` (en `advertencias`, junto a la autorización
+guardada) y `validarAutorizacion(autorizacion)`, queda en el evento `AUTORIZACION_REGISTRADA` de la bitácora y lo
+llevan en `advertencias` los documentos emitidos con esa autorización. Para verlo antes de guardar, llama a
+`validarAutorizacion` en la pantalla de configuración. Suele ser un error al copiar la fecha.
 
 Un CAI registrado no se borra: las autorizaciones son parte del archivo fiscal, y los almacenes de Postgres y
 SQLite lo impiden aunque alguien edite la base a mano. Cada registro queda en la bitácora

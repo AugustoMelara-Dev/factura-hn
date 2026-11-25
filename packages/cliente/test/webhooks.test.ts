@@ -16,6 +16,25 @@ describe('verificarFirmaWebhook (Web Crypto)', () => {
     expect(await verificarFirmaWebhook(cuerpo, cabecera.replace(`t=${t}`, `t=${t + 1}`), 'secreto-1', { ahora })).toBe(false);
   });
 
+  it('varias firmas v1 (rotación del secreto): basta una válida, en cualquier orden', async () => {
+    const valida = firmar('secreto-1', cuerpo, t).split(',')[1]!;
+    const otra = firmar('secreto-viejo', cuerpo, t).split(',')[1]!;
+    expect(await verificarFirmaWebhook(cuerpo, `t=${t},${otra},${valida}`, 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, `t=${t},${valida},${otra}`, 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, `t=${t},${otra},${otra}`, 'secreto-1', { ahora })).toBe(false);
+    // Lo que firma la API durante la gracia: los dos secretos verifican.
+    const doble = firmar(['secreto-viejo', 'secreto-1'], cuerpo, t);
+    expect(await verificarFirmaWebhook(cuerpo, doble, 'secreto-viejo', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, doble, 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, doble, 'secreto-2', { ahora })).toBe(false);
+    // Entradas desconocidas y v1 mal formados se ignoran; dos t no.
+    expect(await verificarFirmaWebhook(cuerpo, `t=${t}, v0=x, v1=zz, ${valida}, v2=${'0'.repeat(64)}`, 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, `t=${t},t=${t},${valida}`, 'secreto-1', { ahora })).toBe(false);
+    // Solo cuentan las 8 primeras firmas v1.
+    expect(await verificarFirmaWebhook(cuerpo, [`t=${t}`, ...Array(7).fill(otra), valida].join(','), 'secreto-1', { ahora })).toBe(true);
+    expect(await verificarFirmaWebhook(cuerpo, [`t=${t}`, ...Array(8).fill(otra), valida].join(','), 'secreto-1', { ahora })).toBe(false);
+  });
+
   it('cabeceras mal formadas o vacías: false sin lanzar', async () => {
     for (const c of [undefined, null, '', 'v1=abc', `t=${t}`, `t=x,v1=${'0'.repeat(64)}`, `t=${t},v1=${'G'.repeat(64)}`]) {
       expect(await verificarFirmaWebhook(cuerpo, c, 'secreto-1', { ahora })).toBe(false);

@@ -94,7 +94,7 @@ conBase('consola: demo llave', () => {
     // --solo-llave: la llave sola en la salida estándar; el aviso, en la de errores.
     const sola = await correr(['demo', 'llave', '--solo-llave'], env);
     expect(sola.codigo).toBe(0);
-    expect(sola.log).toMatch(/^fhn_[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/);
+    expect(sola.log).toMatch(/^fhn_test_[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/);
     expect(sola.error).toContain('CAI FICTICIO');
     expect(sola.error).toContain('caja 000-001');
 

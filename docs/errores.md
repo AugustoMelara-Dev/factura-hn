@@ -44,8 +44,8 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### ALMACEN_REQUERIDO
 
-- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `buscarDocumento`,
-  `eventosAuditoria`, `corregirFechaAdelantada` o `crearFacturador` sin almacén fiscal.
+- **Qué significa:** se llamó a `emitir`, `anular`, `registrarAutorizacion`, `registrarAutorizacionConAvisos`,
+  `buscarDocumento`, `eventosAuditoria`, `corregirFechaAdelantada` o `crearFacturador` sin almacén fiscal.
 - **Causa:** falta `almacen` en la configuración, o no es un `AlmacenFiscal` (no tiene `transaccion`).
 - **Solución:** pasa un almacén: `new AlmacenFiscalMemoria()` para probar; `AlmacenSQLite` o `AlmacenPostgres`
   para guardar de verdad. Créalo una vez al arrancar, no en cada venta.
@@ -131,22 +131,31 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### AUTORIZACION_DEMO_SIN_PRUEBA
 
-- **Qué significa (API, 422):** `POST /v1/autorizaciones` recibió un CAI ficticio (`DEMO00-NO-VALIDO-…`) sin
-  `"prueba": true`, en un tenant que no es el de demostración.
-- **Causa:** se pegó el CAI de la demostración en lugar del CAI real, o se quiso registrar una autorización de
-  prueba sin decirlo.
-- **Solución:** para una autorización de prueba, agrega `"prueba": true` al cuerpo. Si es tu CAI real, cópialo de
-  la resolución del SAR: un CAI real no empieza con `DEMO00-NO-VALIDO-`.
-- **Base:** ninguna fiscal: un punto de emisión de prueba no consume números de una serie real.
+- **Ya no lo devuelve la API.** Lo devolvía `POST /v1/autorizaciones` con un CAI ficticio sin `"prueba": true` en
+  un tenant que no era el de demostración. Desde los modos de tenant, un tenant de producción no acepta ningún
+  CAI ficticio: ver [`CAI_DE_PRUEBA`](#cai_de_prueba).
 
 ### AUTORIZACION_REAL_EN_DEMO
 
-- **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en el tenant `demo` de la
-  demostración.
-- **Causa:** se usó la llave admin de la demostración para registrar el CAI del negocio.
-- **Solución:** registra tu CAI en el tenant de tu negocio, con su llave admin. El tenant `demo` solo emite
-  documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
-- **Base:** ninguna fiscal: separa la demostración de la facturación real.
+- **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en un tenant de prueba: el `demo`
+  de la demostración o uno creado con `tenant crear --modo prueba` (sus llaves empiezan con `fhn_test_`).
+- **Causa:** se usó la llave admin del sandbox para registrar el CAI del negocio.
+- **Solución:** registra tu CAI en el tenant de producción de tu negocio, con su llave admin (`fhn_live_…`). Un
+  tenant de prueba solo emite documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+- **Base:** ninguna fiscal: separa la prueba de la facturación real (un CAI real en el sandbox emitiría documentos
+  con apariencia válida fuera de la serie real).
+
+### CAI_DE_PRUEBA
+
+- **Qué significa (API, 422):** `POST /v1/autorizaciones` recibió un CAI ficticio (`DEMO00-NO-VALIDO-…`) en un
+  tenant de producción (llaves `fhn_live_…`), con o sin `"prueba": true`.
+- **Causa:** se pegó el CAI de la demostración en lugar del CAI real, o se quiso probar en el tenant real.
+- **Solución:** si es tu CAI real, cópialo de la resolución del SAR: un CAI real no empieza con
+  `DEMO00-NO-VALIDO-`. Para probar, usa un tenant de prueba: el `demo` (`demo llave` en la consola) o uno creado
+  con `tenant crear --modo prueba`.
+- **Base:** ninguna fiscal: un CAI ficticio en un tenant real convertiría en «de prueba» un punto de emisión real.
+- **Fuera de la API:** con el SDK sobre la base de la API, la base rechaza el registro con un error cuyo mensaje
+  empieza con `CAI_DE_PRUEBA` (y `AUTORIZACION_REAL_EN_DEMO` en el caso contrario).
 
 ### AUTORIZACION_TIPO
 
@@ -564,6 +573,20 @@ moneda: la mayoría de estos errores desaparecen.
   control.
 - **Solución:** corrígelo u omite el campo. No lo exige el Reglamento: es para la bitácora y el «Atendido por».
 
+### TEXTO_CARACTER_NO_PERMITIDO
+
+- **Qué significa:** un texto de la entrada (emisor, cliente, líneas, referencia, exoneración, motivo,
+  observaciones…), el nombre de uno de sus campos o el motivo de una anulación tiene un carácter de control, como
+  NUL (U+0000) o ESC (U+001B), o la mitad suelta de un par sustituto UTF-16. `campo` dice cuál, por ejemplo
+  `lineas[0].descripcion`.
+- **Causa:** casi siempre un copiar y pegar, un lector de códigos de barras o un texto mal decodificado.
+- **Solución:** quita esos caracteres. De los de control se permiten el tabulador, el salto de línea y el retorno
+  de carro. Si `campo` empieza con `emisor.`, el carácter está en la configuración del emisor, no en la venta:
+  corrígela en `crearFacturador({ emisor })` o, en la API, con `PATCH /v1/emisores/{id}`.
+- **Base:** no es una regla fiscal. PostgreSQL no guarda esos caracteres en `jsonb` (el listado y la anulación
+  terminaban en error 500) y la impresora toma los de control como comandos. Se rechaza antes de
+  consumir número.
+
 ## SDK: avisos
 
 ### AVISO_AJUSTE_CENTAVO
@@ -616,9 +639,11 @@ moneda: la mayoría de estos errores desaparecen.
 
 ## API REST
 
-La API responde con `{ error: { codigo, mensaje }, errores?, advertencias? }`. Un error fiscal del SDK llega como
-`422 VALIDACION`, con la lista de problemas del SDK (con sus códigos de arriba) en `errores`. `@factura-hn/cliente`
-lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `HTTP_<estado>`.
+La API responde con `{ error: { codigo, mensaje, solicitud }, errores?, advertencias? }`. Un error fiscal del SDK
+llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos de arriba) en `errores`.
+`error.solicitud` es el id de la solicitud, el mismo de la cabecera `Solicitud-Id`: cítalo al reportar un problema.
+`@factura-hn/cliente` lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa
+`HTTP_<estado>`.
 
 ### VALIDACION
 
@@ -630,10 +655,16 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 - **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla.
 - **Solución:** compara la solicitud con `GET /openapi.json`.
 
+### JSON_INVALIDO
+
+- **Qué significa (400):** el cuerpo no es JSON válido (comillas, comas o llaves de más o de menos).
+- **Solución:** genera el cuerpo con `JSON.stringify` (o el equivalente de tu lenguaje) en lugar de armarlo a mano.
+
 ### NO_AUTENTICADO
 
 - **Qué significa (401):** falta la llave de API o no es válida.
-- **Solución:** envía `Authorization: Bearer fhn_…` con una llave activa.
+- **Solución:** envía `Authorization: Bearer fhn_live_…` (o `fhn_test_…` en un tenant de prueba) con una llave
+  activa. Una llave `fhn_test_` no entra a un tenant de producción, ni una `fhn_live_` a uno de prueba.
 
 ### SOLO_ADMIN
 
@@ -643,7 +674,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### CAJA_SIN_PUNTO
 
-- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión.
+- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión. Lo devuelven
+  la emisión y `GET /v1/libro-ventas` (una caja recibe solo el libro de su punto, y esta llave no tiene uno).
 - **Solución:** crea otra llave de caja con establecimiento y punto de emisión.
 
 ### CAJA_NO_AUTORIZADA
@@ -741,7 +773,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### LIMITE_MENSUAL
 
-- **Qué significa (429):** el negocio alcanzó su límite de documentos del mes.
+- **Qué significa (429):** el negocio alcanzó su límite de documentos del mes. `Retry-After` trae los segundos que
+  faltan para el primer día del mes siguiente (00:00 en Honduras): un reintento automático antes no sirve.
 - **Solución:** espera al mes siguiente o amplía el límite.
 
 ### PERIODO_DEMASIADO_GRANDE
@@ -770,10 +803,32 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 - **Qué significa (409):** el negocio ya tiene el máximo de webhooks activos.
 - **Solución:** desactiva uno (`DELETE /v1/webhooks/{id}`) antes de crear otro.
 
+### WEBHOOK_INACTIVO
+
+- **Qué significa (409):** se pidió reenviar una entrega, enviar un evento de prueba o rotar el secreto de un
+  webhook desactivado. Un webhook desactivado no se reactiva.
+- **Solución:** crea otro webhook con `POST /v1/webhooks` (su secreto es nuevo) y recupera lo que no llegó
+  consultando la API (por ejemplo, `GET /v1/documentos?desde&hasta`).
+
+### ENTREGA_VENCIDA
+
+- **Qué significa (409):** se pidió reenviar una entrega de `autorizacion.*`, `ENTREGADA` o `FALLIDA`, cuyo cuerpo
+  ya se vació por retención (`FHN_RETENCION_DIAS`, 30 días por defecto). Queda solo como registro de que el aviso
+  se intentó. Una entrega de `documento.*` o `webhook.prueba` tan vieja ya se borró: da 404 `NO_ENCONTRADO`.
+- **Solución:** consulta el dato en la API (por ejemplo, `GET /v1/autorizaciones/{cai}/estado`).
+
+### LIMITE_PRUEBAS
+
+- **Qué significa (409):** el webhook ya tiene 5 eventos de prueba (`webhook.prueba`) pendientes; vale también al
+  reenviar una prueba terminada.
+- **Solución:** espera a que se entreguen o fallen (cada prueba se intenta a lo sumo 3 veces) y revisa su estado
+  con `GET /v1/webhooks/{id}/entregas`.
+
 ### ERROR_INTERNO
 
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.
-- **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, revisa el log del servidor.
+- **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, busca en el log del servidor la línea con el
+  id de `error.solicitud` (o de la cabecera `Solicitud-Id`).
 
 ## Servidor MCP
 

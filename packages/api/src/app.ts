@@ -5,10 +5,11 @@
  *
  * El tenant sale **solo** de la llave de API, nunca de la solicitud.
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { bodyLimit } from 'hono/body-limit';
 import { CABECERAS_DOCS, HTML_DOCS } from './docs';
+import { conCabecerasComunes, SOLICITUD_ID } from './contrato';
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
@@ -37,7 +38,7 @@ import {
   lineaLibroVentasCSV,
   noUtilizadosDelAlmacen,
   normalizarCAI,
-  registrarAutorizacion,
+  registrarAutorizacionConAvisos,
   renderizarHTML,
   renderizarTexto,
   validarEntrada,
@@ -63,10 +64,19 @@ import {
   type CuerpoError,
   type ProblemaApi,
 } from './errores';
-import { EMISOR_DEMO, TENANT_DEMO } from './operador';
-import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
+import { TENANT_DEMO } from './operador';
+import { coincide, generarLlave, leerLlave, type ModoTenant, type RolLlave } from './llaves';
 import * as S from './esquemas';
-import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
+import {
+  CofreSecretos,
+  comoTransaccionPostgres,
+  encolarEvento,
+  MAX_INTENTOS_PRUEBA,
+  MAX_PRUEBAS_PENDIENTES,
+  MAX_WEBHOOKS_ACTIVOS,
+  problemaDeURL,
+  type EventoWebhook,
+} from './webhooks';
 import {
   exigirPeriodoAcotado,
   maxDocumentosReporte,
@@ -167,9 +177,15 @@ export interface Sesion {
   establecimiento: string | null;
   puntoEmision: string | null;
   limiteMensual: number | null;
+  /** Modo del tenant: `prueba` (sandbox) o `produccion`. */
+  modoTenant: ModoTenant;
 }
 
-type Env = { Variables: { sesion: Sesion } };
+/**
+ * `solicitud`: el id de la solicitud (cabecera `Solicitud-Id`), en las respuestas y los errores. `idLog`: cómo se
+ * nombra en el log, siempre con un id generado por el servidor (más el del cliente, si mandó uno).
+ */
+type Env = { Variables: { sesion: Sesion; solicitud: string; idLog: string } };
 
 interface LlaveAutenticada {
   tenant: string;
@@ -180,6 +196,7 @@ interface LlaveAutenticada {
   limite_mensual: number | null;
   id: string;
   nombre: string;
+  modo: ModoTenant;
 }
 /** La llave activa de un prefijo, si la hay, y si el prefijo existe aunque la llave esté revocada o su tenant inactivo. */
 interface BusquedaLlave {
@@ -206,13 +223,21 @@ function jsonEstable(v: unknown): string {
   return JSON.stringify(v);
 }
 
-const respuestasError = {
-  400: { description: 'Solicitud mal formada', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  401: { description: 'Falta la llave de API o no es válida', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  403: { description: 'La llave no tiene permiso', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  422: { description: 'Reglas fiscales: lista de errores', content: { 'application/json': { schema: S.ErrorRespuesta } } },
-  429: { description: 'Límite de solicitudes o de documentos del mes', content: { 'application/json': { schema: S.ErrorRespuesta } } },
+const conError = (description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
+/** Respuestas de error que puede dar una operación. Cada ruta declara solo las que su código devuelve. */
+const CATALOGO_ERRORES = {
+  400: conError('Solicitud mal formada: forma, parámetros, cabeceras o JSON'),
+  401: conError('Falta la llave de API o no es válida'),
+  403: conError('La llave no tiene permiso'),
+  413: conError('El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.'),
+  422: conError('Reglas fiscales: lista de errores'),
+  429: conError('Límite de solicitudes (con `Retry-After`)'),
+  500: conError('Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.'),
 } as const;
+const respuestasDe = <K extends keyof typeof CATALOGO_ERRORES>(...estados: K[]) =>
+  Object.fromEntries(estados.map((e) => [e, CATALOGO_ERRORES[e]])) as Pick<typeof CATALOGO_ERRORES, K>;
+/** Las de una operación con cuerpo que valida reglas fiscales y exige rol admin. */
+const respuestasError = respuestasDe(400, 401, 403, 413, 422, 429, 500);
 const json = <T extends z.ZodTypeAny>(schema: T, description: string) => ({ description, content: { 'application/json': { schema } } });
 const seguridad = [{ llave: [] }];
 
@@ -231,6 +256,14 @@ const LIMITE_POR_DEFECTO = 100;
 /** Avisos de una nota de crédito que la API solo acepta con llave admin (DEC-051). */
 const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_ORIGINAL_EXTERNO']);
 const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
+/** Validación de cursores antes de la base: un valor fuera de rango daría 500 en lugar de 400 `CURSOR_INVALIDO`. */
+const BIGINT_MAXIMO = 9_223_372_036_854_775_807n;
+/** Microsegundos de 9999-12-31T23:59:59.999999Z: un `creada` real nunca pasa de ahí. */
+const MICROS_MAXIMOS = 253_402_300_799_999_999n;
+/** Una fecha del calendario que Postgres acepta como `date` (2024-99-99 o el año 0 darían 500). */
+const esFechaCursor = (s: string) =>
+  FECHA_CURSOR.test(s) && s >= '0001-01-01' && new Date(`${s}T00:00:00Z`).toJSON()?.slice(0, 10) === s;
+const UUID_ESTRICTO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** El cursor es opaco para el cliente: la llave de orden del último elemento, en JSON y base64url. */
 const escribirCursor = (llave: unknown) => Buffer.from(JSON.stringify(llave)).toString('base64url');
@@ -251,12 +284,31 @@ function paginar<F>(filas: F[], limite: number, llave: (f: F) => unknown) {
   return { elementos, hayMas, siguiente: hayMas ? escribirCursor(llave(elementos[elementos.length - 1]!)) : null };
 }
 
+/**
+ * Segundos desde `ahora` hasta el primer día del mes siguiente a `mes` (AAAA-MM), a las 00:00 de Honduras: cuando
+ * el límite mensual de documentos vuelve a cero. Honduras está en UTC-6 todo el año (sin horario de verano desde
+ * 2006): las 00:00 de allá son las 06:00 UTC.
+ */
+export function segundosHastaElMesSiguiente(mes: string, ahora: Date): number {
+  const [anio, m] = mes.split('-').map(Number) as [number, number];
+  // Date.UTC con el mes 1-based como índice 0-based ya es el mes siguiente (y pasa de diciembre a enero).
+  return Math.max(1, Math.ceil((Date.UTC(anio, m, 1, 6) - ahora.getTime()) / 1000));
+}
+
+/** Mensaje del `HTTPException(400)` del validador de Hono (`hono/validator`) cuando el cuerpo JSON no se puede leer. */
+const MENSAJE_JSON_MAL_FORMADO = 'Malformed JSON in request body';
+
+/** El cuerpo de error con el id de la solicitud (`error.solicitud`), el mismo de la cabecera `Solicitud-Id`. */
+const conSolicitud = (c: Context<Env>, cuerpo: CuerpoError): CuerpoError => ({ ...cuerpo, error: { ...cuerpo.error, solicitud: c.get('solicitud') } });
+
 export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rolBd = cfg.rol ?? ROL_POR_DEFECTO;
   const base = new AlmacenPostgres(cfg.pool, { rol: rolBd });
   const cofre = cfg.cofre ?? new CofreSecretos(null);
   const reloj = cfg.reloj ?? (() => new Date());
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
+  /** La cubeta de la llave como política del borrador: `q` fichas que se recuperan enteras en `w` segundos. */
+  const politicaLimite = `"llave";q=${limitador.rafaga};w=${Math.max(1, Math.ceil(limitador.rafaga / limitador.porSegundo))}`;
   const li = cfg.limiteIntentos ?? {};
   const rafagaIntentos = li.rafaga ?? 20;
   const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, rafagaIntentos);
@@ -301,7 +353,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           },
           errores: detalles,
         };
-        return c.json<CuerpoError>(conSolucion(cuerpo, guia), 400);
+        return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
       }
       return undefined;
     },
@@ -309,10 +361,25 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openAPIRegistry.registerComponent('securitySchemes', 'llave', {
     type: 'http',
     scheme: 'bearer',
-    description: 'Llave de API `fhn_<prefijo>_<secreto>`. Rol `caja`: emite y consulta. Rol `admin`: todo.',
+    description:
+      'Llave de API `fhn_live_<prefijo>_<secreto>` (tenant de producción) o `fhn_test_<prefijo>_<secreto>` (tenant de prueba). ' +
+      'Las llaves anteriores, `fhn_<prefijo>_<secreto>`, siguen valiendo en su tenant. Rol `caja`: emite y consulta. Rol `admin`: todo.',
   });
 
   // --- Infraestructura -------------------------------------------------------------------------------------
+  // Id de la solicitud y versión de la API en todas las respuestas, también en los errores y en /docs.
+  app.use('*', async (c, next) => {
+    const delCliente = c.req.header('solicitud-id');
+    const interno = randomUUID();
+    const propio = delCliente !== undefined && SOLICITUD_ID.test(delCliente);
+    const id = propio ? delCliente : interno;
+    c.set('solicitud', id);
+    // El id del cliente no es único ni confiable: el log lleva siempre el del servidor y, aparte, el del cliente.
+    c.set('idLog', propio ? `${interno} (cliente ${delCliente})` : interno);
+    await next();
+    c.header('Solicitud-Id', id);
+    c.header('FacturaHN-Version', VERSION_API);
+  });
   app.use('*', async (c, next) => {
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
@@ -325,33 +392,50 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     if (e instanceof ErrorApi) {
       if (e.estado === 429 && typeof e.extra.reintentarEn === 'number') c.header('Retry-After', String(e.extra.reintentarEn));
       const { reintentarEn: _r, ...extra } = e.extra;
-      return c.json<CuerpoError>(conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia), e.estado);
+      return c.json<CuerpoError>(conSolicitud(c, conSolucion({ error: { codigo: e.codigo, mensaje: e.message }, ...extra }, guia)), e.estado);
     }
     if (e instanceof ErrorValidacion) {
       const noEncontrado = e.errores.some((p) => p.codigo === 'DOCUMENTO_NO_ENCONTRADO');
       return c.json<CuerpoError>(
-        conSolucion(
+        conSolicitud(c, conSolucion(
           { error: { codigo: noEncontrado ? 'NO_ENCONTRADO' : 'VALIDACION', mensaje: e.errores.map((p) => p.mensaje).join(' ') }, errores: e.errores, advertencias: e.advertencias },
           guia,
-        ),
+        )),
         noEncontrado ? 404 : 422,
       );
     }
-    if (e instanceof HTTPException) return e.getResponse();
-    registrar('Error interno', e);
-    return c.json<CuerpoError>({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }, 500);
+    if (e instanceof HTTPException) {
+      // El validador de Hono rechaza en texto plano un cuerpo que no es JSON: se responde con la forma de error de la API.
+      // Solo ese caso; cualquier otro HTTPException sigue con su respuesta.
+      if (e.status === 400 && e.message === MENSAJE_JSON_MAL_FORMADO) {
+        const cuerpo: CuerpoError = { error: { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es JSON válido: revisa comillas, comas y llaves.' } };
+        return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
+      }
+      return e.getResponse();
+    }
+    registrar(`Error interno (solicitud ${c.get('idLog')})`, e);
+    return c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }), 500);
   });
-  app.notFound((c) => c.json<CuerpoError>({ error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }, 404));
+  app.notFound((c) => c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }), 404));
 
-  // Autenticación: Authorization: Bearer fhn_<prefijo>_<secreto>
+  // Autenticación: Authorization: Bearer fhn_live_<prefijo>_<secreto>, fhn_test_<prefijo>_<secreto> o fhn_<prefijo>_<secreto>
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? '';
     const llave = /^bearer +(\S+)$/i.exec(auth.trim())?.[1] ?? '';
-    const prefijo = prefijoDe(llave);
+    const forma = leerLlave(llave);
     const noValida = new ErrorApi(401, 'NO_AUTENTICADO', 'Falta la llave de API o no es válida.');
-    if (!prefijo) throw noValida;
+    if (!forma) throw noValida;
+    const { prefijo } = forma;
+    // Cabeceras del borrador IETF de RateLimit (draft-ietf-httpapi-ratelimit-headers): cuota de la llave y lo que
+    // le queda. Solo con el secreto correcto: en el 429 de la llave y en las respuestas autenticadas, no en un 401.
+    const cabecerasLimite = () => {
+      const { restantes, lleno } = limitador.estado(prefijo);
+      c.header('RateLimit-Policy', politicaLimite);
+      c.header('RateLimit', `"llave";r=${restantes};t=${lleno}`);
+    };
     const limitarLlave = () => {
       const espera = limitador.tomar(prefijo);
+      if (espera > 0) cabecerasLimite();
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
     };
     // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
@@ -431,11 +515,22 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       }
     }
     const fila = busqueda.fila!;
+    // La fuente de verdad es el modo del tenant: una llave fhn_test_ solo entra a un tenant de prueba y una
+    // fhn_live_, solo a uno de producción. Como el hash cubre la marca, esto solo pasa si el operador cambió el modo
+    // del tenant en la base. Una llave sin marca vale en su tenant, sea del modo que sea.
+    // Se cobra como un secreto equivocado (al prefijo) y el 401 es el mismo.
+    if (forma.modo !== null && forma.modo !== fila.modo) {
+      verificadas.delete(prefijo);
+      const espera = fallosPorPrefijo.tomar(prefijo);
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+      throw noValida;
+    }
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
       limitarLlave();
     }
+    cabecerasLimite();
     // Último uso: solo con el secreto correcto y a lo sumo una vez por minuto por llave.
     const ahoraMs = Date.now();
     if ((ultimoUso.get(prefijo) ?? 0) < ahoraMs - 60_000) {
@@ -452,8 +547,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       establecimiento: fila.establecimiento,
       puntoEmision: fila.punto_emision,
       limiteMensual: fila.limite_mensual,
+      modoTenant: fila.modo,
     });
     await next();
+    c.header('FacturaHN-Modo', fila.modo);
   });
 
   // El cuerpo debe ser UTF-8 válido. Sin esto, un byte en otra codificación (p. ej. «é» en Latin-1 desde una
@@ -520,7 +617,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Público ---------------------------------------------------------------------------------------------
   app.openapi(
-    createRoute({ method: 'get', path: '/salud', tags: ['Sistema'], summary: 'Estado del servicio', responses: { 200: json(z.object({ ok: z.boolean(), version: z.string(), modo: z.string() }), 'En servicio') } }),
+    createRoute({ method: 'get', path: '/salud', operationId: 'obtenerSalud', tags: ['Sistema'], security: [], summary: 'Estado del servicio', responses: { 200: json(z.object({ ok: z.boolean(), version: z.string(), modo: z.string() }), 'En servicio'), ...respuestasDe(500) } }),
     async (c) => {
       await cfg.pool.query('SELECT 1');
       return c.json({ ok: true, version: VERSION_API, modo: cfg.modo }, 200);
@@ -544,7 +641,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/emisores', tags: ['Emisor'], security: seguridad,
+      method: 'post', path: '/v1/emisores', operationId: 'crearEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Registra los datos del obligado tributario (uno por tenant)',
       request: { body: { content: { 'application/json': { schema: S.Emisor } }, required: true } },
       responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
@@ -568,8 +665,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/emisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
-      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/emisores', operationId: 'listarEmisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
+      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const e = await enTenant(c, leerEmisor);
@@ -580,9 +677,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rutaEmisorId = z.object({ id: z.string().uuid() });
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
+      method: 'get', path: '/v1/emisores/{id}', operationId: 'obtenerEmisor', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
       request: { params: rutaEmisorId },
-      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const { id } = c.req.valid('param');
@@ -594,7 +691,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'patch', path: '/v1/emisores/{id}', tags: ['Emisor'], security: seguridad,
+      method: 'patch', path: '/v1/emisores/{id}', operationId: 'actualizarEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)',
       request: { params: rutaEmisorId, body: { content: { 'application/json': { schema: S.EmisorCambios } }, required: true } },
       responses: { 200: json(S.RespuestaEmisor, 'Actualizado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
@@ -622,45 +719,39 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Autorizaciones (CAI) --------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad,
+      method: 'post', path: '/v1/autorizaciones', operationId: 'registrarAutorizacion', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Registra una autorización del SAR (CAI, rango y fecha límite)',
+      description:
+        'Un tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de ' +
+        'producción no los acepta (`CAI_DE_PRUEBA`).',
       request: { body: { content: { 'application/json': { schema: S.Autorizacion } }, required: true } },
-      responses: { 201: json(S.RespuestaAutorizacion, 'Registrada'), ...respuestasError },
+      responses: { 201: json(S.RespuestaAutorizacionNueva, 'Registrada, con sus avisos'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
       const cuerpo = c.req.valid('json') as AutorizacionCAI;
       const caiDemo = esCAIDemo(cuerpo.cai);
-      // El tenant de demostración solo recibe CAI ficticios; los demás, un CAI ficticio solo con `prueba: true`
-      // explícito: un DEMO00 pegado por error no convierte en «de prueba» un punto de emisión real.
-      if (c.get('sesion').tenant === TENANT_DEMO && !caiDemo) {
-        const ficticio = await enTenant(c, async (tx) =>
-          (
-            await tx.consulta<{ demo: boolean }>(
-              `SELECT EXISTS (SELECT 1 FROM api_emisores WHERE tenant = $1 AND datos->>'rtn' = $2)
-                   OR EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND starts_with(cai, $3)) AS demo`,
-              [tx.tenant, EMISOR_DEMO.rtn, 'DEMO00-NO-VALIDO-'],
-            )
-          ).rows[0]?.demo === true,
-        );
-        if (ficticio) {
-          const mensaje = 'El tenant «demo» es de demostración: solo acepta CAI ficticios (DEMO00-NO-VALIDO-…).';
-          throw new ErrorApi(422, 'AUTORIZACION_REAL_EN_DEMO', mensaje, { errores: [{ codigo: 'AUTORIZACION_REAL_EN_DEMO', mensaje, campo: 'cai' }] });
-        }
+      const { tenant, modoTenant } = sesion(c);
+      // DEC-063 y DEC-093, con el modo del tenant: un tenant de prueba (sandbox) solo registra CAI ficticios y uno
+      // de producción ninguno. Un CAI real en el sandbox emitiría documentos con apariencia válida fuera de la serie
+      // real; un DEMO00 pegado por error en producción convertiría en «de prueba» un punto de emisión real.
+      if (modoTenant === 'prueba' && !caiDemo) {
+        const mensaje = `El tenant «${tenant}» es de prueba: solo acepta CAI ficticios (DEMO00-NO-VALIDO-…). Registra tu CAI real en un tenant de producción, con su llave fhn_live_.`;
+        throw new ErrorApi(422, 'AUTORIZACION_REAL_EN_DEMO', mensaje, { errores: [{ codigo: 'AUTORIZACION_REAL_EN_DEMO', mensaje, campo: 'cai' }] });
       }
-      if (caiDemo && cuerpo.prueba !== true && c.get('sesion').tenant !== TENANT_DEMO) {
-        const mensaje = `El CAI ${cuerpo.cai} es ficticio: para registrarlo como autorización de prueba, envía «prueba: true».`;
-        throw new ErrorApi(422, 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, { errores: [{ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, campo: 'prueba' }] });
+      if (modoTenant === 'produccion' && caiDemo) {
+        const mensaje = `El CAI ${cuerpo.cai} es ficticio y el tenant «${tenant}» es de producción: no acepta CAI ficticios. Para probar, usa un tenant de prueba (llave fhn_test_).`;
+        throw new ErrorApi(422, 'CAI_DE_PRUEBA', mensaje, { errores: [{ codigo: 'CAI_DE_PRUEBA', mensaje, campo: 'cai' }] });
       }
-      const a = await registrarAutorizacion(almacenDe(c), cuerpo, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
-      return c.json({ autorizacion: a as unknown as z.infer<typeof S.Autorizacion> }, 201);
+      const { autorizacion: a, advertencias } = await registrarAutorizacionConAvisos(almacenDe(c), cuerpo, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
+      return c.json({ autorizacion: a as unknown as z.infer<typeof S.Autorizacion>, advertencias }, 201);
     },
   );
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
-      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/autorizaciones', operationId: 'listarAutorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
+      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const lista = await enTenant(c, async (tx) =>
@@ -672,10 +763,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/autorizaciones/{cai}/estado', tags: ['Autorizaciones'], security: seguridad,
+      method: 'get', path: '/v1/autorizaciones/{cai}/estado', operationId: 'obtenerEstadoAutorizacion', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Vigencia y rango restante de una autorización (Arts. 59 y 62)',
       request: { params: z.object({ cai: z.string().min(1).max(60) }) },
-      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
@@ -705,13 +796,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Sesión ---------------------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/sesion', tags: ['Sesión'], security: seguridad,
+      method: 'get', path: '/v1/sesion', operationId: 'obtenerSesion', tags: ['Sesión'], security: seguridad,
       summary: 'Con qué llave hablas y qué falta para emitir',
       description:
         'Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya ' +
         'se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede ' +
         'llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.',
-      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasError },
+      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasDe(401, 429, 500) },
     }),
     async (c) => {
       const s = sesion(c);
@@ -786,8 +877,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return c.json({
         sesion: {
           tenant: s.tenant,
+          modoTenant: s.modoTenant,
           modo: cfg.modo,
-          demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO,
+          demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO && s.modoTenant === 'prueba',
           llave: { id: s.llaveId, prefijo: s.prefijo, nombre: s.llaveNombre, rol: s.rol, establecimiento: s.establecimiento, puntoEmision: s.puntoEmision },
           emisor: emisor ? { registrado: true, rtn: emisor.datos.rtn, razonSocial: emisor.datos.razonSocial } : { registrado: false, rtn: null, razonSocial: null },
           puntos,
@@ -804,7 +896,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // --- Documentos ------------------------------------------------------------------------------------------
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/documentos', tags: ['Documentos'], security: seguridad,
+      method: 'post', path: '/v1/documentos', operationId: 'emitirDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Emite una factura, nota de crédito o nota de débito',
       description:
         'Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. ' +
@@ -925,7 +1017,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
               [tx.tenant, mes],
             );
             if (s.limiteMensual !== null && uso.rows[0]!.documentos > s.limiteMensual) {
-              throw new ErrorApi(429, 'LIMITE_MENSUAL', `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.`);
+              throw new ErrorApi(429, 'LIMITE_MENSUAL', `Se alcanzó el límite de ${s.limiteMensual} documentos del mes.`, {
+                reintentarEn: segundosHastaElMesSiguiente(mes, reloj()),
+              });
             }
             const instante = reloj();
             await encolarEvento(tx, 'documento.emitido', `documento.emitido:${doc.numero}`, doc, instante);
@@ -953,14 +1047,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/documentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
+      method: 'get', path: '/v1/documentos', operationId: 'listarDocumentos', tags: ['Documentos'], security: seguridad, summary: 'Documentos de un período, por fecha de emisión y número (paginado)',
       request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
-      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasError },
+      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 429, 500) },
     }),
     async (c) => {
       const q = c.req.valid('query');
       const limite = q.limite ?? LIMITE_POR_DEFECTO;
-      const despues = q.cursor ? leerCursor(q.cursor, (v): v is [string, string] => Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && FECHA_CURSOR.test(v[0]) && typeof v[1] === 'string' && v[1].length <= 40) : null;
+      const despues = q.cursor ? leerCursor(q.cursor, (v): v is [string, string] => Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && esFechaCursor(v[0]) && typeof v[1] === 'string' && v[1].length <= 40) : null;
       const filas = await enTenant(c, async (tx) => {
         const params: unknown[] = [tx.tenant, q.desde, q.hasta];
         let sql = 'SELECT datos, fecha_emision::text AS fecha, numero FROM fhn_documentos WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3';
@@ -977,7 +1071,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/documentos/{archivo}', tags: ['Documentos'], security: seguridad,
+      method: 'get', path: '/v1/documentos/{archivo}', operationId: 'obtenerDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Un documento: JSON, o la representación impresa con .pdf, .html o .txt',
       description: 'La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).',
       request: {
@@ -995,7 +1089,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           },
         },
         404: json(S.ErrorRespuesta, 'No existe'),
-        ...respuestasError,
+        ...respuestasDe(400, 401, 429, 500),
       },
     }),
     async (c) => {
@@ -1024,7 +1118,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/documentos/{numero}/anular', tags: ['Documentos'], security: seguridad,
+      method: 'post', path: '/v1/documentos/{numero}/anular', operationId: 'anularDocumento', tags: ['Documentos'], security: seguridad,
       summary: 'Anula un documento (Art. 41): conserva número y contenido, cambia el estado',
       request: { params: z.object({ numero: z.string().regex(NUMERO) }), body: { content: { 'application/json': { schema: S.Motivo } }, required: true } },
       responses: { 200: json(S.RespuestaDocumento, 'Anulado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
@@ -1082,11 +1176,29 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
    */
   const contarPeriodo = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }) => {
     const total = await contarDocumentos(tx, filtro);
+    return contarExcluidos(tx, filtro, total);
+  };
+  /**
+   * Como `contarPeriodo`, solo con los documentos de un punto de emisión (`NNN-NNN`), y las series del punto que
+   * tienen documentos en el período, en orden.
+   */
+  const contarPeriodoDePunto = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }, punto: string) => {
+    const ptx = comoTransaccionPostgres(tx);
+    const f = (await ptx.consulta<{ total: number; identificadores: string[] }>(
+      `SELECT count(*)::int AS total, coalesce(array_agg(DISTINCT identificador ORDER BY identificador), '{}') AS identificadores
+         FROM fhn_documentos
+        WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3 AND left(identificador, 7) = $4`,
+      [ptx.tenant, filtro.desde, filtro.hasta, punto],
+    )).rows[0]!;
+    return { ...(await contarExcluidos(tx, filtro, f.total, punto)), identificadores: f.identificadores };
+  };
+  const contarExcluidos = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }, total: number, punto?: string) => {
     const excluidos = total === 0 ? 0 : (await comoTransaccionPostgres(tx).consulta<{ n: number }>(
       `SELECT count(*)::int AS n FROM fhn_documentos
         WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3
-          AND (datos->>'modo' = 'prueba' OR starts_with(upper(btrim(datos->>'cai')), 'DEMO00-NO-VALIDO-'))`,
-      [comoTransaccionPostgres(tx).tenant, filtro.desde, filtro.hasta],
+          AND (datos->>'modo' = 'prueba' OR starts_with(upper(btrim(datos->>'cai')), 'DEMO00-NO-VALIDO-'))
+          ${punto ? 'AND left(identificador, 7) = $4' : ''}`,
+      [comoTransaccionPostgres(tx).tenant, filtro.desde, filtro.hasta, ...(punto ? [punto] : [])],
     )).rows[0]!.n;
     const reales = total - excluidos;
     exigirPeriodoAcotado(reales, maxDocumentos);
@@ -1104,7 +1216,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const rutaSerie = z.object({ identificador: z.string().regex(IDENTIFICADOR).openapi({ example: '000-001-01' }) });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/series/{identificador}/corregir-fecha', tags: ['Series'], security: seguridad,
+      method: 'post', path: '/v1/series/{identificador}/corregir-fecha', operationId: 'corregirFechaSerie', tags: ['Series'], security: seguridad,
       summary: 'Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)',
       request: { params: rutaSerie, body: { content: { 'application/json': { schema: S.Motivo } }, required: true } },
       responses: { 200: json(z.object({ anulados: z.array(S.DocumentoFiscal) }), 'Anulados'), ...respuestasError },
@@ -1126,7 +1238,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/series/{identificador}/no-utilizados', tags: ['Series'], security: seguridad,
+      method: 'get', path: '/v1/series/{identificador}/no-utilizados', operationId: 'listarNoUtilizados', tags: ['Series'], security: seguridad,
       summary: 'Números que hay que reportar al SAR como no utilizados (Art. 42)',
       description: 'Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.',
       request: { params: rutaSerie },
@@ -1138,7 +1250,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           }),
           'Rangos',
         ),
-        ...respuestasError,
+        ...respuestasDe(400, 401, 403, 429, 500),
       },
     }),
     async (c) => {
@@ -1161,8 +1273,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/libro-ventas', tags: ['Reportes'], security: seguridad,
+      method: 'get', path: '/v1/libro-ventas', operationId: 'obtenerLibroVentas', tags: ['Reportes'], security: seguridad,
       summary: 'Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)',
+      description:
+        'Con una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos ' +
+        'de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin ' +
+        'punto de emisión recibe 403 `CAJA_SIN_PUNTO`.',
       request: { query: S.periodo({ formato: z.enum(['json', 'csv']).optional() }) },
       responses: {
         200: {
@@ -1180,25 +1296,41 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
             'text/csv': { schema: z.string() },
           },
         },
-        ...respuestasError,
+        ...respuestasDe(400, 401, 422, 429, 500),
       },
     }),
     async (c) => {
       const q = c.req.valid('query');
       const filtro = { desde: q.desde, hasta: q.hasta };
       const csv = q.formato === 'csv';
+      // Una caja ve solo el libro de su punto de emisión, como en GET /v1/sesion. Los números llevan el punto al
+      // inicio y las páginas van por número: recorrer las series del punto en orden da las mismas filas, en el mismo
+      // orden, que el libro del tenant filtrado a ese punto.
+      const s = sesion(c);
+      let punto: string | null = null;
+      if (s.rol === 'caja') {
+        if (!s.establecimiento || !s.puntoEmision) {
+          throw new ErrorApi(403, 'CAJA_SIN_PUNTO', 'Esta llave de caja no está atada a un punto de emisión; crea otra con establecimiento y punto de emisión.');
+        }
+        punto = `${s.establecimiento}-${s.puntoEmision}`;
+      }
       // Fila por fila, sin las líneas de cada documento (el libro solo usa encabezado y totales). Mismos bytes
       // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen, excluidos })` con `libroVentas(docs)`,
       // sin tener todas las filas a la vez. Los documentos de prueba no entran: se cuentan en `excluidos`.
       const { preparado, cuerpo } = await reporteTransmitido(
         c,
-        (tx) => contarPeriodo(tx, filtro),
-        async (tx, { reales, excluidos }, escribir) => {
+        (tx): Promise<{ reales: number; excluidos: number; identificadores?: string[] }> =>
+          punto ? contarPeriodoDePunto(tx, filtro, punto) : contarPeriodo(tx, filtro),
+        async (tx, { reales, excluidos, identificadores }, escribir) => {
           const resumen = acumuladorResumenVentas();
           if (!(await escribir(csv ? inicioLibroVentasCSV() : '{"filas":['))) return;
           let primera = true;
+          const paginas = async function* () {
+            if (!identificadores) yield* documentosPorPaginas(tx, filtro, { sinLineas: true });
+            else for (const identificador of identificadores) yield* documentosPorPaginas(tx, { ...filtro, identificador }, { sinLineas: true });
+          };
           if (reales > 0) {
-            for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
+            for await (const pagina of paginas()) {
               for (const d of pagina) {
                 if (esDocumentoDePrueba(d)) continue;
                 const fila = filaLibroVentas(d);
@@ -1215,7 +1347,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return c.body(cuerpo, 200, {
         ...cabeceraExcluidos(preparado.excluidos),
         ...(csv
-          ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
+          ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${punto ? `${punto}_` : ''}${q.desde}_${q.hasta}.csv"` }
           : { 'Content-Type': 'application/json' }),
       }) as never;
     },
@@ -1223,12 +1355,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/exportacion', tags: ['Reportes'], security: seguridad,
+      method: 'get', path: '/v1/exportacion', operationId: 'exportarPeriodo', tags: ['Reportes'], security: seguridad,
       summary: 'Archivo de texto de un período para el SAR (Art. 53 num. 5)',
       request: { query: S.periodo({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
       responses: {
         200: { description: 'Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).', headers: cabecerasExcluidos, content: { 'text/plain': { schema: z.string() } } },
-        ...respuestasError,
+        ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
     async (c) => {
@@ -1273,7 +1405,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/bitacora', tags: ['Auditoría'], security: seguridad,
+      method: 'get', path: '/v1/bitacora', operationId: 'listarBitacora', tags: ['Auditoría'], security: seguridad,
       summary: 'Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)',
       request: {
         query: z.object({
@@ -1281,13 +1413,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           ...S.Paginacion,
         }),
       },
-      responses: { 200: json(S.pagina('eventos', z.looseObject({})), 'Una página'), ...respuestasError },
+      responses: { 200: json(S.pagina('eventos', z.looseObject({})), 'Una página'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
       const q = c.req.valid('query');
       const limite = q.limite ?? LIMITE_POR_DEFECTO;
-      const antesDe = q.cursor ? leerCursor(q.cursor, (v): v is string => typeof v === 'string' && /^\d{1,19}$/.test(v)) : null;
+      const antesDe = q.cursor ? leerCursor(q.cursor, (v): v is string => typeof v === 'string' && /^\d{1,19}$/.test(v) && BigInt(v) <= BIGINT_MAXIMO) : null;
       const sql = q.origen === 'api'
         ? "SELECT id::text AS id, json_build_object('id', id, 'instante', instante, 'actor', actor, 'operador', operador, 'accion', accion, 'detalle', detalle) AS evento FROM api_bitacora"
         : 'SELECT id::text AS id, datos AS evento FROM fhn_eventos';
@@ -1310,10 +1442,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/llaves', tags: ['Llaves'], security: seguridad,
+      method: 'post', path: '/v1/llaves', operationId: 'crearLlave', tags: ['Llaves'], security: seguridad,
       summary: 'Crea una llave (la llave completa se muestra solo esta vez)',
       request: { body: { content: { 'application/json': { schema: S.LlaveNueva } }, required: true } },
-      responses: { 201: json(S.RespuestaLlaveNueva, 'Creada'), ...respuestasError },
+      responses: { 201: json(S.RespuestaLlaveNueva, 'Creada'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1321,7 +1453,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (Boolean(b.establecimiento) !== Boolean(b.puntoEmision) || (b.rol === 'caja' && !b.establecimiento)) {
         throw new ErrorApi(400, 'CAJA_INCOMPLETA', 'Una llave de caja se ata a un establecimiento y punto de emisión: indica ambos.');
       }
-      const { llave, prefijo, hash } = generarLlave();
+      const { llave, prefijo, hash } = generarLlave(sesion(c).modoTenant);
       const fila = await enTenant(c, async (tx) => {
         const r = await tx.consulta<FilaLlave>(
           `INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1337,8 +1469,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/llaves', tags: ['Llaves'], security: seguridad, summary: 'Llaves del tenant (sin secretos)',
-      responses: { 200: json(S.pagina('llaves', S.Llave), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/llaves', operationId: 'listarLlaves', tags: ['Llaves'], security: seguridad, summary: 'Llaves del tenant (sin secretos)',
+      responses: { 200: json(S.pagina('llaves', S.Llave), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1351,9 +1483,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'delete', path: '/v1/llaves/{prefijo}', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
+      method: 'delete', path: '/v1/llaves/{prefijo}', operationId: 'revocarLlave', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
       request: { params: z.object({ prefijo: z.string().regex(/^[0-9a-f]{12}$/) }) },
-      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasError },
+      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1377,11 +1509,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   );
 
   // --- Webhooks --------------------------------------------------------------------------------------------
-  type FilaWebhook = { id: string; url: string; eventos: string[]; activo: boolean; creado: Date };
-  const aWebhook = (f: FilaWebhook) => ({ id: f.id, url: f.url, eventos: f.eventos, activo: f.activo, creado: f.creado.toISOString() });
+  type FilaWebhook = { id: string; url: string; eventos: string[]; activo: boolean; creado: Date; gracia_hasta: Date | null };
+  /** Columnas de un webhook: el secreto nunca sale; `gracia_hasta`, solo si la gracia de una rotación sigue vigente. */
+  const COLUMNAS_WEBHOOK = 'id, url, eventos, activo, creado, CASE WHEN anterior_hasta > now() THEN anterior_hasta END AS gracia_hasta';
+  const aWebhook = (f: FilaWebhook) => ({
+    id: f.id, url: f.url, eventos: f.eventos, activo: f.activo, creado: f.creado.toISOString(), graciaHasta: f.gracia_hasta?.toISOString() ?? null,
+  });
   app.openapi(
     createRoute({
-      method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
+      method: 'post', path: '/v1/webhooks', operationId: 'crearWebhook', tags: ['Webhooks'], security: seguridad,
       summary: 'Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)',
       description: `Hasta ${MAX_WEBHOOKS_ACTIVOS} webhooks activos por tenant: con ${MAX_WEBHOOKS_ACTIVOS} activos, crear otro es 409 \`LIMITE_WEBHOOKS\`.`,
       request: { body: { content: { 'application/json': { schema: S.WebhookNuevo } }, required: true } },
@@ -1401,7 +1537,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           throw new ErrorApi(409, 'LIMITE_WEBHOOKS', `Este tenant ya tiene ${MAX_WEBHOOKS_ACTIVOS} webhooks activos: desactiva uno (DELETE /v1/webhooks/{id}) antes de crear otro.`);
         }
         const r = await tx.consulta<FilaWebhook>(
-          'INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING id, url, eventos, activo, creado',
+          `INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING ${COLUMNAS_WEBHOOK}`,
           [tx.tenant, b.url, cofre.guardar(secreto), [...new Set(b.eventos)]],
         );
         await bitacora(tx, actor(c), 'webhook.creado', { id: r.rows[0]!.id, url: b.url, eventos: b.eventos });
@@ -1413,13 +1549,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'get', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad, summary: 'Webhooks del tenant',
-      responses: { 200: json(S.pagina('webhooks', S.Webhook), 'Lista'), ...respuestasError },
+      method: 'get', path: '/v1/webhooks', operationId: 'listarWebhooks', tags: ['Webhooks'], security: seguridad, summary: 'Webhooks del tenant',
+      responses: { 200: json(S.pagina('webhooks', S.Webhook), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
       const filas = await enTenant(c, async (tx) =>
-        (await tx.consulta<FilaWebhook>('SELECT id, url, eventos, activo, creado FROM api_webhooks WHERE tenant = $1 ORDER BY creado', [tx.tenant])).rows,
+        (await tx.consulta<FilaWebhook>(`SELECT ${COLUMNAS_WEBHOOK} FROM api_webhooks WHERE tenant = $1 ORDER BY creado`, [tx.tenant])).rows,
       );
       return c.json({ webhooks: filas.map(aWebhook), hayMas: false, siguiente: null }, 200);
     },
@@ -1427,15 +1563,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'delete', path: '/v1/webhooks/{id}', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
+      method: 'delete', path: '/v1/webhooks/{id}', operationId: 'desactivarWebhook', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
       request: { params: z.object({ id: z.string().uuid() }) },
-      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasError },
+      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
       const { id } = c.req.valid('param');
       const fila = await enTenant(c, async (tx) => {
-        const r = await tx.consulta<FilaWebhook>('UPDATE api_webhooks SET activo = false WHERE tenant = $1 AND id = $2 RETURNING id, url, eventos, activo, creado', [tx.tenant, id]);
+        const r = await tx.consulta<FilaWebhook>(`UPDATE api_webhooks SET activo = false WHERE tenant = $1 AND id = $2 RETURNING ${COLUMNAS_WEBHOOK}`, [tx.tenant, id]);
         if (!r.rows[0]) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Webhook no encontrado.');
         await bitacora(tx, actor(c), 'webhook.desactivado', { id });
         return r.rows[0];
@@ -1444,12 +1580,223 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     },
   );
 
+  // --- Entregas, prueba y rotación del secreto ------------------------------------------------------------
+  // Estas rutas no validan reglas fiscales: no devuelven 422.
+  type FilaEntrega = {
+    entrega: string; webhook_id: string; evento: string; estado: 'PENDIENTE' | 'ENTREGADA' | 'FALLIDA'; intentos: number; proximo: Date;
+    ultimo_codigo: number | null; ultimo_error: string | null; creada: Date; micros: string;
+  };
+  /** `micros`: `creada` en microsegundos desde 1970, exacto, para el cursor (un Date solo guarda milisegundos). */
+  const COLUMNAS_ENTREGA =
+    'entrega::text AS entrega, webhook_id::text AS webhook_id, evento, estado, intentos, proximo, ultimo_codigo, ultimo_error, creada, ' +
+    '(extract(epoch FROM creada) * 1000000)::bigint::text AS micros';
+  const aEntrega = (f: FilaEntrega) => ({
+    id: f.entrega, webhookId: f.webhook_id, evento: f.evento, estado: f.estado, intentos: f.intentos,
+    proximoIntento: f.estado === 'PENDIENTE' ? f.proximo.toISOString() : null,
+    ultimoCodigo: f.ultimo_codigo, ultimoError: f.ultimo_error, creada: f.creada.toISOString(),
+  });
+  /**
+   * El webhook del tenant; 404 si no existe. Con `bloquear`, la fila queda bloqueada hasta el fin de la transacción
+   * con FOR NO KEY UPDATE (no estorba a las entregas que la referencian); la lista no bloquea nada.
+   */
+  const webhookDelTenant = async (tx: TransaccionPostgres, id: string, bloquear = true) => {
+    const w = (await tx.consulta<{ activo: boolean }>(
+      `SELECT activo FROM api_webhooks WHERE tenant = $1 AND id = $2${bloquear ? ' FOR NO KEY UPDATE' : ''}`, [tx.tenant, id],
+    )).rows[0];
+    if (!w) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Webhook no encontrado.');
+    return w;
+  };
+  const exigirActivo = (w: { activo: boolean }, accion: string) => {
+    if (!w.activo) throw new ErrorApi(409, 'WEBHOOK_INACTIVO', `El webhook está desactivado: no se puede ${accion}. Crea otro con POST /v1/webhooks.`);
+  };
+  /** 409 `LIMITE_PRUEBAS` si el webhook ya tiene el máximo de pruebas pendientes. Corre con el webhook bloqueado. */
+  const exigirCupoPruebas = async (tx: TransaccionPostgres, id: string) => {
+    const n = (await tx.consulta<{ n: number }>(
+      "SELECT count(*)::int AS n FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND evento = 'webhook.prueba' AND estado = 'PENDIENTE'",
+      [tx.tenant, id],
+    )).rows[0]!.n;
+    if (n >= MAX_PRUEBAS_PENDIENTES) {
+      throw new ErrorApi(409, 'LIMITE_PRUEBAS', `Este webhook ya tiene ${MAX_PRUEBAS_PENDIENTES} pruebas pendientes: espera a que se entreguen o fallen (GET /v1/webhooks/{id}/entregas).`);
+    }
+  };
+  const IdWebhook = z.object({ id: z.string().uuid() });
+
+  app.openapi(
+    createRoute({
+      method: 'get', path: '/v1/webhooks/{id}/entregas', tags: ['Webhooks'], security: seguridad, operationId: 'listarEntregasWebhook',
+      summary: 'Entregas de un webhook, de la más reciente a la más antigua (paginada)',
+      description:
+        'Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` ' +
+        '(se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y ' +
+        '`webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío.',
+      request: {
+        params: IdWebhook,
+        query: z.object({
+          estado: z.enum(['PENDIENTE', 'ENTREGADA', 'FALLIDA']).optional().openapi({ description: 'Solo las entregas en este estado.' }),
+          ...S.Paginacion,
+        }),
+      },
+      responses: { 200: json(S.pagina('entregas', S.EntregaWebhook), 'Una página'), 404: json(S.ErrorRespuesta, 'El webhook no existe'), ...respuestasDe(400, 401, 403, 429, 500) },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      const q = c.req.valid('query');
+      const limite = q.limite ?? LIMITE_POR_DEFECTO;
+      // Un cursor armado a mano no llega a la base: microsegundos dentro del rango de timestamptz y un UUID estricto.
+      const antesDe = q.cursor
+        ? leerCursor(q.cursor, (v): v is [string, string] =>
+            Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && /^\d{1,18}$/.test(v[0]) && BigInt(v[0]) <= MICROS_MAXIMOS &&
+            typeof v[1] === 'string' && UUID_ESTRICTO.test(v[1]))
+        : null;
+      const filas = await enTenant(c, async (tx) => {
+        await webhookDelTenant(tx, id, false);
+        const params: unknown[] = [tx.tenant, id];
+        let sql = `SELECT ${COLUMNAS_ENTREGA} FROM api_entregas WHERE tenant = $1 AND webhook_id = $2`;
+        if (q.estado) sql += ` AND estado = $${params.push(q.estado)}`;
+        if (antesDe) {
+          sql += ` AND (creada, entrega) < (timestamptz 'epoch' + $${params.push(antesDe[0])}::bigint * interval '1 microsecond', $${params.push(antesDe[1])}::uuid)`;
+        }
+        sql += ` ORDER BY creada DESC, entrega DESC LIMIT $${params.push(limite + 1)}`;
+        return (await tx.consulta<FilaEntrega>(sql, params)).rows;
+      });
+      const { elementos, hayMas, siguiente } = paginar(filas, limite, (f) => [f.micros, f.entrega]);
+      return c.json({ entregas: elementos.map(aEntrega), hayMas, siguiente }, 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/entregas/{entrega}/reenviar', tags: ['Webhooks'], security: seguridad, operationId: 'reenviarEntregaWebhook',
+      summary: 'Vuelve a poner una entrega en la cola',
+      description:
+        'Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en ' +
+        'segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. ' +
+        '409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se ' +
+        'vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el ' +
+        `webhook ya tiene ${MAX_PRUEBAS_PENDIENTES} pendientes.`,
+      request: { params: IdWebhook.extend({ entrega: z.string().uuid() }) },
+      responses: {
+        202: json(S.RespuestaEntregaWebhook, 'En la cola'),
+        404: json(S.ErrorRespuesta, 'El webhook o la entrega no existen'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO), cuerpo vaciado por retención (ENTREGA_VENCIDA) o demasiadas pruebas pendientes (LIMITE_PRUEBAS)'),
+        ...respuestasDe(400, 401, 403, 413, 429, 500),
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id, entrega } = c.req.valid('param');
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'reenviar una entrega');
+        const e = (await tx.consulta<{ vacia: boolean; evento: string; estado: string }>(
+          "SELECT cuerpo = '{}'::jsonb AS vacia, evento, estado FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 FOR NO KEY UPDATE",
+          [tx.tenant, id, entrega],
+        )).rows[0];
+        if (!e) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Entrega no encontrada.');
+        if (e.vacia) throw new ErrorApi(409, 'ENTREGA_VENCIDA', 'El cuerpo de esta entrega ya se borró por retención (FHN_RETENCION_DIAS): no se puede reenviar.');
+        if (e.evento === 'webhook.prueba' && e.estado !== 'PENDIENTE') await exigirCupoPruebas(tx, id);
+        // En el lado derecho de SET, `estado` es el valor anterior.
+        const r = await tx.consulta<FilaEntrega>(
+          `UPDATE api_entregas SET estado = 'PENDIENTE', intentos = CASE WHEN estado = 'PENDIENTE' THEN intentos ELSE 0 END, proximo = now()
+            WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 RETURNING ${COLUMNAS_ENTREGA}`,
+          [tx.tenant, id, entrega],
+        );
+        await bitacora(tx, actor(c), 'webhook.entrega_reenviada', { id, entrega });
+        return r.rows[0]!;
+      });
+      return c.json({ entrega: aEntrega(fila) }, 202);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/probar', tags: ['Webhooks'], security: seguridad, operationId: 'probarWebhook',
+      summary: 'Encola un evento de prueba (`webhook.prueba`) para este webhook',
+      description:
+        `Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo ${MAX_INTENTOS_PRUEBA} ` +
+        'veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. ' +
+        `A lo sumo ${MAX_PRUEBAS_PENDIENTES} pruebas pendientes por webhook: más allá, 409 \`LIMITE_PRUEBAS\`.`,
+      request: { params: IdWebhook },
+      responses: {
+        202: json(S.RespuestaEntregaWebhook, 'En la cola'),
+        404: json(S.ErrorRespuesta, 'El webhook no existe'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO) o demasiadas pruebas pendientes (LIMITE_PRUEBAS)'),
+        ...respuestasDe(400, 401, 403, 413, 429, 500),
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      const cuerpo = { evento: 'webhook.prueba', creado: reloj().toISOString(), datos: { webhookId: id, mensaje: 'Evento de prueba de factura-hn. No representa ningún documento.' } };
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'enviar un evento de prueba');
+        await exigirCupoPruebas(tx, id);
+        const r = await tx.consulta<FilaEntrega>(
+          `INSERT INTO api_entregas (tenant, webhook_id, evento, clave, cuerpo)
+           VALUES ($1, $2, 'webhook.prueba', 'webhook.prueba:' || gen_random_uuid(), $3::jsonb) RETURNING ${COLUMNAS_ENTREGA}`,
+          [tx.tenant, id, JSON.stringify(cuerpo)],
+        );
+        await bitacora(tx, actor(c), 'webhook.prueba', { id, entrega: r.rows[0]!.entrega });
+        return r.rows[0]!;
+      });
+      return c.json({ entrega: aEntrega(fila) }, 202);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/rotar-secreto', tags: ['Webhooks'], security: seguridad, operationId: 'rotarSecretoWebhook',
+      summary: 'Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)',
+      description:
+        'Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del ' +
+        'secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. ' +
+        'Rotar otra vez durante una gracia conserva el secreto más viejo (el que el receptor puede seguir usando), descarta el intermedio ' +
+        'y alarga la gracia si la nueva termina después. Con `graciaHoras: 0` la gracia termina en el acto.',
+      request: { params: IdWebhook, body: { content: { 'application/json': { schema: S.RotacionSecreto } }, required: false } },
+      responses: {
+        200: json(S.RespuestaSecretoRotado, 'Rotado'),
+        404: json(S.ErrorRespuesta, 'El webhook no existe'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO)'),
+        ...respuestasDe(400, 401, 403, 413, 429, 500),
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      // Cuerpo opcional: sin cuerpo (o vacío), 24 h de gracia.
+      const graciaHoras = (c.req.valid('json') as { graciaHoras?: number } | undefined)?.graciaHoras ?? 24;
+      const secreto = `whsec_${randomBytes(24).toString('base64url')}`;
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'rotar su secreto');
+        // En el lado derecho de SET, las columnas tienen su valor anterior (los secretos, ya guardados por el cofre).
+        // Con una gracia en curso se conserva el secreto más viejo: una rotación repetida (un reintento, un doble
+        // clic) no deja sin firma válida al receptor que aún usa el secreto de antes de la primera rotación. El
+        // intermedio se descarta y la gracia dura hasta la más tardía de las dos.
+        const r = await tx.consulta<FilaWebhook>(
+          `UPDATE api_webhooks SET
+             secreto_anterior = CASE WHEN $3::int = 0 THEN NULL
+                                     WHEN anterior_hasta > now() THEN secreto_anterior ELSE secreto END,
+             anterior_hasta = CASE WHEN $3::int = 0 THEN NULL
+                                   WHEN anterior_hasta > now() THEN greatest(anterior_hasta, now() + make_interval(hours => $3::int))
+                                   ELSE now() + make_interval(hours => $3::int) END,
+             secreto = $4
+           WHERE tenant = $1 AND id = $2 RETURNING ${COLUMNAS_WEBHOOK}`,
+          [tx.tenant, id, graciaHoras, cofre.guardar(secreto)],
+        );
+        await bitacora(tx, actor(c), 'webhook.secreto_rotado', { id, graciaHoras, graciaHasta: r.rows[0]!.gracia_hasta?.toISOString() ?? null });
+        return r.rows[0]!;
+      });
+      return c.json({ webhook: aWebhook(fila), secreto }, 200);
+    },
+  );
+
   // --- Documentación ---------------------------------------------------------------------------------------
-  app.doc31('/openapi.json', {
+  const especificacion = {
     openapi: '3.1.0',
     info: {
       title: 'factura-hn API',
       version: VERSION_API,
+      license: { name: 'MIT', identifier: 'MIT' },
       description: [
         'Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.',
         '',
@@ -1462,10 +1809,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         '2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.',
         '3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.',
         '4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.',
-        '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
+        '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
       ].join('\n'),
     },
-  });
+  };
+  // Como `app.doc31`, más las cabeceras que la API pone en todas las respuestas (./contrato).
+  app.get('/openapi.json', (c) => c.json(conCabecerasComunes(app.getOpenAPI31Document(especificacion))));
   app.get('/docs', (c) => {
     for (const [k, v] of Object.entries(CABECERAS_DOCS)) c.header(k, v);
     return c.html(HTML_DOCS);

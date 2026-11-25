@@ -10,8 +10,9 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
   - **Lote 1 (seguridad y 0.2.0):** hecho y publicado. Falta que el responsable confirme Trusted Publisher en los
     seis paquetes.
   - **Lote 2 (Etapa 1, los primeros 5 minutos):** hecho (74a8eea, PR #9).
-  - **Lote 3 (sitio Starlight):** en el PR `lote3/integracion`.
-  - **Después:** Lote 4 (API para integradores), Lote 5 (calidad medida) y Lote 6 (cierre).
+  - **Lote 3 (sitio Starlight):** hecho (d3cdfc4, PR #10).
+  - **Lote 4 (API para integradores):** en el PR `lote4/integracion`.
+  - **Después:** Lote 5 (calidad medida) y Lote 6 (cierre).
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
   - **Subagentes** (opus, esfuerzo medio) para el trabajo paralelo. Cada revisión la hace quien no escribió el
@@ -169,18 +170,37 @@ revisó un subagente que no la escribió (exactitud fiscal, enlaces y código).
   DEC-102 (CAI pedido para otro sistema o talonarios, pregunta nueva P-15 de la consulta) y DEC-103 (instalación de
   la skill en `.claude/skills/`).
 
+## Hecho (Lote 4)
+
+Rama `lote4/integracion`, que une `lote4/contrato`, `lote4/webhooks`, `lote4/llaves`, `lote4/pendientes` y
+`lote4/colecciones`. Cada rama la revisó un subagente que no la escribió, y su autor corrigió los hallazgos.
+
+- **Contrato:** `operationId` en las 28 operaciones, fijados por una prueba; cada operación declara solo los estados
+  que devuelve; `Solicitud-Id`, `FacturaHN-Version`, `FacturaHN-Modo`, `RateLimit-Policy`/`RateLimit` y
+  `Retry-After` en `LIMITE_MENSUAL`; `JSON_INVALIDO`; linter Redocly en la CI con 0 errores.
+- **Webhooks:** reintentos durante unos 3 días con fluctuación; listar, reenviar y probar entregas; verificadores con
+  varias firmas `v1`; rotación del secreto con gracia (una segunda rotación conserva el secreto más viejo).
+- **Llaves y sandbox:** `fhn_test_`/`fhn_live_` (las viejas siguen valiendo), modo del tenant, CAI ficticio solo en
+  prueba y prohibido en producción también por disparador en la base; libro de ventas por caja.
+- **Núcleo:** `TEXTO_CARACTER_NO_PERMITIDO` (NUL y otros controles, también en el motivo de anulación),
+  `registrarAutorizacionConAvisos` y `advertencias` al registrar por la API. El bloqueo mutuo entre notas de puntos
+  distintos no se reproduce; la prueba lo vigila.
+- **Colecciones y clientes:** Bruno y Postman generados del OpenAPI (`pnpm colecciones`), cliente de Python con
+  openapi-python-client que emite una factura de prueba. Un trabajo de la CI los corre contra la imagen Docker.
+- **Esquema de la API v8** (rotación de secretos y modo del tenant).
+- **Decisiones:** DEC-104 a DEC-134. [REVISAR]: DEC-121 (CAI ficticio según el modo del tenant).
+
 ## Sigue
 
-1. Fusionar el PR del Lote 3 con la CI en verde.
+1. Fusionar el PR del Lote 4 con la CI en verde.
 2. El responsable confirma Trusted Publisher en los seis paquetes.
-3. Lote 4: API para integradores. Incluye `GET /v1/libro-ventas` con llave de caja.
+3. Lote 5: calidad medida (propiedades, contrato y fuzzing; mutación; carga y resiliencia; OWASP API Top 10;
+   workflow nocturno; `docs/calidad.md`).
 4. Pendientes menores:
-   - `datos::jsonb - 'lineas'` falla con un escape NUL dentro de un documento. Por la API no se llega (emitir con NUL
-     ya da 500); conviene rechazar los controles al emitir.
-   - `AVISO_VIGENCIA_MAYOR_1_ANIO` no sale al registrar la autorización, solo al validarla y al emitir.
-   - `@hono/swagger-ui` quedó en las dependencias de la API sin usarse.
-   - Dos notas sobre documentos de puntos distintos pueden bloquearse entre sí en Postgres (orden de los bloqueos).
-5. Lotes 5 y 6. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
+   - documentos ya guardados con un NUL (anteriores al Lote 4) siguen rompiendo el listado sin líneas de su tenant;
+   - etiquetas del OpenAPI con tilde (`Sesión`, `Auditoría`) dan módulos raros en el cliente de Python;
+   - imagen Docker en GHCR, con permiso del responsable.
+5. Lote 6. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
 
 ## Cómo correr
 
@@ -188,4 +208,5 @@ revisó un subagente que no la escribió (exactitud fiscal, enlaces y código).
 pnpm install && pnpm test && pnpm test:ejemplos && pnpm typecheck
 pnpm test:pg      # levanta el Postgres de factura-hn (con docker-compose.dev.yml) y corre lo que lo usa
 pnpm sitio        # genera, construye y verifica el sitio en sitio/; pnpm sitio:ver lo sirve en :4321
+pnpm colecciones  # regenera las colecciones de Bruno y Postman desde el OpenAPI
 ```

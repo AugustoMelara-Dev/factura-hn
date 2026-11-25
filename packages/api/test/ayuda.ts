@@ -99,3 +99,19 @@ export async function crearCaja(admin: Cliente, punto: string | null, rol: 'caja
   if (r.status !== 201) throw new Error(`llave: ${r.status} ${await r.text()}`);
   return ((await r.json()) as { secreto: string }).secreto;
 }
+
+/** Cambia el modo de un tenant como el dueño de las tablas (la API no lo permite). Solo para pruebas. */
+export async function fijarModo(pool: pg.Pool, tenant: string, modo: 'prueba' | 'produccion') {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+    await c.query('UPDATE api_tenants SET modo = $2 WHERE tenant = $1', [tenant, modo]);
+    await c.query('COMMIT');
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
+}

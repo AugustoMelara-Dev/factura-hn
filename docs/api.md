@@ -91,7 +91,66 @@ Clientes: en TypeScript, `@factura-hn/cliente` (tipos generados de esta especifi
 caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README.md`.
 
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
-`packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`).
+`packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`). Cada operación tiene un
+`operationId` estable, en camelCase y en español (verbo + recurso: `emitirDocumento`, `listarDocumentos`,
+`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método. La CI pasa
+la especificación por un linter (`pnpm lint:openapi`, Redocly) y falla con cualquier error.
+
+### Colecciones de Bruno y Postman, y clientes en otros lenguajes
+
+Para probar la API sin programar, el repositorio trae dos colecciones generadas de `packages/api/openapi.json`
+(`pnpm colecciones`; no se editan a mano): `colecciones/bruno/` y `colecciones/postman/`. Las dos tienen una
+carpeta por etiqueta, con una solicitud por operación, y antes la carpeta **Primera factura**: sesión, emitir y
+descargar el PDF, con pruebas. Las dos traen el entorno `demo` (`baseUrl` = `http://127.0.0.1:8787` y `llave`,
+que no se guarda en el repositorio) y un script previo que pone una `Idempotency-Key` nueva en cada solicitud:
+cada envío de «Emitir» es otra venta y emite otra factura de prueba. En tu sistema la clave es estable por venta
+(el id del pedido), no una nueva por intento.
+
+Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea una llave de caja del demo con
+`docker compose exec -T api factura-hn-api demo llave --solo-llave`.
+
+- **Bruno** ([usebruno.com](https://www.usebruno.com/), sin cuenta): el entorno `demo` lee la llave de la
+  variable de entorno `FHN_LLAVE`. En la app, crea `colecciones/bruno/.env` con la línea `FHN_LLAVE=fhn_test_…`
+  (git lo ignora), abre la carpeta `colecciones/bruno` como colección y elige el entorno `demo`. Desde la
+  terminal, con la CLI que trae el repositorio como dependencia de desarrollo (la llave no pasa por la línea de
+  órdenes ni sale en la salida):
+
+  ```bash
+  pnpm install
+  export FHN_LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+  pnpm --filter @factura-hn/colecciones bruno                                    # corre «Primera factura»
+  ```
+
+  Con la API en otro puerto, agrega `--env-var baseUrl=http://127.0.0.1:8788`.
+- **Postman**: importa `colecciones/postman/factura-hn.postman_collection.json` y el entorno
+  `colecciones/postman/demo.postman_environment.json`, elige `demo` y pega la llave en `llave`. La colección no
+  está en el espacio público de Postman.
+
+**Python.** `clientes/python/` genera un cliente con
+[openapi-python-client](https://github.com/openapi-generators/openapi-python-client) y lo prueba emitiendo una
+factura de prueba (correlativo, idempotencia, total, desglose del ISV y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
+FISCAL»). El código generado no
+se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual dentro del repositorio:
+
+```bash
+python -m venv .venv-python
+.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt   # Windows: .venv-python\Scripts\pip
+.venv-python/bin/python clientes/python/generar.py
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python   # con FHN_LLAVE exportada
+```
+
+En tu proyecto, `from factura_hn_api import AuthenticatedClient` y
+`from factura_hn_api.api.documentos import emitir_documento`: cada método se llama como el `operationId` de su
+operación, en snake_case. Los módulos se agrupan por etiqueta (`documentos`, `webhooks`…); los de etiquetas con
+tilde quedan como `sesi_ó_n` y `auditor_í_a`.
+
+**Otros lenguajes.** Genera el cliente desde `/openapi.json` (OpenAPI 3.1) con el generador de tu lenguaje, por
+ejemplo [Kiota](https://learn.microsoft.com/openapi/kiota/) (C#, PHP, Go, Java, Python…) o
+openapi-generator si soporta los `anyOf` y los tipos con `null` de 3.1. Lo que ningún generador hace por ti y
+hay que escribir a mano: una `Idempotency-Key` estable por venta, mostrar tal cual los errores 422
+(`errores[].mensaje`), la cabecera `X-Operador` codificada con `encodeURIComponent` si lleva tildes, y la
+verificación de la firma de los webhooks (ver «Webhooks»). La CI corre la colección de Bruno y la prueba de
+Python contra la imagen de Docker en cada cambio.
 
 ### Variables de entorno
 
@@ -125,7 +184,8 @@ aparece la forma de Docker Compose; los mensajes del servidor usan la de su desp
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
 docker compose exec api factura-hn-api migrar
-docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin (fhn_live_…)
+docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # sandbox: llaves fhn_test_…, solo CAI ficticios
 docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
 docker compose exec api factura-hn-api openapi openapi.json
@@ -138,7 +198,9 @@ usa. En la imagen de Docker, `node cli.cjs <comando>` sigue funcionando.
 
 No hay registro público de tenants: en el modo alojado los crea el operador. Los nombres `local` y `demo` están
 reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
-(el del emisor y el CAI ficticios).
+(el del emisor y el CAI ficticios). `tenant crear --modo prueba|produccion` (por defecto `produccion`) fija el
+modo del tenant, que no cambia después (ver «Tenants de prueba y de producción»). `llave crear` y `demo llave`
+crean la llave con la marca del modo de su tenant.
 
 ### Modo local y modo alojado
 
@@ -150,8 +212,40 @@ usar `FHN_MODO=alojado`. En modo local la API **no arranca** si la base tiene te
 
 ## Autenticación y roles
 
-`Authorization: Bearer fhn_<prefijo>_<secreto>`. El prefijo (12 hexadecimales) identifica la llave en
-listados y para revocarla; la base guarda solo el SHA-256 de la llave completa.
+`Authorization: Bearer fhn_live_<prefijo>_<secreto>` en un tenant de producción, o `fhn_test_<prefijo>_<secreto>`
+en uno de prueba. Las llaves creadas antes de esta marca (`fhn_<prefijo>_<secreto>`) siguen valiendo en su
+tenant, sea del modo que sea. El prefijo (12 hexadecimales) identifica la llave en listados y para revocarla
+(`DELETE /v1/llaves/{prefijo}`); la base guarda solo el SHA-256 de la llave completa, marca incluida.
+
+### Tenants de prueba y de producción
+
+Cada tenant tiene un modo, `prueba` o `produccion`, que decide el operador al crearlo y que no cambia:
+
+| | `prueba` (sandbox) | `produccion` |
+|---|---|---|
+| Llaves nuevas | `fhn_test_…` | `fhn_live_…` |
+| Autorizaciones | Solo CAI ficticios (`DEMO00-NO-VALIDO-…`); un CAI real da 422 `AUTORIZACION_REAL_EN_DEMO` | Ningún CAI ficticio: 422 `CAI_DE_PRUEBA`, aun con `"prueba": true` |
+| Documentos | Todos de prueba: leyenda `DOCUMENTO DE PRUEBA — SIN VALOR FISCAL`, fuera del libro y de la exportación | Con validez fiscal |
+
+- **La fuente de verdad es el modo del tenant.** Una llave `fhn_test_` solo entra a un tenant de prueba y una
+  `fhn_live_`, solo a uno de producción; si no, 401 `NO_AUTENTICADO`, como una llave que no existe. La marca no
+  se puede cambiar a mano: forma parte de la llave y de su hash.
+- **También fuera de la API.** La regla de las autorizaciones la impone la base (un disparador de
+  `fhn_autorizaciones` que crea la migración de la API): quien registre un CAI con el SDK sobre la base de la API
+  recibe el mismo rechazo, como error de la base con el código en el mensaje. Un tenant que no existe en
+  `api_tenants` (uso del SDK solo) no cambia.
+- **Dónde se ve.** `GET /v1/sesion` trae `modoTenant`, y cada respuesta autenticada (también los errores
+  después de autenticar) lleva la cabecera `FacturaHN-Modo: prueba` o `FacturaHN-Modo: produccion`. No
+  confundir con `modo` de la sesión y de `/salud`, que es el del servidor (`local` o `alojado`).
+- **Los que ya existían.** Al migrar, todos los tenants quedan en `produccion`, salvo el tenant `demo` de
+  demostración (el del emisor o los CAI ficticios), que queda en `prueba`. Si ese `demo` tiene alguna
+  autorización o algún documento con un CAI real, queda en `produccion` (la migración lo avisa) y `demo llave` ya
+  no le crea llaves. Las llaves viejas siguen entrando.
+  Las autorizaciones ficticias que un tenant de producción ya tenía registradas no se tocan: siguen emitiendo
+  con la leyenda de prueba.
+- **En modo local** los tenants son `local` (producción) y `demo` (prueba, con `FHN_DEMO=1`). Para pasar a
+  producción no se copia nada: se crea la llave admin de `local` (`llave crear local --rol admin`, una
+  `fhn_live_`), se registran el emisor y el CAI reales y el integrador cambia solo su llave.
 
 ### Quién hizo cada operación
 
@@ -168,7 +262,8 @@ documento lleva «Atendido por: …». El operador no cambia la huella de idempo
 
 | | `caja` | `admin` |
 |---|:-:|:-:|
-| Emitir, consultar documentos, PDF/HTML/TXT, libro de ventas, autorizaciones y su estado, emisor | ✅ | ✅ |
+| Emitir, consultar documentos, PDF/HTML/TXT, autorizaciones y su estado, emisor | ✅ | ✅ |
+| Libro de ventas | Solo de su punto de emisión | Todo el tenant |
 | Registrar emisor y CAI, anular, `confirmarSaltoDeFecha`, corregir fecha adelantada, no utilizados | | ✅ |
 | Nota de crédito sobre un documento que no está en el sistema | | ✅ |
 | Exportación (Art. 53 num. 5), bitácora, llaves, webhooks | | ✅ |
@@ -184,7 +279,7 @@ El esquema `Bearer` no distingue mayúsculas.
 | `GET /salud`, `GET /openapi.json`, `GET /docs` | — | |
 | `GET /v1/sesion` | caja | Con qué llave hablas y qué falta para emitir (ver «Sesión») |
 | `POST /v1/emisores` · `GET /v1/emisores` · `GET/PATCH /v1/emisores/{id}` | admin · caja · caja/admin | Un emisor por tenant (el 409 trae su `id`); el RTN no cambia; los cambios afectan solo a documentos futuros |
-| `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo) |
+| `POST /v1/autorizaciones` · `GET /v1/autorizaciones` | admin · caja | CAI, rango y fecha límite (validados por el núcleo). El registro responde `{ autorizacion, advertencias }`: avisos que no lo impiden, como `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62) |
 | `GET /v1/autorizaciones/{cai}/estado` | caja | Vigencia, restantes y alertas (Arts. 59 y 62) |
 | `POST /v1/documentos` | caja | Factura, NC o ND. `Idempotency-Key` obligatoria. Responde `{ documento, enlaces: { pdf, html, txt } }` |
 | `GET /v1/documentos?desde&hasta[&identificador][&limite&cursor]` | caja | Paginada, por fecha de emisión y número |
@@ -192,25 +287,38 @@ El esquema `Bearer` no distingue mayúsculas.
 | `POST /v1/documentos/{numero}/anular` | admin | Art. 41 |
 | `POST /v1/series/{id}/corregir-fecha` | admin | Reloj adelantado (Arts. 41 y 43) |
 | `GET /v1/series/{id}/no-utilizados` | admin | Art. 42. Sin las autorizaciones de prueba (no se reportan); `aviso` lo dice |
-| `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | |
+| `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | Con llave de caja, solo su punto de emisión (ver «Reportes de período») |
 | `GET /v1/exportacion?desde&hasta&formato=jsonl\|csv\|txt` | admin | Art. 53 num. 5 |
 | `GET /v1/bitacora?origen=fiscal\|api[&limite&cursor]` | admin | Paginada, del evento más reciente al más antiguo. `fiscal` (por defecto): la del núcleo; `api`: llaves, emisor y webhooks |
 | `POST/GET /v1/llaves` · `DELETE /v1/llaves/{prefijo}` | admin | La llave completa se muestra solo al crearla |
 | `POST/GET /v1/webhooks` · `DELETE /v1/webhooks/{id}` | admin | El secreto se muestra solo al crearlo |
+| `GET /v1/webhooks/{id}/entregas[?estado&limite&cursor]` | admin | Paginada, de la más reciente a la más antigua |
+| `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` | admin | 202. Vuelve a poner la entrega en la cola |
+| `POST /v1/webhooks/{id}/probar` | admin | 202. Encola un evento `webhook.prueba` |
+| `POST /v1/webhooks/{id}/rotar-secreto` | admin | Secreto nuevo con gracia (`graciaHoras`, 24 por defecto); se muestra solo esta vez |
 
 Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
 ### Forma de las respuestas
 
 - Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
-  `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`. Al crear una llave o un webhook,
-  la respuesta trae además `secreto` (la llave completa `fhn_…` o el secreto de firma `whsec_…`), que solo se
-  muestra esa vez.
+  `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`, `{ "entrega": … }`. Al crear una
+  llave o un webhook, o al rotar el secreto de un webhook, la respuesta trae además `secreto` (la llave completa
+  `fhn_live_…` o `fhn_test_…`, o el secreto de firma `whsec_…`), que solo se muestra esa vez.
 - Cada lista es `{ "<plural>": [...], "hayMas": bool, "siguiente": "cursor" | null }`. Si `hayMas`, pide la
   página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
   El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
+
+### Cabeceras de cada respuesta
+
+| Cabecera | En | Qué es |
+|---|---|---|
+| `Solicitud-Id` | todas | Id de la solicitud. Si mandas una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), la API usa la tuya; si no, genera un UUID. Va también en `error.solicitud` y en el log del servidor de un 500, que además lleva siempre un id generado por el servidor |
+| `FacturaHN-Version` | todas | Versión de la API que respondió (la de `/salud`) |
+| `RateLimit-Policy`, `RateLimit` | `/v1`, después de validar la llave (nunca en 401, 413 ni 429 `DEMASIADOS_INTENTOS`) | Límite de la llave (ver «Límites de solicitudes») |
+| `Retry-After` | los 429 | Segundos que conviene esperar antes de reintentar |
 
 ### Reportes de período
 
@@ -237,6 +345,15 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   30 s (un cliente lento que avanza no se corta) y la respuesta entera en 5 minutos (opción
   `duracionMaxReporteMs`); si no, se corta con error. Para períodos que tardan más, divídelos. El conteo, el
   tope y el encabezado de `txt` (`#factura-hn|v1|N`) salen de la misma lectura que las filas enviadas.
+- **Libro de ventas con llave de caja.** Una llave de caja recibe el libro solo de su punto de emisión: todas sus
+  series (facturas, notas), en el mismo orden y con las mismas filas que el libro del tenant filtrado a ese
+  punto. El resumen, el tope, `excluidos` y la cabecera `Documentos-Prueba-Excluidos` cuentan solo ese punto, y el
+  CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de
+  emisión (de antes de atar cada caja a su punto) recibe 403 `CAJA_SIN_PUNTO`. Con llave admin, el libro es de
+  todo el tenant. La exportación para el SAR sigue siendo solo de admin. **No es un límite de
+  confidencialidad:** una llave de caja sigue leyendo los documentos de todo el tenant con `GET /v1/documentos`
+  y `GET /v1/documentos/{numero}`. El libro por punto sirve para el cierre de cada caja, no para ocultarle las
+  ventas de las demás.
 - **Bitácora de la exportación.** Cada exportación queda en la bitácora de la API (`accion: exportacion`) con
   el período, el formato y los documentos contados. Se registra antes de enviar la última parte: si no se puede
   registrar, la respuesta se corta con error. Una exportación cortada (cliente, plazo o error) queda con
@@ -257,32 +374,45 @@ antes a centavos.
     "codigo": "VALIDACION",
     "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).",
     "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: POST /v1/autorizaciones …",
-    "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion"
+    "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion",
+    "solicitud": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
   },
   "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "…", "solucion": "…", "documentacion": "…#sin_autorizacion" }]
 }
 ```
 
 - `error.codigo` es estable; `error.mensaje` es para mostrar.
+- `error.solicitud` es el id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Guárdalo con el error: con
+  él se encuentra la línea del log del servidor. Un 500 se registra con un id que genera el servidor, que es el
+  que va en la respuesta si no mandaste el tuyo: «solicitud <uuid>». Si mandaste tu `Solicitud-Id`, la respuesta
+  repite el tuyo y el log lleva los dos: «solicitud <uuid> (cliente <tu id>)», porque el del cliente no tiene por
+  qué ser único. La API lo envía siempre desde la 0.2.0; en el esquema es opcional, para leer sin fallar el error
+  de un proxy o de un servidor anterior.
 - `solucion` dice qué hacer, y `documentacion` enlaza el código en la guía de errores (`docs/errores.md`). Los
   traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
   `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
   `LIMITE_SOLICITUDES`, `LIMITE_MENSUAL`), cuerpo (`CUERPO_NO_UTF8`, `CUERPO_DEMASIADO_GRANDE`), forma
   (`SOLICITUD_INVALIDA`), idempotencia (`IDEMPOTENCY_KEY`, `IDEMPOTENCIA_CONFLICTO`), `SIN_EMISOR` y las
-  autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`).
+  autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `AUTORIZACION_REAL_EN_DEMO`, `CAI_DE_PRUEBA`).
 - **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
-  (p. ej. `documento.lineas`) y `errores` trae todos.
+  (p. ej. `documento.lineas`) y `errores` trae todos. Un cuerpo que no es JSON es 400 `JSON_INVALIDO`.
 - **422 reglas fiscales** (`VALIDACION`): `errores` trae la lista completa, cada uno con su código, campo y
   enlace; el código que importa es `errores[].codigo`. El error principal toma la solución del primero que la
   tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`.
-- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites
-  (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES` y `LIMITE_SOLICITUDES` con `Retry-After`; `LIMITE_MENSUAL`).
+- Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
+  `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
+  espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO`.
+- Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
+  401, 429 y 500; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
+  reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 
 ### Sesión
 
 `GET /v1/sesion` responde, para cualquier rol, con qué llave hablas y si ya puedes emitir:
 
-- `tenant`, `modo` (`local` o `alojado`) y `demo` (true en el tenant de demostración, con CAI ficticio);
+- `tenant`, `modoTenant` (`prueba` o `produccion`, ver «Tenants de prueba y de producción»), `modo` (del
+  servidor: `local` o `alojado`) y `demo` (true en el tenant de demostración, con CAI ficticio);
 - `llave`: id, prefijo, nombre, rol y, si es de caja, su establecimiento y punto de emisión (nunca el secreto);
 - `emisor`: si está registrado, con su RTN y razón social;
 - `puntos`: el punto de la llave de caja, o todos los que tienen autorizaciones si la llave es admin. Por cada
@@ -299,7 +429,14 @@ Solo lee datos del tenant de la llave (RLS).
 
 - **Por llave:** 20 solicitudes por segundo, ráfaga de 40 (opción `limiteSolicitudes`). Solo cuentan las
   solicitudes con el secreto correcto: conocer el prefijo de una llave (sale en listados y en la bitácora) no
-  basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`.
+  basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`. Cada respuesta autenticada lo dice con las
+  cabeceras del borrador IETF de RateLimit (draft-ietf-httpapi-ratelimit-headers):
+  `RateLimit-Policy: "llave";q=40;w=2` (la ráfaga, `q`, se recupera entera en `w` segundos) y
+  `RateLimit: "llave";r=39;t=1` (`r` solicitudes que quedan y `t` segundos hasta recuperar la ráfaga completa).
+  Van también en el 429 de la llave, pero no en los 429 `DEMASIADOS_INTENTOS` (otra cubeta, por dirección).
+- **Documentos del mes:** el límite mensual de la llave (consola, `--limite`) es 429 `LIMITE_MENSUAL` con
+  `Retry-After` hasta el primer día del mes siguiente a las 00:00 de Honduras. El documento no se emite y el
+  número no se consume.
 - **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
   (opción `limiteIntentos`). Cada consulta en curso reserva una ficha: sin fichas libres, 429
   `DEMASIADOS_INTENTOS` **sin consultar la base**, aunque lleguen muchas a la vez. Una llave que resulta válida
@@ -355,17 +492,54 @@ arrancar y cada hora.
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
-y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (30 s, 1 min, 2 min, … 4 h 16 min,
-6 h), unas 14 h y media entre el primero y el último. Después la entrega queda `FALLIDA`. Cada entrega se reclama
+y un despachador los entrega cada 5 s. Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
+intentos, con espera creciente (30 s, 1 min, 2 min, 4 min, … 2 h 8 min, 4 h 16 min y después 6 h entre cada uno)
+y una fluctuación de ±20 % en cada espera, para que los avisos que fallaron juntos no vuelvan todos a la vez.
+Entre el primer intento y el último pasan unas 74 h y media de media (con la fluctuación, entre unas 60 y 89 h
+en el peor caso). Después la entrega queda `FALLIDA` y se puede reenviar a mano (abajo). Cada entrega se reclama
 en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
 máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
 webhook desactivado no se entrega. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
 es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Pasados `FHN_RETENCION_DIAS` días, las entregas `ENTREGADA` o
-`FALLIDA` de `documento.*` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío para que el mismo
-aviso no se repita; las pendientes no se tocan.
+`FALLIDA` de `documento.*` y `webhook.prueba` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío
+para que el mismo aviso no se repita; las pendientes no se tocan.
 
 El `id` de cada entrega es un UUID: va en la cabecera `X-FacturaHN-Entrega` y en el campo `id` del cuerpo, y
-es el mismo en cada reintento.
+es el mismo en cada reintento y en un reenvío manual. No se garantiza el orden de llegada.
+
+### Entregas, reenvío y evento de prueba
+
+Todas con la llave admin, y solo sobre los webhooks del propio tenant (RLS):
+
+- `GET /v1/webhooks/{id}/entregas` lista las entregas, de la más reciente a la más antigua, paginadas como las
+  demás listas (`limite`, `cursor`), con `?estado=PENDIENTE|ENTREGADA|FALLIDA` opcional. Cada una trae `id`,
+  `evento`, `estado`, `intentos`, `proximoIntento` (si está pendiente), `ultimoCodigo` y `ultimoError` (`HTTP 503`,
+  `Tiempo agotado`, `Error de red`…). El cuerpo del aviso no se devuelve.
+- `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` responde 202 `{ entrega }`. Una entrega `FALLIDA` o
+  `ENTREGADA` vuelve a `PENDIENTE` con el calendario completo (otros 3 días) y sale en segundos, con el mismo `id`.
+  Una `PENDIENTE` se adelanta a ahora y conserva sus intentos (si justo se estaba enviando, puede llegar dos
+  veces: el receptor ya descarta repetidos por `id`). 409 `WEBHOOK_INACTIVO` si el webhook está desactivado. 409
+  `ENTREGA_VENCIDA` si es una entrega de `autorizacion.*` (`ENTREGADA` o `FALLIDA`) cuyo cuerpo ya se vació por
+  retención; una de `documento.*` o `webhook.prueba` tan vieja ya se borró y da 404 `NO_ENCONTRADO`.
+- `POST /v1/webhooks/{id}/probar` responde 202 `{ entrega }` y encola un aviso `webhook.prueba` solo para ese
+  webhook, aunque no esté suscrito a él: `{ id, evento: "webhook.prueba", creado, datos: { webhookId, mensaje } }`,
+  firmado. Una prueba se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). Sirve para probar el
+  receptor sin emitir un documento. Cada webhook tiene a lo sumo 5 pruebas pendientes: más allá, 409
+  `LIMITE_PRUEBAS` (también al reenviar una prueba terminada). 409 `WEBHOOK_INACTIVO` si está desactivado.
+
+### Rotación del secreto
+
+`POST /v1/webhooks/{id}/rotar-secreto` (cuerpo opcional `{ "graciaHoras": 24 }`, de 0 a 168) responde
+`{ webhook, secreto }` con el secreto nuevo, que solo se muestra esta vez. Durante la gracia, cada entrega lleva
+**dos** firmas `v1`: primero la del secreto anterior y después la del nuevo. `webhook.graciaHasta` dice hasta
+cuándo; al terminar, solo la del nuevo, y el servidor borra el secreto anterior en su mantenimiento de cada hora.
+Con `graciaHoras: 0`, el secreto anterior deja de valer en el acto. Rotar otra vez durante una gracia (un
+reintento, un doble clic) **conserva el secreto más viejo**, el que el receptor puede seguir usando: valen ese y el
+nuevo, el intermedio se descarta y la gracia dura hasta la más tardía de las dos. 409 `WEBHOOK_INACTIVO` si el
+webhook está desactivado.
+
+Pasos: actualiza el receptor a un verificador que acepte varios `v1` (`@factura-hn/cliente` desde esta versión),
+rota, cambia el secreto del receptor antes de que termine la gracia y comprueba con `probar`.
 
 ```ts
 import { verificarFirmaWebhook } from '@factura-hn/cliente'; // npm install @factura-hn/cliente
@@ -378,6 +552,9 @@ const evento = JSON.parse(cuerpo); // { id, evento, creado, datos }
 ```
 
 Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))`, con 5 minutos de tolerancia.
+Puede llevar más de un `v1` (durante la gracia de una rotación): la entrega es válida si **alguno** verifica con
+tu secreto. Ignora las entradas que no conozcas (`v0=`, `v2=`…). `verificarFirmaWebhook` ya lo hace. Si escribes
+tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se queda solo con uno.
 
 ## Seguridad
 

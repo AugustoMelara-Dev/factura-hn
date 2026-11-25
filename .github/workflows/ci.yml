@@ -37,7 +37,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # Sin las dependencias de colecciones/ (CLI de Bruno): solo las usa el trabajo «colecciones» de ci.yml.
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
       - name: Datos de ejemplo ficticios
         run: pnpm auditar:datos
       - name: Build
@@ -57,6 +58,8 @@ jobs:
           pnpm --filter @factura-hn/api openapi
           pnpm --filter @factura-hn/cliente generar
           git diff --exit-code -- packages/api/openapi.json packages/cliente/src/esquema.ts
+      - name: Linter de OpenAPI (Redocly; operationId en todas las operaciones)
+        run: pnpm lint:openapi
       - name: Build de Next.js y del playground
         run: |
           pnpm --filter @factura-hn/ejemplo-nextjs build
@@ -94,7 +97,8 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # Sin las dependencias de colecciones/ (CLI de Bruno): solo las usa el trabajo «colecciones» de ci.yml.
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
       - run: pnpm build
       - name: Pruebas con Postgres (RLS, concurrencia, idempotencia, bitácora)
         run: pnpm test:pg
@@ -114,5 +118,53 @@ jobs:
           docker compose up -d --build --wait
           curl -fsS http://127.0.0.1:8787/salud
           docker compose logs api | grep -q "Llave de caja (para emitir)"
+      - if: always()
+        run: docker compose down -v
+
+  colecciones:
+    name: Colecciones de Bruno y Postman y cliente de Python (contra la imagen)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @factura-hn/colecciones
+      - name: Colecciones al día con openapi.json
+        run: |
+          pnpm colecciones
+          git diff --exit-code -- colecciones/
+          # También falla si la generación deja archivos nuevos sin versionar.
+          test -z "$(git status --porcelain -- colecciones/)" || { git status --porcelain -- colecciones/; exit 1; }
+      - name: docker compose up
+        run: docker compose up -d --build --wait
+      - name: Llave de caja del demo
+        run: |
+          LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+          echo "::add-mask::$LLAVE"
+          echo "FHN_LLAVE=$LLAVE" >> "$GITHUB_ENV"
+      - name: 'Bruno: primera factura (sesión, emitir y PDF)'
+        # El entorno demo lee la llave de FHN_LLAVE (definida arriba): no pasa por la línea de órdenes.
+        run: pnpm --filter @factura-hn/colecciones bruno
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: clientes/python/requirements.txt
+      - name: 'Cliente de Python generado: emite una factura de prueba'
+        env:
+          FHN_API_URL: http://127.0.0.1:8787
+        run: |
+          python -m venv .venv-python
+          .venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt
+          .venv-python/bin/python clientes/python/generar.py
+          .venv-python/bin/python -m pytest clientes/python -v
+      - if: failure()
+        run: docker compose logs api
       - if: always()
         run: docker compose down -v

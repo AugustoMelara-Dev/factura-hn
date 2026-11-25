@@ -129,6 +129,8 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
 
   // Varios
   OPERADOR: 'Usa un nombre de 1 a 80 caracteres, sin saltos de línea ni caracteres de control, u omite el campo.',
+  TEXTO_CARACTER_NO_PERMITIDO:
+    'Quita del texto que indica `campo` los caracteres invisibles (NUL, ESC, etc.): suelen venir de copiar y pegar o de un lector de códigos. El tabulador y los saltos de línea sí se permiten.',
 };
 
 /**

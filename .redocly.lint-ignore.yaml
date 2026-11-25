@@ -1,0 +1,5 @@
+# Excepciones puntuales del linter de OpenAPI (redocly.yaml).
+packages/api/openapi.json:
+  # GET /salud es público y no tiene errores del cliente: sin parámetros ni llave, solo responde 200 o 500.
+  operation-4xx-response:
+    - '#/paths/~1salud/get/responses'

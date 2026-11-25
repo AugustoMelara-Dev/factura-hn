@@ -4,3 +4,8 @@
 .git
 referencias
 *.log
+.venv-python
+clientes/python/generado
+**/.pytest_cache
+**/__pycache__
+colecciones/bruno/.env

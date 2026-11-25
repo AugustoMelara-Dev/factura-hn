@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buscarDocumento, emitir, registrarAutorizacion, type AlmacenFiscal } from 'factura-hn';
+import { anular, buscarDocumento, emitir, registrarAutorizacion, type AlmacenFiscal } from 'factura-hn';
 import { DATOS_CONTRATO as D, ejecutarContratoAlmacen } from 'factura-hn/pruebas';
 import { AlmacenPostgres } from '../src';
 
@@ -20,6 +20,50 @@ const nuevoPool = () => {
   return p;
 };
 const tenants = new WeakMap<AlmacenFiscal, string>();
+
+// Cruce forzado de bloqueos: cada transacción se detiene tras su primer `bloquearSerie` hasta que la otra tenga el
+// suyo (o pase medio segundo). Si dos caminos tomaran las mismas series en orden inverso, Postgres cortaría uno
+// con 40P01.
+const senal = () => {
+  let listo!: () => void;
+  const p = new Promise<void>((r) => (listo = r));
+  return { p, listo };
+};
+const pausa = (yo: ReturnType<typeof senal>, otro: ReturnType<typeof senal>) => {
+  let primera = true;
+  return async () => {
+    if (!primera) return;
+    primera = false;
+    yo.listo();
+    await Promise.race([otro.p, new Promise((r) => setTimeout(r, 500))]);
+  };
+};
+// `bloqueos`, si se pasa, recibe cada serie que la transacción bloquea, en orden.
+const conPausa = (almacen: AlmacenFiscal, despues: () => Promise<void>, bloqueos?: string[]): AlmacenFiscal =>
+  new Proxy(almacen, {
+    get(o, p) {
+      const v = Reflect.get(o, p, o) as unknown;
+      if (p !== 'transaccion') return typeof v === 'function' ? v.bind(o) : v;
+      return (fn: (tx: unknown) => Promise<unknown>) =>
+        o.transaccion((tx) =>
+          fn(
+            new Proxy(tx, {
+              get(t, q) {
+                const w = Reflect.get(t, q, t) as unknown;
+                if (typeof w !== 'function') return w;
+                if (q !== 'bloquearSerie') return w.bind(t);
+                return async (serie: string) => {
+                  bloqueos?.push(serie);
+                  const r = await w.call(t, serie);
+                  await despues();
+                  return r;
+                };
+              },
+            }),
+          ),
+        );
+    },
+  });
 
 conPostgres('Postgres', () => {
   let pool: pg.Pool;
@@ -87,46 +131,8 @@ conPostgres('Postgres', () => {
     const caja = { establecimiento: '000', puntoEmision: '001', opciones: { reloj: D.reloj } };
     const cliente = { nombre: 'Constructora Pérez', rtn: '99990000000002' };
     const f = await emitir(D.entrada({ cliente }), { almacen: a, ...caja });
-    const senal = () => {
-      let listo!: () => void;
-      const p = new Promise<void>((r) => (listo = r));
-      return { p, listo };
-    };
     const notaBloqueo = senal();
     const registroBloqueo = senal();
-    const pausa = (yo: ReturnType<typeof senal>, otro: ReturnType<typeof senal>) => {
-      let primera = true;
-      return async () => {
-        if (!primera) return;
-        primera = false;
-        yo.listo();
-        await Promise.race([otro.p, new Promise((r) => setTimeout(r, 500))]);
-      };
-    };
-    const conPausa = (almacen: AlmacenFiscal, despues: () => Promise<void>): AlmacenFiscal =>
-      new Proxy(almacen, {
-        get(o, p) {
-          const v = Reflect.get(o, p, o) as unknown;
-          if (p !== 'transaccion') return typeof v === 'function' ? v.bind(o) : v;
-          return (fn: (tx: unknown) => Promise<unknown>) =>
-            o.transaccion((tx) =>
-              fn(
-                new Proxy(tx, {
-                  get(t, q) {
-                    const w = Reflect.get(t, q, t) as unknown;
-                    if (typeof w !== 'function') return w;
-                    if (q !== 'bloquearSerie') return w.bind(t);
-                    return async (serie: string) => {
-                      const r = await w.call(t, serie);
-                      await despues();
-                      return r;
-                    };
-                  },
-                }),
-              ),
-            );
-        },
-      });
     const r = await Promise.allSettled([
       emitir(
         D.entrada({ tipoDocumento: '06', cliente, motivo: 'Devolución', referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision } }),
@@ -138,6 +144,96 @@ conPostgres('Postgres', () => {
       ),
     ]);
     expect(r.map((x) => (x.status === 'rejected' ? String(x.reason) : 'ok'))).toEqual(['ok', 'ok']);
+  });
+
+  describe('dos notas de crédito cruzadas entre puntos de emisión (Lote 4)', () => {
+    // La nota de 000-001 se aplica a una factura de 000-002 y la de 000-002 a una de 000-001. Cada nota bloquea su
+    // serie 06 y después la 01 del original: 000-001-06 → 000-002-01 y 000-002-06 → 000-001-01.
+    const cliente = { nombre: 'Constructora Pérez', rtn: '99990000000002' };
+    const reloj = { opciones: { reloj: D.reloj } };
+    const preparar = async () => {
+      const tenant = `prueba-${randomUUID()}`;
+      const a = new AlmacenPostgres(pool, { tenant });
+      const facturas = [];
+      for (const [i, punto] of ['001', '002'].entries()) {
+        const extra = { puntoEmision: punto };
+        await registrarAutorizacion(a, D.autorizacion(`A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-${i}1`, 1, 100, extra));
+        await registrarAutorizacion(a, D.autorizacion(`A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-${i}6`, 1, 100, { ...extra, tipoDocumento: '06' }));
+        facturas.push(await emitir(D.entrada({ cliente }), { almacen: a, establecimiento: '000', puntoEmision: punto, ...reloj }));
+      }
+      return { tenant, facturas: facturas as [(typeof facturas)[0], (typeof facturas)[0]] };
+    };
+    const nota = (f: { cai: string; numero: string; fechaEmision: string }) =>
+      D.entrada({ tipoDocumento: '06', cliente, motivo: 'Devolución', lineas: [{ descripcion: 'Devolución', cantidad: '1', precioUnitario: '1.00' }], referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision } });
+
+    it('no se bloquean entre sí: el orden ya es determinista (notas antes que el resto) y no se reproduce el 40P01', async () => {
+      const { tenant, facturas: [f1, f2] } = await preparar();
+      for (let ronda = 0; ronda < 3; ronda++) {
+        const s1 = senal();
+        const s2 = senal();
+        const b1: string[] = [];
+        const b2: string[] = [];
+        const r = await Promise.allSettled([
+          emitir(nota(f2), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s1, s2), b1), establecimiento: '000', puntoEmision: '001', ...reloj }),
+          emitir(nota(f1), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s2, s1), b2), establecimiento: '000', puntoEmision: '002', ...reloj }),
+        ]);
+        expect(r.map((x) => (x.status === 'rejected' ? String(x.reason) : x.value.referencia?.numero))).toEqual([f2.numero, f1.numero]);
+        // Cada nota bloqueó su serie 06 y luego la 01 del original: el cruce que se busca sí ocurrió.
+        expect([b1, b2]).toEqual([['000-001-06', '000-002-01'], ['000-002-06', '000-001-01']]);
+        // Los originales se encontraron en el almacén (si no, no se bloquea su serie y la prueba no probaría nada).
+        for (const x of r) if (x.status === 'fulfilled') expect(x.value.advertencias.map((p) => p.codigo)).not.toContain('AVISO_ORIGINAL_EXTERNO');
+      }
+    });
+
+    it('control: el mismo cruce forzado sí detecta un orden inverso (la prueba anterior podría fallar)', async () => {
+      // Una transacción que tomara 000-002-01 antes que 000-001-06 cerraría el ciclo con la nota de 000-001.
+      const { tenant, facturas: [, f2] } = await preparar();
+      const s1 = senal();
+      const s2 = senal();
+      const inverso = new AlmacenPostgres(nuevoPool(), { tenant }).transaccion(async (tx) => {
+        await tx.bloquearSerie('000-002-01');
+        await pausa(s2, s1)();
+        await tx.bloquearSerie('000-001-06');
+      });
+      const r = await Promise.allSettled([
+        emitir(nota(f2), { almacen: conPausa(new AlmacenPostgres(nuevoPool(), { tenant }), pausa(s1, s2)), establecimiento: '000', puntoEmision: '001', ...reloj }),
+        inverso,
+      ]);
+      const codigos = r.map((x) => (x.status === 'rejected' ? (x.reason as { code?: string }).code : 'ok'));
+      expect(codigos).toContain('40P01');
+    });
+  });
+
+  it('un NUL o un sustituto suelto en un texto es TEXTO_CARACTER_NO_PERMITIDO, no un error de Postgres', async () => {
+    const a = new AlmacenPostgres(pool, { tenant: `prueba-${randomUUID()}` });
+    await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 100));
+    const caja = { almacen: a, establecimiento: '000', puntoEmision: '001', opciones: { reloj: D.reloj } };
+    for (const malo of ['Arroz\u0000', 'Arroz\ud800']) {
+      const e = await emitir(D.entrada({ lineas: [{ descripcion: malo, cantidad: '1', precioUnitario: '10.00' }] }), caja).then(
+        () => null,
+        (x: { errores?: Array<{ codigo: string; campo?: string }> }) => x,
+      );
+      expect(e?.errores?.[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo: 'lineas[0].descripcion' });
+    }
+    // Sin límite de profundidad y también en los nombres de los campos (antes, 22P05 de Postgres).
+    const cliente = { nombre: 'Ana', extra: { a: { b: { c: { d: { e: 'x\u0000' } } } } } };
+    for (const [entrada, campo] of [
+      [D.entrada({ cliente } as never), 'cliente.extra.a.b.c.d.e'],
+      [D.entrada({ cliente: { nombre: 'Ana', 'k\u0000': 'v' } } as never), 'cliente.k<U+0000>'],
+    ] as const) {
+      const e = await emitir(entrada, caja).then(() => null, (x: { errores?: Array<{ codigo: string; campo?: string }> }) => x);
+      expect(e?.errores?.[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo });
+    }
+    // Sin número consumido, y el listado sin líneas (datos::jsonb - 'lineas') sigue funcionando.
+    const doc = await emitir(D.entrada(), caja);
+    expect(doc.correlativo).toBe(1);
+    const pagina = await a.transaccion((tx) => tx.paginaDocumentos!({}, { limite: 10, sinLineas: true }));
+    expect(pagina.map((d) => d.numero)).toEqual([doc.numero]);
+    // El motivo de anulación también (antes, 22P05 del disparador de anulación).
+    const e = await anular(doc.numero, { almacen: a, motivo: 'Error\u0000' }).then(() => null, (x: { errores?: Array<{ codigo: string }> }) => x);
+    expect(e?.errores?.[0]?.codigo).toBe('TEXTO_CARACTER_NO_PERMITIDO');
+    expect((await buscarDocumento(a, doc.numero))!.estado).toBe('EMITIDO');
+    expect((await anular(doc.numero, { almacen: a, motivo: 'Error de precio' })).estado).toBe('ANULADO');
   });
 
   it('un tenant no ve los documentos de otro', async () => {

@@ -35,7 +35,7 @@ export type Enlaces = Esquemas['Enlaces'];
 export interface OpcionesCliente {
   /** URL base, p. ej. `http://127.0.0.1:8787`. */
   url: string;
-  /** Llave de API `fhn_<prefijo>_<secreto>`. Nunca la pongas en código que llega al navegador. */
+  /** Llave de API (`fhn_live_…` o, en un tenant de prueba, `fhn_test_…`). Nunca la pongas en código que llega al navegador. */
   llave: string;
   /**
    * Persona que opera con este cliente (p. ej. el cajero de la sesión). Se envía en la cabecera `X-Operador`

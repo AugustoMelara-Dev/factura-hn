@@ -1,0 +1,20 @@
+meta {
+  name: Encola un evento de prueba (`webhook.prueba`) para este webhook
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/v1/webhooks/:id/probar
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+docs {
+  Encola un evento de prueba (`webhook.prueba`) para este webhook
+
+  Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. A lo sumo 5 pruebas pendientes por webhook: más allá, 409 `LIMITE_PRUEBAS`.
+}

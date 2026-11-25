@@ -11,8 +11,9 @@
  */
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
+import { EMISOR_DEMO } from 'factura-hn/demo';
 
-export const VERSION_ESQUEMA_API = 7;
+export const VERSION_ESQUEMA_API = 8;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -89,6 +90,10 @@ CREATE TABLE IF NOT EXISTS api_webhooks (
   creado timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS api_webhooks_tenant ON api_webhooks (tenant);
+-- v8: rotación del secreto con gracia. Mientras anterior_hasta no pase, cada entrega se firma también con el
+-- secreto anterior (dos v1). El mantenimiento borra el secreto anterior cuando la gracia termina.
+ALTER TABLE api_webhooks ADD COLUMN IF NOT EXISTS secreto_anterior text;
+ALTER TABLE api_webhooks ADD COLUMN IF NOT EXISTS anterior_hasta timestamptz;
 
 CREATE TABLE IF NOT EXISTS api_entregas (
   id bigserial PRIMARY KEY,
@@ -109,6 +114,8 @@ CREATE INDEX IF NOT EXISTS api_entregas_pendientes ON api_entregas (tenant, prox
 -- v5: id público de la entrega (cabecera X-FacturaHN-Entrega y campo id del cuerpo). No sale de una secuencia
 -- global: no revela cuántas entregas hay en el servicio. El bigserial sigue siendo solo interno.
 ALTER TABLE api_entregas ADD COLUMN IF NOT EXISTS entrega uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE;
+-- v8: las entregas de un webhook, de la más reciente a la más antigua (GET /v1/webhooks/{id}/entregas).
+CREATE INDEX IF NOT EXISTS api_entregas_por_webhook ON api_entregas (webhook_id, creada DESC, entrega DESC);
 
 CREATE TABLE IF NOT EXISTS api_uso (
   tenant text NOT NULL,
@@ -129,6 +136,34 @@ CREATE INDEX IF NOT EXISTS api_bitacora_tenant ON api_bitacora (tenant, id);
 -- v3 (DEC-031): persona que operó (p. ej. el cajero), si la solicitud la indica.
 ALTER TABLE api_bitacora ADD COLUMN IF NOT EXISTS operador text CHECK (operador IS NULL OR length(operador) BETWEEN 1 AND 80);
 
+-- v8: modo del tenant (sandbox con llaves fhn_test_, o producción con llaves fhn_live_). Los tenants que ya
+-- existían quedan en producción, salvo el tenant «demo» de demostración, que pasa a prueba: tiene el emisor o un
+-- CAI ficticios y **ninguna** autorización ni documento con un CAI real (la 0.2.0 no impedía registrar un CAI real
+-- en «demo», ni crear en modo alojado un tenant real con ese nombre). Si tiene alguno, queda en producción y se
+-- avisa. Solo la primera vez, al crear la columna. api_tenants fuerza RLS al dueño: se fija el tenant «demo» para
+-- verlo y se devuelve el valor anterior.
+DO $modo$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_n integer;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'api_tenants'::regclass AND attname = 'modo' AND NOT attisdropped) THEN
+    ALTER TABLE api_tenants ADD COLUMN modo text NOT NULL DEFAULT 'produccion' CHECK (modo IN ('prueba', 'produccion'));
+    PERFORM set_config('factura_hn.tenant', 'demo', true);
+    UPDATE api_tenants SET modo = 'prueba'
+     WHERE tenant = 'demo'
+       AND (EXISTS (SELECT 1 FROM api_emisores e WHERE e.tenant = 'demo' AND e.datos->>'rtn' = '${EMISOR_DEMO.rtn}')
+            OR EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND starts_with(upper(btrim(a.cai)), 'DEMO00-NO-VALIDO-')))
+       AND NOT EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND NOT starts_with(upper(btrim(a.cai)), 'DEMO00-NO-VALIDO-'))
+       AND NOT EXISTS (SELECT 1 FROM fhn_documentos d WHERE d.tenant = 'demo' AND NOT starts_with(upper(btrim(coalesce(d.datos->>'cai', ''))), 'DEMO00-NO-VALIDO-'));
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    IF v_n = 0 AND EXISTS (SELECT 1 FROM api_tenants WHERE tenant = 'demo') THEN
+      RAISE NOTICE 'factura-hn: el tenant «demo» queda en producción (tiene autorizaciones o documentos con un CAI real, o no es el de demostración).';
+    END IF;
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  END IF;
+END $modo$;
+
 CREATE OR REPLACE FUNCTION fhn_api_solo_insertar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'La bitácora de la API es de solo inserción';
@@ -137,7 +172,7 @@ DROP TRIGGER IF EXISTS fhn_api_bitacora_inmutable ON api_bitacora;
 CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacora
   FOR EACH ROW EXECUTE FUNCTION fhn_api_solo_insertar();
 
--- v3 cambia las columnas que devuelve (id y nombre de la llave): hay que reemplazarla.
+-- v3 cambia las columnas que devuelve (id y nombre de la llave) y v8 agrega el modo del tenant: hay que reemplazarla.
 DROP FUNCTION IF EXISTS fhn_api_autenticar(text);
 DO $do$ BEGIN
 EXECUTE format($f$
@@ -146,7 +181,7 @@ EXECUTE format($f$
 -- al dueño), se fija su tenant solo para leer api_tenants y se devuelve el valor anterior. Si algo falla, el
 -- error aborta la transacción (o la subtransacción) de quien llama, y con ella se deshace el set_config.
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
-RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text)
+RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text, modo text)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
 #variable_conflict use_column
 DECLARE
@@ -154,15 +189,16 @@ DECLARE
   v_llave api_llaves%%ROWTYPE;
   v_limite integer;
   v_activo boolean;
+  v_modo text;
 BEGIN
   SELECT * INTO v_llave FROM api_llaves l WHERE l.prefijo = p_prefijo AND l.revocada IS NULL;
   IF NOT FOUND THEN RETURN; END IF;
   PERFORM set_config('factura_hn.tenant', v_llave.tenant, true);
-  SELECT t.limite_mensual, t.activo INTO v_limite, v_activo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
+  SELECT t.limite_mensual, t.activo, t.modo INTO v_limite, v_activo, v_modo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
   PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   IF v_activo IS NOT TRUE THEN RETURN; END IF;
   RETURN QUERY SELECT v_llave.tenant, v_llave.hash, v_llave.rol, v_llave.establecimiento, v_llave.punto_emision,
-    v_limite, v_llave.id, v_llave.nombre;
+    v_limite, v_llave.id, v_llave.nombre, v_modo;
 END
 $$$f$, current_schema());
 
@@ -194,7 +230,9 @@ $$$f$, current_schema());
 -- del documento: la clave y su huella se quedan para siempre, así que un reintento tardío nunca emite otro
 -- documento. (b) Las entregas ENTREGADA o FALLIDA viejas de documento.* se borran (su clave lleva el número del
 -- documento: no se vuelve a encolar). Las de autorizacion.* se quedan como lápida, con el cuerpo vacío: su
--- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan.
+-- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan. v8: las de webhook.prueba
+-- se borran como las de documento.* (su clave es única por prueba) y el secreto anterior de una rotación se
+-- borra cuando termina su gracia.
 -- api_idempotencia fuerza RLS también al dueño: se recorre tenant por tenant. Todo tenant con claves tiene
 -- llaves (sin una no se emite y las llaves no se borran) y api_llaves no fuerza RLS al dueño.
 -- factura_hn.tenant se guarda al entrar y se devuelve al salir: no queda fijado en la transacción de quien
@@ -218,17 +256,59 @@ BEGIN
      WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
     GET DIAGNOSTICS v_n = ROW_COUNT;
     compactadas := compactadas + v_n;
+    UPDATE api_webhooks SET secreto_anterior = NULL, anterior_hasta = NULL
+     WHERE tenant = v_tenant AND anterior_hasta IS NOT NULL AND anterior_hasta <= now();
   END LOOP;
   PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   DELETE FROM api_entregas
-   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'documento.%%';
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND (evento LIKE 'documento.%%' OR evento = 'webhook.prueba');
   GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
   UPDATE api_entregas SET cuerpo = '{}'::jsonb
-   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento NOT LIKE 'documento.%%' AND cuerpo <> '{}'::jsonb;
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'autorizacion.%%' AND cuerpo <> '{}'::jsonb;
   RETURN NEXT;
 END
 $$$f$, current_schema());
+-- v8: modo del tenant de una autorización, para el disparador de fhn_autorizaciones. null si el tenant no es de
+-- la API (uso del SDK sin api_tenants). Como fhn_api_autenticar: fija el tenant solo para leer api_tenants y
+-- devuelve el valor anterior.
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_modo_tenant(p_tenant text)
+RETURNS text
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_modo text;
+BEGIN
+  PERFORM set_config('factura_hn.tenant', p_tenant, true);
+  SELECT t.modo INTO v_modo FROM api_tenants t WHERE t.tenant = p_tenant;
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  RETURN v_modo;
+END
+$$$f$, current_schema());
 END $do$;
+
+-- v8: el modo del tenant decide qué CAI se registran, por cualquier camino (la API o el SDK sobre la base de la
+-- API): un tenant de prueba solo CAI ficticios (AUTORIZACION_REAL_EN_DEMO) y uno de producción ninguno
+-- (CAI_DE_PRUEBA). Un tenant sin fila en api_tenants (solo el SDK) no cambia. Solo al insertar: las autorizaciones
+-- que ya estaban no se tocan.
+CREATE OR REPLACE FUNCTION fhn_api_autorizacion_por_modo() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_modo text := fhn_api_modo_tenant(NEW.tenant);
+  v_ficticio boolean := starts_with(upper(btrim(NEW.cai)), 'DEMO00-NO-VALIDO-');
+BEGIN
+  IF v_modo = 'prueba' AND NOT v_ficticio THEN
+    RAISE EXCEPTION 'AUTORIZACION_REAL_EN_DEMO: el tenant % es de prueba y solo acepta CAI ficticios (DEMO00-NO-VALIDO-…)', NEW.tenant
+      USING ERRCODE = 'check_violation';
+  ELSIF v_modo = 'produccion' AND v_ficticio THEN
+    RAISE EXCEPTION 'CAI_DE_PRUEBA: el tenant % es de producción y no acepta CAI ficticios', NEW.tenant
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS fhn_api_autorizacion_por_modo ON fhn_autorizaciones;
+CREATE TRIGGER fhn_api_autorizacion_por_modo BEFORE INSERT ON fhn_autorizaciones
+  FOR EACH ROW EXECUTE FUNCTION fhn_api_autorizacion_por_modo();
+REVOKE ALL ON FUNCTION fhn_api_modo_tenant(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_mantenimiento(integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_autenticar(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_prefijo_registrado(text) FROM PUBLIC;
@@ -248,13 +328,13 @@ GRANT UPDATE (revocada) ON api_llaves TO ${rol};
 GRANT SELECT, INSERT, UPDATE ON api_emisores TO ${rol};
 GRANT SELECT, INSERT ON api_idempotencia TO ${rol};
 GRANT SELECT, INSERT ON api_webhooks TO ${rol};
-GRANT UPDATE (activo) ON api_webhooks TO ${rol};
+GRANT UPDATE (activo, secreto, secreto_anterior, anterior_hasta) ON api_webhooks TO ${rol};
 GRANT SELECT, INSERT ON api_entregas TO ${rol};
 GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_entregas TO ${rol};
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
 GRANT SELECT, INSERT ON api_bitacora TO ${rol};
 GRANT USAGE ON SEQUENCE api_entregas_id_seq, api_bitacora_id_seq TO ${rol};
-GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
+GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_modo_tenant(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
 }
 
 /**
@@ -311,8 +391,12 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
   }
 }
 
-/** Función que añadió la versión actual del esquema: si el rol de la API no la ve, la base no está migrada. */
+/** Función que añadió la v7 del esquema: si el rol de la API no la ve, la base no está migrada. */
 export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
+/** Columnas que añadió la v8: la rotación del secreto de webhooks (el rol de la API debe poder actualizarla) y el
+ * modo del tenant. */
+export const MARCA_COLUMNA_API = { tabla: 'api_webhooks', columna: 'anterior_hasta' } as const;
+export const MARCA_MODO_API = 'api_tenants.modo';
 
 /**
  * Falla con un mensaje claro si la base tiene el esquema de la API en una versión anterior a la del código.
@@ -320,14 +404,19 @@ export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
  * respondería 500 a cada llave no válida.
  */
 export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, consola = 'node packages/api/dist/cli.js'): Promise<void> {
+  // La columna se busca en pg_attribute antes de preguntar el privilegio: has_column_privilege falla si no existe.
   const r = await pool.query<{ ok: boolean }>(
-    "SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false) AS ok",
-    [MARCA_ESQUEMA_API, rol],
+    `SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false)
+        AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass($3) AND attname = $4 AND NOT attisdropped)
+                 THEN has_column_privilege($2, to_regclass($3), $4, 'UPDATE') ELSE false END
+        AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_tenants') AND attname = 'modo' AND NOT attisdropped) AS ok`,
+    [MARCA_ESQUEMA_API, rol, MARCA_COLUMNA_API.tabla, MARCA_COLUMNA_API.columna],
   );
   if (r.rows[0]?.ok) return;
   throw new Error(
     `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
-      `(falta ${MARCA_ESQUEMA_API} o el rol de la API no puede usarla). Migra antes de arrancar: arranca con ` +
+      `(falta ${MARCA_ESQUEMA_API}, ${MARCA_COLUMNA_API.tabla}.${MARCA_COLUMNA_API.columna} o ${MARCA_MODO_API}, o el rol de ` +
+      'la API no puede usarlas). Migra antes de arrancar: arranca con ' +
       `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
       'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',
   );

@@ -26,13 +26,14 @@ conBase('autenticación y roles', () => {
       error: {
         codigo: 'NO_AUTENTICADO',
         mensaje: 'Falta la llave de API o no es válida.',
-        solucion: expect.stringContaining('Authorization: Bearer fhn_<prefijo>_<secreto>'),
+        solucion: expect.stringContaining('Authorization: Bearer fhn_live_<prefijo>_<secreto>'),
         documentacion: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#no_autenticado',
+        solicitud: r.headers.get('solicitud-id'),
       },
     });
 
     const caja = await crearCaja(admin, '001');
-    const prefijo = caja.split('_')[1]!;
+    const prefijo = caja.split('_')[2]!;
     expect((await cliente(app, caja)('GET', '/v1/autorizaciones')).status).toBe(200);
     expect((await admin('DELETE', `/v1/llaves/${prefijo}`)).status).toBe(200);
     expect((await cliente(app, caja)('GET', '/v1/autorizaciones')).status).toBe(401);
@@ -77,7 +78,7 @@ conBase('autenticación y roles', () => {
 
   it('no se puede revocar la única llave admin', async () => {
     const { admin, llaveAdmin } = await tenantListo();
-    const r = await admin('DELETE', `/v1/llaves/${llaveAdmin.split('_')[1]}`);
+    const r = await admin('DELETE', `/v1/llaves/${llaveAdmin.split('_')[2]}`);
     expect(r.status).toBe(409);
   });
 });
@@ -353,7 +354,7 @@ conBase('inyección y entradas hostiles', () => {
     const app = crearApp({ pool, modo: 'local', rol: 'rol_que_no_existe', registrar: () => undefined });
     const r = await cliente(app, llaveAdmin)('GET', '/v1/autorizaciones');
     expect(r.status).toBe(500);
-    expect(await json(r)).toEqual({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } });
+    expect(await json(r)).toEqual({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.', solicitud: r.headers.get('solicitud-id') } });
   });
 });
 
@@ -389,7 +390,7 @@ conBase('correcciones de la revisión de seguridad', () => {
   it('intentos con un prefijo conocido y secreto falso: 429 de intentos, sin marcar último uso ni bloquear la llave', async () => {
     const { llaveAdmin, pool, tenant } = await tenantListo();
     const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 }, limiteIntentos: { porSegundo: 0.01, rafaga: 2 } });
-    const falsa = `${llaveAdmin.slice(0, 17)}${'A'.repeat(43)}`;
+    const falsa = `${llaveAdmin.slice(0, 'fhn_live_'.length + 13)}${'A'.repeat(43)}`;
     const uso = async () => (await pool.query('SELECT ultimo_uso FROM api_llaves WHERE tenant = $1', [tenant])).rows[0].ultimo_uso;
     const antes = await uso();
     const estados: number[] = [];
@@ -428,7 +429,7 @@ conBase('correcciones de la revisión de seguridad', () => {
       await expect(crearLlaveOperador(pool, { tenant, rol: 'caja', nombre: 'caja suelta', ...o })).rejects.toThrow(/--caja 000-001/);
     }
     await expect(crearLlaveOperador(pool, { tenant, rol: 'admin', nombre: 'admin a medias', establecimiento: '000' })).rejects.toThrow();
-    const { prefijo, hash } = generarLlave();
+    const { prefijo, hash } = generarLlave('produccion');
     await expect(pool.query("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'caja', 'x')", [prefijo, tenant, hash]))
       .rejects.toThrow(/api_llaves_caja_con_punto/);
   });
@@ -436,7 +437,7 @@ conBase('correcciones de la revisión de seguridad', () => {
   it('una llave de caja vieja sin punto de emisión no emite en la caja que pida (falla cerrado)', async () => {
     const { app, tenant, pool } = await tenantListo({}, { cajas: ['001', '002'] });
     // Simula una fila anterior al disparador v4: se desactiva solo dentro de esta transacción.
-    const { llave, prefijo, hash } = generarLlave();
+    const { llave, prefijo, hash } = generarLlave('produccion');
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
@@ -522,7 +523,7 @@ conBase('respuestas uniformes y paginación (DEC-047)', () => {
 
     // Sin limite: 100 por defecto, todo en una página.
     expect(await json(await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}`))).toMatchObject({ hayMas: false, siguiente: null });
-    for (const malo of ['no-es-un-cursor', Buffer.from('["x","y"]').toString('base64url'), Buffer.from('1').toString('base64url')]) {
+    for (const malo of ['no-es-un-cursor', Buffer.from('["x","y"]').toString('base64url'), Buffer.from('1').toString('base64url'), Buffer.from('["2024-99-99","1"]').toString('base64url'), Buffer.from('["0000-01-01","1"]').toString('base64url'), Buffer.from('["2025-02-30","1"]').toString('base64url')]) {
       const r = await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}&cursor=${malo}`);
       expect(r.status, malo).toBe(400);
       expect((await json(r)).error.codigo).toBe('CURSOR_INVALIDO');
@@ -548,7 +549,7 @@ conBase('respuestas uniformes y paginación (DEC-047)', () => {
     const { admin } = await tenantListo();
     const nueva = await json(await admin('POST', '/v1/llaves', { nombre: 'caja 9', rol: 'caja', establecimiento: '000', puntoEmision: '009' }));
     expect(Object.keys(nueva).sort()).toEqual(['llave', 'secreto']);
-    expect(nueva.secreto).toMatch(new RegExp(`^fhn_${nueva.llave.prefijo}_`));
+    expect(nueva.secreto).toMatch(new RegExp(`^fhn_live_${nueva.llave.prefijo}_`));
     expect(Object.keys(await json(await admin('DELETE', `/v1/llaves/${nueva.llave.prefijo}`)))).toEqual(['llave']);
     const hook = await json(await admin('POST', '/v1/webhooks', { url: 'http://127.0.0.1:9/x', eventos: ['documento.emitido'] }));
     expect(Object.keys(hook).sort()).toEqual(['secreto', 'webhook']);

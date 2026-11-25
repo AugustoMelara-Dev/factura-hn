@@ -1,0 +1,26 @@
+meta {
+  name: Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/series/:identificador/corregir-fecha
+  body: json
+  auth: inherit
+}
+
+params:path {
+  identificador: 000-001-01
+}
+
+body:json {
+  {
+    "motivo": "El reloj de la caja estaba adelantado",
+    "operador": "María López"
+  }
+}
+
+docs {
+  Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)
+}
