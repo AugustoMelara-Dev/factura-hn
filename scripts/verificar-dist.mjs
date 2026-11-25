@@ -5,8 +5,10 @@
 //    de `docs/` solo van los de DOCS_PUBLICOS; `workspace:` se reemplazó por versiones; repository.url es
 //    exactamente el repositorio de GitHub y repository.directory apunta al paquete (los exige la publicación de
 //    confianza de npm). Ningún .md ni llms.txt del tarball enlaza con ruta relativa a algo que no viaja en él.
-// 2. Cada entrada carga por import (ESM) y, si la tiene, por require (CJS), con las mismas exportaciones.
-// 3. El núcleo compilado emite un documento y el PDF compilado lo imprime.
+// 2. Cada entrada carga por import (ESM) y, si la tiene, por require (CJS), con las mismas exportaciones, entre
+//    ellas `factura-hn/demo` y las exportaciones que la documentación promete.
+// 3. Los ejecutables (`factura-hn`, `factura-hn-mcp`) existen y arrancan.
+// 4. El núcleo compilado emite un documento (también uno de prueba, con la leyenda) y el PDF compilado lo imprime.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -54,26 +56,10 @@ function leerTgz(ruta) {
 
 /**
  * Enlaces rotos conocidos que solo avisan, sin fallar: paquete → documento → destinos exactos. Uno roto que no
- * esté aquí hace fallar la verificación.
- * TODO(lote2-integracion): el README de factura-hn es el README raíz (copiar-docs.mjs). Se reescribe en la
- * integración: entonces esta lista queda vacía.
+ * esté aquí hace fallar la verificación. Vacía: los documentos publicados enlazan el resto del repositorio con
+ * URL absoluta.
  */
-const ENLACES_PENDIENTES = {
-  'factura-hn': {
-    'README.md': [
-      'packages/cliente/README.md',
-      'packages/mcp/README.md',
-      'packages/mcp/README.md#vía-el-sdk-local-sqlite-en-este-equipo',
-      'examples/basico',
-      'examples/pos-offline',
-      'examples/express',
-      'examples/nextjs',
-      'examples/playground',
-      'CONTRIBUTING.md',
-      'SECURITY.md',
-    ],
-  },
-};
+const ENLACES_PENDIENTES = {};
 
 // Primero, las pruebas del revisor de enlaces.
 try {
@@ -131,7 +117,7 @@ try {
   rmSync(temporal, { recursive: true, force: true });
 }
 
-const entradas = { core: ['index', 'pruebas'], sqlite: ['index'], postgres: ['index'], pdf: ['index'], cliente: ['index'], mcp: ['index'] };
+const entradas = { core: ['index', 'pruebas', 'demo'], sqlite: ['index'], postgres: ['index'], pdf: ['index'], cliente: ['index'], mcp: ['index'] };
 for (const [p, lista] of Object.entries(entradas)) {
   for (const e of lista) {
     const base = `${raiz}packages/${p}/dist/${e}`;
@@ -148,6 +134,57 @@ for (const [p, lista] of Object.entries(entradas)) {
     } catch (err) {
       fallo(`${p}/${e}: ${err.message}`);
     }
+  }
+}
+
+// Las exportaciones que la documentación promete, en ESM y CJS (las de modo de prueba, reportes y la fachada).
+const PROMETIDAS = {
+  'core/index': [
+    'crearFacturador', 'emitir', 'anular', 'registrarAutorizacion', 'libroVentas', 'filaLibroVentas', 'resumenVentas',
+    'exportarTexto', 'separarDocumentosDePrueba', 'esDocumentoDePrueba', 'esAutorizacionDePrueba', 'esCAIDemo',
+    'LEYENDA_PRUEBA', 'esErrorValidacion', 'ErrorValidacion',
+  ],
+  'core/demo': ['crearFacturadorDemo', 'autorizacionDemo', 'caiDemo', 'EMISOR_DEMO', 'LEYENDA_PRUEBA', 'esCAIDemo', 'PREFIJO_CAI_DEMO'],
+};
+for (const [entrada, nombres] of Object.entries(PROMETIDAS)) {
+  const [p, e] = entrada.split('/');
+  const base = `${raiz}packages/${p}/dist/${e}`;
+  const esm = await import(pathToFileURL(`${base}.js`).href);
+  const cjs = require(`${base}.cjs`);
+  const faltan = nombres.filter((n) => !(n in esm) || !(n in cjs));
+  if (faltan.length) fallo(`${entrada}: faltan ${faltan.join(', ')}`);
+  else console.log(`ok  ${entrada}: ${nombres.length} exportaciones de la documentación`);
+}
+// La demo compilada emite un documento de prueba con la leyenda.
+{
+  const { crearFacturadorDemo, LEYENDA_PRUEBA } = require(`${raiz}packages/core/dist/demo.cjs`);
+  const { renderizarHTML } = require(`${raiz}packages/core/dist/index.cjs`);
+  const f = await crearFacturadorDemo();
+  const d = await f.emitir({ lineas: [{ descripcion: 'x', cantidad: 1, precioUnitario: '10.00' }] });
+  if (d.modo !== 'prueba' || !renderizarHTML(d).includes(LEYENDA_PRUEBA)) fallo('core/demo: el documento no sale de prueba o sin la leyenda');
+  else console.log(`ok  core/demo emite de prueba (${d.numero})`);
+}
+
+// Los ejecutables (`bin`) existen y arrancan.
+const BINARIOS = [
+  { paquete: 'core', nombre: 'factura-hn', args: ['--version'], espera: /^\d+\.\d+\.\d+/ },
+  { paquete: 'mcp', nombre: 'factura-hn-mcp', args: ['ayuda'], espera: /init/ },
+];
+for (const b of BINARIOS) {
+  const j = JSON.parse(readFileSync(join(raiz, 'packages', b.paquete, 'package.json'), 'utf8'));
+  const ruta = j.bin?.[b.nombre];
+  if (!ruta) {
+    fallo(`${j.name}: falta bin «${b.nombre}»`);
+    continue;
+  }
+  const archivo = join(raiz, 'packages', b.paquete, ruta);
+  try {
+    if (!readFileSync(archivo, 'utf8').startsWith('#!/usr/bin/env node')) throw new Error('sin «#!/usr/bin/env node» en la primera línea');
+    const salida = execFileSync(process.execPath, [archivo, ...b.args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 });
+    if (!b.espera.test(salida.trim())) throw new Error(`salida inesperada: ${salida.trim().slice(0, 200)}`);
+    console.log(`ok  bin ${b.nombre} ${b.args.join(' ')}`);
+  } catch (e) {
+    fallo(`bin ${b.nombre}: ${e.message}`);
   }
 }
 
