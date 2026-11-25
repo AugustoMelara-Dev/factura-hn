@@ -169,6 +169,30 @@ describe('ipDeSolicitud', () => {
     expect(() => leerProxiesDeConfianza('uno')).toThrow(/FHN_PROXIES_DE_CONFIANZA/);
     expect(() => leerProxiesDeConfianza('10.0.0.9, proxy.local')).toThrow(/FHN_PROXIES_DE_CONFIANZA/);
   });
+  it('FHN_PROXIES_DE_CONFIANZA con rangos CIDR (la red privada de Fly.io): válidos e inválidos', () => {
+    expect(leerProxiesDeConfianza('fdaa:0:1a2b::/48, 10.0.0.0/8, 192.0.2.7')).toEqual(['fdaa:0:1a2b::/48', '10.0.0.0/8', '192.0.2.7']);
+    expect(leerProxiesDeConfianza('[fdaa:0:1a2b::]/48')).toEqual(['[fdaa:0:1a2b::]/48']);
+    // Sin prefijo, prefijo 0 (todas las direcciones), fuera de rango o con una dirección que no es.
+    for (const malo of ['fdaa::/', '0.0.0.0/0', '::/0', '10.0.0.0/33', 'fdaa::/129', 'red.local/24', '10.0.0.0/8/8', '10.0.0.0/-1']) {
+      expect(() => leerProxiesDeConfianza(malo), malo).toThrow(/rangos CIDR/);
+    }
+  });
+  it('con un rango CIDR, X-Forwarded-For se cree solo desde una dirección del rango', () => {
+    const lista = leerProxiesDeConfianza('fdaa:0:1a2b::/48, 10.20.0.0/16') as readonly string[];
+    // Una máquina de la red privada (otra dirección tras recrearse, mismo rango): se cree su X-Forwarded-For.
+    expect(ipDeSolicitud(sol('fdaa:0:1a2b:a7b:1f2:3c4d:5e6f:2', '198.51.100.40'), lista)).toBe('198.51.100.40');
+    expect(ipDeSolicitud(sol('fdaa:0:1a2b:b00:aaaa:bbbb:cccc:7', '2001:db8:5:6::9'), lista)).toBe('2001:db8:5:6::/64');
+    expect(ipDeSolicitud(sol('::ffff:10.20.3.4', '198.51.100.41'), lista)).toBe('198.51.100.41');
+    // Saltando los proxies del rango que aparecen en la cabecera.
+    expect(ipDeSolicitud(sol('10.20.0.1', 'falsa, 198.51.100.42, 10.20.9.9'), lista)).toBe('198.51.100.42');
+    // Fuera del rango (otra organización, internet): la cabecera no elige la cubeta.
+    expect(ipDeSolicitud(sol('fdaa:0:1a2c::5', '198.51.100.43'), lista)).toBe('fdaa:0:1a2c:0::/64');
+    expect(ipDeSolicitud(sol('10.21.0.1', '198.51.100.44'), lista)).toBe('10.21.0.1');
+    expect(ipDeSolicitud(sol('203.0.113.5', '198.51.100.45'), lista)).toBe('203.0.113.5');
+    // Una IPv4 nunca cae en un rango IPv6 ni al revés.
+    const solo6 = leerProxiesDeConfianza('::/1') as readonly string[];
+    expect(ipDeSolicitud(sol('10.20.3.4', '198.51.100.46'), solo6)).toBe('10.20.3.4');
+  });
 });
 
 conBase('límite de solicitudes', () => {
