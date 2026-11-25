@@ -1117,18 +1117,32 @@ intentos de la API se corrigió en DEC-070.
 - **Alternativa:** leer `fhn_migraciones`. El rol de la API no tiene permiso sobre esa tabla, y la comprobación debe
   correr con la conexión que atiende las solicitudes.
 
-### DEC-091 · El modo mezclado compara solo con autorizaciones en uso
+### DEC-091 · Un punto de emisión pasa de prueba a real, nunca al revés
 - **Contexto:** una base de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin `prueba: true` (entonces no existía)
-  junto a CAI reales en el mismo punto. Con la regla de DEC-063, un CAI demo vencido impedía registrar el CAI real
-  siguiente: una regresión grave para quien actualiza.
-- **Elegida:** `AUTORIZACION_MODO_MEZCLADO` mira solo las autorizaciones en uso del punto: vigentes (fecha límite
-  ≥ hoy, Art. 62) y con números después del último consumido de su serie. Las vencidas o agotadas no cuentan, en
-  los dos sentidos. Nota de migración en el changeset.
-- **Alternativa:** ignorar los CAI demo sin `prueba: true`. Dejaría mezclar una demo vigente con un CAI real en el
-  mismo punto, que es lo que DEC-063 evita.
-- **Límite conocido [REVISAR]:** si el CAI demo de la 0.2.0 sigue vigente con números libres, el CAI real de ese
-  punto se rechaza hasta que venza; las autorizaciones no se borran. Falta decidir si hace falta una salida
-  explícita (p. ej. dar de baja una autorización de prueba).
+  junto a CAI reales en el mismo punto. Con la regla de DEC-063 («entero de prueba o entero real»), un CAI demo
+  impedía registrar el CAI real siguiente: una regresión grave para quien actualiza. Y quien probó con la demo
+  en su almacén no podía pasar a producción en él.
+- **Elegida** (comportamiento del producto; no cambia la interpretación fiscal):
+  - Registrar un CAI real en un punto que solo tiene autorizaciones de prueba se acepta, aunque estén vigentes y
+    con números libres.
+  - Desde que el punto tiene una autorización real, sus autorizaciones de prueba quedan retiradas para siempre:
+    la emisión (`autorizacionesActivas` antes de `elegirAutorizacion`) no las vuelve a elegir, en ningún tipo de
+    ese punto, y `GET /v1/sesion` tampoco las cuenta. Los documentos de prueba ya emitidos no cambian: llevan la
+    leyenda y quedan fuera de los reportes.
+  - Lo contrario sigue rechazado: una autorización de prueba en un punto que tiene o tuvo una real da
+    `AUTORIZACION_MODO_MEZCLADO`.
+  - Las autorizaciones de prueba no cuentan para duplicados ni solapes con la real, pero un número no se repite
+    en una serie: si el rango real empieza en un número que ya usaron documentos de prueba de su serie, da
+    `RANGO_USADO_EN_PRUEBA` (Arts. 10 num. 3-5 y 59) y la solución es registrarlo en un almacén nuevo.
+  - `no-utilizados` sigue omitiéndolas (DEC-094) y `REFERENCIA_MODO_MEZCLADO` sigue impidiendo una nota real sobre
+    un documento de prueba. En el tenant `demo` de la API sigue `AUTORIZACION_REAL_EN_DEMO` y en la base demo del
+    MCP, `BASE_DEMO`.
+- **Alternativa:** (1) comparar solo con autorizaciones en uso (vigentes y no agotadas), la primera versión de
+  esta corrección: una demo vigente bloqueaba el CAI real hasta vencer, y las autorizaciones no se borran. (2)
+  Continuar la numeración real después de los números de prueba: dejaría sin usar los primeros números del rango
+  real, que habría que reportar al SAR.
+- **Límite conocido:** quien emitió documentos de prueba en una caja y tiene un CAI real que empieza en 1 debe
+  registrarlo en una base nueva: los números de prueba de esa serie no se repiten.
 
 ### DEC-092 · Registrar una autorización bloquea todas las series del punto
 - **Contexto:** `registrarAutorizacion` bloqueaba solo la serie del tipo nuevo. Dos registros simultáneos en el

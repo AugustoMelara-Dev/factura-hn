@@ -14,6 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import type pg from 'pg';
 import {
   acumuladorResumenVentas,
+  autorizacionesActivas,
   anular,
   contarDocumentos,
   corregirFechaAdelantada,
@@ -726,8 +727,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       }
       const puntosConCai = [...new Set([...porSerie.keys()].map((id) => id.slice(0, 7)))].sort();
       const puntos = (cajaCompleta ? [cajaCompleta] : s.rol === 'caja' ? [] : puntosConCai).map((punto) => {
+        const puntoConReal = (['01', '06', '07'] as const).some((t) => porSerie.get(`${punto}-${t}`)?.auts.some((a) => !esAutorizacionDePrueba(a)));
         const tipos = (['01', '06', '07'] as const).map((tipoDocumento) => {
-          const serie = porSerie.get(`${punto}-${tipoDocumento}`) ?? { auts: [], ultimo: null };
+          const original = porSerie.get(`${punto}-${tipoDocumento}`) ?? { auts: [], ultimo: null };
+          // La demo de un punto que ya pasó a real está retirada: no cuenta para emitir.
+          const serie = { ...original, auts: autorizacionesActivas(original.auts, puntoConReal) };
           const eleccion = elegirAutorizacion(serie.auts, serie.ultimo, hoy);
           const vigentes = serie.auts.flatMap((a) => {
             const consumido = Math.max(serie.ultimo ?? 0, a.ultimoEmitidoAntes ?? 0);

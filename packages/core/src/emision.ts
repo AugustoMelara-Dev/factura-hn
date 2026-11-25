@@ -68,29 +68,31 @@ function puntoDe(a: Pick<AutorizacionCAI, 'establecimiento' | 'puntoEmision'>): 
   return `${String(a.establecimiento).padStart(3, '0')}-${String(a.puntoEmision).padStart(3, '0')}`;
 }
 
-/** Fecha de hoy y último correlativo consumido por serie: deciden qué autorizaciones siguen en uso. */
+/** Último correlativo consumido por serie (`NNN-NNN-TT`), o null si no ha emitido. */
 export interface EstadoPunto {
-  hoy: string;
-  /** Último correlativo consumido de la serie (`NNN-NNN-TT`), o null si no ha emitido. */
   ultimo: (identificador: string) => number | null;
 }
 
 /**
- * Si la autorización todavía puede emitir: vigente (fecha límite ≥ hoy, Art. 62) y con números después del último
- * consumido de su serie.
+ * Las autorizaciones de una serie que todavía pueden emitir: sin las de prueba si el punto de emisión ya tiene
+ * alguna autorización real (en cualquier tipo). Desde que el punto pasa a real, su demo queda retirada para
+ * siempre; los documentos de prueba ya emitidos no cambian.
  */
-function enUso(a: AutorizacionCAI, estado: EstadoPunto): boolean {
-  if (!esFechaValida(a.fechaLimiteEmision) || a.fechaLimiteEmision < estado.hoy) return false;
-  const consumido = Math.max(estado.ultimo(identificadorDe(a)) ?? 0, a.ultimoEmitidoAntes ?? 0);
-  return consumido < a.rangoFinal;
+export function autorizacionesActivas(deSerie: AutorizacionCAI[], puntoConReal: boolean): AutorizacionCAI[] {
+  return puntoConReal ? deSerie.filter((a) => !esAutorizacionDePrueba(a)) : deSerie;
 }
 
 /**
  * Problemas de registrar `nueva` junto a las autorizaciones ya registradas. `existentes` trae las del mismo
- * punto de emisión (todos los tipos): las de otro identificador solo cuentan para el modo de prueba, y solo si
- * siguen en uso (vigentes y no agotadas) cuando se pasa `estado`: un CAI de prueba vencido o agotado no impide
- * registrar uno real en el mismo punto.
- * Dos autorizaciones de un mismo identificador no pueden compartir números: cada número del rango
+ * punto de emisión (todos los tipos): las de otro identificador solo cuentan para el modo de prueba.
+ *
+ * - Una autorización de prueba no entra en un punto que tiene o tuvo una real (`AUTORIZACION_MODO_MEZCLADO`).
+ * - Una real sí entra en un punto con autorizaciones de prueba: las retira (`autorizacionesActivas`). Las de
+ *   prueba no cuentan para duplicados ni solapes, pero los números que ya usaron documentos de prueba no se
+ *   repiten: con `estado`, el rango real debe empezar después del último consumido de su serie
+ *   (`RANGO_USADO_EN_PRUEBA`).
+ *
+ * Dos autorizaciones reales de un mismo identificador no pueden compartir números: cada número del rango
  * pertenece a un solo CAI (Arts. 10 num. 3-5 y 59).
  */
 export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI, estado?: EstadoPunto): Problema[] {
@@ -109,24 +111,34 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
     }
   }
   const id = identificadorDe(nueva);
-  // Producto, no regla fiscal: un punto de emisión es entero de prueba o entero real, en todos los tipos. Así
-  // los documentos de prueba no consumen números de una serie real, ni una nota real cita una factura de prueba.
+  // Producto, no regla fiscal: un punto de emisión pasa de prueba a real, nunca al revés. Así los documentos de
+  // prueba no consumen números de una serie real, ni una nota real cita una factura de prueba.
   const punto = puntoDe(nueva);
   const dePrueba = esAutorizacionDePrueba(nueva);
-  const mezcla = existentes.find(
-    (a) => puntoDe(a) === punto && esAutorizacionDePrueba(a) !== dePrueba && (!estado || enUso(a, estado)),
-  );
-  if (mezcla) {
+  const real = dePrueba ? existentes.find((a) => puntoDe(a) === punto && !esAutorizacionDePrueba(a)) : undefined;
+  if (real) {
     problemas.push({
       codigo: 'AUTORIZACION_MODO_MEZCLADO',
-      mensaje: dePrueba
-        ? `El punto de emisión ${punto} ya tiene autorizaciones reales en uso (CAI ${mezcla.cai}): no se le puede registrar una de prueba.`
-        : `El punto de emisión ${punto} tiene autorizaciones de prueba en uso (CAI ${mezcla.cai}): no se le puede registrar una real.`,
+      mensaje: `El punto de emisión ${punto} tiene o tuvo autorizaciones reales (CAI ${real.cai}): no se le puede registrar una de prueba.`,
       campo: 'prueba',
     });
   }
+  if (!dePrueba && estado && existentes.some((a) => identificadorDe(a) === id && esAutorizacionDePrueba(a))) {
+    const ultimo = estado.ultimo(id);
+    if (ultimo !== null && ultimo >= nueva.rangoInicial) {
+      problemas.push({
+        codigo: 'RANGO_USADO_EN_PRUEBA',
+        mensaje:
+          `Los correlativos hasta el ${ultimo} de ${id} ya los usaron documentos de prueba y un número no se repite: ` +
+          `el rango ${nueva.rangoInicial}–${nueva.rangoFinal} del CAI ${nueva.cai} no se puede registrar en este almacén.`,
+        campo: 'rangoInicial',
+      });
+    }
+  }
   for (const a of existentes) {
     if (identificadorDe(a) !== id) continue;
+    // La demo que una autorización real retira no le reserva números.
+    if (!dePrueba && esAutorizacionDePrueba(a)) continue;
     if (a.cai.trim().toUpperCase() === nueva.cai.trim().toUpperCase()) {
       problemas.push({ codigo: 'AUTORIZACION_DUPLICADA', mensaje: `El CAI ${nueva.cai} ya está registrado para ${id}.`, campo: 'cai' });
     } else if (nueva.rangoInicial <= a.rangoFinal && a.rangoInicial <= nueva.rangoFinal) {
@@ -161,10 +173,7 @@ export async function registrarAutorizacion(
       ultimos.set(serie, (await tx.bloquearSerie(serie)).ultimo);
       delPunto.push(...(await tx.autorizaciones(serie)));
     }
-    const problemas = validarNuevaAutorizacion(delPunto, autorizacion, {
-      hoy: fechaHonduras(ahora),
-      ultimo: (serie) => ultimos.get(serie) ?? null,
-    });
+    const problemas = validarNuevaAutorizacion(delPunto, autorizacion, { ultimo: (serie) => ultimos.get(serie) ?? null });
     if (problemas.length) throw new ErrorValidacion(problemas);
     const normalizada: AutorizacionCAI = {
       ...autorizacion,
@@ -339,7 +348,18 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
         }),
       );
     }
-    const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy, id);
+    let deSerie = await tx.autorizaciones(id);
+    // Si la serie tiene demo, se mira si el punto ya pasó a real (en cualquier tipo): entonces la demo está retirada.
+    if (deSerie.some((a) => esAutorizacionDePrueba(a))) {
+      let puntoConReal = deSerie.some((a) => !esAutorizacionDePrueba(a));
+      for (const otro of Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>) {
+        if (puntoConReal || otro === tipo) continue;
+        const otras = await tx.autorizaciones(`${id.slice(0, 7)}-${otro}`);
+        puntoConReal = otras.some((a) => !esAutorizacionDePrueba(a));
+      }
+      deSerie = autorizacionesActivas(deSerie, puntoConReal);
+    }
+    const eleccion = elegirAutorizacion(deSerie, serie.ultimo, hoy, id);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
     if (tipo === '06' || tipo === '07') entrada = await monedaDelOriginal(tx, entrada);
     const adicionales =

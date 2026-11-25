@@ -1,12 +1,11 @@
 /**
- * Segunda revisión del Lote 2 (M4): una base que viene de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin
- * `prueba: true`, a menudo vencidos, junto a CAI reales en el mismo punto de emisión. `AUTORIZACION_MODO_MEZCLADO`
- * compara solo con las autorizaciones en uso (vigentes y no agotadas): las de prueba vencidas o agotadas no
- * impiden registrar CAI reales.
+ * Segunda revisión del Lote 2 (M4 y DEC-091): un punto de emisión pasa de prueba a real, nunca al revés. Una base
+ * de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin `prueba: true` junto a CAI reales en el mismo punto:
+ * registrar CAI reales sigue funcionando, y la demo del punto queda retirada.
  */
 import { describe, expect, it } from 'vitest';
-import { AlmacenFiscalMemoria, documentosNoUtilizados, emitir, registrarAutorizacion, type AutorizacionCAI } from '../src';
-import { autorizacionDemo, crearFacturadorDemo, EMISOR_DEMO } from '../src/demo';
+import { AlmacenFiscalMemoria, buscarDocumento, documentosNoUtilizados, emitir, registrarAutorizacion, renderizarTexto, type AutorizacionCAI } from '../src';
+import { autorizacionDemo, crearFacturadorDemo, EMISOR_DEMO, LEYENDA_PRUEBA } from '../src/demo';
 
 const venta = { emisor: EMISOR_DEMO, lineas: [{ descripcion: 'Café 1 lb', cantidad: '1', precioUnitario: '100.00' }] };
 const caja = { establecimiento: '000', puntoEmision: '001' };
@@ -47,22 +46,53 @@ describe('base de la 0.2.0: CAI de demostración sin `prueba` junto a CAI reales
     expect(doc.cai).toBe('A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01');
   });
 
-  it('un CAI de prueba agotado tampoco lo impide; uno vigente con números libres, sí', async () => {
-    const almacen = new AlmacenFiscalMemoria();
-    await registrarAutorizacion(almacen, autorizacionDemo({ hoy: '2026-11-24', rangoFinal: 2 }), { reloj });
-    const otroTipo = real('06', 1, 500, '03');
-    await expect(registrarAutorizacion(almacen, otroTipo, { reloj })).rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
-    await emitir(venta, { almacen, ...caja, opciones: { reloj } });
-    await emitir(venta, { almacen, ...caja, opciones: { reloj } });
-    await expect(registrarAutorizacion(almacen, otroTipo, { reloj })).resolves.toMatchObject({ tipoDocumento: '06' });
-  });
-
-  it('un CAI real vencido no impide registrar uno de prueba en ese punto', async () => {
+  it('un CAI real vencido impide registrar después uno de prueba en ese punto (tuvo una real)', async () => {
     const almacen = new AlmacenFiscalMemoria();
     await comoEn020(almacen, { ...real('01', 1, 100), fechaLimiteEmision: '2026-01-31' });
-    await expect(registrarAutorizacion(almacen, autorizacionDemo({ hoy: '2026-11-24', rangoInicial: 101, rangoFinal: 200 }), { reloj })).resolves.toMatchObject({
-      prueba: true,
+    await expect(registrarAutorizacion(almacen, autorizacionDemo({ hoy: '2026-11-24', rangoInicial: 101, rangoFinal: 200 }), { reloj }))
+      .rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
+  });
+});
+
+describe('de demo a real en el mismo almacén: la demo del punto queda retirada', () => {
+  const reloj = () => new Date('2026-11-24T15:00:00Z');
+  const hoy = '2026-11-24';
+
+  it('demo vigente sin documentos, luego el CAI real del mismo tipo: se acepta y la siguiente emisión es real, sin leyenda', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy, rangoFinal: 1000 }), { reloj });
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy, tipoDocumento: '06', rangoFinal: 1000 }), { reloj });
+    await expect(registrarAutorizacion(almacen, real('01', 1, 500), { reloj })).resolves.toMatchObject({ cai: real('01', 1, 500).cai });
+    const doc = await emitir(venta, { almacen, ...caja, opciones: { reloj } });
+    expect(doc).toMatchObject({ numero: '000-001-01-00000001', cai: real('01', 1, 500).cai });
+    expect(doc.modo).toBeUndefined();
+    expect(renderizarTexto(doc)).not.toContain(LEYENDA_PRUEBA);
+    // La demo del punto queda retirada en todos los tipos: la nota de crédito ya no la usa.
+    const nota = emitir({ ...venta, tipoDocumento: '06', motivo: 'Devolución', referencia: undefined } as never, { almacen, ...caja, opciones: { reloj } });
+    await expect(nota).rejects.toMatchObject({ errores: expect.arrayContaining([expect.objectContaining({ codigo: 'SIN_AUTORIZACION' })]) });
+  });
+
+  it('con documentos de prueba ya emitidos, el rango real no puede repetir sus números', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy, rangoFinal: 1000 }), { reloj });
+    const prueba = await emitir(venta, { almacen, ...caja, opciones: { reloj } });
+    await emitir(venta, { almacen, ...caja, opciones: { reloj } });
+    await expect(registrarAutorizacion(almacen, real('01', 1, 500), { reloj })).rejects.toMatchObject({
+      errores: [{ codigo: 'RANGO_USADO_EN_PRUEBA', solucion: expect.any(String) }],
     });
+    await registrarAutorizacion(almacen, real('01', 3, 500), { reloj });
+    const doc = await emitir(venta, { almacen, ...caja, opciones: { reloj } });
+    expect(doc).toMatchObject({ correlativo: 3, cai: real('01', 3, 500).cai });
+    expect(doc.modo).toBeUndefined();
+    // Los de prueba quedan como estaban.
+    expect(await buscarDocumento(almacen, prueba.numero)).toMatchObject({ modo: 'prueba' });
+  });
+
+  it('punto real, luego demo: se rechaza', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, real('01', 1, 500), { reloj });
+    await expect(registrarAutorizacion(almacen, autorizacionDemo({ hoy, tipoDocumento: '06' }), { reloj }))
+      .rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
   });
 });
 

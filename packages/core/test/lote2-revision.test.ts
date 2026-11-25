@@ -87,14 +87,14 @@ describe('2. un CAI real nunca es de prueba', () => {
   });
 });
 
-describe('3. un punto de emisión es entero de prueba o entero real', () => {
+describe('3. un punto de emisión pasa de prueba a real, nunca al revés', () => {
   it('AUTORIZACION_MODO_MEZCLADO entre tipos distintos del mismo punto; otro punto u otro almacén, sí', async () => {
     const almacen = new AlmacenFiscalMemoria();
     await registrarAutorizacion(almacen, real('01'));
     expect(await codigos(registrarAutorizacion(almacen, autorizacionDemo({ tipoDocumento: '06' })))).toEqual(['AUTORIZACION_MODO_MEZCLADO']);
-    // Y al revés: una demo 01 en el punto 002, luego una real 07 en el mismo punto.
+    // Al revés se permite: una demo 01 en el punto 002, luego una real 07 en el mismo punto (la demo queda retirada).
     await registrarAutorizacion(almacen, autorizacionDemo({ puntoEmision: '002' }));
-    expect(await codigos(registrarAutorizacion(almacen, real('07', '002')))).toEqual(['AUTORIZACION_MODO_MEZCLADO']);
+    await registrarAutorizacion(almacen, real('07', '002'));
     await registrarAutorizacion(almacen, real('06'));
   });
 

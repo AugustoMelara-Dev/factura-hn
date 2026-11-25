@@ -291,8 +291,12 @@ Cada documento que emite lleva `modo: 'prueba'`; ese campo no cambia nunca, ni a
 `renderizarTexto` y `@factura-hn/pdf` imprimen la leyenda `LEYENDA_PRUEBA` al inicio y al final. Un documento real
 se imprime igual que siempre.
 
-- Un punto de emisión es entero de prueba o entero real (`AUTORIZACION_MODO_MEZCLADO`). Una nota no cruza de un
-  modo a otro (`REFERENCIA_MODO_MEZCLADO`).
+- Un punto de emisión pasa de prueba a real, nunca al revés: el que tiene o tuvo un CAI real no recibe
+  autorizaciones de prueba (`AUTORIZACION_MODO_MEZCLADO`). Una nota no cruza de un modo a otro
+  (`REFERENCIA_MODO_MEZCLADO`).
+- Para pasar a producción en el mismo almacén, registra el CAI real; la demo de ese punto queda retirada (en
+  todos sus tipos) y los documentos de prueba ya emitidos no cambian. Sus números no se repiten: si ya emitiste
+  documentos de prueba y tu rango empieza en 1, registra el CAI en un almacén nuevo (`RANGO_USADO_EN_PRUEBA`).
 - Prueba en **otro almacén** (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.
 - `exportarTexto` y `libroVentas` dejan fuera los documentos de prueba. `separarDocumentosDePrueba(docs)` dice
   cuántos quedaron fuera; úsala también si armas el archivo por partes con `lineaExportacion` o `filaLibroVentas`.

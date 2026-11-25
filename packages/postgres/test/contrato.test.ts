@@ -52,9 +52,9 @@ conPostgres('Postgres', () => {
     return { a, doc };
   };
 
-  it('registros simultáneos de prueba y real en un mismo punto, de tipos distintos: solo uno entra', async () => {
+  it('registros simultáneos de prueba y real en un mismo punto, de tipos distintos: la demo nunca entra después de la real', async () => {
     const fecha = '2099-12-31';
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       const tenant = `prueba-${randomUUID()}`;
       const prueba = { cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01', prueba: true, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: fecha } as const;
       const real = { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06', tipoDocumento: '06', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: fecha } as const;
@@ -62,9 +62,17 @@ conPostgres('Postgres', () => {
         registrarAutorizacion(new AlmacenPostgres(pool, { tenant }), prueba),
         registrarAutorizacion(new AlmacenPostgres(nuevoPool(), { tenant }), real),
       ]);
-      expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
-      const rechazo = r.find((x) => x.status === 'rejected') as PromiseRejectedResult;
-      expect(rechazo.reason).toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
+      // El real siempre entra (retira la demo). La demo entra solo si se registró antes que el real.
+      expect(r[1]!.status).toBe('fulfilled');
+      if (r[0]!.status === 'rejected') {
+        expect(r[0]!.reason).toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
+      } else {
+        const orden = await pool.query(
+          "SELECT datos->'detalle'->>'cai' AS cai FROM fhn_eventos WHERE tenant = $1 AND tipo = 'AUTORIZACION_REGISTRADA' ORDER BY id",
+          [tenant],
+        );
+        expect(orden.rows.map((f) => f.cai)).toEqual([prueba.cai, real.cai]);
+      }
     }
   });
 

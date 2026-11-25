@@ -96,14 +96,24 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### AUTORIZACION_MODO_MEZCLADO
 
-- **Qué significa:** se intentó registrar una autorización de prueba en un punto de emisión con autorizaciones
-  reales en uso, o al revés. Un punto de emisión es entero de prueba o entero real, en todos los tipos de
-  documento. Solo cuentan las autorizaciones en uso (vigentes y con números libres): una de prueba vencida o
-  agotada no impide registrar una real.
-- **Causa:** se usó el mismo almacén y la misma caja para probar con `autorizacionDemo()` y para facturar.
+- **Qué significa:** se intentó registrar una autorización de prueba en un punto de emisión que tiene o tuvo una
+  autorización real. Un punto pasa de prueba a real, nunca al revés: registrar el CAI real en un punto con demo
+  sí se permite, y desde entonces la demo de ese punto queda retirada en todos los tipos (no se vuelve a usar; los
+  documentos de prueba ya emitidos no cambian).
+- **Causa:** se quiso volver a probar en una caja que ya factura de verdad.
 - **Solución:** prueba en otro almacén: otra base de datos, o `AlmacenFiscalMemoria`. No pruebes en otro punto
   de emisión del almacén real: sus documentos de prueba se mezclarían con los reales en las consultas.
 - **Base:** ninguna fiscal: protege la numeración real de los documentos de prueba.
+
+### RANGO_USADO_EN_PRUEBA
+
+- **Qué significa:** el rango del CAI real empieza en un número que ya usaron documentos de prueba de esa serie.
+  Un número de documento no se repite en una serie.
+- **Causa:** se probó con la demo en el mismo almacén y la misma caja, se emitieron documentos de prueba y luego
+  se registró el CAI real, que empieza en 1.
+- **Solución:** registra el CAI real en un almacén nuevo (otra base), donde la serie empieza en el primer número
+  de tu resolución. Si el rango de tu resolución empieza después del último número de prueba, sí se acepta aquí.
+- **Base:** Arts. 10 num. 3-5 y 59: cada número pertenece a un solo documento y a un solo CAI.
 
 ### AUTORIZACION_PRUEBA_FORMATO
 

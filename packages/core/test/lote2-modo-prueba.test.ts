@@ -97,11 +97,13 @@ describe('modo de prueba (documento)', () => {
     expect(texto).toContain(LEYENDA_PRUEBA);
   });
 
-  it('una serie no mezcla autorizaciones de prueba y reales', async () => {
+  it('una serie pasa de prueba a real, nunca al revés', async () => {
     const almacen = new AlmacenFiscalMemoria();
     await registrarAutorizacion(almacen, autorizacionDemo({ rangoFinal: 100 }));
     const real = { ...autorizacionDemo({ rangoInicial: 101, rangoFinal: 200 }), prueba: undefined, cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01' };
-    await expect(registrarAutorizacion(almacen, real)).rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
+    await registrarAutorizacion(almacen, real);
+    await expect(registrarAutorizacion(almacen, autorizacionDemo({ rangoInicial: 300, rangoFinal: 400, renovacion: true })))
+      .rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
     const otra = new AlmacenFiscalMemoria();
     await registrarAutorizacion(otra, { ...real, rangoInicial: 1 });
     await expect(registrarAutorizacion(otra, autorizacionDemo({ rangoInicial: 500, rangoFinal: 600 })))

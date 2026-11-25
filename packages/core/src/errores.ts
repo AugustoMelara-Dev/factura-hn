@@ -34,7 +34,9 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   AUTORIZACION_DUPLICADA:
     'Ese CAI ya está registrado en esta serie: no hace falta registrarlo otra vez. Si es una resolución nueva, revisa que copiaste el CAI nuevo.',
   AUTORIZACION_MODO_MEZCLADO:
-    'Un punto de emisión es entero de prueba o entero real. Prueba en otro almacén (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.',
+    'Un punto de emisión pasa de prueba a real, nunca al revés: el que tiene o tuvo un CAI real no recibe autorizaciones de prueba. Prueba en otro almacén (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.',
+  RANGO_USADO_EN_PRUEBA:
+    'Esos números ya los usaron documentos de prueba en esta serie y no se repiten. Registra el CAI real en un almacén nuevo (otra base), donde la serie empiece en el primer número de tu resolución.',
   AUTORIZACION_PRUEBA_FORMATO: 'Pon `prueba: true` (booleano, sin comillas) en una autorización de prueba, u omítelo en una real.',
   AUTORIZACION_PRUEBA_CAI_REAL:
     'Quita `prueba: true` si el CAI es real. Para probar, usa `autorizacionDemo()` de `factura-hn/demo`, con un CAI `DEMO00-NO-VALIDO-…`, en otro almacén.',

@@ -132,6 +132,22 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     expect(real.aviso).toBeUndefined();
   });
 
+  it('POST /v1/autorizaciones: de demo a real en el mismo punto se acepta y retira la demo; de real a demo, no', async () => {
+    const { admin } = await tenantListo(sinLimite);
+    const punto = { tipoDocumento: '01', establecimiento: '000', puntoEmision: '004', fechaLimiteEmision: FECHA_LIMITE };
+    expect((await admin('POST', '/v1/autorizaciones', { ...punto, cai: caiDemo('01'), rangoInicial: 1, rangoFinal: 100, prueba: true })).status).toBe(201);
+    const real = await admin('POST', '/v1/autorizaciones', { ...punto, cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04', rangoInicial: 1, rangoFinal: 500 });
+    expect(real.status).toBe(201);
+    const e = await admin('POST', '/v1/documentos', venta('10.00', { puntoEmision: '004' }), { 'idempotency-key': `dr-${Date.now()}` });
+    expect(e.status).toBe(201);
+    const doc = (await json(e)).documento;
+    expect(doc).toMatchObject({ cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04', correlativo: 1 });
+    expect(doc.modo).toBeUndefined();
+    const otra = await admin('POST', '/v1/autorizaciones', { ...punto, tipoDocumento: '06', cai: caiDemo('06'), rangoInicial: 1, rangoFinal: 100, prueba: true });
+    expect(otra.status).toBe(422);
+    expect((await json(otra)).errores).toMatchObject([{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }]);
+  });
+
   it('POST /v1/autorizaciones: un CAI ficticio necesita prueba: true; el tenant demo no acepta CAI reales', async () => {
     const { admin } = await tenantListo(sinLimite);
     const aut = { cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '003', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE };

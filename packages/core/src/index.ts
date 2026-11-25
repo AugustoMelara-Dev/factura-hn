@@ -108,6 +108,7 @@ export {
   SALTO_MAXIMO_DIAS,
   validarNuevaAutorizacion,
   elegirAutorizacion,
+  autorizacionesActivas,
   nombreDeIdentificador,
 } from './emision';
 export type { OpcionesEmision } from './emision';
