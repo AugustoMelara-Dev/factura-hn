@@ -351,7 +351,10 @@ export type ProxiesDeConfianza = number | readonly string[];
 function valorIp(ip: string): { bits: 32 | 128; valor: bigint } | null {
   const n = normalizarIp(ip);
   const v4 = IPV4.exec(n);
-  if (v4) return { bits: 32, valor: v4.slice(1).reduce((a, o) => (a << 8n) | BigInt(o), 0n) };
+  if (v4) {
+    const o = v4.slice(1).map(Number);
+    return o.some((x) => x > 255) ? null : { bits: 32, valor: o.reduce((a, x) => (a << 8n) | BigInt(x), 0n) };
+  }
   const g = gruposIpv6(n);
   return g ? { bits: 128, valor: g.reduce((a, x) => (a << 16n) | BigInt(x), 0n) } : null;
 }

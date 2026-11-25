@@ -189,6 +189,9 @@ describe('ipDeSolicitud', () => {
     expect(ipDeSolicitud(sol('fdaa:0:1a2c::5', '198.51.100.43'), lista)).toBe('fdaa:0:1a2c:0::/64');
     expect(ipDeSolicitud(sol('10.21.0.1', '198.51.100.44'), lista)).toBe('10.21.0.1');
     expect(ipDeSolicitud(sol('203.0.113.5', '198.51.100.45'), lista)).toBe('203.0.113.5');
+    // Una IPv4 con un octeto mayor que 255 no es una dirección: no cae en el rango ni lo atraviesa.
+    expect(ipDeSolicitud(sol('10.20.0.256', '198.51.100.47'), lista)).toBe('10.20.0.256');
+    expect(() => leerProxiesDeConfianza('10.20.0.256/16')).toThrow(/rangos CIDR/);
     // Una IPv4 nunca cae en un rango IPv6 ni al revés.
     const solo6 = leerProxiesDeConfianza('::/1') as readonly string[];
     expect(ipDeSolicitud(sol('10.20.3.4', '198.51.100.46'), solo6)).toBe('10.20.3.4');
