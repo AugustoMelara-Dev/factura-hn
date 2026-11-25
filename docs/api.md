@@ -403,6 +403,8 @@ antes a centavos.
   autorizaciones (`SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `AUTORIZACION_REAL_EN_DEMO`, `CAI_DE_PRUEBA`).
 - **400 de forma** (`SOLICITUD_INVALIDA`): mensajes en español; `error.campo` es el primer campo con problema
   (p. ej. `documento.lineas`) y `errores` trae todos. Un cuerpo que no es JSON es 400 `JSON_INVALIDO`.
+  El nombre de una llave y la URL de un webhook no admiten caracteres de control (salvo tabulador y saltos de
+  línea): 400 `SOLICITUD_INVALIDA`. En los textos del documento y del emisor es 422 `TEXTO_CARACTER_NO_PERMITIDO`.
 - **415** (`TIPO_DE_CONTENIDO`): la operación espera un cuerpo JSON y la solicitud no trae
   `Content-Type: application/json`. Viene con la forma de error de la API (antes, texto plano), y cada operación
   con cuerpo lo declara en `/openapi.json`.

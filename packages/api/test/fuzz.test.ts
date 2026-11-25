@@ -4,17 +4,19 @@
  * cada respuesta cumple el contrato (lo valida `setup-contrato.ts`: una respuesta fuera de la especificación hace
  * fallar la solicitud).
  *
- * `FHN_FUZZ_CASOS` fija los casos (300 en el CI; el flujo nocturno sube a 20 000) y `FHN_PROP_SEMILLA` la semilla.
+ * `FHN_FUZZ_CASOS` fija los casos (300 en el CI; el flujo nocturno sube a 20 000) y `FHN_PROP_SEMILLA` la semilla (fija por omisión).
  */
 import { randomUUID } from 'node:crypto';
 import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cerrarPool, cliente, crearCaja, EMISOR, FECHA_LIMITE, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
-import { desdeEsquema, mutar, type Pistas } from './fuzz-esquema';
+import { conCaracterDeControl, desdeEsquema, mutar, type Pistas } from './fuzz-esquema';
 import { SPEC } from './openapi-validador';
 
 const CASOS = Math.max(1, Number(process.env.FHN_FUZZ_CASOS ?? 300));
-const SEMILLA = process.env.FHN_PROP_SEMILLA ? Number(process.env.FHN_PROP_SEMILLA) : undefined;
+// Semilla fija por omisión: el CI corre siempre los mismos casos y sus umbrales de cobertura no dependen de la suerte.
+// El flujo nocturno pasa una semilla nueva en cada corrida (FHN_PROP_SEMILLA) para explorar otros casos.
+const SEMILLA = Number(process.env.FHN_PROP_SEMILLA ?? 20261125);
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
 
@@ -195,7 +197,7 @@ function arbitrarioDeCaso(ctx: Contexto, sano: boolean): fc.Arbitrary<Caso> {
         params: fc.record(params),
         llave: fc.constantFrom('admin', 'caja') as fc.Arbitrary<Caso['llave']>,
         cuerpo: op.cuerpo
-          ? fc.oneof({ weight: 4, arbitrary: deEsquema }, { weight: 1, arbitrary: deEsquema.chain(mutar) }).map((valor) => ({ tipo: 'json' as const, valor }))
+          ? fc.oneof({ weight: 8, arbitrary: deEsquema }, { weight: 2, arbitrary: deEsquema.chain(mutar) }, { weight: 1, arbitrary: deEsquema.chain(conCaracterDeControl) }).map((valor) => ({ tipo: 'json' as const, valor }))
           : fc.constant(null),
         clave: fc.oneof({ weight: 9, arbitrary: fc.uuid() }, { weight: 1, arbitrary: fc.constant('clave-repetida-fuzz') }),
       }).map(({ params, llave, cuerpo, clave }): Caso => ({
@@ -207,6 +209,7 @@ function arbitrarioDeCaso(ctx: Contexto, sano: boolean): fc.Arbitrary<Caso> {
       ? fc.oneof(
           { weight: 4, arbitrary: deEsquema.map((valor) => ({ tipo: 'json' as const, valor })) },
           { weight: 3, arbitrary: deEsquema.chain(mutar).map((valor) => ({ tipo: 'json' as const, valor })) },
+          { weight: 1, arbitrary: deEsquema.chain(conCaracterDeControl).map((valor) => ({ tipo: 'json' as const, valor })) },
           { weight: 1, arbitrary: fc.jsonValue({ maxDepth: 3 }).map((valor) => ({ tipo: 'json' as const, valor })) },
           { weight: 1, arbitrary: cuerpoCrudo.map((valor) => ({ tipo: 'crudo' as const, valor })) },
         )
@@ -311,7 +314,7 @@ conBase('fuzzing de la API', () => {
         }
         expect(r.status, `${caso.op.metodo.toUpperCase()} ${caso.ruta}`).not.toBe(500);
       }),
-      { numRuns: CASOS, ...(SEMILLA !== undefined ? { seed: SEMILLA } : {}) },
+      { numRuns: CASOS, seed: SEMILLA },
     );
     if (process.env.FHN_FUZZ_RESUMEN) {
       console.log(`RESUMEN DEL FUZZ\n${[...estados, ...codigos].sort(([a], [b]) => a.localeCompare(b)).map(([k, n]) => `${n}\t${k}`).join('\n')}`);

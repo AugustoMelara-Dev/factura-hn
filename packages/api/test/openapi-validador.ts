@@ -15,9 +15,9 @@ import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 type Esquema = Record<string, unknown>;
-interface RespuestaSpec { content?: Record<string, { schema?: Esquema }>; headers?: Record<string, { $ref?: string; schema?: Esquema }> }
+interface RespuestaSpec { content?: Record<string, { schema?: Esquema }>; headers?: Record<string, { $ref?: string; schema?: Esquema; required?: boolean }> }
 interface OperacionSpec { operationId: string; responses: Record<string, RespuestaSpec> }
-interface Spec { paths: Record<string, Record<string, OperacionSpec>>; components: { headers: Record<string, { schema: Esquema }> } }
+interface Spec { paths: Record<string, Record<string, OperacionSpec>>; components: { headers: Record<string, { schema: Esquema; required?: boolean }> } }
 
 export const SPEC: Spec = JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8'));
 const ID = 'https://factura-hn.example/openapi.json';
@@ -102,6 +102,12 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
   // Cabeceras
   const declaradas = new Map(Object.entries(resp.headers ?? {}).map(([k, v]) => [k.toLowerCase(), { nombre: k, def: v }]));
   for (const h of SIEMPRE) if (!declaradas.has(h.toLowerCase())) violaciones.push(`${clave}: la especificación no declara ${h}`);
+  // Las cabeceras que la especificación marca como obligatorias (`required`) deben llegar; y todo 429, con Retry-After.
+  for (const [h, d] of declaradas) {
+    const def = d.def.$ref ? SPEC.components.headers[d.def.$ref.split('/').pop()!] : d.def;
+    if (def?.required && cabeceras.get(h) === null) violaciones.push(`${clave}: falta la cabecera obligatoria ${d.nombre}`);
+  }
+  if (r.status === 429 && cabeceras.get('retry-after') === null) violaciones.push(`${clave}: un 429 sin Retry-After`);
   for (const h of PROPIAS) {
     const valor = cabeceras.get(h);
     if (valor === null) continue;
@@ -119,9 +125,11 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
   const tipo = (cabeceras.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
   // Los reportes en texto se transmiten (y algunas pruebas los dejan sin leer a propósito): de ellos se valida el
   // estado, el tipo y las cabeceras, no el cuerpo. Los JSON son pequeños y se leen de una copia.
-  const leerCuerpo = metodo.toLowerCase() !== 'head' && (tipo === 'application/json' || tipo === '');
+  // Sin contenido declarado, el cuerpo se lee siempre, sea cual sea su tipo: debe llegar vacío.
+  const sinContenido = Object.keys(contenido).length === 0;
+  const leerCuerpo = metodo.toLowerCase() !== 'head' && (sinContenido || tipo === 'application/json' || tipo === '');
   const texto = leerCuerpo ? await r.clone().text() : '';
-  if (Object.keys(contenido).length === 0) {
+  if (sinContenido) {
     if (texto !== '') violaciones.push(`${clave}: la especificación no declara cuerpo y llegó «${texto.slice(0, 80)}»`);
     return { clave, operacion: op.operationId, violaciones };
   }

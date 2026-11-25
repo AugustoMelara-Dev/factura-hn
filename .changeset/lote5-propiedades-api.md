@@ -11,4 +11,7 @@ API REST: el contrato OpenAPI se valida en cada respuesta de las pruebas, y el f
   `obtenerLibroVentas` y `FacturaHN-Modo` en los 429 de `/v1`. Los tipos de `@factura-hn/cliente` se regeneraron.
 - Una fecha de período que no existe (`2026-02-30`) es 400 `SOLICITUD_INVALIDA` (antes, 500), y un CAI con un
   carácter NUL en la ruta es 404 (antes, 500).
-- Un total por encima del tope técnico es 422 `MONTO_FUERA_DE_RANGO` y no consume número (antes, 500).
+- Un carácter de control (p. ej. U+0000) en el nombre de una llave o en la URL de un webhook es 400
+  `SOLICITUD_INVALIDA` (antes, 500). `Solicitud-Id`, `FacturaHN-Version` y el `Retry-After` de los 429 se declaran
+  obligatorias en `/openapi.json`.
+- Un total por encima del tope técnico, también el total en lempiras de un documento en dólares, es 422 `MONTO_FUERA_DE_RANGO` y no consume número (antes, 500).

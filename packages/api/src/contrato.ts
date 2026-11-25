@@ -6,7 +6,7 @@
 /** Id de solicitud que manda el cliente en `Solicitud-Id`: se respeta si tiene esta forma; si no, se genera uno. */
 export const SOLICITUD_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
-type Cabecera = { description: string; schema: { type: 'string' | 'integer'; example?: string | number } };
+type Cabecera = { description: string; required?: boolean; schema: { type: 'string' | 'integer'; example?: string | number } };
 
 /** Cabeceras de respuesta comunes, como componentes reutilizables de la especificación. */
 export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
@@ -14,10 +14,12 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
     description:
       'Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, ' +
       'empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.',
+    required: true,
     schema: { type: 'string', example: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42' },
   },
   'FacturaHN-Version': {
     description: 'Versión de la API que respondió (la misma de `/salud` y de `info.version`).',
+    required: true,
     schema: { type: 'string', example: '0.2.0' },
   },
   'FacturaHN-Modo': {
@@ -41,6 +43,7 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
   },
   'Retry-After': {
     description: 'Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras).',
+    required: true,
     schema: { type: 'integer', example: 1 },
   },
 };

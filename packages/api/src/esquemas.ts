@@ -15,6 +15,13 @@ const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).openapi({ example: '2026-1
 const FechaDelCalendario = Fecha.refine(esFechaValida, { message: 'La fecha no existe en el calendario (AAAA-MM-DD).' });
 const Codigo3 = z.string().regex(/^\d{3}$/);
 const Texto = (max = 300) => z.string().max(max);
+/**
+ * Sin caracteres de control (salvo tabulador y saltos de línea), como TEXTO_CARACTER_NO_PERMITIDO del núcleo. Para
+ * los textos que van directo a la base sin pasar por el núcleo (nombre de la llave, URL del webhook): Postgres no
+ * guarda U+0000. Los del documento y el emisor los revisa el núcleo, con su código propio (422).
+ */
+const SIN_CONTROL = /^[^\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]*$/;
+const MENSAJE_SIN_CONTROL = 'No puede tener caracteres de control (de ellos solo se permiten el tabulador y los saltos de línea).';
 
 const Solucion = z.string().optional().openapi({ description: 'Qué hacer para resolverlo, si se conoce.' });
 const Documentacion = z.string().optional().openapi({
@@ -258,7 +265,7 @@ const fechas = (p: unknown) => p as { desde: string; hasta: string };
 
 export const LlaveNueva = z
   .object({
-    nombre: z.string().min(1).max(100),
+    nombre: z.string().min(1).max(100).regex(SIN_CONTROL, MENSAJE_SIN_CONTROL),
     rol: z.enum(['caja', 'admin']),
     establecimiento: Codigo3.optional(),
     puntoEmision: Codigo3.optional(),
@@ -279,7 +286,7 @@ export const Llave = z
   .openapi('Llave');
 
 export const WebhookNuevo = z
-  .object({ url: z.string().url().max(2000), eventos: z.array(z.enum(['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'])).min(1) })
+  .object({ url: z.string().url().max(2000).refine((u) => SIN_CONTROL.test(u), MENSAJE_SIN_CONTROL), eventos: z.array(z.enum(['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'])).min(1) })
   .openapi('WebhookNuevo');
 export const Webhook = z
   .object({

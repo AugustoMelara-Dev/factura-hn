@@ -113,3 +113,34 @@ export function mutar(valor: unknown): fc.Arbitrary<unknown> {
     return copia;
   });
 }
+
+/**
+ * Mete un carácter de control (casi siempre U+0000, que Postgres no guarda) dentro de un texto al azar del valor, sin
+ * cambiar su forma: así llega más allá del esquema, a las reglas y a la base. Si no hay textos, lo deja igual.
+ */
+export function conCaracterDeControl(valor: unknown): fc.Arbitrary<unknown> {
+  const rutas: Array<Array<string | number>> = [];
+  const recorrer = (v: unknown, ruta: Array<string | number>) => {
+    if (typeof v === 'string') rutas.push(ruta);
+    else if (Array.isArray(v)) v.forEach((x, i) => recorrer(x, [...ruta, i]));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) recorrer(x, [...ruta, k]);
+  };
+  recorrer(valor, []);
+  if (rutas.length === 0) return fc.constant(valor);
+  const control = fc.oneof({ weight: 4, arbitrary: fc.constant('\u0000') }, { weight: 1, arbitrary: fc.constantFrom('\u0001', '\u001b', '\u007f', '\u0085') });
+  return fc.tuple(fc.constantFrom(...rutas), control, fc.nat()).map(([ruta, c, n]) => {
+    if (ruta.length === 0) {
+      const s = valor as string;
+      const i = n % (s.length + 1);
+      return s.slice(0, i) + c + s.slice(i);
+    }
+    const copia = structuredClone(valor) as Record<string | number, unknown>;
+    let padre: Record<string | number, unknown> = copia;
+    for (const k of ruta.slice(0, -1)) padre = padre[k] as Record<string | number, unknown>;
+    const ultimo = ruta[ruta.length - 1]!;
+    const s = padre[ultimo] as string;
+    const i = n % (s.length + 1);
+    padre[ultimo] = s.slice(0, i) + c + s.slice(i);
+    return copia;
+  });
+}

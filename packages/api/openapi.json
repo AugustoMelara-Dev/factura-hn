@@ -1251,7 +1251,8 @@
           "nombre": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]*$"
           },
           "rol": {
             "type": "string",
@@ -1483,6 +1484,7 @@
     "headers": {
       "Solicitud-Id": {
         "description": "Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.",
+        "required": true,
         "schema": {
           "type": "string",
           "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
@@ -1490,6 +1492,7 @@
       },
       "FacturaHN-Version": {
         "description": "Versión de la API que respondió (la misma de `/salud` y de `info.version`).",
+        "required": true,
         "schema": {
           "type": "string",
           "example": "0.2.0"
@@ -1518,6 +1521,7 @@
       },
       "Retry-After": {
         "description": "Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras).",
+        "required": true,
         "schema": {
           "type": "integer",
           "example": 1

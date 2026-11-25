@@ -419,6 +419,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       }
       return e.getResponse();
     }
+    // Red de seguridad: un texto que Postgres no admite (U+0000 en text o jsonb: 22021 y 22P05) es un error de la
+    // solicitud, no del servidor. Los esquemas ya rechazan los caracteres de control donde el texto va directo a la base.
+    const sqlstate = (e as { code?: unknown }).code;
+    if (sqlstate === '22021' || sqlstate === '22P05') {
+      const cuerpo: CuerpoError = { error: { codigo: 'SOLICITUD_INVALIDA', mensaje: 'Un texto de la solicitud tiene un carácter que no se puede guardar (p. ej. U+0000).' } };
+      return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
+    }
     registrar(`Error interno (solicitud ${c.get('idLog')})`, e);
     return c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }), 500);
   });
