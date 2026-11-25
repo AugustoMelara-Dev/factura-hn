@@ -9,8 +9,13 @@ import { dirname, join } from 'node:path';
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const iMin = args.indexOf('--minimo');
-const minimo = iMin >= 0 ? Number(args[iMin + 1]) : 85;
-const ruta = args.find((a, i) => !a.startsWith('--') && i !== iMin + 1) ?? join(raiz, 'packages/core/reports/mutacion/mutacion.json');
+const iValor = iMin >= 0 ? iMin + 1 : -1;
+const minimo = iMin >= 0 ? Number(args[iValor]) : 85;
+if (iMin >= 0 && (args[iValor] === undefined || args[iValor].trim() === '' || !Number.isFinite(minimo))) {
+  console.error(`--minimo necesita un número: "${args[iValor] ?? ''}"`);
+  process.exit(2);
+}
+const ruta = args.find((a, i) => !a.startsWith('--') && i !== iValor) ?? join(raiz, 'packages/core/reports/mutacion/mutacion.json');
 
 const informe = JSON.parse(readFileSync(ruta, 'utf8'));
 const filas = [];
