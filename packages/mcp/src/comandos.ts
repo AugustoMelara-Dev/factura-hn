@@ -86,6 +86,7 @@ const DONDE_PEGAR = () =>
     '- Cursor: en ~/.cursor/mcp.json (para todos los proyectos) o en .cursor/mcp.json (solo este).',
     '- VS Code: en .vscode/mcp.json, pero la clave se llama "servers" en vez de "mcpServers".',
     'Si el archivo ya tiene otros servidores, agrega "factura-hn" dentro de su "mcpServers".',
+    'La primera vez que el cliente arranca el servidor, npx descarga esta versión del paquete: hace falta conexión a internet.',
   ].join('\n');
 
 const AYUDA = `factura-hn MCP: facturación SAR Honduras desde un asistente de IA.
