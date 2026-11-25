@@ -23,6 +23,8 @@ import { gunzipSync } from 'node:zlib';
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
 const windows = process.platform === 'win32';
+/** Ctrl+C durante un comando: el hijo muere con la señal y se limpia antes de salir. */
+let interrumpido = false;
 
 /**
  * Los caminos. `paquetes`: carpetas de packages/ que necesita (se empaquetan e instalan solo esas).
@@ -52,6 +54,11 @@ function correr(comando, args, { cwd, env, entrada } = {}) {
     cwd, env: env ?? entornoLimpio(), input: entrada, encoding: 'utf8', shell, timeout: 300_000,
   });
   if (r.error) throw r.error;
+  // 130 = SIGINT en POSIX; 0xC000013A = STATUS_CONTROL_C_EXIT en Windows.
+  if (r.signal === 'SIGINT' || r.status === 130 || r.status === 0xc000013a) {
+    interrumpido = true;
+    throw new Error('interrumpido (Ctrl+C)');
+  }
   if (r.status !== 0) {
     throw new Error(`${comando} ${args.join(' ')} terminó con ${r.status}\n${r.stdout ?? ''}${r.stderr ?? ''}`.trim());
   }
@@ -153,6 +160,18 @@ if (desconocidos.length) {
 const elegidos = pedidos.length ? pedidos : Object.keys(CAMINOS).filter((n) => CAMINOS[n].activo);
 
 const temporal = mkdtempSync(join(tmpdir(), 'fhn-humo-'));
+/** Borra el directorio temporal. Si Windows lo tiene tomado (antivirus, un proceso que aún cierra), solo avisa. */
+function limpiar() {
+  try {
+    rmSync(temporal, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch (e) {
+    console.warn(`AVISO no se pudo borrar ${temporal}: ${e.message}`);
+  }
+}
+process.on('SIGINT', () => {
+  limpiar();
+  process.exit(130);
+});
 let fallas = 0;
 try {
   const carpetas = [...new Set(elegidos.flatMap((n) => CAMINOS[n].paquetes))];
@@ -174,7 +193,11 @@ try {
   fallas++;
   console.error(`ERR ${e.message}`);
 } finally {
+  if (interrumpido) {
+    limpiar();
+    process.exit(130);
+  }
   if (fallas || conservar) console.log(`Directorio de la prueba: ${temporal}`);
-  else rmSync(temporal, { recursive: true, force: true });
+  else limpiar();
 }
 process.exit(fallas ? 1 : 0);
