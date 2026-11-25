@@ -1,0 +1,82 @@
+---
+// Cabecera de la documentación (reemplaza a la de Starlight): el título, la navegación principal del sitio (la
+// misma de las páginas del producto), el buscador, GitHub y el selector de tema. En pantallas angostas la
+// navegación se oculta; el título lleva a la portada.
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+import { conBase, NAV } from '../datos/navegacion';
+
+const enlaces = NAV.filter((e) => !e.externo);
+---
+
+<div class="cabecera">
+	<div class="titulo sl-flex"><SiteTitle /></div>
+	<nav class="nav-principal" aria-label="Principal">
+		{enlaces.map((e) => <a href={conBase(e.ruta)} aria-current={e.texto === 'Documentación' ? 'page' : undefined}>{e.texto}</a>)}
+	</nav>
+	<div class="sl-flex print:hidden buscador"><Search /></div>
+	<div class="sl-hidden md:sl-flex print:hidden derecha">
+		<div class="sl-flex redes"><SocialIcons /></div>
+		<ThemeSelect />
+	</div>
+</div>
+
+<style>
+	.cabecera {
+		display: flex;
+		gap: var(--sl-nav-gap);
+		justify-content: space-between;
+		align-items: center;
+		height: 100%;
+	}
+	.titulo {
+		overflow: clip;
+		padding: 0.25rem;
+		margin: -0.25rem;
+		min-width: 0;
+	}
+	.nav-principal {
+		display: none;
+	}
+	.derecha,
+	.redes {
+		gap: 1rem;
+		align-items: center;
+	}
+	.redes::after {
+		content: '';
+		height: 1.5rem;
+		border-inline-end: 1px solid var(--sl-color-hairline);
+	}
+	@media (min-width: 50rem) {
+		.cabecera {
+			display: grid;
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			column-gap: 2rem;
+		}
+		.buscador {
+			justify-content: flex-end;
+		}
+	}
+	@media (min-width: 72rem) {
+		.cabecera {
+			grid-template-columns: auto auto minmax(0, 1fr) auto;
+		}
+		.nav-principal {
+			display: flex;
+			gap: 1.5rem;
+			font-size: var(--sl-text-sm);
+		}
+		.nav-principal a {
+			color: var(--sl-color-gray-2);
+			text-decoration: none;
+			font-weight: 500;
+		}
+		.nav-principal a:hover,
+		.nav-principal a[aria-current='page'] {
+			color: var(--sl-color-white);
+		}
+	}
+</style>

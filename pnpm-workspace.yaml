@@ -8,3 +8,5 @@ allowBuilds:
   esbuild: true
   # Su postinstall solo avisa de versiones en package.json ajenos: no hace falta (lo trae @usebruno/cli).
   protobufjs: false
+  # Su postinstall solo sugiere `astryx init`, que escribe en AGENTS.md: no hace falta y no se corre.
+  '@astryxdesign/core': false

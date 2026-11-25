@@ -1,10 +1,11 @@
 // Sitio de documentación de factura-hn: Astro Starlight en español, publicado en GitHub Pages.
 // `pnpm sitio` (en la raíz) genera las páginas que salen de los Markdown del repositorio, construye y verifica.
 import { unified } from '@astrojs/markdown-remark';
+import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
 import rehypeBase from './src/plugins/rehype-base.mjs';
-import { BASE, BLOQUES, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
+import { BASE, MENU, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
 
 export default defineConfig({
   site: SITIO_URL,
@@ -16,7 +17,7 @@ export default defineConfig({
     Object.entries({
       empezar: 'primera-factura',
       conceptos: 'como-funciona',
-      guias: 'imprimir',
+      guias: 'sdk',
       ayuda: 'preguntas-frecuentes',
     }).map(([bloque, pagina]) => [`/${bloque}/`, `${BASE}/${bloque}/${pagina}/`]),
   ),
@@ -35,8 +36,12 @@ export default defineConfig({
       locales: { root: { label: 'Español', lang: 'es' } },
       favicon: '/favicon.svg',
       social: [{ icon: 'github', label: 'GitHub', href: REPO }],
-      customCss: ['./src/styles/fuentes.css', './src/styles/tema.css'],
-      components: { Footer: './src/components/Pie.astro', Hero: './src/components/Portada.astro' },
+      customCss: ['./src/styles/fuentes.css', './src/styles/tokens.css', './src/styles/tema.css'],
+      components: {
+        Footer: './src/components/Pie.astro',
+        Header: './src/components/CabeceraDocs.astro',
+        ThemeProvider: './src/components/ProveedorTema.astro',
+      },
       credits: false,
       lastUpdated: false,
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
@@ -52,7 +57,9 @@ export default defineConfig({
           borderColor: 'var(--sl-color-hairline-light)',
         },
       },
-      sidebar: BLOQUES.map(({ dir, label }) => ({ label, items: [{ autogenerate: { directory: dir } }] })),
+      sidebar: MENU,
     }),
+    // Solo la isla de /probar/ hidrata React en el navegador; el resto del sitio no lleva JavaScript propio.
+    react(),
   ],
 });

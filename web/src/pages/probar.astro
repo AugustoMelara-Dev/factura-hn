@@ -1,0 +1,376 @@
+---
+// Pruébalo ahora: un clic crea un entorno de prueba en la demostración pública (isla de React con Astryx, la única
+// página con JavaScript propio). Sin PUBLIC_FHN_DEMO_API, la página lo dice y no carga la isla. Los pasos para
+// conectar un asistente son HTML estático: se leen también sin JavaScript. Su versión para IA es src/md/probar.md.
+import '@astryxdesign/core/astryx.css';
+import Sitio from '../layouts/Sitio.astro';
+import Probar from '../islas/Probar.tsx';
+import { conBase } from '../datos/navegacion';
+import { API_DEMO, MARCADOR_API } from '../datos/demo';
+import { BASE } from '../../sitio.config.mjs';
+
+const api = API_DEMO ?? MARCADOR_API;
+const curl = `curl -X POST ${api}/v1/demo/entornos`;
+---
+
+<Sitio
+	titulo="Pruébalo ahora"
+	descripcion="Crea en un clic un entorno de prueba de factura-hn: tu llave de la API, tu URL del MCP para Claude o ChatGPT y ejemplos para copiar. Dura 24 horas y solo tiene datos de prueba."
+	ruta="/probar/"
+>
+	<header class="pagina-cabeza">
+		<div class="contenedor">
+			<p class="antetitulo">Pruébalo ahora</p>
+			<h1>Tu entorno de prueba, en un clic.</h1>
+			<p class="entrada">
+				Un emisor y un CAI ficticios solo para ti, con una llave para la API y una URL del MCP para tu asistente. Sin
+				cuenta y sin instalar nada.
+			</p>
+		</div>
+	</header>
+
+	<div class="contenedor probar-rejilla">
+		<section class="probar-panel" aria-labelledby="crear-titulo">
+			<h2 id="crear-titulo" class="probar-titulo">Crear el entorno</h2>
+			{
+				API_DEMO ? (
+					<>
+						<Probar client:only="react" api={API_DEMO} base={BASE} />
+						<noscript>
+							<p class="probar-sin-js">
+								Esta página necesita JavaScript para crear el entorno con un clic. Sin JavaScript, créalo desde una
+								terminal; la respuesta trae tu llave, tu URL del MCP y los ejemplos:
+							</p>
+							<pre class="probar-pre">
+								<code>{curl}</code>
+							</pre>
+						</noscript>
+					</>
+				) : (
+					<div class="probar-no-publicada">
+						<p class="probar-no-publicada-titulo">La demo en línea aún no está publicada.</p>
+						<p>
+							Mientras tanto, prueba el SDK en el navegador o levanta la API en tu equipo: es la misma API que usará la
+							demostración, con un tenant de prueba.
+						</p>
+						<div class="botones">
+							<a class="boton boton-primario" href={conBase('/empezar/playground/')}>
+								Abrir el playground
+							</a>
+							<a class="boton boton-secundario" href={conBase('/guias/autoalojar/')}>
+								Instalar la API
+							</a>
+						</div>
+					</div>
+				)
+			}
+		</section>
+
+		<aside class="probar-lado" aria-labelledby="recibes-titulo">
+			<h2 id="recibes-titulo" class="probar-titulo">Qué recibes</h2>
+			<ul class="probar-lista">
+				<li><strong>Una llave de la API</strong> (<code>fhn_test_…</code>) para curl y el SDK.</li>
+				<li><strong>Una URL personal del MCP</strong> para pegar en Claude o ChatGPT, también desde el teléfono.</li>
+				<li><strong>Ejemplos listos para copiar</strong> con curl, el SDK <code>@factura-hn/cliente</code> y el conector MCP.</li>
+			</ul>
+			<h2 class="probar-titulo">Lo que conviene saber</h2>
+			<ul class="probar-lista">
+				<li>A las <strong>24 horas</strong> el entorno se borra con sus documentos y su llave.</li>
+				<li>Todo lo que emitas dice <strong>«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»</strong>.</li>
+				<li>La llave y la URL se muestran una sola vez y solo en esta página: no quedan en la dirección ni en el navegador.</li>
+				<li>No pongas datos reales de clientes.</li>
+			</ul>
+		</aside>
+	</div>
+
+	<section class="seccion" aria-labelledby="conectar-titulo">
+		<div class="contenedor">
+			<div class="cabeza-seccion">
+				<p class="antetitulo">Conecta tu asistente</p>
+				<h2 class="titulo-seccion" id="conectar-titulo">Agrega tu URL del MCP como conector personalizado.</h2>
+				<p class="entrada">
+					El asistente emite, consulta y anula en tu entorno de prueba con las mismas reglas del SDK. Los pasos de cada
+					cliente cambian seguido: si algo no coincide, sigue su guía oficial.
+				</p>
+			</div>
+			<div class="rejilla rejilla-2">
+				<div class="tarjeta pasos">
+					<h3>Claude (web, escritorio y móvil)</h3>
+					<ol>
+						<li>
+							En claude.ai, abre <strong>Customize &gt; Connectors</strong> y pulsa <strong>+ &gt; Add custom connector</strong>.
+							En planes Team y Enterprise lo agrega quien administra la organización.
+						</li>
+						<li>Ponle un nombre, por ejemplo «factura-hn prueba», y pega tu URL del MCP. Deja vacíos los campos de OAuth.</li>
+						<li>Guarda. En una conversación nueva, activa el conector y pide: «emite una factura de prueba por dos cafés de 57.50».</li>
+					</ol>
+					<p>El conector que agregas en la web aparece también en la aplicación de escritorio y en la del teléfono.</p>
+					<a
+						class="tarjeta-enlace flecha"
+						href="https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+						rel="noopener">Guía de Claude</a
+					>
+				</div>
+				<div class="tarjeta pasos">
+					<h3>ChatGPT</h3>
+					<ol>
+						<li>Activa el modo de desarrollador según la guía de tu plan.</li>
+						<li>Agrega un servidor MCP propio: nombre, tu URL del MCP como URL de conexión y autenticación «sin autenticación».</li>
+						<li>Acepta el aviso sobre servidores de terceros, crea el conector, actívalo en una conversación y pide una factura de prueba.</li>
+					</ol>
+					<p>
+						Con todas las herramientas (emitir, anular) solo en los planes Business, Enterprise y Edu, y en la web; en otros
+						planes el acceso es de solo lectura o no está disponible.
+					</p>
+					<a
+						class="tarjeta-enlace flecha"
+						href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta"
+						rel="noopener">Guía de ChatGPT</a
+					>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="limites-titulo">
+		<div class="contenedor probar-limites">
+			<div>
+				<p class="antetitulo">Límites</p>
+				<h2 class="titulo-seccion" id="limites-titulo">Para probar, no para facturar.</h2>
+			</div>
+			<div class="prosa">
+				<p>
+					Un entorno dura 24 horas, emite hasta 50 documentos y atiende unas 30 solicitudes por minuto. Cada dirección crea a
+					lo sumo 3 entornos por día. Al pasar un límite, la página dice cuánto esperar.
+				</p>
+				<p>
+					En la demostración no se puede registrar un CAI real, cambiar el emisor ficticio ni configurar webhooks. Para
+					facturar de verdad, <a href={conBase('/empezar/elegir-camino/')}>instala factura-hn</a> con los datos de tu negocio:
+					es gratis y de código abierto.
+				</p>
+			</div>
+		</div>
+	</section>
+</Sitio>
+
+<style is:global>
+	.probar-rejilla {
+		display: grid;
+		gap: 2.5rem;
+		padding-block: clamp(2.5rem, 6vw, 4rem);
+	}
+	@media (min-width: 64rem) {
+		.probar-rejilla {
+			grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+			gap: 4rem;
+		}
+	}
+	.probar-panel {
+		min-width: 0;
+		padding: clamp(1.25rem, 3vw, 2rem);
+		border: 1px solid var(--fhn-borde);
+		border-radius: 16px;
+		background: var(--fhn-fondo);
+	}
+	.probar-titulo {
+		margin: 0 0 1rem;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--fhn-texto);
+	}
+	.probar-lado .probar-titulo + .probar-lista + .probar-titulo,
+	.probar-lista + .probar-titulo {
+		margin-top: 2rem;
+	}
+	.probar-lista {
+		display: grid;
+		gap: 0.75rem;
+		color: var(--fhn-gris-2);
+		font-size: 0.9375rem;
+		line-height: 1.55;
+	}
+	.probar-lista li {
+		padding-inline-start: 1.25rem;
+		position: relative;
+	}
+	.probar-lista li::before {
+		content: '';
+		position: absolute;
+		inset-inline-start: 0;
+		top: 0.6em;
+		width: 0.375rem;
+		height: 0.375rem;
+		border-radius: 50%;
+		background: var(--fhn-acento);
+	}
+	.probar-lista strong {
+		color: var(--fhn-texto);
+		font-weight: 600;
+	}
+	.probar-lista code,
+	.probar-campo code,
+	.probar-datos code {
+		font-size: 0.875em;
+	}
+
+	.probar-inicio {
+		display: grid;
+		gap: 1rem;
+		justify-items: start;
+	}
+	.probar-inicio > [class*='xds-banner'],
+	.probar-inicio > div:not([class]) {
+		justify-self: stretch;
+	}
+	.probar-nota {
+		margin: 0;
+		color: var(--fhn-gris-3);
+		font-size: 0.875rem;
+	}
+	.probar-inicio a,
+	.probar-resultado a {
+		color: var(--fhn-acento-texto);
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+
+	.probar-resultado {
+		display: grid;
+		gap: 1.75rem;
+	}
+	.probar-campo {
+		display: grid;
+		gap: 0.625rem;
+		min-width: 0;
+	}
+	.probar-campo h3 {
+		margin: 0;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--fhn-texto);
+	}
+	.probar-campo p {
+		margin: 0;
+		color: var(--fhn-gris-3);
+		font-size: 0.9375rem;
+	}
+	.probar-datos {
+		display: grid;
+		margin: 0;
+		border: 1px solid var(--fhn-borde);
+		border-radius: 10px;
+	}
+	.probar-datos > div {
+		display: grid;
+		gap: 0.125rem 1rem;
+		padding: 0.625rem 0.875rem;
+		border-top: 1px solid var(--fhn-borde);
+	}
+	.probar-datos > div:first-child {
+		border-top: 0;
+	}
+	@media (min-width: 40rem) {
+		.probar-datos > div {
+			grid-template-columns: 10rem minmax(0, 1fr);
+		}
+	}
+	.probar-datos dt {
+		color: var(--fhn-gris-3);
+		font-size: 0.875rem;
+	}
+	.probar-datos dd {
+		margin: 0;
+		color: var(--fhn-texto);
+		font-size: 0.9375rem;
+		overflow-wrap: anywhere;
+	}
+	.probar-campo .probar-leyenda {
+		font-size: 0.875rem;
+	}
+	.probar-ejemplo {
+		min-width: 0;
+		margin-top: 0.5rem;
+	}
+	.probar-aviso {
+		margin: 0;
+		padding: 0.75rem 1rem;
+		border-inline-start: 3px solid var(--fhn-naranja);
+		background: var(--fhn-naranja-suave);
+		border-radius: 0 8px 8px 0;
+		color: var(--fhn-texto);
+		font-size: 0.9375rem;
+	}
+	.probar-limpiar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--fhn-borde);
+		color: var(--fhn-gris-3);
+		font-size: 0.875rem;
+	}
+
+	.probar-sin-js,
+	.probar-no-publicada p {
+		margin: 0;
+		color: var(--fhn-gris-2);
+	}
+	.probar-pre {
+		margin: 1rem 0 0;
+		padding: 0.875rem 1rem;
+		border: 1px solid var(--fhn-borde);
+		border-radius: 10px;
+		background: var(--fhn-superficie);
+		font-size: 0.8125rem;
+		overflow-x: auto;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.probar-no-publicada {
+		display: grid;
+		gap: 1rem;
+	}
+	.probar-no-publicada .probar-no-publicada-titulo {
+		font-size: 1.25rem;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		color: var(--fhn-texto);
+	}
+
+	.pasos ol {
+		display: grid;
+		gap: 0.625rem;
+		margin: 0.25rem 0 0.5rem;
+		padding-inline-start: 1.25rem;
+		list-style: decimal;
+		color: var(--fhn-gris-2);
+		font-size: 0.9375rem;
+		line-height: 1.55;
+	}
+	.pasos ol li::marker {
+		color: var(--fhn-gris-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.pasos strong {
+		color: var(--fhn-texto);
+		font-weight: 600;
+	}
+	.tarjeta-enlace {
+		color: var(--fhn-acento-texto);
+		font-size: 0.875rem;
+		font-weight: 500;
+		text-decoration: none;
+	}
+
+	.probar-limites {
+		display: grid;
+		gap: 1.5rem;
+	}
+	@media (min-width: 64rem) {
+		.probar-limites {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+			gap: 4rem;
+		}
+	}
+</style>

@@ -41,6 +41,9 @@ jobs:
         env:
           FHN_SITIO_URL: ${{ steps.pages.outputs.origin }}
           FHN_SITIO_BASE: ${{ steps.pages.outputs.base_path }}
+          # URL de la API de la demostración pública que llama /probar/ (variable del repositorio). Sin ella, la
+          # página dice que la demo en línea aún no está publicada.
+          PUBLIC_FHN_DEMO_API: ${{ vars.FHN_DEMO_API }}
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: sitio

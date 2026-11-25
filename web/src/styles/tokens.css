@@ -1,0 +1,95 @@
+/*
+ * Tokens de diseño de factura-hn: la única fuente del color y la tipografía del sitio.
+ *
+ * - La documentación (Starlight) los lee en `tema.css`, que asigna cada variable `--sl-*` a uno de estos.
+ * - Las páginas del producto y los componentes de Astryx los leen en `astryx-puente.css`, que asigna los tokens
+ *   semánticos de Astryx (`--color-*`, `--font-family-*`) a estos mismos.
+ *
+ * Claro es el tema por defecto (`:root`); oscuro se activa con `data-theme="dark"` en <html>, que pone el selector
+ * de tema de Starlight. Cada par texto/fondo que se usa pasa AA (4,5:1 para texto, 3:1 para bordes de controles):
+ * lo comprueba `scripts/contraste.test.mjs` leyendo este archivo.
+ */
+
+:root {
+	/* Tipografía */
+	--fhn-fuente: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--fhn-fuente-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+	/* Claro */
+	--fhn-fondo: #ffffff;
+	--fhn-superficie: #f6f7f9; /* código, encabezados de tabla, tarjetas */
+	--fhn-texto: #0a0a0a;
+	--fhn-gris-1: #1f1f23;
+	--fhn-gris-2: #3a3a41;
+	--fhn-gris-3: #5c5c66; /* texto suave */
+	--fhn-gris-4: #85858f; /* borde de controles */
+	--fhn-gris-5: #e6e6ea; /* borde */
+	--fhn-gris-6: #f4f4f6;
+	--fhn-gris-7: #fafafa;
+	--fhn-borde: #e6e6ea;
+	--fhn-texto-invertido: #ffffff;
+
+	--fhn-acento: #0b5fff; /* fondo de botones primarios */
+	--fhn-acento-texto: #0b5fff; /* enlaces */
+	--fhn-acento-fuerte: #0047d1; /* hover, texto sobre acento suave */
+	--fhn-acento-suave: #eef3ff;
+	--fhn-sobre-acento: #ffffff;
+
+	/* Avisos y estados: «-suave» es el fondo, «-fuerte» el texto sobre ese fondo. */
+	--fhn-azul: #0b5fff;
+	--fhn-azul-suave: #eef3ff;
+	--fhn-azul-fuerte: #0040bd;
+	--fhn-morado: #6a4a9c;
+	--fhn-morado-suave: #f2eefa;
+	--fhn-morado-fuerte: #533a7c;
+	--fhn-verde: #17663d;
+	--fhn-verde-suave: #e8f5ed;
+	--fhn-verde-fuerte: #135533;
+	--fhn-naranja: #a86a12;
+	--fhn-naranja-suave: #fdf3e1;
+	--fhn-naranja-fuerte: #7d4c00;
+	--fhn-rojo: #b42318;
+	--fhn-rojo-suave: #fdecea;
+	--fhn-rojo-fuerte: #9a1c13;
+	--fhn-neutro: #3a3a41;
+	--fhn-neutro-suave: #ececef;
+}
+
+:root[data-theme='dark'] {
+	--fhn-fondo: #0a0a0b;
+	--fhn-superficie: #141417;
+	--fhn-texto: #ededef;
+	--fhn-gris-1: #dcdce0;
+	--fhn-gris-2: #babac2;
+	--fhn-gris-3: #9d9da7;
+	--fhn-gris-4: #6e6e78;
+	--fhn-gris-5: #26262c;
+	--fhn-gris-6: #17171a;
+	--fhn-gris-7: #111113;
+	--fhn-borde: #26262c;
+	--fhn-texto-invertido: #0a0a0b;
+
+	--fhn-acento: #0b5fff;
+	--fhn-acento-texto: #7ea8ff;
+	--fhn-acento-fuerte: #a9c4ff;
+	--fhn-acento-suave: #0e1a33;
+	--fhn-sobre-acento: #ffffff;
+
+	--fhn-azul: #7ea8ff;
+	--fhn-azul-suave: #0e1a33;
+	--fhn-azul-fuerte: #a9c4ff;
+	--fhn-morado: #b9a3e3;
+	--fhn-morado-suave: #221d30;
+	--fhn-morado-fuerte: #d4c6f0;
+	--fhn-verde: #6fd39f;
+	--fhn-verde-suave: #10251a;
+	--fhn-verde-fuerte: #8fe0b5;
+	--fhn-naranja: #f0c060;
+	--fhn-naranja-suave: #2b220f;
+	--fhn-naranja-fuerte: #f5d38c;
+	--fhn-rojo: #ff8f85;
+	--fhn-rojo-suave: #351a17;
+	--fhn-rojo-fuerte: #ffb3ac;
+	--fhn-neutro: #babac2;
+	--fhn-neutro-suave: #26262c;
+}
