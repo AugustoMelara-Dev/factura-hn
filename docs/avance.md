@@ -12,8 +12,9 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
   - **Lote 2 (Etapa 1, los primeros 5 minutos):** hecho (74a8eea, PR #9).
   - **Lote 3 (sitio Starlight):** hecho (d3cdfc4, PR #10).
   - **Lote 4 (API para integradores):** hecho (cc2bbd0, PR #11).
-  - **Lote 5 (calidad medida):** en el PR `lote5/integracion`.
-  - **Después:** Lote 6 (revisión final, versión y reporte).
+  - **Lote 5 (calidad medida):** hecho (39072d8, PR #12).
+  - **Lote 6 (revisión final y 0.3.0):** en el PR `lote6/integracion`. La 0.3.0 queda versionada en `main`; se
+    publica cuando el responsable active `PUBLICAR_NPM`.
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
   - **Subagentes** (opus, esfuerzo medio) para el trabajo paralelo. Cada revisión la hace quien no escribió el
@@ -191,6 +192,27 @@ Rama `lote4/integracion`, que une `lote4/contrato`, `lote4/webhooks`, `lote4/lla
 - **Esquema de la API v8** (rotación de secretos y modo del tenant).
 - **Decisiones:** DEC-104 a DEC-134. [REVISAR]: DEC-121 (CAI ficticio según el modo del tenant).
 
+## Hecho (Lote 6)
+
+Rama `lote6/integracion`. Cinco revisiones independientes de `main` (fiscal, seguridad con una segunda pasada de
+security-audit, paquetes, documentación y primeros 5 minutos) y cuatro ramas de correcciones (`lote6/api`,
+`lote6/nucleo`, `lote6/paquetes-fix`, `lote6/docs`), cada una hecha por quien no la revisó.
+
+- **Núcleo (fiscal):** un documento con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`, DEC-182 [REVISAR]); el
+  tope de la nota de crédito se aplica por tasa y un original en USD pasa por la misma conversión que la nota
+  (DEC-183 [REVISAR]); aviso `AVISO_NOTA_EXONERACION_DISTINTA`; exportación versión 2 (`tipoCambio`,
+  `fechaAnulacion`); preguntas P-16 a P-20 en la consulta al SAR.
+- **API y MCP (seguridad):** confirmación por elicitación en las herramientas destructivas del MCP; el modo local
+  no atiende otros tenants; webhooks de tenants inactivos (esquema v9) y secretos ilegibles aislados; cupo de
+  reportes por llave; `IDEMPOTENCY_KEY` cuando falta la cabecera; JSON con `charset=utf-8`; carga nocturna estable.
+- **Paquetes y versión:** una sola versión (la de la API sale de su `package.json`, `scripts/fijar-versiones.mjs`
+  después de `changeset version`); CHANGELOG por paquete; Node 20 como piso y en la matriz de la CI;
+  `release.yml` en tres trabajos con changesets/action v2 y `persist-credentials: false`.
+- **Documentación y sitio:** primera factura con la API que se detiene si falla un paso, cuatro caminos, ejemplo
+  Next.js, README de los paquetes en la prueba de fragmentos, DEC enlazados en el sitio.
+- **Mutación** tras los cambios: 98,98 % (cada módulo ≥ 97 %).
+- **Decisiones:** DEC-169 a DEC-203. [REVISAR]: DEC-182 y DEC-183.
+
 ## Hecho (Lote 5)
 
 Rama `lote5/integracion`, que une `lote5/owasp`, `lote5/propiedades`, `lote5/mutacion` y `lote5/resiliencia`. Cada
@@ -212,18 +234,17 @@ rama la revisó un subagente que no la escribió, y su autor corrigió los halla
 
 ## Sigue
 
-1. Fusionar el PR del Lote 5 con la CI en verde y calibrar los umbrales del perfil `ci` de la carga con las
-   primeras corridas en GitHub; correr `nocturno.yml` una vez a mano.
-2. El responsable confirma Trusted Publisher en los seis paquetes.
-3. Lote 6: revisión final (fiscal, seguridad, paquetes, documentación, primeros 5 minutos), versión 0.3.0 con
-   changesets y reporte final.
-4. Pendientes menores:
+1. Fusionar el PR del Lote 6 con la CI en verde y correr `nocturno.yml` a mano.
+2. El responsable:
+   - confirma Trusted Publisher en los seis paquetes y la regla de ramas del entorno `npm`;
+   - activa `PUBLICAR_NPM` (publica la 0.3.0) y `PUBLICAR_SITIO`;
+   - envía `docs/consulta-sar.md` (P-01 a P-20) y, con la respuesta, cierra los [REVISAR].
+3. Pendientes menores:
    - documentos ya guardados con un NUL (anteriores al Lote 4) siguen rompiendo el listado sin líneas de su tenant;
    - etiquetas del OpenAPI con tilde (`Sesión`, `Auditoría`) dan módulos raros en el cliente de Python;
    - imagen Docker en GHCR, con permiso del responsable;
    - propuestas de rendimiento de la carga (menos consultas por emisión) y de OWASP (PDF fuera del hilo
      principal), en `docs/decisiones.md`.
-5. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
 
 ## Cómo correr
 

@@ -27,3 +27,13 @@ Notas, anulación y exportación coherentes con el original:
   `emisor.json` no es JSON válido, lo dice en español y cómo arreglarlo, en lugar de un `SyntaxError`.
 - La batería `ejecutarContratoAlmacen` agrega una prueba de anulación con notas vigentes, también con anulación y
   nota a la vez.
+
+**Cambios incompatibles:**
+
+- `anular` (y `POST /v1/documentos/{numero}/anular` y la herramienta `anular_documento`) rechaza con
+  `DOCUMENTO_CON_NOTAS` un documento con notas vigentes. Si tu sistema anulaba la factura sin anular antes sus
+  notas, ahora debe anular primero las notas.
+- Una nota de crédito que superaba el gravado o el ISV del original a una tasa, aunque no superara el total, ahora
+  da `NOTA_SUPERA_ORIGINAL`.
+- La exportación CSV y TXT es la versión 2: dos columnas más al final y el encabezado TXT `#factura-hn|v2|N`. Si
+  validas el encabezado `v1` o el número exacto de columnas, actualízalo.

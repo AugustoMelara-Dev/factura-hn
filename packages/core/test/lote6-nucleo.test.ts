@@ -1,6 +1,6 @@
 /**
  * Lote 6, hallazgos del núcleo:
- * - DEC-XXX [REVISAR] (Arts. 41 y 4 num. 32): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
+ * - DEC-182 [REVISAR] (Arts. 41 y 4 num. 32): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
  * - DEC-051 ampliada: tope de la nota de crédito por tasa; original en USD por el mismo camino que la nota;
  *   `AVISO_NOTA_EXONERACION_DISTINTA`.
  * - Menores: `ANULACION_MOTIVO`, `estadoAutorizacion` con una serie que viene de otro CAI, `caiEstricto` en la demo,

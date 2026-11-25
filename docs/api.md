@@ -367,7 +367,7 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   de terminar normalmente: una respuesta cortada nunca parece completa. Cada parte debe llegar al cliente en
   30 s (un cliente lento que avanza no se corta) y la respuesta entera en 5 minutos (opción
   `duracionMaxReporteMs`); si no, se corta con error. Para períodos que tardan más, divídelos. El conteo, el
-  tope y el encabezado de `txt` (`#factura-hn|v1|N`) salen de la misma lectura que las filas enviadas.
+  tope y el encabezado de `txt` (`#factura-hn|v2|N`) salen de la misma lectura que las filas enviadas.
 - **Libro de ventas con llave de caja.** Una llave de caja recibe el libro solo de su punto de emisión: todas sus
   series (facturas, notas), en el mismo orden y con las mismas filas que el libro del tenant filtrado a ese
   punto. El resumen, el tope, `excluidos` y la cabecera `Documentos-Prueba-Excluidos` cuentan solo ese punto, y el

@@ -708,8 +708,9 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### SOLICITUD_INVALIDA
 
-- **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla.
-- **Solución:** compara la solicitud con `GET /openapi.json`.
+- **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla. También
+  lo usa el servidor MCP cuando un argumento de una herramienta no tiene la forma esperada (en español, con el campo).
+- **Solución:** compara la solicitud con `GET /openapi.json`. En el MCP, corrige ese argumento y vuelve a llamar.
 
 ### JSON_INVALIDO
 
@@ -733,6 +734,13 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Qué significa (403):** la operación requiere una llave con rol admin (registrar un CAI, anular, confirmar un salto
   de fecha, una nota de crédito sobre un original externo, llaves, webhooks y exportación).
 - **Solución:** usa la llave admin del negocio.
+
+### TENANT_FUERA_DEL_MODO_LOCAL
+
+- **Qué significa (403):** la API corre en modo local (un solo negocio) y la llave es de otro tenant que no es
+  `local` ni `demo` (p. ej. uno creado por fuera de la consola). Lo devuelve cualquier operación de `/v1`.
+- **Solución:** usa una llave del tenant `local` (tu negocio) o del `demo`. Si el servidor sirve a varios negocios,
+  el operador debe arrancarlo con `FHN_MODO=alojado` (y `FHN_CLAVE_CIFRADO`).
 
 ### CAJA_SIN_PUNTO
 
@@ -759,7 +767,8 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 - **Qué significa (400):** la cabecera `Idempotency-Key` falta, está vacía o es demasiado larga (de 1 a 255
   caracteres visibles).
-- **Solución:** envía una clave estable por venta: el mismo valor en cada reintento.
+- **Solución:** envía la cabecera `Idempotency-Key` con un valor único por venta (p. ej. el id del pedido o de la venta) y, si
+  reintentas esa misma venta, reutiliza el mismo valor: así nunca se emite dos veces.
 
 ### IDEMPOTENCIA_CONFLICTO
 
@@ -912,6 +921,24 @@ El servidor MCP devuelve `{ codigo, errores }` en `structuredContent`. Usa estos
 - `API_INACCESIBLE`: ver [API_INACCESIBLE](#api_inaccesible).
 - `BASE_DEMO`: ver [BASE_DEMO](#base_demo).
 - `CAI_DEMO`: ver [CAI_DEMO](#cai_demo).
+- `SOLICITUD_INVALIDA`: un argumento no tiene la forma esperada; ver [SOLICITUD_INVALIDA](#solicitud_invalida).
+- `CONFIRMACION_NO_DISPONIBLE`: ver [CONFIRMACION_NO_DISPONIBLE](#confirmacion_no_disponible).
+- `CONFIRMACION_RECHAZADA`: ver [CONFIRMACION_RECHAZADA](#confirmacion_rechazada).
+
+### CONFIRMACION_NO_DISPONIBLE
+
+- **Qué significa:** `anular_documento` o `registrar_cai` necesitan la confirmación del usuario por elicitación MCP
+  y el cliente MCP no la ofrece. No se hizo nada. (Anular un documento de prueba y registrar el CAI ficticio del
+  demo no la necesitan.)
+- **Solución:** registra el CAI tú con `npx -y @factura-hn/mcp registrar-cai`, usa un cliente con elicitación o, si
+  aceptas que el asistente anule y registre CAI sin esa confirmación, agrega `FHN_MCP_PERMITIR_DESTRUCTIVAS=1` al
+  `env` del servidor MCP y reinícialo.
+
+### CONFIRMACION_RECHAZADA
+
+- **Qué significa:** el servidor MCP pidió confirmación para anular o registrar un CAI y el usuario la rechazó, la
+  canceló o no marcó la casilla. No se hizo nada.
+- **Solución:** no la reintentes automáticamente: revisa los datos con el usuario y vuelve a llamar solo si lo pide.
 
 En modo API, el servidor MCP pasa tal cual los códigos de la [API REST](#api-rest).
 

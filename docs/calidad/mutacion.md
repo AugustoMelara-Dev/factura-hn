@@ -28,6 +28,11 @@ excluidos con comentario no cuentan.
 | `numeracion.ts` | 69.91 % | 100.00 % | 113 | 0 | 0 | 0 |
 | **Total** | **67.94 %** | **99.11 %** | 1887 | 17 | 0 | 10 |
 
+**Tras el Lote 6** (25-11-2026), con las reglas nuevas de notas y anulación: total **98.98 %**; `autorizacion.ts`
+98.99 %, `calculo.ts` 97.90 %, `dinero.ts` 97.30 %, `documento.ts` 99.37 %, y `identificacion.ts`, `letras.ts`,
+`modo.ts` y `numeracion.ts` 100 %. Un mutante nuevo de `estadoAutorizacion` queda vivo por equivalente (`null + 1`
+es 1 en JavaScript), con su comentario en el código.
+
 «Antes» es `main` con el Lote 4 (1943 mutantes: 1320 muertos, 438 sobrevivientes, 185 sin cobertura). La mayoría
 eran mensajes y campos de error que ninguna prueba comparaba, ramas de validación que solo se probaban desde la API
 (cantidad 0, precio negativo, CAI vacío, rango invertido…) y bordes exactos (correlativo 99999999, 90 % del rango,
