@@ -1,0 +1,27 @@
+---
+// Precios: todo es gratis y de código abierto (MIT). Sin planes de pago inventados.
+// El texto sale de src/md/precios.md, la misma fuente de su versión para IA (/precios.md).
+import Sitio from '../layouts/Sitio.astro';
+import { Content } from '../md/precios.md';
+---
+
+<Sitio titulo="Precios" descripcion="factura-hn es gratis y de código abierto (MIT): SDK, CLI, API para autoalojar, servidor MCP y la demostración pública con datos de prueba." ruta="/precios/">
+	<header class="pagina-cabeza">
+		<div class="contenedor">
+			<p class="antetitulo">Precios</p>
+			<h1>Gratis y de código abierto.</h1>
+			<p class="entrada">El SDK, la CLI, la API, el MCP y la demostración pública no cuestan nada. La licencia es MIT.</p>
+		</div>
+	</header>
+	<div class="contenedor">
+		<div class="prosa contenedor-texto cuerpo">
+			<Content />
+		</div>
+	</div>
+</Sitio>
+
+<style>
+	.cuerpo {
+		padding-block: clamp(2.5rem, 6vw, 4rem) clamp(4rem, 9vw, 6rem);
+	}
+</style>
