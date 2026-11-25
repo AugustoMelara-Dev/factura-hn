@@ -49,8 +49,9 @@ es `01`.
 - **Momento de emisión.** Se emite con lo primero que ocurra entre la entrega del bien y el pago o el
   otorgamiento del crédito; en servicios, al pago o al crédito (Art. 14). El SDK no puede saber cuándo ocurre:
   decidirlo es tarea de tu sistema.
-- **La fecha es la de hoy.** La pone el reloj en hora de Honduras. No se puede retrofechar ni adelantar (Arts. 14
-  y 43; DEC-022).
+- **La fecha es la de hoy.** La pone el reloj en hora de Honduras y no se puede retrofechar ni adelantar: es una
+  regla del proyecto (DEC-022, aprobada) para cumplir el momento de emisión (Art. 14) y el archivo cronológico
+  (Art. 43).
 - **Descuentos.** Los descuentos que constan en la factura no forman parte de la base gravable (Ley del ISV,
   Art. 3).
 - **Redondeo del ISV.** Con precios con ISV incluido, el total puede quedar un centavo por debajo de la suma de
