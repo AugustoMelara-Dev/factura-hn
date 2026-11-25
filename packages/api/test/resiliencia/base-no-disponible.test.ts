@@ -33,6 +33,8 @@ describe('esBaseNoDisponible', () => {
       conCodigo('permission denied for table api_llaves', '42501'),
       conCodigo('could not serialize access', '40001'),
       conCodigo('factura-hn: la serie de correlativos no retrocede', 'P0001'),
+      // Clase 08, pero es un error del código (SELECT $1::int + $2::int con un solo parámetro): 500, no 503.
+      conCodigo('bind message supplies 1 parameters, but prepared statement "" requires 2', '08P01'),
       new Error('conexión rechazada: secreto-interno'),
       new TypeError('x is undefined'),
     ]) {

@@ -16,7 +16,7 @@ export class ErrorApi extends Error {
 
 /**
  * Si el error dice que la base no está disponible por un momento: PostgreSQL se reinicia o se cae (57P01, 57P02,
- * 57P03), la conexión se cortó o se rechazó (clase 08, ECONNREFUSED, ECONNRESET…), no hay conexiones libres
+ * 57P03), la conexión se cortó o se rechazó (08000, 08001, 08003, 08004, 08006, ECONNREFUSED, ECONNRESET…), no hay conexiones libres
  * (53300) o el pool no logró conectar a tiempo. La API responde 503 `BASE_NO_DISPONIBLE` en lugar de 500: el
  * cliente sabe que debe reintentar (al emitir, con la misma Idempotency-Key).
  */
@@ -24,7 +24,9 @@ export function esBaseNoDisponible(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
   const codigo = (e as { code?: unknown }).code;
   if (typeof codigo === 'string') {
-    if (/^(08[0-9A-Z]{3}|57P0[123]|53300)$/.test(codigo)) return true;
+    // Solo los códigos de conexión de la clase 08: 08P01 (protocol_violation) también lo produce un error del
+    // código (p. ej. menos parámetros que los que pide la consulta) y debe quedar como 500 con su traza.
+    if (/^(0800[0-46]|57P0[123]|53300)$/.test(codigo)) return true;
     if (/^E(CONNREFUSED|CONNRESET|TIMEDOUT|PIPE|AI_AGAIN|NOTFOUND|HOSTUNREACH|NETUNREACH)$/.test(codigo)) return true;
   }
   return /Connection terminated|timeout exceeded when trying to connect|is not queryable|the database system is (starting up|shutting down|in recovery mode|not yet accepting connections)/i.test(
