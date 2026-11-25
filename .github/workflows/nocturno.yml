@@ -64,7 +64,8 @@ jobs:
   carga-y-resiliencia:
     name: Carga larga (5 min, 64 conexiones, 16 cajas) y resiliencia larga
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 10 min de carga, hasta 15 min para vaciar la cola de webhooks y la resiliencia larga.
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:16-alpine

@@ -31,6 +31,11 @@ interface Perfil {
   tasa: number;
   /** 1: un webhook suscrito a documento.emitido, hacia un receptor local (cada emisión encola un aviso). 0: sin webhook. */
   webhook: number;
+  /**
+   * Segundos que se espera, después de la carga, a que todos los avisos queden entregados (por defecto 120). La
+   * cola de webhooks se vacía después de la carga: de noche, con unos 90 000 avisos, hace falta más que en el CI.
+   */
+  vaciarS?: number;
   umbrales: { p50Ms: number; p95Ms: number; p99Ms: number; minDocumentosPorS: number; maxErrores: number };
 }
 
@@ -285,13 +290,13 @@ try {
   );
   const clavesQueNoCoinciden = [...numerosPorClave].filter(([k, s]) => s.size !== 1 || enBase.get(k) !== [...s][0]).map(([k]) => k);
 
-  // Los avisos de webhook: uno por documento, todos entregados (el despacho corre cada 5 s).
+  // Los avisos de webhook: uno por documento, todos entregados (el despacho corre cada 5 s) dentro de `vaciarS`.
   const filasEntregas = async () => (await dueno.query<{ estado: string; n: number }>(
     "SELECT estado, count(*)::int AS n FROM api_entregas WHERE tenant = $1 AND evento = 'documento.emitido' GROUP BY estado", [tenant],
   )).rows;
   const inicioEntregas = Date.now();
   let entregas = await filasEntregas();
-  while (perfil.webhook && entregas.some((f) => f.estado !== 'ENTREGADA') && Date.now() < inicioEntregas + 120_000) {
+  while (perfil.webhook && entregas.some((f) => f.estado !== 'ENTREGADA') && Date.now() < inicioEntregas + (perfil.vaciarS ?? 120) * 1000) {
     await esperar(500);
     entregas = await filasEntregas();
   }

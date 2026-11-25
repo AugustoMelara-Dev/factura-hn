@@ -13,7 +13,7 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
   - **Lote 3 (sitio Starlight):** hecho (d3cdfc4, PR #10).
   - **Lote 4 (API para integradores):** hecho (cc2bbd0, PR #11).
   - **Lote 5 (calidad medida):** hecho (39072d8, PR #12).
-  - **Lote 6 (revisión final y 0.3.0):** en el PR `lote6/integracion`. La 0.3.0 queda versionada en `main`; se
+  - **Lote 6 (revisión final y 0.3.0):** hecho (9c05751, PR #13). La 0.3.0 queda versionada en `main`; se
     publica cuando el responsable active `PUBLICAR_NPM`.
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
@@ -234,12 +234,14 @@ rama la revisó un subagente que no la escribió, y su autor corrigió los halla
 
 ## Sigue
 
-1. Fusionar el PR del Lote 6 con la CI en verde y correr `nocturno.yml` a mano.
+1. Correr `nocturno.yml` a mano con la espera de la cola de webhooks (DEC-204) y confirmarlo en verde.
 2. El responsable:
    - confirma Trusted Publisher en los seis paquetes y la regla de ramas del entorno `npm`;
    - activa `PUBLICAR_NPM` (publica la 0.3.0) y `PUBLICAR_SITIO`;
    - envía `docs/consulta-sar.md` (P-01 a P-20) y, con la respuesta, cierra los [REVISAR].
 3. Pendientes menores:
+   - despacho de webhooks en paralelo dentro de cada pasada (DEC-204): hoy unos 100 avisos/s en el runner de
+     GitHub;
    - documentos ya guardados con un NUL (anteriores al Lote 4) siguen rompiendo el listado sin líneas de su tenant;
    - etiquetas del OpenAPI con tilde (`Sesión`, `Auditoría`) dan módulos raros en el cliente de Python;
    - imagen Docker en GHCR, con permiso del responsable;
