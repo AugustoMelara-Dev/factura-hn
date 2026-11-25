@@ -2721,5 +2721,17 @@ Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
   - La versión 0.3.0 sale de `pnpm run version` (changesets y `scripts/fijar-versiones.mjs`).
   - `scripts/auditar-datos.mjs` no toma por RTN un importe con decimales (`8695652173913.00` en las pruebas del
     tope técnico): el patrón de 13 o 14 dígitos excluye los que siguen con `.` y un dígito.
+  - Tras la revisión independiente de la rama integrada:
+    - `docs/errores.md` y `docs/normativa.md` viajan en el paquete `factura-hn`. Citan la consulta al SAR por la URL
+      del sitio, sin número de pregunta ni de decisión.
+    - `packages/api/CHANGELOG.md` existe y `fijar-versiones.mjs` le agrega cada versión, porque changesets/action
+      lee el CHANGELOG de todo paquete cuya versión cambió.
+    - Los CHANGELOG de `cliente` y `mcp` y el de la raíz (que el sitio muestra en «Cambios») resumen los cambios
+      incompatibles de la API y del MCP. Se quitaron los hashes de commits de la rama, que no existirán en `main`
+      tras el squash.
+    - La batería `ejecutarContratoAlmacen` prueba el tope por tasa con notas previas guardadas (SQLite y
+      PostgreSQL).
+    - Las pruebas de webhooks programan el reintento 1 s en el pasado: el reloj de Node y el de PostgreSQL pueden
+      diferir unos milisegundos.
 - **Alternativa:** dejar las pruebas viejas con la regla nueva desactivada en el MCP; se descartó porque el MCP usa
   el mismo núcleo y debe comportarse igual.

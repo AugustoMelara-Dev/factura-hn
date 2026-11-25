@@ -309,7 +309,7 @@ La API se diseña para dos modos con el mismo código:
 
 ### Preguntas abiertas para el SAR o un contador
 
-Redactadas como consulta formal en `docs/consulta-sar.md` (las 14; aún no enviada).
+Redactadas como consulta formal en `docs/consulta-sar.md` (P-01 a P-20; aún no enviada).
 
 | ID | Pregunta | Por qué importa |
 |---|---|---|
@@ -328,6 +328,11 @@ Redactadas como consulta formal en `docs/consulta-sar.md` (las 14; aún no envia
 | P-14 | ¿Publicó el SAR un formato de archivo de texto (layout) para el traslado del Art. 53 num. 5 por autoimpresores? Si existe, se agrega como un formato más de `exportarTexto` | B-10 |
 | P-13 | ¿Hay un piso de fecha válido para la primera emisión de una serie (p. ej. la fecha de la resolución que otorga el CAI)? Si la resolución trae fecha de emisión, el SDK podría rechazar fechas anteriores | Sección 2, «Reloj del dispositivo y orden cronológico» |
 | P-15 | ¿Un CAI otorgado para **otro sistema o para talonarios** de imprenta puede seguir usándose al cambiar de sistema (Art. 61), o hace falta una autorización nueva? | Registro del CAI al migrar (DEC-102) |
+| P-16 | ¿La suma de las notas de crédito puede superar el total del comprobante, o a una tasa su gravado o su ISV? ¿Puede la nota llevar otra tasa, o ISV sobre un comprobante exonerado? ¿Las notas de débito amplían el tope? | Tope de la nota (DEC-051, DEC-183) |
+| P-17 | ¿Hay un formato establecido para el libro de ventas de un autoimpresor? En moneda extranjera, ¿cada importe se convierte con el tipo de cambio del documento? | DEC-050 |
+| P-18 | En un comprobante en moneda extranjera, ¿debe imprimirse el equivalente en lempiras del ISV y del total, y con qué redondeo? | DEC-068 |
+| P-19 | ¿Puede emitirse una nota sobre una factura a CONSUMIDOR FINAL? Si puede, ¿con qué RTN? | DEC-079 |
+| P-20 | ¿Puede anularse un comprobante con notas de crédito o débito vigentes? Si no, ¿se anulan primero las notas? | DEC-182 |
 
 ---
 

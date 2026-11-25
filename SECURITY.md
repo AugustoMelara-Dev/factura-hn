@@ -4,7 +4,7 @@
 
 | Versión | Soporte |
 |---|---|
-| 0.2.x (la más reciente) | ✅ |
+| 0.3.x (la más reciente) | ✅ |
 | Anteriores | ❌ |
 
 ## Reportar una vulnerabilidad

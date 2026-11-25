@@ -421,6 +421,30 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       }
     }), 30_000);
 
+    t.it('el tope de la nota de crédito por tasa suma las notas previas guardadas (Art. 4 num. 32; interpretación en consulta)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-F', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
+      const cliente = { nombre: 'Cliente de Prueba', rtn: '99990000000002' };
+      // L 100.00 exento + L 100.00 al 15 %: total L 215.00.
+      const f = await emitir(D.entrada({
+        cliente,
+        lineas: [
+          { descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '100.00', isv: 'EXENTO' },
+          { descripcion: 'Martillo', cantidad: '1', precioUnitario: '100.00' },
+        ],
+      }), { almacen: a, ...base });
+      const nota = (precioUnitario: string, isv?: 'EXENTO') => D.entrada({
+        tipoDocumento: '06', cliente, motivo: 'Devolución',
+        referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision },
+        lineas: [{ descripcion: isv ? 'Arroz 5 lb' : 'Martillo', cantidad: '1', precioUnitario, ...(isv ? { isv } : {}) }],
+      });
+      await emitir(nota('60.00'), { almacen: a, ...base });
+      // L 40.01 al 15 % cabe en el total (L 46.01 de L 146.00 de saldo), pero no en el saldo gravado al 15 % (L 40.00).
+      igual(await codigoDeError(() => emitir(nota('40.01'), { almacen: a, ...base })), 'NOTA_SUPERA_ORIGINAL', 'saldo al 15 %');
+      await emitir(nota('40.00'), { almacen: a, ...base });
+      igual((await emitir(nota('100.00', 'EXENTO'), { almacen: a, ...base })).totales.total, 100, 'lo exento en otra nota');
+    }), 30_000);
+
     const n = config.concurrencia ?? 50;
     t.it(`${n} emisiones concurrentes desde varias cajas: sin huecos ni repetidos`, conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 1000));

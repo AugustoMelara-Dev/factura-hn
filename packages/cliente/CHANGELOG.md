@@ -2,6 +2,19 @@
 
 ## 0.3.0
 
+**Cambios incompatibles de la API en la 0.3.0** (el detalle sigue abajo):
+
+- `POST /v1/documentos/{numero}/anular` rechaza con `DOCUMENTO_CON_NOTAS` un documento con notas vigentes: anula
+  primero sus notas.
+- Una nota de crédito que supera el gravado o el ISV del original a una tasa da `NOTA_SUPERA_ORIGINAL`, aunque no
+  supere el total.
+- `GET /v1/exportacion` (CSV y TXT) es la versión 2: dos columnas más al final (`tipoCambio` y `fechaAnulacion`) y
+  el encabezado TXT `#factura-hn|v2|N`.
+- Sin la cabecera `Idempotency-Key`, el código es `IDEMPOTENCY_KEY` (antes `SOLICITUD_INVALIDA`).
+- En modo local (`FHN_MODO=local`), una llave de otro tenant recibe 403 `TENANT_FUERA_DEL_MODO_LOCAL`, y
+  `tenant crear` se niega.
+- Los paquetes piden Node 20 o más reciente.
+
 ### Minor Changes
 
 - 74a8eea: API REST y cliente: la primera factura en 3 pasos.

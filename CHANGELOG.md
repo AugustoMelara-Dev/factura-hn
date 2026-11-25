@@ -15,6 +15,22 @@ Los seis comparten número de versión. Busca primero «Cambios incompatibles» 
 La API REST (`@factura-hn/api`, no se publica en npm) sigue la misma versión: sus cambios van en el CHANGELOG
 de `@factura-hn/cliente`.
 
+### Cambios incompatibles (resumen)
+
+- **Node 20** o más reciente en todos los paquetes.
+- **Anulación:** un documento con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`), ni en el SDK, ni en la API,
+  ni en el MCP. Primero se anulan las notas.
+- **Notas de crédito:** el tope se aplica también a cada tasa (gravado e ISV), no solo al total
+  (`NOTA_SUPERA_ORIGINAL`).
+- **Exportación versión 2:** CSV y TXT con dos columnas más al final (`tipoCambio` y `fechaAnulacion`) y el
+  encabezado TXT `#factura-hn|v2|N`.
+- **Reportes sin documentos de prueba:** `exportarTexto` y `libroVentas` (y sus rutas en la API y el MCP) dejan
+  fuera los documentos de prueba.
+- **API:** `IDEMPOTENCY_KEY` cuando falta la cabecera; en modo local, 403 `TENANT_FUERA_DEL_MODO_LOCAL` para otros
+  tenants.
+- **MCP:** `anular_documento` y `registrar_cai` piden confirmación por elicitación sobre datos reales
+  (`CONFIRMACION_NO_DISPONIBLE` sin ella, salvo `FHN_MCP_PERMITIR_DESTRUCTIVAS=1`).
+
 ## 0.2.0 — 2026-11-24
 
 Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles

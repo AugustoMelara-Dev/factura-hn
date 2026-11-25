@@ -61,10 +61,6 @@
 - Updated dependencies [cc2bbd0]
 - Updated dependencies [39072d8]
 - Updated dependencies [39072d8]
-- Updated dependencies [9b5f92f]
-- Updated dependencies [9b5f92f]
-- Updated dependencies [0c0f2e6]
-- Updated dependencies [6552753]
 - Updated dependencies [74a8eea]
   - factura-hn@0.3.0
 

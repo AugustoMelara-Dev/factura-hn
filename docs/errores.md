@@ -569,14 +569,13 @@ moneda: la mayoría de estos errores desaparecen.
 - **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
   línea la misma tasa que en el original.
 - **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente). El tope es una
-  interpretación del proyecto (DEC-051), en consulta al SAR: [P-16](consulta-sar.md#p-16-tope-de-la-nota-de-crédito-y-su-tasa).
+  interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### NOTA_TASA_DISTINTA
 
 - **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
 - **Solución:** usa en cada línea el mismo tratamiento de ISV que en el original.
-- **Base:** Reglamento, Art. 4 num. 32. Interpretación del proyecto (DEC-051), en consulta al SAR:
-  [P-16](consulta-sar.md#p-16-tope-de-la-nota-de-crédito-y-su-tasa).
+- **Base:** Reglamento, Art. 4 num. 32. Interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ## SDK: anulación y consulta
 
@@ -600,8 +599,7 @@ moneda: la mayoría de estos errores desaparecen.
   después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.
 - **Base:** Reglamento, Art. 41 (anulación) y Art. 4 num. 32 (la nota respalda un ajuste sobre el comprobante
   correspondiente). Es la regla inversa de [`REFERENCIA_ANULADA`](#referencia_anulada). Ningún artículo la dice
-  así: es una interpretación del proyecto, en consulta al SAR:
-  [P-20](consulta-sar.md#p-20-anulación-de-un-documento-con-notas-vigentes).
+  así: es una interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### DOCUMENTO_NO_ENCONTRADO
 
@@ -661,8 +659,7 @@ moneda: la mayoría de estos errores desaparecen.
   emite con el RTN que indiques, que el original no tenía.
 - **Qué hacer:** confirma que la nota corresponde al mismo cliente.
 - **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente). Aceptar un RTN que el original no tiene
-  es una lectura del proyecto (DEC-079), en consulta al SAR:
-  [P-19](consulta-sar.md#p-19-nota-con-un-rtn-que-el-original-no-tiene).
+  es una lectura del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### AVISO_NOTA_EXONERACION_DISTINTA
 
@@ -672,8 +669,7 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué hacer:** si el original es exonerado, copia su `exoneracion` en la nota; si no lo es, quita `exoneracion`
   de la nota. El aviso trae esa `solucion`.
 - **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente) y Art. 11 num. 4 (datos del
-  adquirente exonerado). Es un aviso del proyecto (DEC-051), en consulta al SAR:
-  [P-16](consulta-sar.md#p-16-tope-de-la-nota-de-crédito-y-su-tasa).
+  adquirente exonerado). Es un aviso del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### AVISO_VENCIMIENTO
 

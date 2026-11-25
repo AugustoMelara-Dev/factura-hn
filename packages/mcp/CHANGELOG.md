@@ -2,6 +2,15 @@
 
 ## 0.3.0
 
+**Cambios incompatibles del MCP en la 0.3.0** (el detalle sigue abajo):
+
+- `anular_documento` y `registrar_cai` piden confirmación por elicitación sobre datos reales. Con un cliente MCP que
+  no ofrece elicitación se niegan con `CONFIRMACION_NO_DISPONIBLE`, salvo con `FHN_MCP_PERMITIR_DESTRUCTIVAS=1`.
+- `anular_documento` rechaza con `DOCUMENTO_CON_NOTAS` un documento con notas vigentes: anula primero sus notas.
+- Una nota de crédito que supera el gravado o el ISV del original a una tasa da `NOTA_SUPERA_ORIGINAL`, aunque no
+  supere el total.
+- Los paquetes piden Node 20 o más reciente (el modo SQLite del MCP, Node 22.13).
+
 ### Minor Changes
 
 - El MCP usa el mismo modo de prueba que el SDK y deja los documentos de prueba fuera del libro de ventas.
@@ -70,7 +79,6 @@
     0.x.y. Sus tipos usan los de Node (`@types/node`, dependencia par opcional).
 - Updated dependencies [74a8eea]
 - Updated dependencies [74a8eea]
-- Updated dependencies [9b5f92f]
 - Updated dependencies [74a8eea]
 - Updated dependencies [cc2bbd0]
 - Updated dependencies [cc2bbd0]
@@ -80,11 +88,6 @@
 - Updated dependencies [39072d8]
 - Updated dependencies [39072d8]
 - Updated dependencies [39072d8]
-- Updated dependencies [b997326]
-- Updated dependencies [9b5f92f]
-- Updated dependencies [9b5f92f]
-- Updated dependencies [0c0f2e6]
-- Updated dependencies [6552753]
 - Updated dependencies [74a8eea]
   - @factura-hn/cliente@0.3.0
   - factura-hn@0.3.0
