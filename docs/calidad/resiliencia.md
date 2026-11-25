@@ -12,7 +12,7 @@ pnpm resiliencia --larga    # versión nocturna: 5 reinicios y 5 caídas, más a
 ```
 
 `pnpm resiliencia` crea un PostgreSQL desechable con los binarios locales (`scripts/pg-temporal.mjs`: `initdb` y
-`pg_ctl`, en `.pg-temporal/`, puerto 55440), corre las pruebas que lo detienen y lo arrancan, y lo borra al
+`pg_ctl`, en `.pg-temporal/`, puerto 25440), corre las pruebas que lo detienen y lo arrancan, y lo borra al
 terminar. Nunca reinicia la base de `pnpm test:pg` ni el contenedor de Docker Compose. Si los binarios no están en
 la ruta habitual, indícala con `FHN_PG_BIN`. Las pruebas de webhooks caídos no reinician la base: su versión corta
 corre en `pnpm test:pg`.

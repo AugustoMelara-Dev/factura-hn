@@ -2735,3 +2735,25 @@ Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
       diferir unos milisegundos.
 - **Alternativa:** dejar las pruebas viejas con la regla nueva desactivada en el MCP; se descartó porque el MCP usa
   el mismo núcleo y debe comportarse igual.
+
+### DEC-204 · La carga nocturna espera hasta 15 min a que se vacíe la cola de webhooks
+- **Contexto:** la primera carga nocturna después del Lote 6 tuvo integridad completa (91 017 documentos, 0
+  duplicados, 0 huecos, p95 de 11,3 ms a 30/s), pero falló por los webhooks: a los 120 s de terminar había 71 327
+  avisos entregados de 91 017, y ninguno perdido. En el runner de GitHub (4 vCPU) el despacho entrega unos 100
+  avisos/s, contra 274 documentos/s en saturación, así que la cola se vacía después de la carga.
+- **Elegida:** el perfil de carga admite `vaciarS` (por defecto 120). El perfil `nocturno` usa 900 s y sigue
+  exigiendo todos los avisos entregados, uno por documento. El trabajo nocturno pasa a 60 min de tope. Los
+  perfiles `ci` y `local` no cambian.
+- **Alternativa:** subir el rendimiento del despacho (entregas en paralelo dentro de cada pasada, con el mismo
+  arriendo). Queda como propuesta: con emisión sostenida por encima de unos 100 documentos/s, los avisos llegan
+  con retraso, pero no se pierden.
+
+### DEC-205 · El PostgreSQL desechable de la resiliencia escucha en el puerto 25440
+- **Contexto:** `pnpm resiliencia` falló en el CI de GitHub porque `pg_ctl start` no pudo usar 127.0.0.1:55440
+  («Address already in use»). Ese puerto está dentro de los puertos efímeros de Linux (32768-60999) y de Windows
+  (49152-65535): una conexión saliente de una prueba anterior lo puede tener tomado.
+- **Elegida:** el puerto por defecto es 25440, fuera de ambos rangos. `FHN_PG_TEMPORAL_PUERTO` lo sigue cambiando.
+  Reemplaza el puerto citado en la decisión del Lote 5 sobre el PostgreSQL desechable.
+- **Alternativa:** pedir un puerto libre al sistema antes de arrancar; se descartó porque el clúster se reinicia
+  varias veces en la misma prueba y el puerto podría quedar tomado entre un arranque y el siguiente.
+
