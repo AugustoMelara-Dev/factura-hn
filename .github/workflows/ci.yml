@@ -57,6 +57,8 @@ jobs:
           pnpm --filter @factura-hn/api openapi
           pnpm --filter @factura-hn/cliente generar
           git diff --exit-code -- packages/api/openapi.json packages/cliente/src/esquema.ts
+      - name: Linter de OpenAPI (Redocly; operationId en todas las operaciones)
+        run: pnpm lint:openapi
       - name: Build de Next.js y del playground
         run: |
           pnpm --filter @factura-hn/ejemplo-nextjs build

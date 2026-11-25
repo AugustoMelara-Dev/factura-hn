@@ -21,6 +21,7 @@
     "playground": "pnpm --filter @factura-hn/ejemplo-playground build",
     "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start",
     "auditar:datos": "node scripts/auditar-datos.mjs",
+    "lint:openapi": "redocly lint packages/api/openapi.json",
     "changeset": "changeset",
     "release": "pnpm build && node scripts/verificar-dist.mjs && node scripts/publicar.mjs",
     "sitio": "pnpm playground && pnpm --filter @factura-hn/sitio construir",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3",
+    "@redocly/cli": "2.82.0",
     "@types/node": "^22.0.0",
     "tsup": "^8.0.0",
     "tsx": "^4.23.15",
