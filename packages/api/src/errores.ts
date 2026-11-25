@@ -28,8 +28,12 @@ export interface CuerpoError {
 export const URL_ERRORES = 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md';
 export const documentacionDe = (codigo: string): string => `${URL_ERRORES}#${codigo.toLowerCase()}`;
 
-/** Cómo se invoca la consola del operador fuera de Docker. En la imagen, `FHN_CONSOLA` le antepone `docker compose exec api`. */
-export const CONSOLA_POR_DEFECTO = 'factura-hn-api';
+/**
+ * Cómo se invoca la consola del operador fuera de Docker, desde la raíz del repositorio compilado: el paquete es
+ * privado y `factura-hn-api` no queda en el PATH. En la imagen, `FHN_CONSOLA` dice
+ * `docker compose exec api factura-hn-api`.
+ */
+export const CONSOLA_POR_DEFECTO = 'node packages/api/dist/cli.js';
 
 export interface ContextoGuia {
   /** Forma de invocar la consola del operador en este despliegue (p. ej. `docker compose exec api factura-hn-api`). */

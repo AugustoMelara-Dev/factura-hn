@@ -33,9 +33,9 @@ describe('consola: ayuda y uso', () => {
   it('ayuda de un subcomando, también con --help', async () => {
     const a = await correr(['ayuda', 'llave', 'crear']);
     expect(a.codigo).toBe(0);
-    expect(a.log).toContain('Uso: factura-hn-api llave crear <tenant> --rol admin|caja');
+    expect(a.log).toContain('Uso: node packages/api/dist/cli.js llave crear <tenant> --rol admin|caja');
     const b = await correr(['demo', 'llave', '--help']);
-    expect(b.log).toContain('Uso: factura-hn-api demo llave');
+    expect(b.log).toContain('Uso: node packages/api/dist/cli.js demo llave');
   });
 
   it('usa FHN_CONSOLA para mostrar cómo se invoca', async () => {
@@ -61,7 +61,7 @@ describe('consola: ayuda y uso', () => {
       const r = await correr([...args]);
       expect(r.codigo, args.join(' ')).toBe(1);
       expect(r.error, args.join(' ')).toContain(mensaje);
-      expect(r.error, args.join(' ')).toContain('Uso: factura-hn-api');
+      expect(r.error, args.join(' ')).toContain('Uso: node packages/api/dist/cli.js');
     }
     expect(await correr(['migrar'])).toMatchObject({ codigo: 1, error: expect.stringContaining('FHN_MIGRAR_URL') });
   });

@@ -7,6 +7,7 @@ import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenPostgres } from '@factura-hn/postgres';
 import { generarLlave, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
+import { CONSOLA_POR_DEFECTO } from './errores';
 
 export const TENANT_LOCAL = 'local';
 const TENANT = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -105,10 +106,10 @@ export const EMISOR_DEMO = {
 export const TENANT_DEMO = 'demo';
 
 /**
- * Cómo invocar la consola del operador: `factura-hn-api`, o lo que diga `FHN_CONSOLA` (la imagen de Docker la
- * define como `docker compose exec api factura-hn-api`).
+ * Cómo invocar la consola del operador: lo que diga `FHN_CONSOLA` (la imagen de Docker la define como
+ * `docker compose exec api factura-hn-api`) o, fuera de Docker, `node packages/api/dist/cli.js`.
  */
-export const consolaDe = (env: NodeJS.ProcessEnv): string => env.FHN_CONSOLA?.trim() || 'factura-hn-api';
+export const consolaDe = (env: NodeJS.ProcessEnv): string => env.FHN_CONSOLA?.trim() || CONSOLA_POR_DEFECTO;
 
 /** Comando para crear la llave admin del tenant `local`. */
 export const comandoLlaveAdminLocal = (consola: string): string => `${consola} llave crear local --rol admin --nombre Administración`;

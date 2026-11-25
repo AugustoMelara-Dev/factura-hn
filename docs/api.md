@@ -101,20 +101,21 @@ Documentación interactiva en `/docs` y especificación en `/openapi.json` (tamb
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor. El puerto publicado por Compose es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
-| `FHN_CONSOLA` | `factura-hn-api` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
+| `FHN_CONSOLA` | `node packages/api/dist/cli.js` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
 | `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
 | `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool (`FHN_POOL`, 20 por defecto) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
 
 ### Consola del operador
 
-La consola se llama `factura-hn-api`. Cómo se invoca depende de dónde corre la API:
+Cómo se invoca la consola del operador depende de dónde corre la API:
 
 | Dónde | Cómo |
 |---|---|
 | Docker Compose (`docker-compose.yml`) | `docker compose exec api factura-hn-api <comando>` |
-| Tu propio servidor, con el repositorio compilado (`pnpm build`) | `factura-hn-api <comando>`, que es `node packages/api/dist/cli.js <comando>` |
+| Tu propio servidor, con el repositorio compilado (`pnpm build`), desde su raíz | `node packages/api/dist/cli.js <comando>` |
 
-En esta guía y en los mensajes del servidor aparece la forma de Docker Compose. Los comandos:
+El paquete `@factura-hn/api` es privado: fuera de Docker, `factura-hn-api` no queda en el PATH. En esta guía
+aparece la forma de Docker Compose; los mensajes del servidor usan la de su despliegue (`FHN_CONSOLA`). Los comandos:
 
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help

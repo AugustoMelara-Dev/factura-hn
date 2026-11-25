@@ -169,7 +169,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
     const s1 = await arrancar(env);
     await s1.cerrar();
     const log = salida.log.join('\n');
-    expect(log).toContain(comandoLlaveAdminLocal('factura-hn-api'));
+    expect(log).toContain(comandoLlaveAdminLocal('node packages/api/dist/cli.js'));
     expect(log).toContain('CAI FICTICIO · DOCUMENTO DE PRUEBA — SIN VALOR FISCAL');
     expect(log).toContain('factura-hn-api demo llave');
     // Sin FHN_MIGRAR_URL, un aviso; con FHN_MODO definido, ningún aviso de modo.
@@ -189,7 +189,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
     salida.log.length = 0;
     await (await arrancar(env)).cerrar();
     expect(salida.log.join('\n')).not.toMatch(LLAVE);
-    expect(salida.log.join('\n')).toContain(comandoLlaveAdminLocal('factura-hn-api'));
+    expect(salida.log.join('\n')).toContain(comandoLlaveAdminLocal('node packages/api/dist/cli.js'));
     expect(salida.log.join('\n')).toMatch(/demostración activa.*factura-hn-api demo llave/);
 
     // Con la llave admin creada por la consola, el aviso ya no sale. Con FHN_CONSOLA (la imagen de Docker), los

@@ -7,12 +7,14 @@ API REST de factura-hn: alojada multi-tenant o instalada en el local del negocio
 
 ## Consola del operador
 
-La consola se llama `factura-hn-api`:
+La consola del operador se invoca así:
 
 | Dónde | Cómo |
 |---|---|
 | Docker Compose | `docker compose exec api factura-hn-api <comando>` |
-| Tu propio servidor, con el repositorio compilado | `factura-hn-api <comando>` (es `node packages/api/dist/cli.js <comando>`) |
+| Tu propio servidor, con el repositorio compilado (`pnpm build`), desde su raíz | `node packages/api/dist/cli.js <comando>` |
+
+El paquete es privado: fuera de Docker, `factura-hn-api` no queda en el PATH.
 
 ```bash
 docker compose exec api factura-hn-api ayuda       # comandos: migrar, tenant crear, llave crear, demo llave, openapi

@@ -115,7 +115,7 @@ export interface ConfigApi {
    * `X-Forwarded-For` se ignora). Ver `ProxiesDeConfianza`.
    */
   proxiesDeConfianza?: ProxiesDeConfianza;
-  /** Cómo se invoca la consola del operador en este despliegue, para los mensajes. Por defecto `factura-hn-api`. */
+  /** Cómo se invoca la consola del operador en este despliegue, para los mensajes. Por defecto `node packages/api/dist/cli.js`. */
   consola?: string;
   /** Si este despliegue tiene el tenant de demostración (modo local): solo entonces la guía de errores lo menciona. */
   hayDemo?: boolean;
