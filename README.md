@@ -284,6 +284,7 @@ mixta.totales.baseCreditoFiscal; // 100
 | `AVISO_AJUSTE_CENTAVO` | Con precios con ISV incluido, el total bajó 1 centavo para cumplir el Art. 9 de la Ley del ISV |
 | `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
 | `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
+| `AVISO_EXONERADO_RTN` | Venta exonerada a un adquirente sin RTN |
 
 **Cliente exonerado con una OCE que no cubre todo:** la exoneración aplica al documento completo. Emite dos
 facturas, una con `exoneracion` y los artículos cubiertos por la Orden de Compra Exenta y otra normal con el
@@ -454,7 +455,7 @@ En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y
 | [`pos-offline`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/pos-offline) | Mini POS fuera de línea: SDK + SQLite, sin duplicados y con cola de sincronización |
 | [`express`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/express) | Express 5 con la API: factura por pedido y receptor de webhooks |
 | [`nextjs`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/nextjs) | Next.js 16: server action y webhooks en un route handler |
-| [`playground`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/playground) | El SDK en el navegador, sin backend |
+| [`playground`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/playground) | El SDK en el navegador, sin servidor |
 
 ## Reglas que tu sistema debe respetar
 

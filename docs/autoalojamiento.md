@@ -184,4 +184,6 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 | `FHN_PUERTO` | `8787` | Puerto publicado en 127.0.0.1 por `docker-compose.yml` (variable de Compose, no de la API) |
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
 
+Las demás variables están en la [guía de la API](api.md#variables-de-entorno).
+
 Referencia completa de la API: [guía de la API](api.md).
