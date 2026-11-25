@@ -85,8 +85,8 @@ todavía no los emite.
 Para emitir cualquiera de los tres haría falta, en este orden:
 
 1. **Sus requisitos, artículo por artículo**, con la línea del texto consolidado que los sostiene, como ya está
-   hecho para la factura y las notas en la matriz de cumplimiento. Hoy el repositorio solo cita dónde están: los
-   Arts. 33, 29 y 20.
+   hecho para la factura y las notas en la matriz de cumplimiento. Por ahora, factura-hn solo sabe en qué
+   artículos están (33, 29 y 20), no qué exige cada uno.
 2. **Cuándo son obligatorios.** Por ejemplo, si una ferretería debe emitir Guía de Remisión al despachar
    mercadería.
 3. **Su cálculo y su impresión en el núcleo**, con una prueba por requisito, y el tipo agregado a
