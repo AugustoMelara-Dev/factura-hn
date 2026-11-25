@@ -53,7 +53,7 @@ SDK: `AutorizacionCAI.cai`. Ver [Cómo funciona](/conceptos/como-funciona/).
 
 Los documentos que respaldan una operación (Art. 6): Factura (01), Recibo por Honorarios (04), Ticket (09),
 Factura Prevalorada (10), Boleta de Compra (11) y Constancia de Donación (12). Una Nota de Crédito solo se vincula a
-uno de ellos (Art. 4 num. 31-32).
+uno de ellos (Art. 4 num. 32 y Art. 6; DEC-016).
 SDK: `COMPROBANTES_FISCALES`. Ver [Documentos](/documentos/).
 
 ### Consumidor final
@@ -204,14 +204,14 @@ Ver [Factura](/documentos/01-factura/).
 
 ### Nota de Crédito
 
-Documento que ajusta un Comprobante Fiscal por devoluciones, descuentos posteriores o anulación de operaciones
-(Art. 4 num. 31). Código 06, con su propia autorización y serie (Arts. 25 y 26).
+Documento que ajusta un Comprobante Fiscal por ajustes, devoluciones, descuentos posteriores o anulación de
+operaciones (Art. 4 num. 32). Código 06, con su propia autorización y serie (Art. 25 num. 5).
 SDK: `tipoDocumento: '06'`. Ver [Nota de Crédito](/documentos/06-nota-de-credito/).
 
 ### Nota de Débito
 
-Documento que registra ajustes sobre un Comprobante Fiscal o sobre otro documento (Art. 4 num. 32 y Art. 28
-num. 3; DEC-016). Código 07, con su propia autorización y serie (Arts. 27 y 28).
+Documento que registra ajustes sobre un Comprobante Fiscal o sobre otro documento (Art. 4 num. 31 y Art. 28
+num. 3 b; DEC-016). Código 07, con su propia autorización y serie (Art. 27 num. 5).
 SDK: `tipoDocumento: '07'`. Ver [Nota de Débito](/documentos/07-nota-de-debito/).
 
 ### Número del documento
