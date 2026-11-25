@@ -438,7 +438,7 @@ export interface components {
                  */
                 documentacion?: string;
                 /**
-                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
+                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.3.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
                  * @example 0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42
                  */
                 solicitud?: string;
