@@ -349,10 +349,10 @@ export interface components {
                  */
                 documentacion?: string;
                 /**
-                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema.
+                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
                  * @example 0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42
                  */
-                solicitud: string;
+                solicitud?: string;
             };
             /** @description En 400 y 422: la lista completa, cada uno con su código y campo. */
             errores?: components["schemas"]["Problema"][];
@@ -717,13 +717,13 @@ export interface components {
     parameters: never;
     requestBodies: never;
     headers: {
-        /** @description Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud` y en el log del servidor. */
+        /** @description Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo. */
         "Solicitud-Id": string;
         /** @description Versión de la API que respondió (la misma de `/salud` y de `info.version`). */
         "FacturaHN-Version": string;
-        /** @description Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo en solicitudes con una llave válida. */
+        /** @description Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`. */
         "RateLimit-Policy": string;
-        /** @description Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo en solicitudes con una llave válida. */
+        /** @description Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`. */
         RateLimit: string;
         /** @description Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras). */
         "Retry-After": number;
@@ -802,8 +802,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -883,8 +881,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -917,13 +913,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1014,8 +1008,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1110,8 +1102,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1144,13 +1134,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1232,8 +1220,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1313,8 +1299,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1334,13 +1318,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1431,8 +1413,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1508,8 +1488,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1599,8 +1577,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1683,8 +1659,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1717,13 +1691,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1820,8 +1792,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1916,8 +1886,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1950,13 +1918,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2053,8 +2019,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2074,13 +2038,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2182,8 +2144,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2289,8 +2249,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2385,8 +2343,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2503,8 +2459,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2586,8 +2540,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2680,8 +2632,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2701,13 +2651,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2785,8 +2733,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2826,6 +2772,17 @@ export interface operations {
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
                     "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
                     RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2894,8 +2851,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2988,8 +2943,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -3022,13 +2975,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE) */
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
             413: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -3119,8 +3070,6 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
-                    RateLimit: components["headers"]["RateLimit"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -3147,6 +3096,17 @@ export interface operations {
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
                     "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
                     RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
                     [name: string]: unknown;
                 };
                 content: {

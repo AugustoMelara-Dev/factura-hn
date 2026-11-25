@@ -170,8 +170,11 @@ export interface Sesion {
   limiteMensual: number | null;
 }
 
-/** `solicitud`: el id de la solicitud (cabecera `Solicitud-Id`), en las respuestas, los errores y el log. */
-type Env = { Variables: { sesion: Sesion; solicitud: string } };
+/**
+ * `solicitud`: el id de la solicitud (cabecera `Solicitud-Id`), en las respuestas y los errores. `idLog`: cómo se
+ * nombra en el log, siempre con un id generado por el servidor (más el del cliente, si mandó uno).
+ */
+type Env = { Variables: { sesion: Sesion; solicitud: string; idLog: string } };
 
 interface LlaveAutenticada {
   tenant: string;
@@ -214,7 +217,7 @@ const CATALOGO_ERRORES = {
   400: conError('Solicitud mal formada: forma, parámetros, cabeceras o JSON'),
   401: conError('Falta la llave de API o no es válida'),
   403: conError('La llave no tiene permiso'),
-  413: conError('El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)'),
+  413: conError('El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.'),
   422: conError('Reglas fiscales: lista de errores'),
   429: conError('Límite de solicitudes (con `Retry-After`)'),
   500: conError('Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`.'),
@@ -271,6 +274,9 @@ export function segundosHastaElMesSiguiente(mes: string, ahora: Date): number {
   // Date.UTC con el mes 1-based como índice 0-based ya es el mes siguiente (y pasa de diciembre a enero).
   return Math.max(1, Math.ceil((Date.UTC(anio, m, 1, 6) - ahora.getTime()) / 1000));
 }
+
+/** Mensaje del `HTTPException(400)` del validador de Hono (`hono/validator`) cuando el cuerpo JSON no se puede leer. */
+const MENSAJE_JSON_MAL_FORMADO = 'Malformed JSON in request body';
 
 /** El cuerpo de error con el id de la solicitud (`error.solicitud`), el mismo de la cabecera `Solicitud-Id`. */
 const conSolicitud = (c: Context<Env>, cuerpo: CuerpoError): CuerpoError => ({ ...cuerpo, error: { ...cuerpo.error, solicitud: c.get('solicitud') } });
@@ -342,8 +348,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // Id de la solicitud y versión de la API en todas las respuestas, también en los errores y en /docs.
   app.use('*', async (c, next) => {
     const delCliente = c.req.header('solicitud-id');
-    const id = delCliente !== undefined && SOLICITUD_ID.test(delCliente) ? delCliente : randomUUID();
+    const interno = randomUUID();
+    const propio = delCliente !== undefined && SOLICITUD_ID.test(delCliente);
+    const id = propio ? delCliente : interno;
     c.set('solicitud', id);
+    // El id del cliente no es único ni confiable: el log lleva siempre el del servidor y, aparte, el del cliente.
+    c.set('idLog', propio ? `${interno} (cliente ${delCliente})` : interno);
     await next();
     c.header('Solicitud-Id', id);
     c.header('FacturaHN-Version', VERSION_API);
@@ -374,13 +384,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }
     if (e instanceof HTTPException) {
       // El validador de Hono rechaza en texto plano un cuerpo que no es JSON: se responde con la forma de error de la API.
-      if (e.status === 400) {
+      // Solo ese caso; cualquier otro HTTPException sigue con su respuesta.
+      if (e.status === 400 && e.message === MENSAJE_JSON_MAL_FORMADO) {
         const cuerpo: CuerpoError = { error: { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es JSON válido: revisa comillas, comas y llaves.' } };
         return c.json<CuerpoError>(conSolicitud(c, conSolucion(cuerpo, guia)), 400);
       }
       return e.getResponse();
     }
-    registrar(`Error interno (solicitud ${c.get('solicitud')})`, e);
+    registrar(`Error interno (solicitud ${c.get('idLog')})`, e);
     return c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.' } }), 500);
   });
   app.notFound((c) => c.json<CuerpoError>(conSolicitud(c, { error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }), 404));
@@ -1406,7 +1417,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'delete', path: '/v1/llaves/{prefijo}', operationId: 'revocarLlave', tags: ['Llaves'], security: seguridad, summary: 'Revoca una llave',
       request: { params: z.object({ prefijo: z.string().regex(/^[0-9a-f]{12}$/) }) },
-      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasDe(400, 401, 403, 429, 500) },
+      responses: { 200: json(S.RespuestaLlave, 'Revocada'), 404: json(S.ErrorRespuesta, 'No existe'), 409: json(S.ErrorRespuesta, 'Última llave admin'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1482,7 +1493,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'delete', path: '/v1/webhooks/{id}', operationId: 'desactivarWebhook', tags: ['Webhooks'], security: seguridad, summary: 'Desactiva un webhook',
       request: { params: z.object({ id: z.string().uuid() }) },
-      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 429, 500) },
+      responses: { 200: json(S.RespuestaWebhook, 'Desactivado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 413, 429, 500) },
     }),
     async (c) => {
       exigirAdmin(c);

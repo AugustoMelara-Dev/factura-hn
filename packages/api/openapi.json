@@ -45,14 +45,13 @@
               },
               "solicitud": {
                 "type": "string",
-                "description": "Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema.",
+                "description": "Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.",
                 "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
               }
             },
             "required": [
               "codigo",
-              "mensaje",
-              "solicitud"
+              "mensaje"
             ]
           },
           "errores": {
@@ -1357,7 +1356,7 @@
     "parameters": {},
     "headers": {
       "Solicitud-Id": {
-        "description": "Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud` y en el log del servidor.",
+        "description": "Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.",
         "schema": {
           "type": "string",
           "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
@@ -1371,14 +1370,14 @@
         }
       },
       "RateLimit-Policy": {
-        "description": "Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo en solicitudes con una llave válida.",
+        "description": "Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.",
         "schema": {
           "type": "string",
           "example": "\"llave\";q=40;w=2"
         }
       },
       "RateLimit": {
-        "description": "Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo en solicitudes con una llave válida.",
+        "description": "Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.",
         "schema": {
           "type": "string",
           "example": "\"llave\";r=39;t=1"
@@ -1544,12 +1543,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1602,7 +1595,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1616,12 +1609,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1777,12 +1764,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -1927,12 +1908,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2109,12 +2084,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2167,7 +2136,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2181,12 +2150,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2354,12 +2317,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2388,7 +2345,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2402,12 +2359,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2563,12 +2514,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2714,12 +2659,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -2854,12 +2793,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3016,12 +2949,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3074,7 +3001,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3088,12 +3015,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3328,12 +3249,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3517,12 +3432,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3701,12 +3610,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3759,7 +3662,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3773,12 +3676,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -3969,12 +3866,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -4003,7 +3894,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4017,12 +3908,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -4229,12 +4114,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -4467,12 +4346,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -4674,12 +4547,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -4927,12 +4794,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5100,12 +4961,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5134,7 +4989,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5148,12 +5003,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5285,12 +5134,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5459,12 +5302,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5537,6 +5374,24 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },
@@ -5681,12 +5536,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5739,7 +5588,7 @@
             }
           },
           "413": {
-            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE)",
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5753,12 +5602,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -5914,12 +5757,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -6088,12 +5925,6 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
               }
             }
           },
@@ -6142,6 +5973,24 @@
               },
               "RateLimit": {
                 "$ref": "#/components/headers/RateLimit"
+              }
+            }
+          },
+          "413": {
+            "description": "El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
               }
             }
           },

@@ -13,7 +13,7 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
   'Solicitud-Id': {
     description:
       'Id de la solicitud. Si mandaste una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, ' +
-      'empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud` y en el log del servidor.',
+      'empezando por letra o dígito), es la tuya; si no, la API genera un UUID. Va también en `error.solicitud`. El log de un 500 lleva siempre un id generado por el servidor y, si mandaste el tuyo, también el tuyo.',
     schema: { type: 'string', example: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42' },
   },
   'FacturaHN-Version': {
@@ -23,12 +23,13 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
   'RateLimit-Policy': {
     description:
       'Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se ' +
-      'recuperan enteras en `w` segundos. Solo en solicitudes con una llave válida.',
+      'recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.',
     schema: { type: 'string', example: '"llave";q=40;w=2' },
   },
   RateLimit: {
     description:
-      'Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo en solicitudes con una llave válida.',
+      'Lo que le queda a la llave: `r` solicitudes y `t` segundos hasta recuperar la ráfaga completa. Solo después de validar la llave: ' +
+      'nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`.',
     schema: { type: 'string', example: '"llave";r=39;t=1' },
   },
   'Retry-After': {
@@ -36,6 +37,9 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
     schema: { type: 'integer', example: 1 },
   },
 };
+
+/** Estados que se responden antes de validar la llave (límite del cuerpo y autenticación): sin cabeceras RateLimit. */
+const ESTADOS_ANTES_DE_LA_LLAVE = new Set(['401', '413']);
 
 const METODOS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const;
 
@@ -47,7 +51,8 @@ type Especificacion = {
 
 /**
  * Agrega a cada respuesta de la especificación las cabeceras que la API siempre envía: `Solicitud-Id` y
- * `FacturaHN-Version` en todas; `RateLimit-Policy` y `RateLimit` en las de `/v1`; `Retry-After` en los 429.
+ * `FacturaHN-Version` en todas; `RateLimit-Policy` y `RateLimit` en las de `/v1` que pueden llegar después de
+ * validar la llave (no en 401 ni 413, que se responden antes); `Retry-After` en los 429.
  * Las cabeceras propias de una respuesta se conservan.
  */
 export function conCabecerasComunes<T>(doc: T): T {
@@ -62,7 +67,7 @@ export function conCabecerasComunes<T>(doc: T): T {
         const nombres = [
           'Solicitud-Id',
           'FacturaHN-Version',
-          ...(ruta.startsWith('/v1/') ? ['RateLimit-Policy', 'RateLimit'] : []),
+          ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
           ...(estado === '429' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };

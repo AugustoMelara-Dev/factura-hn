@@ -5,6 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import { HTTPException } from 'hono/http-exception';
 import { afterAll, describe, expect, it } from 'vitest';
 import { fechaHonduras } from 'factura-hn';
 import { crearApp, segundosHastaElMesSiguiente, VERSION_API } from '../src/app';
@@ -85,21 +86,25 @@ describe('OpenAPI: estados de error', () => {
     expect(con422.sort()).toEqual(['GET /v1/exportacion', 'GET /v1/libro-ventas']);
   });
 
-  it('toda operación de /v1 declara 401, 429 y 500; el 413 solo las que reciben cuerpo', async () => {
+  it('toda operación de /v1 declara 401, 429 y 500; el 413, toda operación que no es GET', async () => {
     for (const o of await especificacion()) {
       const estados = Object.keys(o.op.responses);
       expect(estados, o.nombre).toContain('500');
       if (o.ruta.startsWith('/v1/')) expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '429']));
-      expect(estados.includes('413'), o.nombre).toBe(o.op.requestBody !== undefined);
+      // bodyLimit cubre todo /v1/*: una operación sin cuerpo esperado (DELETE, POST sin cuerpo) también puede dar 413.
+      expect(estados.includes('413'), o.nombre).toBe(o.metodo !== 'get');
     }
   });
 
-  it('cada respuesta declara Solicitud-Id y FacturaHN-Version; las de /v1, RateLimit; los 429, Retry-After', async () => {
+  it('cada respuesta declara Solicitud-Id y FacturaHN-Version; las de /v1, RateLimit salvo 401 y 413; los 429, Retry-After', async () => {
     for (const o of await especificacion()) {
       for (const [estado, r] of Object.entries(o.op.responses)) {
         const cabeceras = Object.keys(r.headers ?? {});
         expect(cabeceras, `${o.nombre} ${estado}`).toEqual(expect.arrayContaining(['Solicitud-Id', 'FacturaHN-Version']));
-        if (o.ruta.startsWith('/v1/')) expect(cabeceras, `${o.nombre} ${estado}`).toEqual(expect.arrayContaining(['RateLimit-Policy', 'RateLimit']));
+        const conLimite = o.ruta.startsWith('/v1/') && estado !== '401' && estado !== '413';
+        expect(cabeceras.includes('RateLimit-Policy') && cabeceras.includes('RateLimit'), `${o.nombre} ${estado}`).toBe(conLimite);
+        // La llave aún no se validó: un 401 nunca declara RateLimit.
+        if (estado === '401') expect(cabeceras.filter((n) => n.startsWith('RateLimit')), `${o.nombre} 401`).toEqual([]);
         expect(cabeceras.includes('Retry-After'), `${o.nombre} ${estado}`).toBe(estado === '429');
       }
     }
@@ -156,7 +161,23 @@ describe('Solicitud-Id y FacturaHN-Version (sin base)', () => {
     const texto = await r.text();
     expect(texto).not.toContain('secreto-interno');
     expect(JSON.parse(texto)).toEqual({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Error interno. Se registró para revisión.', solicitud: 'caso-500' } });
-    expect(log).toEqual(['Error interno (solicitud caso-500)']);
+    // El log lleva un id del servidor y, aparte, el del cliente; el cuerpo y la cabecera repiten el del cliente.
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatch(/^Error interno \(solicitud [0-9a-f-]{36} \(cliente caso-500\)\)$/);
+    const sinPropio = await roto.request('/salud');
+    expect(log[1]).toBe(`Error interno (solicitud ${sinPropio.headers.get('solicitud-id')})`);
+  });
+});
+
+describe('JSON_INVALIDO', () => {
+  it('solo convierte el 400 de JSON mal formado; otro HTTPException(400) sigue con su respuesta', async () => {
+    const app = crearApp({ pool: {} as pg.Pool, modo: 'alojado' });
+    app.get('/prueba-otro-400', () => {
+      throw new HTTPException(400, { message: 'otro problema' });
+    });
+    const r = await app.request('/prueba-otro-400');
+    expect(r.status).toBe(400);
+    expect(await r.text()).toBe('otro problema');
   });
 });
 
