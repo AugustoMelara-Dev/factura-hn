@@ -21,6 +21,7 @@
     "playground": "pnpm --filter @factura-hn/ejemplo-playground build",
     "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start",
     "auditar:datos": "node scripts/auditar-datos.mjs",
+    "calidad:owasp": "node scripts/owasp.mjs",
     "lint:openapi": "redocly lint packages/api/openapi.json",
     "colecciones": "pnpm --filter @factura-hn/colecciones generar",
     "changeset": "changeset",
