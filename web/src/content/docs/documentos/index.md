@@ -22,7 +22,7 @@ esa tabla derogada.
 | `04` | Recibo por Honorarios Profesionales | Art. 18 | **No se emite** | Solo por imprenta (Art. 46) |
 | `05` | Comprobante de Retención | Art. 33 | Pendiente | Falta el cálculo y la impresión; sus requisitos no están analizados en el proyecto |
 | `06` | [Nota de Crédito](/documentos/nota-credito/) | Art. 25 | **Se emite** | Devoluciones, descuentos y anulación de operaciones (Art. 4 num. 32) |
-| `07` | [Nota de Débito](/documentos/nota-debito/) | Art. 27 | **Se emite** | Ajustes que aumentan el monto (Art. 4 num. 31) |
+| `07` | [Nota de Débito](/documentos/nota-debito/) | Art. 27 | **Se emite** | Ajustes sobre un documento emitido (Art. 4 num. 31); los casos concretos están por confirmar |
 | `08` | Guía de Remisión | Art. 29 | Pendiente | Igual que el 05 |
 | `09` | Ticket | Art. 17 | **No se emite** | Solo por máquina registradora (Art. 4 num. 43) |
 | `10` | Factura Prevalorada | Art. 15 | **No se emite** | Solo por imprenta (Art. 46) |

@@ -12,7 +12,7 @@ archivo fiscal mal:
 |---|---|---|
 | El documento **tuvo un error** al emitirse: cantidad, precio, cliente, fecha | **Anular** y, si la venta fue real, emitir uno nuevo | Art. 41 |
 | La venta **fue correcta** y después hay una devolución, un descuento o se deshace la operación | **[Nota de Crédito](/documentos/nota-credito/)** sobre el documento | Art. 4 num. 32 |
-| La venta fue correcta y después hay un ajuste que aumenta el monto | **[Nota de Débito](/documentos/nota-debito/)** | Art. 4 num. 31 |
+| La venta fue correcta y después hay un ajuste sobre el documento | **Nota de Débito** (los casos admitidos están [por confirmar](/documentos/nota-debito/)) | Art. 4 num. 31 |
 | Algo falló **después** de emitir: la impresión o el cobro | **Anular** | Art. 41 |
 
 ## Anular
