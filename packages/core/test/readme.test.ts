@@ -1,7 +1,7 @@
 /**
  * La documentación es código: cada bloque ```ts del README, de AGENTS.md y de los README de los paquetes debe
- * compilar contra la API actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md, llms.txt y la skill
- * deben llevar los mismos prompts y nombrar solo funciones y tipos que existen.
+ * compilar contra la API actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md,
+ * llms.txt y la skill deben llevar los mismos prompts y nombrar solo funciones y tipos que existen.
  *
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
  * HTML inmediatamente anterior:  <!-- declaraciones: declare const carrito: Item[]; -->
