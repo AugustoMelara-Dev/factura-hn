@@ -12,7 +12,7 @@
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
 
-export const VERSION_ESQUEMA_API = 7;
+export const VERSION_ESQUEMA_API = 8;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -89,6 +89,10 @@ CREATE TABLE IF NOT EXISTS api_webhooks (
   creado timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS api_webhooks_tenant ON api_webhooks (tenant);
+-- v8: rotación del secreto con gracia. Mientras anterior_hasta no pase, cada entrega se firma también con el
+-- secreto anterior (dos v1). El mantenimiento borra el secreto anterior cuando la gracia termina.
+ALTER TABLE api_webhooks ADD COLUMN IF NOT EXISTS secreto_anterior text;
+ALTER TABLE api_webhooks ADD COLUMN IF NOT EXISTS anterior_hasta timestamptz;
 
 CREATE TABLE IF NOT EXISTS api_entregas (
   id bigserial PRIMARY KEY,
@@ -109,6 +113,8 @@ CREATE INDEX IF NOT EXISTS api_entregas_pendientes ON api_entregas (tenant, prox
 -- v5: id público de la entrega (cabecera X-FacturaHN-Entrega y campo id del cuerpo). No sale de una secuencia
 -- global: no revela cuántas entregas hay en el servicio. El bigserial sigue siendo solo interno.
 ALTER TABLE api_entregas ADD COLUMN IF NOT EXISTS entrega uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE;
+-- v8: las entregas de un webhook, de la más reciente a la más antigua (GET /v1/webhooks/{id}/entregas).
+CREATE INDEX IF NOT EXISTS api_entregas_por_webhook ON api_entregas (webhook_id, creada DESC, entrega DESC);
 
 CREATE TABLE IF NOT EXISTS api_uso (
   tenant text NOT NULL,
@@ -194,7 +200,9 @@ $$$f$, current_schema());
 -- del documento: la clave y su huella se quedan para siempre, así que un reintento tardío nunca emite otro
 -- documento. (b) Las entregas ENTREGADA o FALLIDA viejas de documento.* se borran (su clave lleva el número del
 -- documento: no se vuelve a encolar). Las de autorizacion.* se quedan como lápida, con el cuerpo vacío: su
--- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan.
+-- clave (evento:cai) es la que impide avisar dos veces. Las PENDIENTE no se tocan. v8: las de webhook.prueba
+-- se borran como las de documento.* (su clave es única por prueba) y el secreto anterior de una rotación se
+-- borra cuando termina su gracia.
 -- api_idempotencia fuerza RLS también al dueño: se recorre tenant por tenant. Todo tenant con claves tiene
 -- llaves (sin una no se emite y las llaves no se borran) y api_llaves no fuerza RLS al dueño.
 -- factura_hn.tenant se guarda al entrar y se devuelve al salir: no queda fijado en la transacción de quien
@@ -218,13 +226,15 @@ BEGIN
      WHERE tenant = v_tenant AND creada < v_limite AND respuesta ? 'documento';
     GET DIAGNOSTICS v_n = ROW_COUNT;
     compactadas := compactadas + v_n;
+    UPDATE api_webhooks SET secreto_anterior = NULL, anterior_hasta = NULL
+     WHERE tenant = v_tenant AND anterior_hasta IS NOT NULL AND anterior_hasta <= now();
   END LOOP;
   PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   DELETE FROM api_entregas
-   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'documento.%%';
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND (evento LIKE 'documento.%%' OR evento = 'webhook.prueba');
   GET DIAGNOSTICS entregas_borradas = ROW_COUNT;
   UPDATE api_entregas SET cuerpo = '{}'::jsonb
-   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento NOT LIKE 'documento.%%' AND cuerpo <> '{}'::jsonb;
+   WHERE estado IN ('ENTREGADA', 'FALLIDA') AND creada < v_limite AND evento LIKE 'autorizacion.%%' AND cuerpo <> '{}'::jsonb;
   RETURN NEXT;
 END
 $$$f$, current_schema());
@@ -248,7 +258,7 @@ GRANT UPDATE (revocada) ON api_llaves TO ${rol};
 GRANT SELECT, INSERT, UPDATE ON api_emisores TO ${rol};
 GRANT SELECT, INSERT ON api_idempotencia TO ${rol};
 GRANT SELECT, INSERT ON api_webhooks TO ${rol};
-GRANT UPDATE (activo) ON api_webhooks TO ${rol};
+GRANT UPDATE (activo, secreto, secreto_anterior, anterior_hasta) ON api_webhooks TO ${rol};
 GRANT SELECT, INSERT ON api_entregas TO ${rol};
 GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_entregas TO ${rol};
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
@@ -311,8 +321,10 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
   }
 }
 
-/** Función que añadió la versión actual del esquema: si el rol de la API no la ve, la base no está migrada. */
+/** Función que añadió la v7 del esquema: si el rol de la API no la ve, la base no está migrada. */
 export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
+/** Columna que añadió la v8 (rotación del secreto de webhooks): el rol de la API debe poder actualizarla. */
+export const MARCA_COLUMNA_API = { tabla: 'api_webhooks', columna: 'anterior_hasta' } as const;
 
 /**
  * Falla con un mensaje claro si la base tiene el esquema de la API en una versión anterior a la del código.
@@ -320,14 +332,18 @@ export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
  * respondería 500 a cada llave no válida.
  */
 export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, consola = 'node packages/api/dist/cli.js'): Promise<void> {
+  // La columna se busca en pg_attribute antes de preguntar el privilegio: has_column_privilege falla si no existe.
   const r = await pool.query<{ ok: boolean }>(
-    "SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false) AS ok",
-    [MARCA_ESQUEMA_API, rol],
+    `SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false)
+        AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass($3) AND attname = $4 AND NOT attisdropped)
+                 THEN has_column_privilege($2, to_regclass($3), $4, 'UPDATE') ELSE false END AS ok`,
+    [MARCA_ESQUEMA_API, rol, MARCA_COLUMNA_API.tabla, MARCA_COLUMNA_API.columna],
   );
   if (r.rows[0]?.ok) return;
   throw new Error(
     `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
-      `(falta ${MARCA_ESQUEMA_API} o el rol de la API no puede usarla). Migra antes de arrancar: arranca con ` +
+      `(falta ${MARCA_ESQUEMA_API} o ${MARCA_COLUMNA_API.tabla}.${MARCA_COLUMNA_API.columna}, o el rol de la API no puede usarlas). ` +
+      'Migra antes de arrancar: arranca con ' +
       `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
       'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',
   );

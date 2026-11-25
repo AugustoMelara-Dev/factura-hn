@@ -1377,8 +1377,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   );
 
   // --- Webhooks --------------------------------------------------------------------------------------------
-  type FilaWebhook = { id: string; url: string; eventos: string[]; activo: boolean; creado: Date };
-  const aWebhook = (f: FilaWebhook) => ({ id: f.id, url: f.url, eventos: f.eventos, activo: f.activo, creado: f.creado.toISOString() });
+  type FilaWebhook = { id: string; url: string; eventos: string[]; activo: boolean; creado: Date; gracia_hasta: Date | null };
+  /** Columnas de un webhook: el secreto nunca sale; `gracia_hasta`, solo si la gracia de una rotación sigue vigente. */
+  const COLUMNAS_WEBHOOK = 'id, url, eventos, activo, creado, CASE WHEN anterior_hasta > now() THEN anterior_hasta END AS gracia_hasta';
+  const aWebhook = (f: FilaWebhook) => ({
+    id: f.id, url: f.url, eventos: f.eventos, activo: f.activo, creado: f.creado.toISOString(), graciaHasta: f.gracia_hasta?.toISOString() ?? null,
+  });
   app.openapi(
     createRoute({
       method: 'post', path: '/v1/webhooks', tags: ['Webhooks'], security: seguridad,
@@ -1401,7 +1405,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           throw new ErrorApi(409, 'LIMITE_WEBHOOKS', `Este tenant ya tiene ${MAX_WEBHOOKS_ACTIVOS} webhooks activos: desactiva uno (DELETE /v1/webhooks/{id}) antes de crear otro.`);
         }
         const r = await tx.consulta<FilaWebhook>(
-          'INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING id, url, eventos, activo, creado',
+          `INSERT INTO api_webhooks (tenant, url, secreto, eventos) VALUES ($1, $2, $3, $4) RETURNING ${COLUMNAS_WEBHOOK}`,
           [tx.tenant, b.url, cofre.guardar(secreto), [...new Set(b.eventos)]],
         );
         await bitacora(tx, actor(c), 'webhook.creado', { id: r.rows[0]!.id, url: b.url, eventos: b.eventos });
@@ -1419,7 +1423,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     async (c) => {
       exigirAdmin(c);
       const filas = await enTenant(c, async (tx) =>
-        (await tx.consulta<FilaWebhook>('SELECT id, url, eventos, activo, creado FROM api_webhooks WHERE tenant = $1 ORDER BY creado', [tx.tenant])).rows,
+        (await tx.consulta<FilaWebhook>(`SELECT ${COLUMNAS_WEBHOOK} FROM api_webhooks WHERE tenant = $1 ORDER BY creado`, [tx.tenant])).rows,
       );
       return c.json({ webhooks: filas.map(aWebhook), hayMas: false, siguiente: null }, 200);
     },
@@ -1435,12 +1439,193 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       exigirAdmin(c);
       const { id } = c.req.valid('param');
       const fila = await enTenant(c, async (tx) => {
-        const r = await tx.consulta<FilaWebhook>('UPDATE api_webhooks SET activo = false WHERE tenant = $1 AND id = $2 RETURNING id, url, eventos, activo, creado', [tx.tenant, id]);
+        const r = await tx.consulta<FilaWebhook>(`UPDATE api_webhooks SET activo = false WHERE tenant = $1 AND id = $2 RETURNING ${COLUMNAS_WEBHOOK}`, [tx.tenant, id]);
         if (!r.rows[0]) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Webhook no encontrado.');
         await bitacora(tx, actor(c), 'webhook.desactivado', { id });
         return r.rows[0];
       });
       return c.json({ webhook: aWebhook(fila) }, 200);
+    },
+  );
+
+  // --- Entregas, prueba y rotación del secreto ------------------------------------------------------------
+  // Estas rutas no validan reglas fiscales: no devuelven 422.
+  const { 422: _sin422, ...respuestasSinFiscal } = respuestasError;
+  type FilaEntrega = {
+    entrega: string; webhook_id: string; evento: string; estado: 'PENDIENTE' | 'ENTREGADA' | 'FALLIDA'; intentos: number; proximo: Date;
+    ultimo_codigo: number | null; ultimo_error: string | null; creada: Date; micros: string;
+  };
+  /** `micros`: `creada` en microsegundos desde 1970, exacto, para el cursor (un Date solo guarda milisegundos). */
+  const COLUMNAS_ENTREGA =
+    'entrega::text AS entrega, webhook_id::text AS webhook_id, evento, estado, intentos, proximo, ultimo_codigo, ultimo_error, creada, ' +
+    '(extract(epoch FROM creada) * 1000000)::bigint::text AS micros';
+  const aEntrega = (f: FilaEntrega) => ({
+    id: f.entrega, webhookId: f.webhook_id, evento: f.evento, estado: f.estado, intentos: f.intentos,
+    proximoIntento: f.estado === 'PENDIENTE' ? f.proximo.toISOString() : null,
+    ultimoCodigo: f.ultimo_codigo, ultimoError: f.ultimo_error, creada: f.creada.toISOString(),
+  });
+  /** El webhook del tenant, bloqueado hasta el fin de la transacción; 404 si no existe. */
+  const webhookDelTenant = async (tx: TransaccionPostgres, id: string) => {
+    const w = (await tx.consulta<{ activo: boolean }>('SELECT activo FROM api_webhooks WHERE tenant = $1 AND id = $2 FOR UPDATE', [tx.tenant, id])).rows[0];
+    if (!w) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Webhook no encontrado.');
+    return w;
+  };
+  const exigirActivo = (w: { activo: boolean }, accion: string) => {
+    if (!w.activo) throw new ErrorApi(409, 'WEBHOOK_INACTIVO', `El webhook está desactivado: no se puede ${accion}. Crea otro con POST /v1/webhooks.`);
+  };
+  const IdWebhook = z.object({ id: z.string().uuid() });
+
+  app.openapi(
+    createRoute({
+      method: 'get', path: '/v1/webhooks/{id}/entregas', tags: ['Webhooks'], security: seguridad, operationId: 'listarEntregasWebhook',
+      summary: 'Entregas de un webhook, de la más reciente a la más antigua (paginada)',
+      description:
+        'Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` ' +
+        '(se agotaron los intentos o el webhook se desactivó). Las entregas terminadas se borran pasados `FHN_RETENCION_DIAS` días.',
+      request: {
+        params: IdWebhook,
+        query: z.object({
+          estado: z.enum(['PENDIENTE', 'ENTREGADA', 'FALLIDA']).optional().openapi({ description: 'Solo las entregas en este estado.' }),
+          ...S.Paginacion,
+        }),
+      },
+      responses: { 200: json(S.pagina('entregas', S.EntregaWebhook), 'Una página'), 404: json(S.ErrorRespuesta, 'El webhook no existe'), ...respuestasSinFiscal },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      const q = c.req.valid('query');
+      const limite = q.limite ?? LIMITE_POR_DEFECTO;
+      const antesDe = q.cursor
+        ? leerCursor(q.cursor, (v): v is [string, string] =>
+            Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && /^-?\d{1,19}$/.test(v[0]) && typeof v[1] === 'string' && /^[0-9a-f-]{36}$/.test(v[1]))
+        : null;
+      const filas = await enTenant(c, async (tx) => {
+        await webhookDelTenant(tx, id);
+        const params: unknown[] = [tx.tenant, id];
+        let sql = `SELECT ${COLUMNAS_ENTREGA} FROM api_entregas WHERE tenant = $1 AND webhook_id = $2`;
+        if (q.estado) sql += ` AND estado = $${params.push(q.estado)}`;
+        if (antesDe) {
+          sql += ` AND (creada, entrega) < (timestamptz 'epoch' + $${params.push(antesDe[0])}::bigint * interval '1 microsecond', $${params.push(antesDe[1])}::uuid)`;
+        }
+        sql += ` ORDER BY creada DESC, entrega DESC LIMIT $${params.push(limite + 1)}`;
+        return (await tx.consulta<FilaEntrega>(sql, params)).rows;
+      });
+      const { elementos, hayMas, siguiente } = paginar(filas, limite, (f) => [f.micros, f.entrega]);
+      return c.json({ entregas: elementos.map(aEntrega), hayMas, siguiente }, 200);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/entregas/{entrega}/reenviar', tags: ['Webhooks'], security: seguridad, operationId: 'reenviarEntregaWebhook',
+      summary: 'Vuelve a poner una entrega en la cola',
+      description:
+        'Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en ' +
+        'segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. ' +
+        '409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.',
+      request: { params: IdWebhook.extend({ entrega: z.string().uuid() }) },
+      responses: {
+        202: json(S.RespuestaEntregaWebhook, 'En la cola'),
+        404: json(S.ErrorRespuesta, 'El webhook o la entrega no existen'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO) o cuerpo borrado por retención (ENTREGA_VENCIDA)'),
+        ...respuestasSinFiscal,
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id, entrega } = c.req.valid('param');
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'reenviar una entrega');
+        const e = (await tx.consulta<{ vacia: boolean }>(
+          "SELECT cuerpo = '{}'::jsonb AS vacia FROM api_entregas WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 FOR UPDATE",
+          [tx.tenant, id, entrega],
+        )).rows[0];
+        if (!e) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Entrega no encontrada.');
+        if (e.vacia) throw new ErrorApi(409, 'ENTREGA_VENCIDA', 'El cuerpo de esta entrega ya se borró por retención (FHN_RETENCION_DIAS): no se puede reenviar.');
+        // En el lado derecho de SET, `estado` es el valor anterior.
+        const r = await tx.consulta<FilaEntrega>(
+          `UPDATE api_entregas SET estado = 'PENDIENTE', intentos = CASE WHEN estado = 'PENDIENTE' THEN intentos ELSE 0 END, proximo = now()
+            WHERE tenant = $1 AND webhook_id = $2 AND entrega = $3 RETURNING ${COLUMNAS_ENTREGA}`,
+          [tx.tenant, id, entrega],
+        );
+        await bitacora(tx, actor(c), 'webhook.entrega_reenviada', { id, entrega });
+        return r.rows[0]!;
+      });
+      return c.json({ entrega: aEntrega(fila) }, 202);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/probar', tags: ['Webhooks'], security: seguridad, operationId: 'probarWebhook',
+      summary: 'Encola un evento de prueba (`webhook.prueba`) para este webhook',
+      description:
+        'Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado y con los mismos reintentos que ' +
+        'los demás. `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`.',
+      request: { params: IdWebhook },
+      responses: {
+        202: json(S.RespuestaEntregaWebhook, 'En la cola'),
+        404: json(S.ErrorRespuesta, 'El webhook no existe'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO)'),
+        ...respuestasSinFiscal,
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      const cuerpo = { evento: 'webhook.prueba', creado: reloj().toISOString(), datos: { webhookId: id, mensaje: 'Evento de prueba de factura-hn. No representa ningún documento.' } };
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'enviar un evento de prueba');
+        const r = await tx.consulta<FilaEntrega>(
+          `INSERT INTO api_entregas (tenant, webhook_id, evento, clave, cuerpo)
+           VALUES ($1, $2, 'webhook.prueba', 'webhook.prueba:' || gen_random_uuid(), $3::jsonb) RETURNING ${COLUMNAS_ENTREGA}`,
+          [tx.tenant, id, JSON.stringify(cuerpo)],
+        );
+        await bitacora(tx, actor(c), 'webhook.prueba', { id, entrega: r.rows[0]!.entrega });
+        return r.rows[0]!;
+      });
+      return c.json({ entrega: aEntrega(fila) }, 202);
+    },
+  );
+
+  app.openapi(
+    createRoute({
+      method: 'post', path: '/v1/webhooks/{id}/rotar-secreto', tags: ['Webhooks'], security: seguridad, operationId: 'rotarSecretoWebhook',
+      summary: 'Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)',
+      description:
+        'Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del ' +
+        'secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. ' +
+        'Rotar otra vez durante una gracia descarta el secreto más viejo: solo valen el actual y el nuevo.',
+      request: { params: IdWebhook, body: { content: { 'application/json': { schema: S.RotacionSecreto } }, required: false } },
+      responses: {
+        200: json(S.RespuestaSecretoRotado, 'Rotado'),
+        404: json(S.ErrorRespuesta, 'El webhook no existe'),
+        409: json(S.ErrorRespuesta, 'Webhook desactivado (WEBHOOK_INACTIVO)'),
+        ...respuestasSinFiscal,
+      },
+    }),
+    async (c) => {
+      exigirAdmin(c);
+      const { id } = c.req.valid('param');
+      // Cuerpo opcional: sin cuerpo (o vacío), 24 h de gracia.
+      const graciaHoras = (c.req.valid('json') as { graciaHoras?: number } | undefined)?.graciaHoras ?? 24;
+      const secreto = `whsec_${randomBytes(24).toString('base64url')}`;
+      const fila = await enTenant(c, async (tx) => {
+        exigirActivo(await webhookDelTenant(tx, id), 'rotar su secreto');
+        // En el lado derecho de SET, `secreto` es el valor anterior (ya guardado como lo guarda el cofre).
+        const r = await tx.consulta<FilaWebhook>(
+          `UPDATE api_webhooks SET
+             secreto_anterior = CASE WHEN $3::int > 0 THEN secreto END,
+             anterior_hasta = CASE WHEN $3::int > 0 THEN now() + make_interval(hours => $3::int) END,
+             secreto = $4
+           WHERE tenant = $1 AND id = $2 RETURNING ${COLUMNAS_WEBHOOK}`,
+          [tx.tenant, id, graciaHoras, cofre.guardar(secreto)],
+        );
+        await bitacora(tx, actor(c), 'webhook.secreto_rotado', { id, graciaHoras, graciaHasta: r.rows[0]!.gracia_hasta?.toISOString() ?? null });
+        return r.rows[0]!;
+      });
+      return c.json({ webhook: aWebhook(fila), secreto }, 200);
     },
   );
 
@@ -1462,7 +1647,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         '2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.',
         '3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.',
         '4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.',
-        '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
+        '5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.',
       ].join('\n'),
     },
   });

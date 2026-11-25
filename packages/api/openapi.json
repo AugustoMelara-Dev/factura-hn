@@ -3,7 +3,7 @@
   "info": {
     "title": "factura-hn API",
     "version": "0.2.0",
-    "description": "Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.\n\nMontos: en la entrada, texto decimal (`\"57.50\"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.\n\nRespuestas: cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
+    "description": "Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.\n\nMontos: en la entrada, texto decimal (`\"57.50\"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.\n\nRespuestas: cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso."
   },
   "components": {
     "securitySchemes": {
@@ -1295,6 +1295,13 @@
           },
           "creado": {
             "type": "string"
+          },
+          "graciaHasta": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tras una rotación del secreto: hasta cuándo se firma también con el secreto anterior (dos `v1`). null si no hay gracia en curso."
           }
         },
         "required": [
@@ -1302,7 +1309,8 @@
           "url",
           "eventos",
           "activo",
-          "creado"
+          "creado",
+          "graciaHasta"
         ]
       },
       "WebhookNuevo": {
@@ -1342,6 +1350,107 @@
         "required": [
           "webhook"
         ]
+      },
+      "EntregaWebhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "UUID de la entrega: el de la cabecera `X-FacturaHN-Entrega` y el campo `id` del cuerpo."
+          },
+          "webhookId": {
+            "type": "string"
+          },
+          "evento": {
+            "type": "string",
+            "description": "Uno de los eventos suscribibles o `webhook.prueba`."
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "ENTREGADA",
+              "FALLIDA"
+            ]
+          },
+          "intentos": {
+            "type": "integer",
+            "description": "Intentos hechos desde que se encoló o se reenvió por última vez."
+          },
+          "proximoIntento": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cuándo se intenta de nuevo, si está PENDIENTE; null si ya terminó."
+          },
+          "ultimoCodigo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Código HTTP de la última respuesta del receptor; null si no respondió."
+          },
+          "ultimoError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Por qué falló el último intento (`HTTP 503`, `Tiempo agotado`, `Error de red`…)."
+          },
+          "creada": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "webhookId",
+          "evento",
+          "estado",
+          "intentos",
+          "proximoIntento",
+          "ultimoCodigo",
+          "ultimoError",
+          "creada"
+        ]
+      },
+      "RespuestaEntregaWebhook": {
+        "type": "object",
+        "properties": {
+          "entrega": {
+            "$ref": "#/components/schemas/EntregaWebhook"
+          }
+        },
+        "required": [
+          "entrega"
+        ]
+      },
+      "RespuestaSecretoRotado": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          },
+          "secreto": {
+            "type": "string",
+            "description": "El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez."
+          }
+        },
+        "required": [
+          "webhook",
+          "secreto"
+        ]
+      },
+      "RotacionSecreto": {
+        "type": "object",
+        "properties": {
+          "graciaHoras": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 168,
+            "description": "Horas en que cada entrega se firma con los dos secretos (0 a 168, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto."
+          }
+        }
       }
     },
     "parameters": {}
@@ -3833,6 +3942,470 @@
           },
           "422": {
             "description": "Reglas fiscales: lista de errores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/entregas": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "operationId": "listarEntregasWebhook",
+        "summary": "Entregas de un webhook, de la más reciente a la más antigua (paginada)",
+        "description": "Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Las entregas terminadas se borran pasados `FHN_RETENCION_DIAS` días.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDIENTE",
+                "ENTREGADA",
+                "FALLIDA"
+              ],
+              "description": "Solo las entregas en este estado."
+            },
+            "required": false,
+            "description": "Solo las entregas en este estado.",
+            "name": "estado",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Elementos por página (1-500). Por defecto 100."
+            },
+            "required": false,
+            "description": "Elementos por página (1-500). Por defecto 100.",
+            "name": "limite",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "El valor `siguiente` de la página anterior."
+            },
+            "required": false,
+            "description": "El valor `siguiente` de la página anterior.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Una página",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entregas": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EntregaWebhook"
+                      }
+                    },
+                    "hayMas": {
+                      "type": "boolean",
+                      "description": "true si hay más elementos después de esta página."
+                    },
+                    "siguiente": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Cursor para la página siguiente (parámetro `cursor`); null en la última."
+                    }
+                  },
+                  "required": [
+                    "entregas",
+                    "hayMas",
+                    "siguiente"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El webhook no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/entregas/{entrega}/reenviar": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "operationId": "reenviarEntregaWebhook",
+        "summary": "Vuelve a poner una entrega en la cola",
+        "description": "Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "entrega",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "En la cola",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaEntregaWebhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El webhook o la entrega no existen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Webhook desactivado (WEBHOOK_INACTIVO) o cuerpo borrado por retención (ENTREGA_VENCIDA)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/probar": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "operationId": "probarWebhook",
+        "summary": "Encola un evento de prueba (`webhook.prueba`) para este webhook",
+        "description": "Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado y con los mismos reintentos que los demás. `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "En la cola",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaEntregaWebhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El webhook no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Webhook desactivado (WEBHOOK_INACTIVO)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes o de documentos del mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{id}/rotar-secreto": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "llave": []
+          }
+        ],
+        "operationId": "rotarSecretoWebhook",
+        "summary": "Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)",
+        "description": "Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia descarta el secreto más viejo: solo valen el actual y el nuevo.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotacionSecreto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rotado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaSecretoRotado"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud mal formada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la llave de API o no es válida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El webhook no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Webhook desactivado (WEBHOOK_INACTIVO)",
             "content": {
               "application/json": {
                 "schema": {

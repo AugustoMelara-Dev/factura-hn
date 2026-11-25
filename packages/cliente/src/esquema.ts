@@ -2073,6 +2073,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/{id}/entregas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Entregas de un webhook, de la más reciente a la más antigua (paginada)
+         * @description Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Las entregas terminadas se borran pasados `FHN_RETENCION_DIAS` días.
+         */
+        get: operations["listarEntregasWebhook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/entregas/{entrega}/reenviar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vuelve a poner una entrega en la cola
+         * @description Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si su cuerpo ya se borró por retención.
+         */
+        post: operations["reenviarEntregaWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/probar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encola un evento de prueba (`webhook.prueba`) para este webhook
+         * @description Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado y con los mismos reintentos que los demás. `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`.
+         */
+        post: operations["probarWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/rotar-secreto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)
+         * @description Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia descarta el secreto más viejo: solo valen el actual y el nuevo.
+         */
+        post: operations["rotarSecretoWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2440,6 +2520,8 @@ export interface components {
             eventos: string[];
             activo: boolean;
             creado: string;
+            /** @description Tras una rotación del secreto: hasta cuándo se firma también con el secreto anterior (dos `v1`). null si no hay gracia en curso. */
+            graciaHasta: string | null;
         };
         WebhookNuevo: {
             /** Format: uri */
@@ -2449,6 +2531,36 @@ export interface components {
         RespuestaWebhook: {
             webhook: components["schemas"]["Webhook"];
         };
+        EntregaWebhook: {
+            /** @description UUID de la entrega: el de la cabecera `X-FacturaHN-Entrega` y el campo `id` del cuerpo. */
+            id: string;
+            webhookId: string;
+            /** @description Uno de los eventos suscribibles o `webhook.prueba`. */
+            evento: string;
+            /** @enum {string} */
+            estado: "PENDIENTE" | "ENTREGADA" | "FALLIDA";
+            /** @description Intentos hechos desde que se encoló o se reenvió por última vez. */
+            intentos: number;
+            /** @description Cuándo se intenta de nuevo, si está PENDIENTE; null si ya terminó. */
+            proximoIntento: string | null;
+            /** @description Código HTTP de la última respuesta del receptor; null si no respondió. */
+            ultimoCodigo: number | null;
+            /** @description Por qué falló el último intento (`HTTP 503`, `Tiempo agotado`, `Error de red`…). */
+            ultimoError: string | null;
+            creada: string;
+        };
+        RespuestaEntregaWebhook: {
+            entrega: components["schemas"]["EntregaWebhook"];
+        };
+        RespuestaSecretoRotado: {
+            webhook: components["schemas"]["Webhook"];
+            /** @description El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez. */
+            secreto: string;
+        };
+        RotacionSecreto: {
+            /** @description Horas en que cada entrega se firma con los dos secretos (0 a 168, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto. */
+            graciaHoras?: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -2457,4 +2569,318 @@ export interface components {
     pathItems: never;
 }
 export type $defs = Record<string, never>;
-export type operations = Record<string, never>;
+export interface operations {
+    listarEntregasWebhook: {
+        parameters: {
+            query?: {
+                /** @description Solo las entregas en este estado. */
+                estado?: "PENDIENTE" | "ENTREGADA" | "FALLIDA";
+                /** @description Elementos por página (1-500). Por defecto 100. */
+                limite?: number;
+                /** @description El valor `siguiente` de la página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Una página */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entregas: components["schemas"]["EntregaWebhook"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Solicitud mal formada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes o de documentos del mes */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    reenviarEntregaWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                entrega: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description En la cola */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEntregaWebhook"];
+                };
+            };
+            /** @description Solicitud mal formada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook o la entrega no existen */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) o cuerpo borrado por retención (ENTREGA_VENCIDA) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes o de documentos del mes */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    probarWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description En la cola */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEntregaWebhook"];
+                };
+            };
+            /** @description Solicitud mal formada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes o de documentos del mes */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    rotarSecretoWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RotacionSecreto"];
+            };
+        };
+        responses: {
+            /** @description Rotado */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaSecretoRotado"];
+                };
+            };
+            /** @description Solicitud mal formada */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes o de documentos del mes */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+}

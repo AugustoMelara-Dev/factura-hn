@@ -266,8 +266,42 @@ export const WebhookNuevo = z
   .object({ url: z.string().url().max(2000), eventos: z.array(z.enum(['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'])).min(1) })
   .openapi('WebhookNuevo');
 export const Webhook = z
-  .object({ id: z.string(), url: z.string(), eventos: z.array(z.string()), activo: z.boolean(), creado: z.string() })
+  .object({
+    id: z.string(),
+    url: z.string(),
+    eventos: z.array(z.string()),
+    activo: z.boolean(),
+    creado: z.string(),
+    graciaHasta: z.string().nullable().openapi({
+      description: 'Tras una rotación del secreto: hasta cuándo se firma también con el secreto anterior (dos `v1`). null si no hay gracia en curso.',
+    }),
+  })
   .openapi('Webhook');
+
+export const EntregaWebhook = z
+  .object({
+    id: z.string().openapi({ description: 'UUID de la entrega: el de la cabecera `X-FacturaHN-Entrega` y el campo `id` del cuerpo.' }),
+    webhookId: z.string(),
+    evento: z.string().openapi({ description: 'Uno de los eventos suscribibles o `webhook.prueba`.' }),
+    estado: z.enum(['PENDIENTE', 'ENTREGADA', 'FALLIDA']),
+    intentos: z.number().int().openapi({ description: 'Intentos hechos desde que se encoló o se reenvió por última vez.' }),
+    proximoIntento: z.string().nullable().openapi({ description: 'Cuándo se intenta de nuevo, si está PENDIENTE; null si ya terminó.' }),
+    ultimoCodigo: z.number().int().nullable().openapi({ description: 'Código HTTP de la última respuesta del receptor; null si no respondió.' }),
+    ultimoError: z.string().nullable().openapi({ description: 'Por qué falló el último intento (`HTTP 503`, `Tiempo agotado`, `Error de red`…).' }),
+    creada: z.string(),
+  })
+  .openapi('EntregaWebhook');
+export const RespuestaEntregaWebhook = z.object({ entrega: EntregaWebhook }).openapi('RespuestaEntregaWebhook');
+
+/** Horas de gracia de una rotación: de 0 (sin gracia) a 7 días, 24 por defecto. */
+export const GRACIA_MAXIMA_HORAS = 168;
+export const RotacionSecreto = z
+  .object({
+    graciaHoras: z.number().int().min(0).max(GRACIA_MAXIMA_HORAS).optional().openapi({
+      description: `Horas en que cada entrega se firma con los dos secretos (0 a ${GRACIA_MAXIMA_HORAS}, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto.`,
+    }),
+  })
+  .openapi('RotacionSecreto');
 
 const AutorizacionVigente = z.object({
   cai: z.string(),
@@ -332,3 +366,9 @@ export const RespuestaWebhookNuevo = z
     secreto: z.string().openapi({ description: 'Secreto de firma (`whsec_…`) para verificar los envíos. Solo se muestra esta vez.' }),
   })
   .openapi('RespuestaWebhookNuevo');
+export const RespuestaSecretoRotado = z
+  .object({
+    webhook: Webhook,
+    secreto: z.string().openapi({ description: 'El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez.' }),
+  })
+  .openapi('RespuestaSecretoRotado');

@@ -22,7 +22,9 @@ export {
   firmar,
   problemaDeURL,
   esperaReintento,
+  esperaBase,
+  leerFirma,
   EVENTOS_WEBHOOK,
   MAX_INTENTOS,
 } from './webhooks';
-export type { EventoWebhook } from './webhooks';
+export type { EventoEntrega, EventoWebhook } from './webhooks';
