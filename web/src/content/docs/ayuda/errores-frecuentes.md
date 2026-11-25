@@ -107,11 +107,17 @@ empiezan por `AVISO_` no bloquean: el documento se emite y el aviso queda en `do
 ## 8. `NOTA_CLIENTE_RTN`
 
 - **Síntoma:** la nota de crédito sobre una venta a consumidor final no se emite.
-- **Causa:** las notas exigen el nombre y el RTN del adquirente, sin la opción de CONSUMIDOR FINAL.
+- **Causa:** el núcleo pide el nombre y el RTN del adquirente en toda nota, sin la opción de CONSUMIDOR FINAL
+  (Arts. 26 y 28 num. 1-2).
 - **Solución:** indica `cliente: { nombre, rtn }`. Si el original no tiene RTN, pídeselo al cliente. Si el
   original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
 - **Base:** Arts. 26 y 28 num. 1-2.
 - [Ver en la referencia](/referencia/errores/#nota_cliente_rtn)
+
+:::note[Interpretación pendiente]
+Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28 que espera revisión
+(DEC-079 [REVISAR]). La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Ver [Decisiones](/referencia/decisiones/).
+:::
 
 ## 9. `TIPO_NO_EMITIBLE`
 

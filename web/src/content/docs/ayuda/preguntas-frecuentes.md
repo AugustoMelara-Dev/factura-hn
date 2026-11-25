@@ -164,7 +164,8 @@ reiniciar: es solo para pruebas. Ver [Almacén fiscal](/conceptos/almacen-fiscal
 ### Un cliente exonerado trae una Orden de Compra Exenta que no cubre todo. ¿Qué hago?
 
 Emite dos facturas: una con `exoneracion` y los artículos cubiertos por la OCE, y otra normal con el resto. La
-exoneración aplica al documento completo (Art. 11 num. 4; DEC-019). Ver
+exoneración aplica al documento completo: es una decisión del proyecto (DEC-019), porque el Reglamento no regula
+una exoneración parcial. Los documentos que acreditan la exoneración son los del Art. 11 num. 4. Ver
 [Clientes especiales](/guias/clientes-especiales/).
 
 ## Correcciones

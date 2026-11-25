@@ -63,8 +63,13 @@ error trae `codigo`, `mensaje`, `solucion` y `guia`, un enlace a su entrada en l
 contenido da `IDEMPOTENCIA_CONFLICTO`.
 
 **Notas de crédito.** El adquirente de la nota es el del original. Si el original se emitió sin RTN (por ejemplo,
-a CONSUMIDOR FINAL), pasa `cliente` con el nombre y el RTN del comprador: las notas los exigen (Arts. 26 y 28). Si
-el original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
+a CONSUMIDOR FINAL), pasa `cliente` con el nombre y el RTN del comprador: el núcleo pide nombre y RTN del adquirente en
+toda nota (`NOTA_CLIENTE_RTN`). Si el original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
+
+:::note[Interpretación pendiente]
+Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28 que espera revisión
+(DEC-079 [REVISAR]). La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Ver [Decisiones](/referencia/decisiones/).
+:::
 
 ### `registrar_cai`
 
