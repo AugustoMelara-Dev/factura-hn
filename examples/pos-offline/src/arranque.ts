@@ -6,15 +6,11 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { registrarAutorizacion, type Emisor } from 'factura-hn';
+import { autorizacionDemo, EMISOR_DEMO } from 'factura-hn/demo';
 import { crearPOS } from './pos';
 
 // node:sqlite se carga con require para que el empaquetador de las pruebas no intente resolverlo.
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
-
-const EMISOR_DEMO: Emisor = {
-  rtn: '99990000000000', razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)', nombreComercial: 'Demostración',
-  direccionCasaMatriz: 'Tegucigalpa, M.D.C.', direccionEstablecimiento: 'Tegucigalpa, M.D.C.', telefono: '0000-0000', correo: 'demo@ejemplo.example',
-};
 
 export async function prepararCaja(env: NodeJS.ProcessEnv = process.env) {
   const emisor: Emisor = env.POS_EMISOR ? JSON.parse(readFileSync(env.POS_EMISOR, 'utf8')) : EMISOR_DEMO;
@@ -28,11 +24,7 @@ export async function prepararCaja(env: NodeJS.ProcessEnv = process.env) {
   // Solo si la caja aún no tiene autorización: en la segunda corrida la base ya trae el CAI ficticio.
   let demoRegistrado = false;
   if (env.POS_DEMO === '1' && !(await pos.estado()).autorizacion) {
-    const limite = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10);
-    await registrarAutorizacion(pos.almacen, {
-      cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01', tipoDocumento: '01', establecimiento, puntoEmision,
-      rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: limite,
-    });
+    await registrarAutorizacion(pos.almacen, autorizacionDemo({ tipoDocumento: '01', establecimiento, puntoEmision, rangoFinal: 5000 }));
     demoRegistrado = true;
   }
   return { pos, puerto, demoRegistrado, cerrar: () => db.close() };

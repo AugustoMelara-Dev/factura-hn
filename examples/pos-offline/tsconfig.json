@@ -4,6 +4,7 @@
     "lib": ["ES2022", "DOM"],
     "noEmit": true,
     "paths": {
+      "factura-hn/demo": ["../../packages/core/src/demo.ts"],
       "factura-hn": ["../../packages/core/src/index.ts"],
       "@factura-hn/sqlite": ["../../packages/sqlite/src/index.ts"]
     }

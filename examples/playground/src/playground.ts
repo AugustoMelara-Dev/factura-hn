@@ -17,18 +17,9 @@ import {
   type DocumentoFiscal,
   type Problema,
 } from 'factura-hn';
+import { autorizacionDemo, EMISOR_DEMO } from 'factura-hn/demo';
 
-export const CAI_FICTICIO = 'DEMO00-NO-VALIDO-0000-0000-0000-';
-
-const EMISOR = {
-  rtn: '99990000000000',
-  razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)',
-  nombreComercial: 'Pulpería Demostración',
-  direccionCasaMatriz: 'Barrio El Centro, Tegucigalpa, M.D.C.',
-  direccionEstablecimiento: 'Barrio El Centro, Tegucigalpa, M.D.C.',
-  telefono: '0000-0000',
-  correo: 'demo@ejemplo.example',
-};
+const EMISOR = EMISOR_DEMO;
 
 /**
  * Entradas de ejemplo. `{{numero}}`, `{{cai}}`, `{{fecha}}`, `{{nombre}}` y `{{rtn}}` toman los datos de la
@@ -81,12 +72,9 @@ export interface EstadoSerie { serie: string; cai: string; restantes: number; ve
 /** Una sesión: almacén en memoria con CAI ficticios para facturas, notas de crédito y de débito en 000-001. */
 export async function crearSesion(reloj: () => Date = () => new Date()) {
   const almacen = new AlmacenFiscalMemoria();
-  const limite = new Date(reloj().getTime() + 180 * 86_400_000).toISOString().slice(0, 10);
   for (const tipoDocumento of ['01', '06', '07'] as const) {
-    await registrarAutorizacion(almacen, {
-      cai: `${CAI_FICTICIO}${tipoDocumento}`, tipoDocumento, establecimiento: '000', puntoEmision: '001',
-      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: limite,
-    }, { reloj });
+    // La fecha como texto: un Date de otro contexto (la prueba corre el paquete en un vm) no pasa instanceof.
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy: fechaHonduras(reloj()), tipoDocumento, rangoFinal: 50 }), { reloj });
   }
   const emitidos: DocumentoFiscal[] = [];
   const config = { almacen, establecimiento: '000', puntoEmision: '001', opciones: { reloj }, actor: 'playground' };

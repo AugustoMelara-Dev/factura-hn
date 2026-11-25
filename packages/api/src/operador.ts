@@ -4,6 +4,7 @@
  */
 import type pg from 'pg';
 import { registrarAutorizacion } from 'factura-hn';
+import { autorizacionDemo, EMISOR_DEMO, LEYENDA_PRUEBA, PREFIJO_CAI_DEMO } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
 import { generarLlave, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
@@ -89,19 +90,11 @@ export async function crearLlaveOperador(
 }
 
 /**
- * Datos de DEMOSTRACIÓN: el CAI es ficticio y no sirve para facturar. El nombre del emisor lo dice y la
- * fecha límite es corta. Solo para probar la API localmente.
+ * Datos de DEMOSTRACIÓN, de `factura-hn/demo`: el CAI es ficticio y no sirve para facturar, y el nombre del
+ * emisor lo dice. `CAI_DEMO` queda por compatibilidad: el de cada tipo termina en su código (`…-01`).
  */
-export const CAI_DEMO = 'DEMO00-NO-VALIDO-0000-0000-0000-00';
-export const EMISOR_DEMO = {
-  rtn: '99990000000000',
-  razonSocial: 'NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)',
-  nombreComercial: 'Demo factura-hn',
-  direccionCasaMatriz: 'Tegucigalpa, M.D.C.',
-  direccionEstablecimiento: 'Tegucigalpa, M.D.C.',
-  telefono: '0000-0006',
-  correo: 'demo@ejemplo.example',
-};
+export const CAI_DEMO = `${PREFIJO_CAI_DEMO}00`;
+export { EMISOR_DEMO, LEYENDA_PRUEBA };
 
 export const TENANT_DEMO = 'demo';
 
@@ -115,10 +108,6 @@ export const consolaDe = (env: NodeJS.ProcessEnv): string => env.FHN_CONSOLA?.tr
 export const comandoLlaveAdminLocal = (consola: string): string => `${consola} llave crear local --rol admin --nombre Administración`;
 /** Comando para crear otra llave de caja del demo. */
 export const comandoLlaveDemo = (consola: string): string => `${consola} demo llave`;
-
-/** Leyenda de los documentos de prueba (acordada para todo el proyecto). */
-// TODO(lote2-integracion): usar LEYENDA_PRUEBA de factura-hn/demo.
-export const LEYENDA_PRUEBA = 'DOCUMENTO DE PRUEBA — SIN VALOR FISCAL';
 
 /**
  * Bloque destacado con llaves del demo, para el log del servidor y la consola: dice que el CAI es ficticio y
@@ -262,18 +251,10 @@ async function crearDemo(pool: pg.Pool, o: { rol?: string; hoy?: Date }): Promis
   const { llaveAdmin } = await crearTenantSinReserva(pool, { tenant: TENANT_DEMO, nombre: 'Demostración (CAI ficticio)' });
   await enTenant(pool, TENANT_DEMO, (c) => c.query('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [TENANT_DEMO, JSON.stringify(EMISOR_DEMO)]));
   const hoy = o.hoy ?? new Date();
-  const limite = new Date(hoy.getTime() + 180 * 86_400_000).toISOString().slice(0, 10);
   const almacen = new AlmacenPostgres(pool, { tenant: TENANT_DEMO, rol: o.rol ?? ROL_POR_DEFECTO });
+  // Rango 1–5000, como los demos creados antes de factura-hn/demo; `prueba: true` lo marca de prueba.
   for (const tipoDocumento of ['01', '06', '07'] as const) {
-    await registrarAutorizacion(almacen, {
-      cai: `${CAI_DEMO.slice(0, -2)}${tipoDocumento}`,
-      tipoDocumento,
-      establecimiento: '000',
-      puntoEmision: '001',
-      rangoInicial: 1,
-      rangoFinal: 5000,
-      fechaLimiteEmision: limite,
-    }, { actor: 'operador:demo' });
+    await registrarAutorizacion(almacen, autorizacionDemo({ hoy, tipoDocumento, rangoFinal: 5000 }), { actor: 'operador:demo' });
   }
   const llaveCaja = await crearLlaveOperador(pool, { tenant: TENANT_DEMO, rol: 'caja', nombre: 'Caja 1 (demo)', establecimiento: '000', puntoEmision: '001' });
   return { llaveAdmin, llaveCaja };

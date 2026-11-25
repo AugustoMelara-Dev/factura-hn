@@ -3,7 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "noEmit": true,
-    "paths": { "factura-hn": ["../../packages/core/src/index.ts"] }
+    "paths": { "factura-hn/demo": ["../../packages/core/src/demo.ts"], "factura-hn": ["../../packages/core/src/index.ts"] }
   },
   "include": ["src", "test", "vitest.config.ts", "tsup.config.ts"]
 }
