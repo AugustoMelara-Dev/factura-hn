@@ -187,7 +187,7 @@ function arbitrarioDeCaso(ctx: Contexto, sano: boolean): fc.Arbitrary<Caso> {
   // La emisión es la operación que más importa: en el modo sano va en un tercio de los casos.
   const emitir = OPERACIONES.find((o) => o.metodo === 'post' && o.ruta === '/v1/documentos')!;
   const operacion = sano ? fc.oneof({ weight: 1, arbitrary: fc.constant(emitir) }, { weight: 2, arbitrary: fc.constantFrom(...OPERACIONES) }) : fc.constantFrom(...OPERACIONES);
-  return operacion.chain((op) => {
+  return operacion.chain((op): fc.Arbitrary<Caso> => {
     const params = Object.fromEntries(op.parametros.filter((p) => p.in !== 'header').map((p) => [`${p.in}:${p.name}`, arbitrarioDeParametro(p, ctx, sano)]));
     const deEsquema = op.cuerpo ? desdeEsquema(op.cuerpo, pistas(ctx, sano)) : fc.constant(undefined);
     if (sano) {
@@ -198,7 +198,7 @@ function arbitrarioDeCaso(ctx: Contexto, sano: boolean): fc.Arbitrary<Caso> {
           ? fc.oneof({ weight: 4, arbitrary: deEsquema }, { weight: 1, arbitrary: deEsquema.chain(mutar) }).map((valor) => ({ tipo: 'json' as const, valor }))
           : fc.constant(null),
         clave: fc.oneof({ weight: 9, arbitrary: fc.uuid() }, { weight: 1, arbitrary: fc.constant('clave-repetida-fuzz') }),
-      }).map(({ params, llave, cuerpo, clave }) => ({
+      }).map(({ params, llave, cuerpo, clave }): Caso => ({
         op, ruta: armarRuta(op, params), llave, cuerpo: cuerpo as Caso['cuerpo'],
         cabeceras: { 'content-type': 'application/json', 'idempotency-key': clave },
       }));
@@ -227,7 +227,7 @@ function arbitrarioDeCaso(ctx: Contexto, sano: boolean): fc.Arbitrary<Caso> {
       llave: fc.constantFrom('admin', 'admin', 'caja', 'caja', 'otraCaja', 'ninguna', 'basura') as fc.Arbitrary<Caso['llave']>,
       cuerpo,
       cabeceras,
-    }).map(({ op, params, llave, cuerpo, cabeceras }) => ({ op, ruta: armarRuta(op, params), llave, cuerpo, cabeceras }));
+    }).map(({ op, params, llave, cuerpo, cabeceras }): Caso => ({ op, ruta: armarRuta(op, params), llave, cuerpo, cabeceras }));
   });
 }
 
