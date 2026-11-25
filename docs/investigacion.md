@@ -327,6 +327,7 @@ Redactadas como consulta formal en `docs/consulta-sar.md` (las 14; aún no envia
 | P-12 | ¿Hay calendario o especificación técnica de la emisión electrónica (Arts. 57-58)? | Sección 4 |
 | P-14 | ¿Publicó el SAR un formato de archivo de texto (layout) para el traslado del Art. 53 num. 5 por autoimpresores? Si existe, se agrega como un formato más de `exportarTexto` | B-10 |
 | P-13 | ¿Hay un piso de fecha válido para la primera emisión de una serie (p. ej. la fecha de la resolución que otorga el CAI)? Si la resolución trae fecha de emisión, el SDK podría rechazar fechas anteriores | Sección 2, «Reloj del dispositivo y orden cronológico» |
+| P-15 | ¿Un CAI otorgado para **otro sistema o para talonarios** de imprenta puede seguir usándose al cambiar de sistema (Art. 61), o hace falta una autorización nueva? | Registro del CAI al migrar (DEC-102) |
 
 ---
 

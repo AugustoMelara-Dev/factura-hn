@@ -232,6 +232,20 @@ para ese traslado? Si existe, ¿dónde podemos consultarlo?
 **Lectura provisional.** El sistema exporta tres formatos abiertos y documentados: JSON por línea, CSV y texto
 con separador «|». Cuando el SAR publique un formato oficial, lo agregaremos.
 
+## P-15. CAI solicitado para otro sistema o para talonarios
+
+**Contexto.** Un negocio que ya tiene un CAI vigente (solicitado para otro sistema o para talonarios de una
+imprenta) puede pasar a emitir con este sistema. El sistema permite registrar ese CAI e indicar el último número
+usado fuera de él, para que la serie continúe sin repetir números.
+
+**Pregunta.** ¿Un CAI otorgado para otro sistema o para documentos de imprenta puede seguir usándose al cambiar de
+sistema, o el cambio exige solicitar una autorización nueva para el sistema nuevo?
+
+**Artículos.** Art. 61 (C L.2279-2295).
+
+**Lectura provisional.** El sistema no lo impide, y la documentación pide confirmarlo con el contador o con el SAR
+antes de registrar un CAI que no se solicitó para este sistema.
+
 ---
 
 Quedamos atentos a su respuesta.

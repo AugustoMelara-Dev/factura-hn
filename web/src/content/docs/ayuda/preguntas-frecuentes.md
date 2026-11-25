@@ -89,7 +89,7 @@ se repetirían. Este campo es una lectura del proyecto pendiente de confirmar (D
 :::caution[Por confirmar con fuente]
 La autorización se otorga por sistema y por tipo de documento (Art. 61). El repositorio no tiene fuente sobre si
 un CAI solicitado para otro sistema o para talonarios de imprenta puede seguir usándose al cambiar a factura-hn.
-No está entre las preguntas P-01 a P-14: confírmalo con tu contador o con el SAR antes de registrarlo. Ver la
+Es la pregunta P-15 de la consulta, aún sin respuesta: confírmalo con tu contador o con el SAR antes de registrarlo. Ver la
 [consulta al SAR](/produccion/consulta-sar/).
 :::
 

@@ -39,7 +39,7 @@ Quien emite es el responsable ante el SAR. La Declaración Jurada del sistema la
 
 ## La consulta al SAR no se ha enviado
 
-El proyecto redactó una consulta formal con 14 preguntas (P-01 a P-14) sobre los puntos que el Reglamento no
+El proyecto redactó una consulta formal con 15 preguntas (P-01 a P-15) sobre los puntos que el Reglamento no
 resuelve de forma literal. **Aún no se ha enviado** y ninguna pregunta tiene respuesta del SAR. Mientras tanto,
 factura-hn aplica la lectura provisional que se indica en cada una. El texto está en
 [Consulta al SAR](/produccion/consulta-sar/).
@@ -59,6 +59,7 @@ Las que más afectan a un negocio que va a producción:
 | P-10 | ISV por línea o por grupo de tasa | Por grupo de tasa; sin base exacta, 1 centavo menos (D-01) |
 | P-11 | Tasa del 18 % y la lista de bienes | Sin texto primario (DEC-069 [REVISAR]) |
 | P-13 | Fecha mínima de la primera emisión de una serie | Sin piso: la fecha es siempre la de hoy |
+| P-15 | CAI solicitado para otro sistema o para talonarios (Art. 61) | Confirmarlo con el contador antes de registrarlo (DEC-102 [REVISAR]) |
 
 ## Interpretaciones pendientes
 
@@ -78,6 +79,9 @@ una regla del SAR: son **interpretaciones pendientes de revisión**, y conviene 
 | DEC-068 [REVISAR] | Un documento en dólares imprime su equivalente en lempiras | Ningún texto del repositorio lo exige |
 | DEC-069 [REVISAR] | La tasa del 18 % se mantiene sin fuente primaria en el repositorio | Falta el texto del Decreto 278-2013, Art. 16, y la lista vigente (P-11) |
 | DEC-079 [REVISAR] | Una nota de crédito sobre una factura a CONSUMIDOR FINAL acepta el nombre y el RTN que se indiquen | Lectura de los Arts. 26 y 28: la nota podría dar crédito fiscal a quien el original no identificaba |
+| DEC-101 [REVISAR] | La guía de profesional independiente se publica con un aviso de peligro | Si un profesional puede usar la Factura (01) en lugar del Recibo por Honorarios (04) |
+| DEC-102 [REVISAR] | Un CAI solicitado para otro sistema o para talonarios se puede registrar, con aviso de confirmarlo (P-15) | Registro del CAI al cambiar de sistema |
+| DEC-103 [REVISAR] | La skill se instala copiándola a `.claude/skills/` | No es fiscal: falta probarlo una vez |
 
 DEC-066 lleva además una marca parcial: si `preciosIncluyenISV` debe ser obligatorio en `crearFacturador` antes de
 la 1.0. Es una decisión de diseño del SDK, no fiscal.

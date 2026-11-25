@@ -344,7 +344,7 @@ Las decisiones D-01, D-02, D-03 y D-07 de la investigación están en `docs/inve
   `pnpm publish`): se descartó porque la documentación de npm sobre la publicación de confianza solo cubre el
   CLI de npm.
 
-### DEC-043 · Generador propio del sitio (lo reemplazará DEC-049)
+### DEC-043 · Generador propio del sitio (reemplazada por DEC-097)
 - **Contexto:** el sitio debe salir de los mismos Markdown del repositorio, sin una segunda copia.
 - **Elegida:** `scripts/sitio.mjs` con `marked` (dependencia de desarrollo). Reescribe los enlaces a páginas
   del sitio o a GitHub, genera la referencia de la API desde `openapi.json`, incrusta el playground y falla si
@@ -1206,7 +1206,149 @@ intentos de la API se corrigió en DEC-070.
 - **Alternativa:** un ejemplo de Next.js con el SDK en `examples/`. El de `examples/nextjs` usa la API y lo prueba
   la CI; uno nuevo duplicaría el mantenimiento por dos archivos que ya compilan en `readme.test.ts`.
 
+### DEC-097 · Sitio con Astro Starlight en `web/`; reemplaza a DEC-043
+- **Contexto:** DEC-049 aprobó Starlight para la Etapa 2 y anunció que reemplazaría a DEC-043 (generador propio
+  `scripts/sitio.mjs` con `marked`) al implementarse. El generador propio no tenía buscador, modo oscuro ni menú
+  lateral, y la matriz de cumplimiento se publicaba copiada de `docs/investigacion.md` sin comprobar sus pruebas.
+- **Elegida:**
+  - **Paquete privado `@factura-hn/sitio` en `web/`**, con versiones exactas: `astro` 7.4.13, `@astrojs/starlight`
+    0.43.1, `@astrojs/markdown-remark` 7.3.10 (el procesador `unified()`, para usar un plugin de rehype propio),
+    `@fontsource/ibm-plex-sans` y `@fontsource/ibm-plex-mono` 5.3.0, `github-slugger` 2.0.0 (los mismos ids de
+    encabezado que Astro, para los índices generados) y `pagefind` 1.6.0 (la versión que ya usa Starlight). Son
+    dependencias de desarrollo de un paquete privado: no tocan el «sin dependencias» del SDK ni `pnpm test`.
+  - Interfaz y buscador en español (`defaultLocale: 'root'`, `lang: 'es'`); Pagefind indexa en español porque lee
+    el `lang` del HTML. Modo oscuro, claro o automático, el de Starlight.
+  - `site` y `base` por variable (`FHN_SITIO_URL`, `FHN_SITIO_BASE`; por defecto
+    `https://augustomelara-dev.github.io` y `/factura-hn`). En Pages, `pages.yml` los toma de `configure-pages`, así
+    que un dominio propio no exige tocar el código. Un plugin de rehype (`web/src/plugins/rehype-base.mjs`) añade la
+    base a los enlaces absolutos internos del contenido (`/conceptos/cai/`), también en el HTML escrito a mano.
+  - **Salida en `sitio/`** de la raíz, la carpeta que ya sube `pages.yml`; `.gitignore` no cambia.
+  - **Páginas generadas al construir, sin versionarlas** (`web/scripts/generar.mjs`): `docs/guia-sdk.md`,
+    `docs/api.md`, `docs/errores.md`, `docs/normativa.md`, `docs/decisiones.md`, `docs/consulta-sar.md`,
+    `docs/autoalojamiento.md` y `CHANGELOG.md`. El H1 pasa al frontmatter y los enlaces relativos entre documentos
+    se reescriben a su URL del sitio o al archivo en GitHub (la lógica de `resolverEnlace()` del generador viejo).
+    Los archivos generados están en `web/.gitignore`; si alguien escribe a mano uno de ellos, la generación falla.
+  - **Referencia de la API** desde `openapi.json`, con el código propio portado a Markdown en español:
+    autenticación, errores, idempotencia y paginación primero; después las rutas por etiqueta y los esquemas. Queda
+    en `/referencia/openapi/` (la guía de `docs/api.md` sigue en `/referencia/api/`), y Pagefind la indexa.
+  - **Recursos para IA:** cada página tiene su `.md` (`/referencia/sdk/` → `/referencia/sdk.md`), y el sitio publica
+    `llms.txt` (el de la raíz, que prueba `readme.test.ts`, con los enlaces llevados al sitio y la lista de páginas)
+    y `llms-full.txt`.
+  - **Verificación sobre el HTML final** (`web/scripts/verificar.mjs`), heredera de la del generador viejo:
+    enlaces internos con la base y sus anclas, archivos citados en GitHub, `.md` sin reescribir, una versión `.md`
+    por página, la portada contra los comandos del README y el buscador con la API de Pagefind sobre el índice
+    generado («CAI», «nota de crédito», «rango»).
+  - Se retiran `scripts/sitio.mjs`, `sitio-fuente/` y `marked`.
+- **Alternativa:** seguir con el generador propio y añadir a mano Pagefind, un selector de tema y un menú lateral.
+  Menos dependencias, pero mantener una interfaz propia en español y accesible es más trabajo que fijar versiones
+  de Starlight y leer su changelog. Riesgo aceptado: Starlight es 0.x y rompe en versiones menores; las versiones
+  van fijas.
+
+### DEC-098 · Matriz de cumplimiento generada desde las pruebas, y la CI falla si una regla pierde la suya
+- **Contexto:** la Fase 1 dejó en `docs/investigacion.md` §1 una columna «Prueba» por fila, pero era texto libre:
+  nada comprobaba que el archivo o el título citado existieran. Al generarla aparecieron dos citas que ya no
+  coincidían con su prueba (fila 10.7: «continúa la numeración … (B-04)»; fila 42: «revisión independiente: …»,
+  cuya prueba se llama «B-07 · revisión interna: …»). Se corrigieron en `investigacion.md`; las pruebas no
+  cambiaron.
+- **Elegida:** la fuente sigue siendo la tabla de `investigacion.md` (una sola fuente, editable a mano). Formato de la
+  columna «Prueba», ya usado en todas las filas: el archivo entre comillas invertidas (`matriz.test.ts`, o con
+  carpeta: `sqlite/test/contrato.test.ts`), o `contrato \`factura-hn/pruebas\`` para la batería
+  `ejecutarContratoAlmacen`; detrás, cero o más títulos entre comillas latinas, donde «…» vale por cualquier texto.
+  `web/scripts/lib/matriz.mjs` busca cada título en una línea de `it(`, `test(` o `describe(` (o en una tabla de
+  casos) y genera `/referencia/cumplimiento/`: artículo y fuente → requisito → estado (badge con texto, sin
+  emojis) → prueba, con enlace a su línea en GitHub. `pnpm sitio` (y por tanto la CI) falla si una fila
+  ✅ o 🟡 no cita prueba, si cita un archivo que no existe o sin pruebas, o un título que no aparece. Las filas
+  ❌, 📄 y ➖ pueden no tener prueba. Lo prueba `web/scripts/matriz.test.mjs`.
+- **Alternativa:** etiquetar cada prueba con su fila (p. ej. `it('[Art. 10.7] …')`) y generar la tabla desde el
+  código. Daría una sola fuente en las pruebas, pero obliga a renombrar decenas de pruebas y pierde las columnas de
+  texto (requisito, cómo se cumple) que hoy se redactan en la matriz.
+
+### DEC-099 · Dirección visual: IBM Plex local y paleta con contraste AA comprobado
+- **Contexto:** `docs/analisis/sitio-web.md` §5 y `docs/plan-v1.md` §4 fijan una referencia técnica sobria, IBM Plex
+  sin Google Fonts y las paletas clara (`#FAFAF9`, `#1A1A18`, acento `#0B5D8F`) y oscura (`#111110`, `#ECEBE7`,
+  acento `#7CC0EC`).
+- **Elegida:**
+  - IBM Plex Sans (400, 400 cursiva, 500, 600) y Mono (400, 500, 600) con Fontsource, solo `latin` y `latin-ext`,
+    servidas desde el propio sitio con `font-display: swap`.
+  - Las paletas se asignan a las variables de Starlight en `web/src/styles/tema.css`. El cuerpo usa el color de
+    texto de la paleta (no el gris de Starlight). En oscuro, el botón primario lleva texto oscuro: blanco sobre
+    `#7CC0EC` da 1,98.
+  - `web/scripts/contraste.test.mjs` lee `tema.css` y calcula el contraste (luminancia relativa de WCAG 2.x) de
+    cada par que se usa; falla por debajo de 4,5 (texto) o 3 (bordes de componentes, WCAG 1.4.11). Resultado:
+    - Oscuro: cuerpo 15,84; texto suave 7,24 (6,61 sobre superficie); enlaces 9,54 (8,71 sobre superficie, 6,96
+      sobre código en línea); botón primario 9,54; página actual del menú 9,54; avisos: título 7,00 a 9,96, texto
+      12,50 a 13,35; badges de estado y de método 7,00 a 9,02; borde de campos 3,55.
+    - Claro: cuerpo 16,69; texto suave 6,71 (6,21 sobre superficie); enlaces 6,75 (6,25 sobre superficie y código
+      en línea); botón primario 6,75; avisos: título 5,58 a 7,98, texto 14,76 a 15,44; badges 5,58 a 8,77; borde
+      de campos 3,63; borde del aviso naranja 3,93.
+    - El resaltado de código usa `github-dark` y `github-light` de Expressive Code, con su ajuste de contraste mínimo
+      por defecto (5,5 sobre el fondo del tema) y el fondo cambiado a la superficie del sitio. Medido sobre el HTML
+      construido, el token de menor contraste da 6,49 en oscuro (sobre `#1B1B19`) y 4,88 en claro (sobre
+      `#F2F1EE`). Esta medida no está en la prueba automática: se repite a mano si cambian los temas de código.
+  - Portada con plantilla splash y un Hero propio (`Portada.astro`) para que los botones lleven la base. El estado
+    del proyecto se lee del repositorio al construir: versión de `packages/core/package.json`, la línea «Estado:»
+    de `docs/consulta-sar.md` y el número de DEC [REVISAR]. Si cambia el formato de esas fuentes, la construcción
+    falla en vez de publicar un dato viejo.
+- **Alternativa:** Geist y Geist Mono (OFL), la alternativa de `sitio-web.md`; o los colores por defecto de Starlight
+  (su gris de texto en claro, `hsl(224 10% 23%)`, también pasa AA, pero se aleja de la paleta acordada).
+
+### DEC-100 · Contenido del sitio: rutas, convenciones y comprobación del código
+- **Contexto:** cuatro ramas escribieron en paralelo las páginas de `web/src/content/docs/` (Empezar y Conceptos;
+  Documentos y Guías; Producción y Negocios; IA, Ayuda y glosario), cada una revisada por un agente que no la
+  escribió, contra `docs/normativa.md`, la matriz de `docs/investigacion.md`, las DEC y el código.
+- **Elegida:**
+  - **Rutas:** las cortas del encargo (`/conceptos/inmutables/`, `/conceptos/almacen/`, `/documentos/factura/`,
+    `/documentos/nota-credito/`, `/empezar/primera-factura/`…), no las del mapa de `documentacion.md` §4. La
+    contingencia (Art. 55) es una sección de `/produccion/tramites/`; los tipos 05, 08 y 11 van en
+    `/documentos/no-emitibles/`; no hay páginas de «clientes especiales» ni «almacén propio» (los enlaces van a
+    `/conceptos/isv-y-montos/#exonerado` y a la referencia del SDK).
+  - **Fuentes en la página:** cada afirmación fiscal cita su artículo; lo que el repositorio no respalda va en un
+    aviso «Por confirmar con fuente» con su pregunta P-xx y enlace a la consulta al SAR; las DEC [REVISAR] se
+    presentan como interpretación pendiente. Los identificadores F-xx de `documentacion.md` no se publican.
+  - **Anclas:** los errores se enlazan como `/referencia/errores/#codigo` en minúsculas (lo mismo que
+    `enlaceError` del núcleo); la consulta al SAR, sin ancla, con la P-xx nombrada en el texto.
+  - **Código:** los bloques `ts` de las páginas versionadas compilan en `readme.test.ts` (con
+    `<!-- declaraciones: -->` para las variables del integrador), igual que el README; los de `js` de Empezar y
+    Conceptos se comprobaron corriéndolos. `ia/prompts.md` entra en `DOCS_AGENTES`: sus prompts deben ser
+    idénticos a los del README y sus nombres deben existir.
+  - **Datos de ejemplo:** emisores «<Tipo> Demostración», CAI `DEMO00-…` en las guías de negocio y el
+    `A1B2C3-…` permitido por CONTRIBUTING en el registro del CAI real.
+  - Las revisiones confirmaron que la Nota de Débito es el Art. 4 num. 31 y la de Crédito el num. 32 (DEC-016,
+    DEC-051); se corrigió `documentacion.md`, que los tenía invertidos.
+- **Alternativa:** generar todo desde los Markdown de `docs/`. Mantiene una sola fuente, pero esos documentos son
+  referencias largas, no guías por tarea, rol o negocio.
+
+### DEC-101 · La guía de profesional independiente se publica con un aviso de peligro · [REVISAR]
+- **Contexto:** `documentacion.md` §7 dice que la guía de profesional no se publique hasta confirmar si un
+  profesional puede usar la Factura (01) en lugar del Recibo por Honorarios (04), que solo se emite por imprenta
+  (Art. 46). El encargo del sitio la pide.
+- **Elegida:** se publica con el aviso fijo de las guías de negocio y, además, un `:::danger` al inicio: casi todo
+  está por confirmar y no se configura para honorarios sin la confirmación del contador. El responsable decide si
+  sale en la primera publicación del sitio; quitarla es borrar `web/src/content/docs/negocios/profesional.md`.
+- **Alternativa:** no escribirla hasta tener la respuesta. Deja sin guía a un caso frecuente.
+
+### DEC-102 · CAI solicitado para otro sistema o para talonarios · [REVISAR]
+- **Contexto:** la pregunta frecuente «¿Puedo usar mi CAI?». El Art. 61 otorga la autorización por cada sistema y
+  tipo de documento; el repositorio no dice si un CAI solicitado para otro sistema o para talonarios de imprenta
+  sigue sirviendo al cambiar a factura-hn. `registrarAutorizacion` lo acepta, con `ultimoEmitidoAntes` (DEC-008).
+- **Elegida:** las páginas lo marcan «Por confirmar con fuente» y piden confirmarlo con el contador antes de
+  registrarlo. Se agrega como P-15 a `docs/consulta-sar.md` y a `docs/investigacion.md` §4.
+- **Alternativa:** no mencionarlo, lo que deja abierta la lectura «cualquier CAI sirve» sin fuente.
+
+### DEC-103 · Instalación de la skill en Claude Code · [REVISAR]
+- **Contexto:** el repositorio decía dónde está la skill (`skills/facturacion-sar-hn/SKILL.md`, dentro del paquete
+  `factura-hn`), pero no cómo instalarla.
+- **Elegida:** `/ia/skill/` documenta la copia de `node_modules/factura-hn/skills/facturacion-sar-hn` a
+  `.claude/skills/` (proyecto) o `~/.claude/skills/` (personal), con los comandos de bash y PowerShell; para otros
+  clientes remite a su documentación. No es una regla fiscal: falta que el responsable lo pruebe una vez.
+- **Alternativa:** solo enlazar el archivo.
+
 ### Pendiente para el Lote 4 · El libro de ventas con llave de caja
 `GET /v1/libro-ventas` acepta una llave de caja y devuelve el libro de todo el tenant, no solo el de su punto de
 emisión. Ya era así en la 0.2.0. No se corrige en este lote: hay que decidir si una caja debe verlo (y si filtrado
 por su punto) o si es solo para admin, junto con la exportación.
+
+### Pendiente · `AVISO_VIGENCIA_MAYOR_1_ANIO` no sale al registrar
+`registrarAutorizacion` acepta sin aviso una autorización cuya fecha límite está a más de un año de
+`fechaAutorizacion`; el aviso lo devuelven `validarAutorizacion` y las `advertencias` de cada documento emitido con
+ella. `/conceptos/cai/` lo documenta así. Queda decidir si el registro debe devolverlo.
