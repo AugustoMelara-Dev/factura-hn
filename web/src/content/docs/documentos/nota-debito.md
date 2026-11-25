@@ -29,7 +29,7 @@ Crédito.
   puede modificar una factura, otra Nota de Débito o una Nota de Crédito (DEC-016, aprobada).
 - **No lleva firma de quien la recibe.** Ese dato lo pide el Art. 26 num. 7 solo para la Nota de Crédito.
 - **No tiene saldo.** `NOTA_SUPERA_ORIGINAL` y `NOTA_TASA_DISTINTA` se aplican solo a la Nota de Crédito, y una
-  Nota de Débito no amplía el saldo disponible para notas de crédito (DEC-051).
+  Nota de Débito no amplía el saldo disponible para notas de crédito (DEC-051, marcada [REVISAR]).
 
 Lo demás es igual que en la [Nota de Crédito](/documentos/nota-credito/): la coherencia con el original guardado
 (CAI, fecha, RTN, no anulado; DEC-004), la fecha no anterior al original (DEC-017), el aviso para originales de
@@ -100,4 +100,5 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 ## Fuentes
 
 - Reglamento, Arts. 4 num. 31, 27 y 28: matriz de [cumplimiento](/referencia/cumplimiento/), filas 4.31-32 y 25-28.
-- Interpretaciones: DEC-004, DEC-016, DEC-017, DEC-018 y DEC-051 en [decisiones](/referencia/decisiones/).
+- Interpretaciones: DEC-004, DEC-016, DEC-017, DEC-018 y DEC-051 (marcada [REVISAR]) en
+  [decisiones](/referencia/decisiones/).
