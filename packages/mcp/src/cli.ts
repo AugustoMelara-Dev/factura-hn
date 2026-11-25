@@ -9,13 +9,14 @@
  * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora, y
  * FHN_MCP_PERMITIR_DESTRUCTIVAS=1 para anular y registrar CAI con un cliente que no ofrece elicitación.
  *
- * Con comando: `init` (o `iniciar`), `registrar-cai` y `ayuda` (ver `comandos.ts`).
+ * Con comando: `init` (o `iniciar`), `registrar-cai`, `http` (el MCP remoto, ver `http.ts`) y `ayuda` (ver `comandos.ts`).
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BackendApi, BackendLocal, type Backend } from './backend';
 import { abrirBase, ejecutarComando } from './comandos';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { leerEmisor } from './emisor';
+import { opcionesMcpHttpDesdeEntorno, servirMcpHttp } from './http';
 import { problemaDeNode } from './requisitos';
 import { crearServidorMCP } from './servidor';
 
@@ -80,6 +81,13 @@ try {
     const permitirDestructivas = process.env.FHN_MCP_PERMITIR_DESTRUCTIVAS === '1';
     await crearServidorMCP(backend, { permitirDestructivas }).connect(new StdioServerTransport());
     await orientar(backend, descripcion);
+  } else if (r === 'http') {
+    const opciones = opcionesMcpHttpDesdeEntorno(process.env);
+    const { cerrar } = await servirMcpHttp(opciones);
+    console.error(`factura-hn MCP remoto: escucha en ${opciones.host}:${opciones.puerto}, rutas /mcp/<token> y /mcp; API en ${opciones.urlApi}.`);
+    const salir = () => void cerrar().finally(() => process.exit(0));
+    process.once('SIGTERM', salir);
+    process.once('SIGINT', salir);
   } else {
     process.exitCode = r;
   }

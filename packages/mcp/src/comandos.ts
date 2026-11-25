@@ -103,6 +103,8 @@ Comandos:
                      --punto             Código de punto de emisión (por defecto 001).
                      --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real).
                                          Con --demo, también recrea la base de prueba. Nunca borra la base real.
+  http             Arranca el MCP remoto (Streamable HTTP) para conectores de Claude, ChatGPT u otros clientes.
+                     Llama a la API en FHN_API_URL; cada conexión trae su llave (URL personal o Bearer).
   registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
                      --cai --tipo (01, 06 o 07) --establecimiento --punto --desde --hasta
                      --fecha-limite AAAA-MM-DD  [--fecha-autorizacion AAAA-MM-DD]
@@ -117,6 +119,8 @@ Variables del servidor:
   FHN_API_URL, FHN_LLAVE             Modo API.
   FHN_ESTABLECIMIENTO, FHN_PUNTO     Dónde emite (por defecto 000 y 001).
   FHN_OPERADOR                       Persona que opera, para la bitácora (opcional).
+  FHN_MCP_PUERTO, FHN_MCP_ORIGENES   Comando http: puerto (por defecto PORT u 8788) y orígenes de navegador
+                                     aceptados. Las demás variables FHN_MCP_* están en la guía.
 
 Guía: https://github.com/AugustoMelara-Dev/factura-hn/tree/main/packages/mcp#readme`;
 
@@ -340,15 +344,18 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
 
 /**
  * Ejecuta un comando de consola. Devuelve el código de salida, o `'servidor'` si no hay comando y hay que
- * arrancar el servidor MCP.
+ * arrancar el servidor MCP por stdio, o `'http'` para el MCP remoto.
  */
-export async function ejecutarComando(args: string[], c: Contexto): Promise<number | 'servidor'> {
+export async function ejecutarComando(args: string[], c: Contexto): Promise<number | 'servidor' | 'http'> {
   const s = c.salida ?? consola;
   const [comando, ...resto] = args;
   try {
     switch (comando) {
       case undefined:
         return 'servidor';
+      case 'http':
+        if (resto.length) throw new ErrorUso('El comando http no lleva argumentos: se configura con variables de entorno (FHN_API_URL, FHN_MCP_*).');
+        return 'http';
       case 'init':
       case 'iniciar':
         return await init(resto, c, s);
