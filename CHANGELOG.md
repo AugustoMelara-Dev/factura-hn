@@ -116,7 +116,7 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 - Notas sobre facturas en moneda extranjera (Arts. 26 num. 9 y 28 num. 8, moneda nacional): se emiten en lempiras con el tipo de cambio del
   original, que se imprime como referencia (`referencia.moneda`, `referencia.tipoCambio`).
 - CAI (Art. 4 num. 7, «serie alfanumérica»): se aceptan letras, dígitos y guiones; los espacios del borde se recortan sin error.
-- Revisión interna de la matriz: `noUtilizadosDelAlmacen` reporta los números saltados de una
+- Correcciones: `noUtilizadosDelAlmacen` reporta los números saltados de una
   autorización vencida aunque la serie siga en la siguiente; las autorizaciones registradas no se editan y
   al anular el contenido del documento no cambia (disparadores en SQLite y Postgres); `CLIENTE_NOMBRE` ya no
   sale duplicado en notas.
