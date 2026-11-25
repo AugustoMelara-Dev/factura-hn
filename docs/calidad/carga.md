@@ -1,6 +1,9 @@
 # Carga: latencia, rendimiento, numeración e idempotencia al emitir
 
-Medido el 25 de noviembre de 2026 en Windows 11 (20 núcleos, Node 24.22). La API corre en su propio proceso
+Medido el 25 de noviembre de 2026 en un equipo de desarrollo con Windows 11 (20 núcleos, Node 24.22): todos los
+números de este informe salen de ese equipo. El CI corre las mismas comprobaciones con los umbrales del perfil `ci`,
+en un runner de GitHub de 4 vCPU que reparte el CPU entre la API, autocannon, PostgreSQL y el receptor; esos
+umbrales se calibran con las primeras corridas en GitHub. La API corre en su propio proceso
 (`packages/api/carga/servidor.ts`: la de producción con el límite por llave levantado, porque se mide la emisión
 y no el limitador) y el generador en otro.
 
@@ -41,6 +44,10 @@ Perfil `local`: 8 cajas, 16 llaves, 30 s a 30/s y 30 s con 32 conexiones.
 
 Perfil `ci` (4 cajas, 25/s y 16 conexiones, 20 s cada fase) en PostgreSQL nativo: p50 19 ms, p95 56 ms, p99
 107 ms a 25/s; unos 100 a 130 documentos/s en saturación; 0 duplicados, 0 huecos, 0 claves con más de un número.
+Repetido tras la revisión en un clúster propio: p50 20 / p95 37 / p99 56 ms a 25/s, 158 documentos/s, 3707
+documentos, 0 errores. Contra la base compartida de Docker con otras pruebas corriendo a la vez (77 % de CPU) dio
+p95 305 ms y p99 610 ms a 25/s: por encima de los umbrales, con la integridad intacta. Es la señal de que en un
+runner de 4 vCPU los umbrales de latencia del perfil `ci` pueden quedar justos y hay que calibrarlos allí.
 
 **Dónde se va el tiempo.** Una emisión hace 30 consultas en 4 transacciones (llave, idempotencia, emisor y la
 emisión con su aviso, bitácora y uso). En la base de Docker sobre WSL2 cada ida y vuelta cuesta más: de ahí los
@@ -55,8 +62,10 @@ Fijados en `packages/api/carga/perfiles.json`. Una medición que no los cumple t
 | Medida | Umbral | Por qué |
 |---|---|---|
 | p50 / p95 / p99 a tasa fija | ≤ 100 / 300 / 600 ms | Unas 5 veces lo medido en la base nativa y holgado para la de Docker: los runners del CI son más lentos y variables |
-| Rendimiento en saturación | ≥ 40 documentos/s | Dos tercios de la base de Docker; muy por encima de lo que emite un negocio (decenas de cajas, una venta cada pocos segundos) |
-| Respuestas que no son 201, errores de red y tiempos agotados | 0 | El límite por llave está levantado: cualquier error es un problema |
+| Rendimiento en saturación | ≥ 40 documentos/s (`local`, `nocturno`); ≥ 30 (`ci`) | Dos tercios de la base de Docker; muy por encima de lo que emite un negocio (decenas de cajas, una venta cada pocos segundos). En el CI, más bajo: el runner tiene 4 vCPU compartidas |
+| Respuestas que no son 201 y errores de red a tasa fija | 0 | Sin cola y con el límite por llave levantado: cualquier error es un problema |
+| Respuestas que no son 201 en saturación | 0 | Ídem |
+| Tiempos agotados y errores de red en saturación | tolerados, si la integridad se cumple | Con la API saturada, una solicitud puede esperar más que el tiempo máximo de autocannon (10 s) en un runner lento; lo que importa es que la emisión que pudo pasar no deje huecos, repetidos ni claves con dos números |
 | Correlativos repetidos, huecos, `fhn_series` desalineada | 0 | Regla del proyecto: correlativos atómicos y sin huecos |
 | Documentos sin clave, claves sin documento, claves con más de un número | 0 | Idempotencia bajo carga |
 | Avisos de webhook | todos entregados (hasta 2 min después) | Nada se pierde |
@@ -65,7 +74,7 @@ Fijados en `packages/api/carga/perfiles.json`. Una medición que no los cumple t
 
 - **El despacho de webhooks no alcanzaba a la emisión.** Entregaba a lo sumo 20 avisos por tenant cada 5 s (4 por
   segundo); con más de 100 documentos por segundo la cola crecía sin fin. Ahora sigue con el lote siguiente
-  mientras haya vencidos (hasta 30 s por pasada): los avisos quedan entregados segundos después de la carga.
+  mientras haya vencidos (sin reclamar lotes nuevos pasados 30 s): los avisos quedan entregados segundos después de la carga.
 - **`fechaHonduras` creaba un `Intl.DateTimeFormat` en cada llamada**, cerca del 8 % del CPU de la API en la
   emisión. Ahora lo reusa: de unos 107 a unos 124 documentos/s en saturación (base nativa, con webhook).
 

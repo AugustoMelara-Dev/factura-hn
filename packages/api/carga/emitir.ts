@@ -227,8 +227,14 @@ try {
       await esperar((perfil.duracionS * 1000 * 0.8) / perfil.rafagas);
       const { llave } = llaves[i % llaves.length]!;
       const clave = `rafaga-${fase}-${i}`;
-      const rs = await Promise.all(Array.from({ length: 8 }, () => pedir(llave, 'POST', '/v1/documentos', VENTA, { 'idempotency-key': clave })));
+      const rs = await Promise.all(
+        Array.from({ length: 8 }, () => pedir(llave, 'POST', '/v1/documentos', VENTA, { 'idempotency-key': clave }).catch(() => null)),
+      );
       for (const r of rs) {
+        if (!r) {
+          erroresDeRed++;
+          continue;
+        }
         estados.set(r.estado, (estados.get(r.estado) ?? 0) + 1);
         anotar(clave, r.cuerpo.documento?.numero);
         if (r.replay) repeticiones++;
@@ -245,8 +251,18 @@ try {
       latenciaMs: { p50: redondear(percentil(tiempos, 50)), p95: redondear(percentil(tiempos, 95)), p99: redondear(percentil(tiempos, 99)), max: redondear(tiempos.at(-1) ?? NaN) },
     };
   };
+  const noCreadas = () => [...estados].filter(([e]) => e !== 201).reduce((a, [, n]) => a + n, 0);
   const aTasa = await fase(perfil.tasa);
+  // Lo que falló a tasa fija se exige aparte: ahí no hay cola y cualquier error es un error.
+  const noCreadasATasa = noCreadas();
+  const sinRespuestaATasa = erroresDeRed;
+  const erroresATasa = noCreadasATasa + sinRespuestaATasa;
   const saturada = await fase(null);
+  // En saturación se toleran los tiempos agotados y los errores de red (en un runner de 4 vCPU que comparten la
+  // API, autocannon, PostgreSQL y el receptor, una solicitud puede esperar más de 10 s en la cola) mientras la
+  // integridad se cumpla; una respuesta que no es 201 sigue siendo un error.
+  const noCreadasSaturada = noCreadas() - noCreadasATasa;
+  const sinRespuestaSaturada = erroresDeRed + agotadas - sinRespuestaATasa;
 
   // --- 3. Revisión contra la base --------------------------------------------------------------------------
   const integridad = await revisarIntegridad(dueno, tenant);
@@ -259,7 +275,6 @@ try {
     )).rows.map((f) => [f.clave, f.numero]),
   );
   const clavesQueNoCoinciden = [...numerosPorClave].filter(([k, s]) => s.size !== 1 || enBase.get(k) !== [...s][0]).map(([k]) => k);
-  const errores = [...estados].filter(([e]) => e !== 201).reduce((a, [, n]) => a + n, 0) + erroresDeRed + agotadas;
 
   // Los avisos de webhook: uno por documento, todos entregados (el despacho corre cada 5 s).
   const filasEntregas = async () => (await dueno.query<{ estado: string; n: number }>(
@@ -285,6 +300,9 @@ try {
     estados: Object.fromEntries(estados),
     erroresDeRed,
     tiemposAgotados: agotadas,
+    erroresATasa,
+    noCreadasEnSaturacion: noCreadasSaturada,
+    sinRespuestaEnSaturacion: sinRespuestaSaturada,
     repeticionesConLaMismaClave: repeticiones,
     clavesConVariosNumeros: clavesConVariosNumeros.length,
     series: integridad.series.length,
@@ -300,10 +318,12 @@ try {
     ...clavesQueNoCoinciden.slice(0, 10).map((k) => `la clave ${k} dio al cliente otro número que el que guarda la base`),
     // Al vencer el tiempo de cada fase, autocannon descarta las respuestas en vuelo (a lo sumo una por conexión):
     // esas emisiones existen (con su clave, revisado arriba) pero el cliente no vio su número.
-    ...(integridad.documentos < numerosPorClave.size || integridad.documentos > numerosPorClave.size + 2 * perfil.conexiones
+    // Una solicitud agotada en saturación también pudo emitir sin que el cliente viera el número.
+    ...(integridad.documentos < numerosPorClave.size || integridad.documentos > numerosPorClave.size + 2 * perfil.conexiones + sinRespuestaSaturada
       ? [`${integridad.documentos} documentos para ${numerosPorClave.size} claves vistas por el cliente`]
       : []),
-    ...(errores > u.maxErrores ? [`${errores} respuestas no 201 o errores de red (máximo ${u.maxErrores})`] : []),
+    ...(erroresATasa > u.maxErrores ? [`${erroresATasa} respuestas no 201 o errores de red a ${perfil.tasa}/s (máximo ${u.maxErrores})`] : []),
+    ...(noCreadasSaturada > u.maxErrores ? [`${noCreadasSaturada} respuestas no 201 en saturación (máximo ${u.maxErrores})`] : []),
     ...(aTasa.latenciaMs.p50 > u.p50Ms ? [`p50 a ${perfil.tasa}/s: ${aTasa.latenciaMs.p50} ms > ${u.p50Ms} ms`] : []),
     ...(aTasa.latenciaMs.p95 > u.p95Ms ? [`p95 a ${perfil.tasa}/s: ${aTasa.latenciaMs.p95} ms > ${u.p95Ms} ms`] : []),
     ...(aTasa.latenciaMs.p99 > u.p99Ms ? [`p99 a ${perfil.tasa}/s: ${aTasa.latenciaMs.p99} ms > ${u.p99Ms} ms`] : []),
@@ -322,7 +342,7 @@ try {
 A ${perfil.tasa}/s:       ${lat(aTasa.latenciaMs)} ms · ${aTasa.documentosPorS} documentos/s
 Saturada:       ${lat(saturada.latenciaMs)} ms · ${saturada.solicitudesPorS} solicitudes/s · ${saturada.documentosPorS} documentos/s
 Documentos:     ${informe.documentos} en ${informe.series} series
-Respuestas:     ${JSON.stringify(informe.estados)} · errores de red ${erroresDeRed} · agotadas ${agotadas}
+Respuestas:     ${JSON.stringify(informe.estados)} · errores de red ${erroresDeRed} · agotadas ${agotadas} (a tasa fija ${erroresATasa}; en saturación ${noCreadasSaturada} no 201 y ${sinRespuestaSaturada} sin respuesta, estas toleradas)
 Idempotencia:   ${repeticiones} repeticiones con la misma clave · ${clavesConVariosNumeros.length} claves con más de un número
 Numeración:     ${informe.duplicados} duplicados · ${informe.huecos} series con huecos
 Webhooks:       ${entregadas} de ${totalEntregas} entregados (${informe.webhooks.segundosParaVaciarDespuesDeLaCarga} s después de la carga) · el receptor vio ${recibidos.size}
@@ -340,7 +360,9 @@ Resultado:      ${archivo}`);
       `| Documentos por segundo en saturación | ${saturada.documentosPorS} | ≥ ${u.minDocumentosPorS} |`,
       `| p50 / p95 / p99 en saturación | ${saturada.latenciaMs.p50} / ${saturada.latenciaMs.p95} / ${saturada.latenciaMs.p99} ms | |`,
       `| Documentos emitidos | ${informe.documentos} | |`,
-      `| Respuestas que no son 201 y errores de red | ${errores} | ≤ ${u.maxErrores} |`,
+      `| Respuestas que no son 201 y errores de red a tasa fija | ${erroresATasa} | ≤ ${u.maxErrores} |`,
+      `| Respuestas que no son 201 en saturación | ${noCreadasSaturada} | ≤ ${u.maxErrores} |`,
+      `| Tiempos agotados y errores de red en saturación | ${sinRespuestaSaturada} | tolerados si la integridad se cumple |`,
       `| Correlativos repetidos / series con huecos | ${informe.duplicados} / ${informe.huecos} | 0 / 0 |`,
       `| Claves con más de un número | ${clavesConVariosNumeros.length} | 0 |`,
       `| Avisos de webhook entregados | ${entregadas} de ${totalEntregas} | todos |`,
