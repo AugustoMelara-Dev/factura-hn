@@ -37,7 +37,7 @@ Valen para integrar y para operar. `AGENTS.md`, la skill y el servidor MCP dicen
   además `solucion` y un enlace a su entrada en la [referencia de errores](/referencia/errores/). El agente no los
   reinterpreta.
 - **No borrar ni reutilizar un número.** Un documento emitido se anula o se corrige con una nota de crédito o de
-  débito. Ver [Documentos inmutables](/conceptos/documentos-inmutables/).
+  débito. Ver [Documentos inmutables](/conceptos/inmutables/).
 - **No aprobar automáticamente `anular_documento` ni `registrar_cai`** en el cliente MCP. Las dos son
   irreversibles: el cliente debe pedir confirmación cada vez.
 - **Un documento de prueba no es una factura.** Lo que se emite con el CAI ficticio (`DEMO00-NO-VALIDO-…`) dice

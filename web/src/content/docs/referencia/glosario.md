@@ -20,13 +20,13 @@ Ver [Normativa](/referencia/normativa/).
 Término técnico. Donde factura-hn guarda las autorizaciones y los documentos, y desde donde toma el siguiente
 número en la misma transacción que guarda el documento.
 SDK: `AlmacenFiscal`, `AlmacenPostgres`, `AlmacenSQLite`, `AlmacenFiscalMemoria` (solo pruebas).
-Ver [Almacén fiscal](/conceptos/almacen-fiscal/).
+Ver [Almacén fiscal](/conceptos/almacen/).
 
 ### Anulación
 
 Un documento con errores no se borra: lleva la leyenda «ANULADA» y se resguardan el original y la copia
 (Art. 41). El número sigue consumido.
-SDK: `anular`. Ver [Documentos inmutables](/conceptos/documentos-inmutables/).
+SDK: `anular`. Ver [Documentos inmutables](/conceptos/inmutables/).
 
 ### Autoimpresor por sistema computarizado
 
@@ -60,7 +60,7 @@ SDK: `COMPROBANTES_FISCALES`. Ver [Documentos](/documentos/).
 
 El adquirente sin RTN: el documento dice «CONSUMIDOR FINAL» o su nombre e identificación (Art. 11 num. 2 a). Una
 venta de más de L 10,000 exige el nombre, el tipo y el número de identificación (Art. 11, párrafo final).
-SDK: `CONSUMIDOR_FINAL`. Ver [Factura](/documentos/01-factura/).
+SDK: `CONSUMIDOR_FINAL`. Ver [Factura](/documentos/factura/).
 
 ### Constancia del Registro de Exonerados
 
@@ -70,7 +70,7 @@ Ver [Orden de Compra Exenta](#orden-de-compra-exenta-oce).
 
 Lo que el negocio usa cuando el sistema no está disponible: talonarios preimpresos de una imprenta certificada.
 Vender sin documento se sanciona (Art. 55).
-Ver [Contingencia](/produccion/contingencia/).
+Ver [Contingencia](/produccion/tramites/#contingencia-si-el-sistema-no-está-disponible).
 
 ### Contrato de adhesión
 
@@ -122,7 +122,7 @@ SDK: `isv: 'EXENTO'`, `totales.importeExento`. Ver [ISV y montos](/conceptos/isv
 Un adquirente con derecho a no pagar el ISV, que lo acredita con la Orden de Compra Exenta y la Constancia del
 Registro de Exonerados, o con el registro SAG/RUPNSA (Art. 11 num. 4). La exoneración aplica al documento completo
 (DEC-019).
-SDK: `exoneracion`, `totales.importeExonerado`. Ver [Clientes especiales](/guias/clientes-especiales/).
+SDK: `exoneracion`, `totales.importeExonerado`. Ver [Exonerado](/conceptos/isv-y-montos/#exonerado).
 
 ## F
 
@@ -145,7 +145,7 @@ SDK: `fechaLimiteEmision`, error `AUTORIZACION_VENCIDA`. Ver [CAI y rangos](/pro
 
 La tasa cero de las exportaciones de mercancías gravadas (Art. 12). No es lo mismo que exento: el documento lo
 discrimina aparte (Art. 11 num. 1 g).
-SDK: `isv: 'GRAVADO0'`, `totales.importeGravado0`. Ver [Clientes especiales](/guias/clientes-especiales/).
+SDK: `isv: 'GRAVADO0'`, `totales.importeGravado0`. Ver [Factura](/documentos/factura/).
 
 :::caution[Por confirmar con fuente]
 La Ley del ISV dice que las exportaciones quedan «exentas». El proyecto sigue al Reglamento (Art. 12) a la espera de
@@ -192,13 +192,13 @@ Ver [Referencia de la API](/referencia/api/).
 Término técnico, no una regla fiscal (DEC-063). Lo que se emite con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva
 `modo: 'prueba'`, la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y queda fuera del libro de ventas y de la
 exportación (DEC-064).
-SDK: `factura-hn/demo`, `esDocumentoDePrueba`. Ver [Tu primera factura](/empezar/).
+SDK: `factura-hn/demo`, `esDocumentoDePrueba`. Ver [Tu primera factura](/empezar/primera-factura/).
 
 ### Momento de emisión
 
 El documento se emite con lo primero entre la entrega del bien y el pago o el otorgamiento del crédito; en
 servicios, al pago o al crédito (Art. 14).
-Ver [Factura](/documentos/01-factura/).
+Ver [Factura](/documentos/factura/).
 
 ## N
 
@@ -206,13 +206,13 @@ Ver [Factura](/documentos/01-factura/).
 
 Documento que ajusta un Comprobante Fiscal por ajustes, devoluciones, descuentos posteriores o anulación de
 operaciones (Art. 4 num. 32). Código 06, con su propia autorización y serie (Art. 25 num. 5).
-SDK: `tipoDocumento: '06'`. Ver [Nota de Crédito](/documentos/06-nota-de-credito/).
+SDK: `tipoDocumento: '06'`. Ver [Nota de Crédito](/documentos/nota-credito/).
 
 ### Nota de Débito
 
 Documento que registra ajustes sobre un Comprobante Fiscal o sobre otro documento (Art. 4 num. 31 y Art. 28
 num. 3 b; DEC-016). Código 07, con su propia autorización y serie (Art. 27 num. 5).
-SDK: `tipoDocumento: '07'`. Ver [Nota de Débito](/documentos/07-nota-de-debito/).
+SDK: `tipoDocumento: '07'`. Ver [Nota de Débito](/documentos/nota-debito/).
 
 ### Número del documento
 
@@ -228,7 +228,7 @@ Uno de los documentos con que un adquirente exonerado acredita la exoneración, 
 Registro de Exonerados. El sector agroindustrial puede presentar en su lugar el registro SAG/RUPNSA (Art. 11
 num. 4; DEC-021).
 SDK: `exoneracion.ordenCompraExenta`, `exoneracion.constanciaRegistroExonerado`, `exoneracion.registroSAG`.
-Ver [Clientes especiales](/guias/clientes-especiales/).
+Ver [Exonerado](/conceptos/isv-y-montos/#exonerado).
 
 :::caution[Por confirmar con fuente]
 Si el registro SAG/RUPNSA basta sin OCE ni constancia es la pregunta P-08 de la

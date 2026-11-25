@@ -74,7 +74,7 @@ Formularios, medio y plazos de la inscripción y de la Declaración Jurada. Es l
 
 Sí. Los tres caminos empiezan en modo de prueba, con un CAI ficticio (`DEMO00-NO-VALIDO-…`) y un emisor
 ficticio. Todo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». Ver
-[Tu primera factura](/empezar/) y el [playground](/empezar/playground/), que corre en el navegador.
+[Tu primera factura](/empezar/primera-factura/) y el [playground](/empezar/playground/), que corre en el navegador.
 
 ### ¿Puedo usar mi CAI?
 
@@ -158,15 +158,15 @@ Depende de en qué momento:
   después con otra fecha.
 
 Esto requiere un almacén que guarde en disco (SQLite o Postgres). `AlmacenFiscalMemoria` pierde todo al
-reiniciar: es solo para pruebas. Ver [Almacén fiscal](/conceptos/almacen-fiscal/) y
-[Contingencia](/produccion/contingencia/).
+reiniciar: es solo para pruebas. Ver [Almacén fiscal](/conceptos/almacen/) y
+[Contingencia](/produccion/tramites/#contingencia-si-el-sistema-no-está-disponible).
 
 ### Un cliente exonerado trae una Orden de Compra Exenta que no cubre todo. ¿Qué hago?
 
 Emite dos facturas: una con `exoneracion` y los artículos cubiertos por la OCE, y otra normal con el resto. La
 exoneración aplica al documento completo: es una decisión del proyecto (DEC-019), porque el Reglamento no regula
 una exoneración parcial. Los documentos que acreditan la exoneración son los del Art. 11 num. 4. Ver
-[Clientes especiales](/guias/clientes-especiales/).
+[Exonerado](/conceptos/isv-y-montos/#exonerado).
 
 ## Correcciones
 
@@ -178,13 +178,13 @@ original y la copia (Art. 41), en orden cronológico (Art. 43). El número sigue
 - anula el documento con `anular`, con motivo obligatorio;
 - o emite una Nota de Crédito (06) o de Débito (07) que lo referencie.
 
-Ver [Documentos inmutables](/conceptos/documentos-inmutables/).
+Ver [Documentos inmutables](/conceptos/inmutables/).
 
 ### ¿Cómo hago una nota sobre una factura en dólares?
 
 La nota se emite en lempiras (Arts. 26 num. 9 y 28 num. 8; DEC-018). Escribe sus líneas en dólares: se
 convierten con el tipo de cambio de la factura original, que la nota imprime como referencia. Ver
-[Nota de Crédito](/documentos/06-nota-de-credito/).
+[Nota de Crédito](/documentos/nota-credito/).
 
 ## Datos y reportes
 
