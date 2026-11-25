@@ -318,7 +318,7 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
 | `Solicitud-Id` | todas | Id de la solicitud. Si mandas una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), la API usa la tuya; si no, genera un UUID. Va también en `error.solicitud` y en el log del servidor de un 500, que además lleva siempre un id generado por el servidor |
 | `FacturaHN-Version` | todas | Versión de la API que respondió (la de `/salud`) |
 | `RateLimit-Policy`, `RateLimit` | `/v1`, después de validar la llave (nunca en 401, 413 ni 429 `DEMASIADOS_INTENTOS`) | Límite de la llave (ver «Límites de solicitudes») |
-| `Retry-After` | los 429 | Segundos que conviene esperar antes de reintentar |
+| `Retry-After` | los 429 y los 503 | Segundos que conviene esperar antes de reintentar |
 
 ### Reportes de período
 
@@ -401,9 +401,12 @@ antes a centavos.
   tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`.
 - Los demás: 401 llave · 403 rol o caja · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
   `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
-  espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO`.
+  espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO` · 503
+  `BASE_NO_DISPONIBLE`, con `Retry-After`: PostgreSQL se reinicia o no responde. La API se recupera sola cuando
+  la base vuelve; reintenta (al emitir, con la misma `Idempotency-Key`: si el documento alcanzó a emitirse
+  recibes el mismo, y si no, se emite una sola vez).
 - Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
-  401, 429 y 500; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  401, 429, 500 y 503; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
   operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
   reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 
@@ -492,7 +495,9 @@ arrancar y cada hora.
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
-y un despachador los entrega cada 5 s. Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
+y un despachador los entrega cada 5 s; si un tenant tiene más de un lote vencido (por ejemplo, lo que se
+acumuló mientras su receptor estaba caído), la misma pasada sigue con el lote siguiente hasta vaciarlo (a lo
+sumo 30 s por pasada). Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
 intentos, con espera creciente (30 s, 1 min, 2 min, 4 min, … 2 h 8 min, 4 h 16 min y después 6 h entre cada uno)
 y una fluctuación de ±20 % en cada espera, para que los avisos que fallaron juntos no vuelvan todos a la vez.
 Entre el primer intento y el último pasan unas 74 h y media de media (con la fluctuación, entre unas 60 y 89 h
