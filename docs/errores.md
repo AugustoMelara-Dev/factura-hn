@@ -584,7 +584,7 @@ moneda: la mayoría de estos errores desaparecen.
   de carro. Si `campo` empieza con `emisor.`, el carácter está en la configuración del emisor, no en la venta:
   corrígela en `crearFacturador({ emisor })` o, en la API, con `PATCH /v1/emisores/{id}`.
 - **Base:** no es una regla fiscal. PostgreSQL no guarda esos caracteres en `jsonb` (el listado y la anulación
-  terminaban en error 500) y la impresora toma los de control como comandos (DEC-060). Se rechaza antes de
+  terminaban en error 500) y la impresora toma los de control como comandos. Se rechaza antes de
   consumir número.
 
 ## SDK: avisos
