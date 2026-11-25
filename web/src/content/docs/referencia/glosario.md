@@ -174,7 +174,8 @@ SDK: `isv: 'ISV15' | 'ISV18'`, `totales.isv15`, `totales.isv18`. Ver [ISV y mont
 
 :::caution[Por confirmar con fuente]
 Las tasas vigentes vienen del Decreto 278-2013, Art. 16, que el proyecto no tiene en texto primario. Falta también
-la lista oficial de bienes y servicios al 18 % (P-11; DEC-069, en revisión).
+la lista oficial de bienes y servicios al 18 % (P-11; DEC-069, en revisión). Ver la
+[consulta al SAR](/produccion/consulta-sar/) y [Decisiones](/referencia/decisiones/).
 :::
 
 ## L
@@ -295,7 +296,7 @@ Ver [Autoalojamiento](/guias/autoalojar/).
 
 ### Ticket
 
-Documento que se emite exclusivamente a consumidores finales por máquinas registradoras (Art. 4 num. 43 y Art. 17).
+Documento que se emite exclusivamente por máquinas registradoras (Art. 4 num. 43 y Art. 17).
 Un sistema computarizado no lo emite: a un consumidor final le emite Factura.
 SDK: error `TIPO_NO_EMITIBLE`. Ver [Documentos no emitibles](/documentos/no-emitibles/).
 

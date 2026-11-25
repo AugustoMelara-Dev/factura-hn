@@ -12,7 +12,7 @@ del Régimen de Facturación (Acuerdo 481-2017 y sus reformas), salvo que se ind
 
 ### ¿factura-hn es oficial?
 
-No. Es un proyecto independiente de código abierto, no afiliado al SAR. Te ayuda a cumplir los requisitos de
+No. Es un proyecto independiente de código abierto, no afiliado al SAR. Genera documentos con los requisitos de
 formato y cálculo del Reglamento, pero no sustituye tu inscripción como autoimpresor ni la revisión de un
 contador. Ver [Normativa](/referencia/normativa/).
 
@@ -89,7 +89,8 @@ se repetirían. Este campo es una lectura del proyecto pendiente de confirmar (D
 :::caution[Por confirmar con fuente]
 La autorización se otorga por sistema y por tipo de documento (Art. 61). El repositorio no tiene fuente sobre si
 un CAI solicitado para otro sistema o para talonarios de imprenta puede seguir usándose al cambiar a factura-hn.
-No está entre las preguntas P-01 a P-14: confírmalo con tu contador o con el SAR antes de registrarlo.
+No está entre las preguntas P-01 a P-14: confírmalo con tu contador o con el SAR antes de registrarlo. Ver la
+[consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ### ¿Necesito internet?

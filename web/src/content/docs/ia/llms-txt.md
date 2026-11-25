@@ -45,7 +45,8 @@ esa página.
 ## El .md de cada página
 
 Cada página tiene su versión en Markdown en la misma ruta, terminada en `.md`. Trae el texto y los bloques de
-código tal como están en la fuente, sin menús ni estilos. Es lo más fácil de leer para un agente y lo más
+código de la fuente, con los enlaces convertidos en URL completas, sin menús ni estilos. El `llms.txt` del
+sitio también lista las páginas con su versión `.md`. Es lo más fácil de leer para un agente y lo más
 barato en contexto.
 
 ## Cómo dárselos a un agente
