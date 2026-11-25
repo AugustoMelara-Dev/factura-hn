@@ -14,7 +14,7 @@
  * - No se puede anular dos veces ni «reactivar» un documento anulado.
  * - La fecha de anulación la pone el reloj de Honduras (no es la fecha de emisión, que no cambia).
  */
-import { hoyHonduras, ErrorValidacion } from './documento';
+import { hoyHonduras, ErrorValidacion, problemasDeTexto } from './documento';
 import { horaHonduras } from './autorizacion';
 import { congelar } from './inmutable';
 import type { DocumentoFiscal } from './tipos';
@@ -34,7 +34,8 @@ export interface OpcionesAnulacion {
  * el número queda consumido. Con un `AlmacenFiscal`, usa `anular(numero, …)`, que lo guarda en la misma
  * transacción; el registro nunca se borra.
  *
- * @throws ErrorValidacion `ANULACION_MOTIVO` si falta el motivo, `YA_ANULADO` si ya estaba anulado.
+ * @throws ErrorValidacion `ANULACION_MOTIVO` si falta el motivo, `TEXTO_CARACTER_NO_PERMITIDO` si el motivo
+ *   lleva caracteres de control, `YA_ANULADO` si ya estaba anulado.
  */
 export function anularDocumento(doc: DocumentoFiscal, opciones: OpcionesAnulacion): DocumentoFiscal {
   if (doc.estado === 'ANULADO') {
@@ -48,6 +49,9 @@ export function anularDocumento(doc: DocumentoFiscal, opciones: OpcionesAnulacio
       { codigo: 'ANULACION_MOTIVO', mensaje: 'La anulación requiere un motivo.', campo: 'motivo' },
     ]);
   }
+  // El motivo queda en el documento y en la bitácora: sin caracteres de control (TEXTO_CARACTER_NO_PERMITIDO).
+  const texto = problemasDeTexto({ motivo });
+  if (texto.length) throw new ErrorValidacion(texto);
   const reloj = opciones.reloj ?? (() => new Date());
   const ahora = reloj();
   const anulado: DocumentoFiscal = {

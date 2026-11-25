@@ -180,6 +180,7 @@ export async function registrarAutorizacion(
   autorizacion: AutorizacionCAI,
   opciones: OpcionesRegistroAutorizacion = {},
 ): Promise<AutorizacionCAI> {
+  exigirAlmacen(almacen, 'registrarAutorizacion');
   return (await registrarAutorizacionConAvisos(almacen, autorizacion, opciones)).autorizacion;
 }
 
@@ -193,7 +194,7 @@ export async function registrarAutorizacionConAvisos(
   autorizacion: AutorizacionCAI,
   opciones: OpcionesRegistroAutorizacion = {},
 ): Promise<RegistroAutorizacion> {
-  exigirAlmacen(almacen, 'registrarAutorizacion');
+  exigirAlmacen(almacen, 'registrarAutorizacionConAvisos');
   exigirOperador(opciones.operador);
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {

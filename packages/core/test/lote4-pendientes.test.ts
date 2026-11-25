@@ -9,6 +9,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   AlmacenFiscalMemoria,
+  anular,
+  buscarDocumento,
+  crearFacturador,
   emitir,
   enlaceError,
   ErrorValidacion,
@@ -20,6 +23,7 @@ import {
   type AutorizacionCAI,
   type DocumentoEntrada,
 } from '../src';
+import { anularDocumento } from '../src/anulacion';
 
 const AUT: AutorizacionCAI = {
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
@@ -98,13 +102,64 @@ describe('TEXTO_CARACTER_NO_PERMITIDO', () => {
     expect(problemasDeTexto({ motivo: 'a\ud800' })[0]!.mensaje).toContain('par sustituto');
   });
 
+  it('sin límite de profundidad: un texto muy anidado también se rechaza, y un ciclo no cuelga el recorrido', () => {
+    const profundo = { cliente: { nombre: 'Ana', extra: { a: { b: { c: { d: { e: { f: { g: 'x\u0000' } } } } } } } } };
+    expect(problemasDeTexto(profundo).map((p) => p.campo)).toEqual(['cliente.extra.a.b.c.d.e.f.g']);
+    let anidado: Record<string, unknown> = { v: 'y\u001b' };
+    for (let i = 0; i < 10_000; i++) anidado = { n: anidado };
+    expect(problemasDeTexto({ observaciones: anidado })).toHaveLength(1);
+    const ciclo: Record<string, unknown> = { nombre: 'z\u0007' };
+    ciclo.yo = ciclo;
+    expect(problemasDeTexto({ cliente: ciclo }).map((p) => p.campo)).toEqual(['cliente.nombre']);
+  });
+
+  it('revisa los nombres de los campos; el campo del problema escribe el carácter como <U+XXXX>', () => {
+    const [p, ...resto] = problemasDeTexto({ cliente: { 'k\u0000': 'v' } });
+    expect(resto).toEqual([]);
+    expect(p).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo: 'cliente.k<U+0000>' });
+    expect(p!.mensaje).toContain('nombre del campo');
+    expect(p!.campo).not.toContain('\u0000');
+  });
+
+  it('un emisor configurado con un carácter de control: la solución dice que se corrige la configuración', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, AUT);
+    const f = crearFacturador({ almacen, emisor: { ...entrada().emisor, razonSocial: 'Ejemplo\u001b' }, ...caja });
+    const e = await errorDe(f.emitir({ lineas: entrada().lineas }));
+    expect(e.errores[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo: 'emisor.razonSocial' });
+    expect(e.errores[0]!.solucion).toContain('PATCH /v1/emisores/{id}');
+    // Fuera del emisor, la solución general (la completa ErrorValidacion).
+    expect(problemasDeTexto({ motivo: 'a\u0000' })[0]!.solucion).toBeUndefined();
+  });
+
   it('el operador sigue con su propio código (OPERADOR), sin duplicar el problema', () => {
     const r = validarEntrada(entrada({ operador: 'Ana\u0000' }), AUT);
     expect(r.errores.map((p) => p.codigo)).toEqual(['OPERADOR']);
   });
 });
 
+describe('motivo de anulación', () => {
+  it('anular rechaza un motivo con NUL o sustituto suelto sin cambiar el documento; anularDocumento también', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, AUT);
+    const doc = await emitir(entrada(), { almacen, ...caja });
+    for (const motivo of ['Error\u0000', 'Error\ud800']) {
+      const e = await errorDe(anular(doc.numero, { almacen, motivo }));
+      expect(e.errores[0]).toMatchObject({ codigo: 'TEXTO_CARACTER_NO_PERMITIDO', campo: 'motivo' });
+    }
+    expect((await buscarDocumento(almacen, doc.numero))!.estado).toBe('EMITIDO');
+    expect(() => anularDocumento(doc, { motivo: 'x\u001b' })).toThrow(/TEXTO_CARACTER_NO_PERMITIDO/);
+    expect(anularDocumento(doc, { motivo: 'Precio\tequivocado\nen caja' }).estado).toBe('ANULADO');
+  });
+});
+
 describe('registrarAutorizacionConAvisos', () => {
+  it('sin almacén, ALMACEN_REQUERIDO nombra la función que se llamó', async () => {
+    const sin = undefined as never;
+    expect((await errorDe(registrarAutorizacionConAvisos(sin, AUT))).message).toContain('registrarAutorizacionConAvisos: falta');
+    expect((await errorDe(registrarAutorizacion(sin, AUT))).message).toContain('] registrarAutorizacion: falta');
+  });
+
   const larga = { ...AUT, fechaAutorizacion: '2026-01-15', fechaLimiteEmision: '2027-06-30' };
 
   it('devuelve AVISO_VIGENCIA_MAYOR_1_ANIO (Art. 62) y lo deja en la bitácora', async () => {

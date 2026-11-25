@@ -25,5 +25,11 @@ describe.skipIf(!URL_PG)('TEXTO_CARACTER_NO_PERMITIDO en la API', () => {
     const lista = await admin('GET', `/v1/documentos?desde=${hoy}&hasta=${hoy}`);
     expect(lista.status).toBe(200);
     expect((await json(lista)).documentos.map((d: { numero: string }) => d.numero)).toEqual([ok.documento.numero]);
+
+    // Motivo de anulación con NUL: 422, no 500, y el documento sigue emitido.
+    const anulacion = await admin('POST', `/v1/documentos/${ok.documento.numero}/anular`, { motivo: 'Error\u0000' });
+    const ja = await json(anulacion);
+    expect([anulacion.status, ja.errores?.[0]?.codigo]).toEqual([422, 'TEXTO_CARACTER_NO_PERMITIDO']);
+    expect((await admin('POST', `/v1/documentos/${ok.documento.numero}/anular`, { motivo: 'Error de precio' })).status).toBe(200);
   });
 });
