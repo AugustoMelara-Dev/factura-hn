@@ -1,0 +1,23 @@
+# MCP remoto de factura-hn (`factura-hn-mcp http`, ver docs/demo.md). Construcción en dos etapas: la imagen final es
+# Node + un solo archivo, sin node_modules. No tiene credenciales de la base: llama a la API (FHN_API_URL) con la
+# llave de cada conexión.
+#   docker build -f Dockerfile.mcp -t factura-hn-mcp .
+#   docker run --rm -p 127.0.0.1:8788:8788 -e FHN_API_URL=http://host.docker.internal:8787 factura-hn-mcp
+# Imagen base fijada por versión y por digest: se actualiza a propósito, no en cada construcción.
+FROM node:22.23.5-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS construccion
+WORKDIR /src
+RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile --filter @factura-hn/mcp... \
+ && pnpm --filter @factura-hn/mcp build:docker
+
+FROM node:22.23.5-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a
+ENV NODE_ENV=production
+WORKDIR /app
+# dist/cli.mjs lee su versión de ../package.json, como en el paquete publicado.
+COPY --from=construccion /src/packages/mcp/package.json ./package.json
+COPY --from=construccion /src/packages/mcp/dist-docker/dist/ ./dist/
+USER node
+EXPOSE 8788
+HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD wget -qO- http://127.0.0.1:8788/salud || exit 1
+CMD ["node", "/app/dist/cli.mjs", "http"]
