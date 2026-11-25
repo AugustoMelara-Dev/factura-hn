@@ -11,8 +11,8 @@ La primera factura en un minuto, sin CAI real:
   `esCAIDemo(cai)` (también en el índice), que reconoce un CAI ficticio (prefijo `DEMO00-NO-VALIDO-`).
 - Modo de prueba: una autorización con CAI ficticio es de prueba, con `prueba: true` o sin él. Cada documento
   lleva `modo: 'prueba'`, y el HTML, el texto y el PDF imprimen «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
-  `prueba: true` con un CAI real se rechaza (`AUTORIZACION_PRUEBA_CAI_REAL`). Un punto de emisión no mezcla CAI de
-  prueba y reales (`AUTORIZACION_MODO_MEZCLADO`), y una nota no cruza de modo (`REFERENCIA_MODO_MEZCLADO`).
+  `prueba: true` con un CAI real se rechaza (`AUTORIZACION_PRUEBA_CAI_REAL`). Un punto de emisión pasa de prueba a real,
+  nunca al revés (`AUTORIZACION_MODO_MEZCLADO`), y una nota no cruza de modo (`REFERENCIA_MODO_MEZCLADO`).
 - `exportarTexto` deja fuera los documentos de prueba. Nuevas: `libroVentas(docs)` (filas, resumen y cuántos
   quedaron fuera) y `separarDocumentosDePrueba(docs)`.
 - `crearFacturador({ almacen, emisor, establecimiento, puntoEmision })`: la configuración del negocio una vez, con

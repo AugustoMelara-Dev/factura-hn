@@ -1,5 +1,5 @@
 ---
-"@factura-hn/cliente": patch
+"@factura-hn/cliente": minor
 ---
 
 API REST: el contrato de la especificación OpenAPI.
@@ -15,3 +15,10 @@ API REST: el contrato de la especificación OpenAPI.
   trae `Retry-After` hasta el primer día del mes siguiente (00:00 en Honduras).
 - Un cuerpo que no es JSON es 400 `JSON_INVALIDO` con la forma de error de la API (antes, texto plano).
 - La especificación pasa el linter de Redocly en la CI (`pnpm lint:openapi`).
+
+## Cambios incompatibles
+
+- Tipos de `@factura-hn/cliente`: las respuestas de error de los `GET` (salvo `/v1/libro-ventas` y
+  `/v1/exportacion`) ya no incluyen el 422. Quien usa `fhn.api.GET(...)` y compara `response.status === 422` o
+  lee el cuerpo de un 422 en esas rutas tiene ahora un error de tipos: la API nunca lo devolvía ahí. Los métodos
+  del cliente (`fhn.documento`, `fhn.documentos`…) no cambian.
