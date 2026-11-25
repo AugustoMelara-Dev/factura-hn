@@ -9,5 +9,5 @@
       "@factura-hn/pdf": ["../pdf/src/index.ts"]
     }
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "test", "carga", "vitest.config.ts"]
 }

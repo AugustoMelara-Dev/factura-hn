@@ -1517,7 +1517,7 @@
         }
       },
       "Retry-After": {
-        "description": "Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras).",
+        "description": "Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras). En un 503 `BASE_NO_DISPONIBLE`, lo que suele tardar la base en volver de un reinicio.",
         "schema": {
           "type": "integer",
           "example": 1
@@ -1584,6 +1584,27 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -1837,6 +1858,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       },
@@ -1972,6 +2023,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -2152,6 +2233,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -2414,6 +2525,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -2639,6 +2780,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       },
@@ -2774,6 +2945,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -2957,6 +3158,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -3071,6 +3302,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -3337,6 +3598,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       },
@@ -3557,6 +3848,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -3774,6 +4095,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -4038,6 +4389,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -4285,6 +4666,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -4501,6 +4912,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -4775,6 +5216,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -5015,6 +5486,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -5250,6 +5751,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -5447,6 +5978,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       },
@@ -5609,6 +6170,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -5863,6 +6454,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -6115,6 +6736,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       },
@@ -6277,6 +6928,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -6502,6 +7183,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -6775,6 +7486,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -7037,6 +7778,36 @@
                 "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
+              }
+            }
           }
         }
       }
@@ -7288,6 +8059,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }
@@ -7551,6 +8352,36 @@
               },
               "FacturaHN-Modo": {
                 "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
+          "503": {
+            "description": "La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/Retry-After"
               }
             }
           }

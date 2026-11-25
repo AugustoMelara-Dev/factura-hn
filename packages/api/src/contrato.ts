@@ -39,7 +39,9 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
     schema: { type: 'string', example: '"llave";r=39;t=1' },
   },
   'Retry-After': {
-    description: 'Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras).',
+    description:
+      'Segundos que conviene esperar antes de reintentar. En `LIMITE_MENSUAL`, hasta el primer día del mes siguiente (00:00 en Honduras). ' +
+      'En un 503 `BASE_NO_DISPONIBLE`, lo que suele tardar la base en volver de un reinicio.',
     schema: { type: 'integer', example: 1 },
   },
 };
@@ -58,7 +60,7 @@ type Especificacion = {
 /**
  * Agrega a cada respuesta de la especificación las cabeceras que la API siempre envía: `Solicitud-Id` y
  * `FacturaHN-Version` en todas; `RateLimit-Policy` y `RateLimit` en las de `/v1` que pueden llegar después de
- * validar la llave (no en 401 ni 413, que se responden antes); `Retry-After` en los 429.
+ * validar la llave (no en 401 ni 413, que se responden antes); `Retry-After` en los 429 y los 503.
  * Las cabeceras propias de una respuesta se conservan.
  */
 export function conCabecerasComunes<T>(doc: T): T {
@@ -75,7 +77,7 @@ export function conCabecerasComunes<T>(doc: T): T {
           'FacturaHN-Version',
           ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) ? ['RateLimit-Policy', 'RateLimit'] : []),
           ...(ruta.startsWith('/v1/') && !ESTADOS_ANTES_DE_LA_LLAVE.has(estado) && estado !== '429' ? ['FacturaHN-Modo'] : []),
-          ...(estado === '429' ? ['Retry-After'] : []),
+          ...(estado === '429' || estado === '503' ? ['Retry-After'] : []),
         ];
         r.headers = { ...Object.fromEntries(nombres.map((n) => [n, { $ref: `#/components/headers/${n}` }])), ...r.headers };
       }

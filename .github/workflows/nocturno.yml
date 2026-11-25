@@ -1,0 +1,57 @@
+# Mediciones largas: lo que tarda más de unos 2 minutos y no cabe en ci.yml. Cada noche y a mano.
+# Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml.
+# Cada encargo del Lote 5 deja aquí su sección (un trabajo por tema); el integrador las junta.
+name: Nocturno
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # 01:00 en Honduras (UTC-6)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nocturno-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # --- lote5/resiliencia: carga y resiliencia -------------------------------------------------------------
+  carga-y-resiliencia:
+    name: Carga larga (5 min, 64 conexiones, 16 cajas) y resiliencia larga
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: factura_hn_pruebas
+          # Solo en el contenedor efímero del CI.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TZ: UTC
+      FHN_PG_URL: postgres://postgres@localhost:5432/factura_hn_pruebas
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
+      - run: pnpm build
+      - name: 'Carga larga: latencia a 30/s, saturación con 64 conexiones, numeración, idempotencia y webhooks'
+        run: pnpm carga nocturno
+      - name: 'Resiliencia larga: 5 reinicios y 5 caídas de PostgreSQL con tráfico, webhooks caídos con más avisos'
+        # Clúster desechable con los binarios de PostgreSQL del runner; el servicio de arriba no se reinicia.
+        run: pnpm resiliencia --larga
+  # --- fin de lote5/resiliencia ---------------------------------------------------------------------------
