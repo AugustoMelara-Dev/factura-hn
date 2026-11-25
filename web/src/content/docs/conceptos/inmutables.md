@@ -107,7 +107,8 @@ Los detalles de cada tipo de documento están en [Documentos](/documentos/).
 
 ## Reimprimir
 
-Reimprime siempre desde el documento guardado, sin recalcular. La copia es idéntica al original (Art. 38):
+Reimprime siempre desde el documento guardado, sin recalcular. Una reimpresión desde el documento guardado es
+idéntica al original (el Art. 38 lo exige para el papel térmico):
 
 ```js
 const guardada = await caja.documento(venta.numero); // o buscarDocumento(almacen, numero)

@@ -89,7 +89,8 @@ referencias, pero `emitir` rechaza los no emitibles con [`TIPO_NO_EMITIBLE`](/re
    número, valida, construye y guarda el documento, todo en una transacción. Si algo falla, el número no se
    consume.
 3. **Imprimir** desde el documento guardado: `renderizarHTML`, `renderizarTexto` o `@factura-hn/pdf`. Una
-   reimpresión es idéntica al original (Art. 38).
+   reimpresión desde el documento guardado es idéntica al original (el Art. 38 lo exige para el papel
+   térmico).
 4. **Corregir** sin editar: anular el documento (Art. 41) o emitir una nota de crédito o de débito. Ver
    [Documentos inmutables](/conceptos/inmutables/).
 
