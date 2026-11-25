@@ -343,7 +343,8 @@ Hay **un solo camino para emitir y uno para anular**: `emitir` y `anular` sobre 
 
 - `registrarAutorizacion(almacen, autorizacion)` → guarda un CAI. Rechaza rangos solapados y CAI repetidos
   del mismo punto de emisión y tipo. Un punto puede acumular varias autorizaciones; la numeración continúa
-  de una a la siguiente.
+  de una a la siguiente. `registrarAutorizacionConAvisos(almacen, autorizacion)` hace lo mismo y devuelve
+  `{ autorizacion, advertencias }`, con avisos como `AVISO_VIGENCIA_MAYOR_1_ANIO`.
 - `emitir(entrada, { almacen, establecimiento, puntoEmision, opciones?, alEmitir? })` → `Promise<DocumentoFiscal>`.
   Bloquea la serie, elige la autorización vigente, valida, construye y guarda en una transacción. Si algo
   falla, el número no se consume. `alEmitir(doc, tx)` corre dentro de la misma transacción (asiento contable,
