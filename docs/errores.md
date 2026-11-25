@@ -129,12 +129,6 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
   `factura-hn/demo` en otro almacén. Así un CAI real nunca gasta números en documentos sin valor fiscal.
 - **Base:** ninguna fiscal: el modo de prueba es del producto.
 
-### AUTORIZACION_DEMO_SIN_PRUEBA
-
-- **Ya no lo devuelve la API.** Lo devolvía `POST /v1/autorizaciones` con un CAI ficticio sin `"prueba": true` en
-  un tenant que no era el de demostración. Desde los modos de tenant, un tenant de producción no acepta ningún
-  CAI ficticio: ver [`CAI_DE_PRUEBA`](#cai_de_prueba).
-
 ### AUTORIZACION_REAL_EN_DEMO
 
 - **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en un tenant de prueba: el `demo`
