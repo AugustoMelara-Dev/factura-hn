@@ -23,15 +23,27 @@ ficticio. Todo impreso dice **«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Pa
 
 ### SDK (Node 18 o más reciente)
 
+En la carpeta de tu proyecto, o en una nueva:
+
 ```bash
 npm install factura-hn
 npx factura-hn init     # crea emitir.mjs y emisor.json
-node emitir.mjs         # emite una factura de prueba y escribe factura.html
+node emitir.mjs         # emite la factura de prueba
 ```
 
-Para verla en un solo comando, sin crear archivos de código: `npx factura-hn demo` (escribe
-`factura-demo.html`).
+Qué verás: el ticket en la consola y una línea con el número (`000-001-01-00000001`) y el total. En la carpeta
+queda `factura.html`, con la leyenda de prueba: ábrelo en el navegador.
 
+La venta de `emitir.mjs` es de 2 × L 115.00 con `preciosIncluyenISV: true`: los precios ya traen el ISV. El
+subtotal es L 200.00, el ISV 15 % L 30.00 y el total L 230.00.
+
+`init` genera un `.mjs`: así Node lo trata como módulo ESM (`import` y `await` de nivel superior) sin tocar tu
+`package.json`. En tus archivos, usa `.mjs` o `.ts`, o pon `"type": "module"` en `package.json`. Con `require`
+(CommonJS) también funciona, dentro de una función `async`.
+
+¿`demo` o `init`? `npx factura-hn demo` solo muestra una factura de prueba (el ticket en la consola y
+`factura-demo.html`), sin crear código. `npx factura-hn init` deja `emitir.mjs` y `emisor.json` para que los
+cambies y sigas desde ahí.
 ### API REST (Docker)
 
 Desde una copia del repositorio, con Docker y Compose v2:
@@ -76,35 +88,44 @@ Dónde va el bloque en cada cliente: [README del MCP](https://github.com/Augusto
 
 ### Next.js
 
-En Next.js, el almacén y el facturador se crean **una vez por proceso**, en un módulo del servidor, y el CAI se
-registra **una sola vez** (desde un script o una pantalla de administración), nunca en cada solicitud. Cada
-venta solo pasa sus líneas:
+Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app` (con el alias `@/`):
 
-<!-- declaraciones:
-import type { Emisor, Venta } from 'factura-hn';
-declare const emisor: Emisor;
--->
-```ts
-// lib/facturador.ts: solo en el servidor. Un almacén por proceso, no uno por solicitud.
-import pg from 'pg';
-import { crearFacturador } from 'factura-hn';
-import { AlmacenPostgres } from '@factura-hn/postgres';
+1. `npm install factura-hn`
+2. Crea `lib/facturador.ts`:
 
-export const almacen = new AlmacenPostgres(new pg.Pool({ connectionString: process.env.DATABASE_URL }));
-export const caja = crearFacturador({ almacen, emisor, establecimiento: '000', puntoEmision: '001', preciosIncluyenISV: true });
+   ```ts
+   // lib/facturador.ts: solo en el servidor. Se crea una vez por proceso, no en cada solicitud.
+   import { crearFacturadorDemo } from 'factura-hn/demo';
 
-// Una vez, en un script de instalación: `await almacen.migrar()` y `await caja.registrarAutorizacion({ … })`
-// con los datos de la resolución del SAR.
+   // crearFacturadorDemo() devuelve una promesa (registra el CAI ficticio al crearse): úsala con `await`.
+   export const facturador = crearFacturadorDemo();
+   ```
 
-// app/acciones.ts ('use server'): en cada venta.
-export async function vender(venta: Venta) {
-  const factura = await caja.emitir(venta);
-  return { numero: factura.numero, total: factura.totales.total };
-}
-```
+3. Crea `app/factura/route.ts`:
 
-El [ejemplo de Next.js](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/nextjs) emite con la
-API desde una server action, sirve el PDF con un enlace firmado y recibe los webhooks.
+   ```ts
+   // app/factura/route.ts: cada visita emite la siguiente factura de prueba y la devuelve como HTML.
+   import { renderizarHTML } from 'factura-hn';
+   import { facturador } from '@/lib/facturador';
+
+   export async function GET() {
+     const caja = await facturador;
+     const factura = await caja.emitir({
+       lineas: [{ descripcion: 'Café molido 1 lb', cantidad: 2, precioUnitario: '100.00' }],
+     });
+     return new Response(renderizarHTML(factura), { headers: { 'content-type': 'text/html; charset=utf-8' } });
+   }
+   ```
+
+4. `npm run dev` y abre <http://localhost:3000/factura>. Verás la factura con la leyenda de prueba. El almacén
+   es de memoria: la numeración vuelve a empezar al reiniciar el servidor.
+
+Para facturar de verdad, el mismo `lib/facturador.ts` pasa a usar tu emisor, Postgres y tu CAI: ver
+[Pasar a producción](#pasar-a-producción).
+
+El [ejemplo de Next.js](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/nextjs) del
+repositorio usa la **API REST**, no el SDK: emite desde una server action con `@factura-hn/cliente`, sirve el PDF
+con un enlace firmado y recibe los webhooks.
 
 ### Pasar a producción
 
@@ -116,9 +137,34 @@ API desde una server action, sirve el PDF con un enlace firmado y recibe los web
 Haz las pruebas en otro almacén (otra base): un punto de emisión no mezcla documentos de prueba y reales. Los
 documentos de prueba no entran en el libro de ventas ni en la exportación.
 
-**Módulos ESM.** Los ejemplos usan `import` y `await` de nivel superior: guarda tus archivos como `.mjs` (o
-`.ts`), o pon `"type": "module"` en tu `package.json`. Con `require` (CommonJS) también funciona, dentro de una
-función `async`.
+En Next.js, `lib/facturador.ts` queda así (`npm install factura-hn @factura-hn/postgres pg`). El CAI se registra
+**una sola vez**, desde un script o una pantalla de administración, nunca en cada solicitud:
+
+```ts
+// lib/facturador.ts en producción: solo en el servidor. Un almacén por proceso, no uno por solicitud.
+import pg from 'pg';
+import { crearFacturador, type Emisor } from 'factura-hn';
+import { AlmacenPostgres } from '@factura-hn/postgres';
+
+// Los datos de tu negocio, tal como están en tu RTN (estos son ficticios).
+const emisor: Emisor = {
+  rtn: '99990000000001',
+  razonSocial: 'Inversiones Ejemplo S. de R.L.',
+  nombreComercial: 'Pulpería La Bendición',
+  direccionCasaMatriz: 'Barrio El Centro, frente al parque, Ciudad Ejemplo',
+  direccionEstablecimiento: 'Barrio El Centro, frente al parque, Ciudad Ejemplo',
+  telefono: '+504 0000-0001',
+  correo: 'ventas@ejemplo.example',
+};
+
+export const almacen = new AlmacenPostgres(new pg.Pool({ connectionString: process.env.DATABASE_URL }));
+export const caja = crearFacturador({ almacen, emisor, establecimiento: '000', puntoEmision: '001', preciosIncluyenISV: true });
+
+// Una vez, en un script de instalación: `await almacen.migrar()` y `await caja.registrarAutorizacion({ … })`
+// con los datos de la resolución del SAR.
+```
+
+En `app/factura/route.ts` (o en tu server action), usa `caja.emitir(venta)` en lugar de `(await facturador).emitir(venta)`.
 
 ## El SDK paso a paso
 

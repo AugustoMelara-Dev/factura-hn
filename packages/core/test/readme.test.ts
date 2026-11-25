@@ -34,6 +34,9 @@ export function fragmentosTS(archivo: string): Fragmento[] {
 
 function compilar(fragmentos: Fragmento[]): string[] {
   const nombres = fragmentos.map((f, i) => join(RAIZ, `__fragmento_${i}.ts`));
+  // Un bloque que empieza con «// lib/facturador.ts:» es ese archivo de Next.js: los demás lo importan como
+  // `@/lib/facturador`.
+  const facturadorNext = fragmentos.findIndex((f) => /^\s*\/\/ lib\/facturador\.ts:/m.test(f.codigo));
   const opciones: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,
@@ -52,6 +55,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
       '@factura-hn/cliente': [join(RAIZ, 'packages', 'cliente', 'src', 'index.ts')],
       '@factura-hn/pdf': [join(RAIZ, 'packages', 'pdf', 'src', 'index.ts')],
       pg: [join(RAIZ, 'packages', 'postgres', 'node_modules', '@types', 'pg', 'index.d.ts')],
+      ...(facturadorNext >= 0 ? { '@/lib/facturador': [nombres[facturadorNext]!] } : {}),
     },
   };
   const host = ts.createCompilerHost(opciones);

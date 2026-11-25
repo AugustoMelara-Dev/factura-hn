@@ -128,10 +128,13 @@ function init(dir: string, forzar: boolean): number {
   console.log(`Se crearon emitir.mjs y emisor.json en ${dir}.
 
 Siguientes pasos:
-  1. npm install factura-hn          si aún no está instalado en este directorio
-  2. node emitir.mjs                 emite una factura de prueba y escribe factura.html
-  3. Cambia emisor.json por los datos de tu negocio. Para emitir de verdad, registra el CAI de tu
-     resolución del SAR y usa un almacén que guarde. Guía: ${GUIA}`);
+  1. node emitir.mjs     emite una factura de prueba: imprime el ticket en la consola, con su número y
+                         total, y escribe factura.html con la leyenda «${LEYENDA_PRUEBA}».
+  2. Cambia emisor.json por los datos de tu negocio. Para emitir de verdad, registra el CAI de tu
+     resolución del SAR y usa un almacén que guarde. Guía: ${GUIA}
+
+emitir.mjs es un módulo ESM (import y await de nivel superior). Necesita factura-hn instalado en este
+proyecto: si node dice que no lo encuentra, corre antes npm install factura-hn.`);
   return 0;
 }
 
