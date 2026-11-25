@@ -1101,3 +1101,87 @@ integración (DEC-086 a DEC-089).
     `factura-hn-mcp ayuda`) y exige las exportaciones que nombra la documentación.
 - **Alternativa:** para la API, el contenedor de Docker en el humo. Ya lo prueba el job `docker` (`/salud`), y
   repetirlo alarga la CI sin probar nada nuevo de los pasos.
+
+## Lote 2: segunda revisión
+
+Correcciones de la segunda revisión del Lote 2 (DEC-090 a DEC-096) y un pendiente para el Lote 4. El límite de
+intentos de la API se corrigió en DEC-070.
+
+### DEC-090 · La API no arranca con un esquema anterior al del código
+- **Contexto:** con una base en el esquema v6 (sin `fhn_api_prefijo_registrado`) y el código en v7, cada llave no
+  validada terminaba en 500. Pasa si la base la migra otro proceso (montaje propio con `crearApp`) o con otro rol.
+- **Elegida:** `exigirEsquemaApi(pool, rol)` comprueba con la conexión de la API que existe la función que añadió
+  la versión actual y que el rol de la aplicación puede ejecutarla. `arrancar` la llama después de migrar y, si
+  falla, no arranca: el mensaje dice cómo migrar (`FHN_MIGRAR_URL` o la consola `migrar`). Se exporta para quien
+  monta la app por su cuenta.
+- **Alternativa:** leer `fhn_migraciones`. El rol de la API no tiene permiso sobre esa tabla, y la comprobación debe
+  correr con la conexión que atiende las solicitudes.
+
+### DEC-091 · El modo mezclado compara solo con autorizaciones en uso
+- **Contexto:** una base de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin `prueba: true` (entonces no existía)
+  junto a CAI reales en el mismo punto. Con la regla de DEC-064, un CAI demo vencido impedía registrar el CAI real
+  siguiente: una regresión grave para quien actualiza.
+- **Elegida:** `AUTORIZACION_MODO_MEZCLADO` mira solo las autorizaciones en uso del punto: vigentes (fecha límite
+  ≥ hoy, Art. 62) y con números después del último consumido de su serie. Las vencidas o agotadas no cuentan, en
+  los dos sentidos. Nota de migración en el changeset.
+- **Alternativa:** ignorar los CAI demo sin `prueba: true`. Dejaría mezclar una demo vigente con un CAI real en el
+  mismo punto, que es lo que DEC-064 evita.
+- **Límite conocido [REVISAR]:** si el CAI demo de la 0.2.0 sigue vigente con números libres, el CAI real de ese
+  punto se rechaza hasta que venza; las autorizaciones no se borran. Falta decidir si hace falta una salida
+  explícita (p. ej. dar de baja una autorización de prueba).
+
+### DEC-092 · Registrar una autorización bloquea todas las series del punto
+- **Contexto:** `registrarAutorizacion` bloqueaba solo la serie del tipo nuevo. Dos registros simultáneos en el
+  mismo punto, uno de prueba del tipo 01 y uno real del tipo 06, se validaban a la vez y entraban los dos.
+- **Elegida:** bloquea las series de todos los tipos del punto (01, 06 y 07, ordenados) antes de leer sus
+  autorizaciones. El orden fijo evita bloqueos cruzados entre registros. La prueba de Postgres fallaba antes del
+  cambio.
+- **Alternativa:** un candado consultivo por punto. Haría falta en cada almacén (Postgres, SQLite, memoria); el
+  bloqueo de series ya existe en el contrato del almacén.
+
+### DEC-093 · CAI ficticio en `POST /v1/autorizaciones`
+- **Contexto:** un CAI `DEMO00-…` registrado por error en un tenant real convertía su punto en «de prueba» sin
+  decirlo. Y en el tenant `demo` se podía registrar un CAI real, que emitiría sin leyenda en la demostración.
+- **Elegida:** en el tenant de demostración (`esDemoFicticio`) se rechaza todo CAI que no sea ficticio
+  (`AUTORIZACION_REAL_EN_DEMO`). En los demás, un CAI ficticio necesita `"prueba": true` explícito
+  (`AUTORIZACION_DEMO_SIN_PRUEBA`). El esquema OpenAPI declara `prueba`. Códigos y soluciones en `docs/errores.md`.
+- **Alternativa:** prohibir los CAI ficticios fuera del tenant `demo`. Impide probar en un tenant propio, que la
+  guía recomienda antes de producción.
+
+### DEC-094 · No utilizados sin las autorizaciones de prueba
+- **Contexto:** `documentosNoUtilizados` y `GET /v1/series/{id}/no-utilizados` listaban los rangos de un CAI
+  ficticio vencido como «por reportar al SAR» (Art. 42). Un CAI ficticio no es una autorización del SAR.
+- **Elegida:** el núcleo omite las autorizaciones de prueba (`prueba: true` o CAI ficticio): no hay nada que
+  reportar. La API devuelve los rangos reales y, si la serie tiene autorizaciones de prueba, un `aviso` que lo
+  dice.
+- **Alternativa:** devolverlas marcadas con `prueba: true`. Quien sumara los rangos para el aviso al SAR tendría
+  que filtrarlas; sin ellas, la lista es exactamente lo que hay que reportar.
+
+### DEC-095 · `crearFacturadorDemo` sin correlativos libres
+- **Contexto:** la renovación de la demo calcula el rango siguiente con tope en 99 999 999. Si el anterior ya
+  llegaba al tope, el rango salía invertido y el error era `RANGO`, que no explica nada.
+- **Elegida:** error `DEMO_SIN_NUMEROS` antes de registrar, con la solución (otro almacén u otro punto).
+- **Alternativa:** reiniciar la numeración de la demo. Repetiría números en el mismo almacén.
+
+### DEC-096 · Prueba de 5 minutos: Next.js sin base, versión fija del MCP
+- **Contexto:** en la prueba de 5 minutos, Node, la API y el MCP pasaron; Next.js necesitó un cuarto paso (base de
+  datos, emisor oculto en un comentario, CAI real). El mensaje de `init` pedía instalar como primer paso, la API
+  no decía desde dónde correr ni qué hacer si el paso 2 fallaba, y el bloque del MCP arrancaba siempre la última
+  versión publicada.
+- **Elegida:**
+  - Next.js empieza en modo de prueba: `lib/facturador.ts` exporta `crearFacturadorDemo()` (una promesa, con
+    `await`) y `app/factura/route.ts` devuelve el HTML; se abre `/factura`. Postgres, el emisor (visible) y el CAI
+    real pasan a «Pasar a producción». `readme.test.ts` resuelve `@/lib/facturador` al bloque de ese archivo.
+  - SDK: qué se ve tras cada comando, la cuenta de `preciosIncluyenISV` (subtotal 200, total 230), la nota ESM
+    junto al bloque y cuándo usar `demo` o `init`. `init` deja la instalación como nota final.
+  - API: `git clone` y `cd` antes de Compose, la variable `API` para cambiar de puerto (`FHN_PUERTO`), el aviso de
+    stderr de `demo llave` y un paso 2 que muestra el número emitido o el error.
+  - MCP: el bloque fija `@factura-hn/mcp@<versión>` y avisa que `npx` necesita red la primera vez. El README dice
+    cómo ver el impreso (`consultar_documento` en texto; sin PDF ni HTML) y la variante de Windows.
+- **Alternativa:** un ejemplo de Next.js con el SDK en `examples/`. El de `examples/nextjs` usa la API y lo prueba
+  la CI; uno nuevo duplicaría el mantenimiento por dos archivos que ya compilan en `readme.test.ts`.
+
+### Pendiente para el Lote 4 · El libro de ventas con llave de caja
+`GET /v1/libro-ventas` acepta una llave de caja y devuelve el libro de todo el tenant, no solo el de su punto de
+emisión. Ya era así en la 0.2.0. No se corrige en este lote: hay que decidir si una caja debe verlo (y si filtrado
+por su punto) o si es solo para admin, junto con la exportación.
