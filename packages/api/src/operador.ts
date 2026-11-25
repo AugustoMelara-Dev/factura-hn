@@ -193,6 +193,9 @@ export async function crearLlaveDemo(pool: pg.Pool, o: { rol?: RolLlave } = {}):
   if (!(await esDemoFicticio(pool))) {
     throw new Error('El tenant «demo» de esta base no es el de demostración (no tiene el emisor ni el CAI ficticios): «demo llave» no le crea llaves. Usa «llave crear».');
   }
+  if ((await modoDeTenant(pool, TENANT_DEMO)) !== 'prueba') {
+    throw new Error('El tenant «demo» de esta base es de producción (tiene autorizaciones o documentos con un CAI real): «demo llave» no le crea llaves. Usa «llave crear».');
+  }
   const rol = o.rol ?? 'caja';
   return crearLlaveOperador(pool, rol === 'caja'
     ? { tenant: TENANT_DEMO, rol, nombre: 'Caja demo (consola)', establecimiento: '000', puntoEmision: '001' }

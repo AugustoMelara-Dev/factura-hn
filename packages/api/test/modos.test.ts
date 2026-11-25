@@ -5,14 +5,15 @@
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
-import { libroVentas, libroVentasCSV, type DocumentoFiscal } from 'factura-hn';
-import { caiDemo } from 'factura-hn/demo';
+import { libroVentas, libroVentasCSV, registrarAutorizacion, type AutorizacionCAI, type DocumentoFiscal } from 'factura-hn';
+import { AlmacenPostgres } from '@factura-hn/postgres';
+import { caiDemo, EMISOR_DEMO } from 'factura-hn/demo';
 import { crearApp } from '../src/app';
 import { ejecutarConsola } from '../src/consola';
 import { migrarApi, VERSION_ESQUEMA_API } from '../src/esquema';
 import { coincide, generarLlave, hashLlave, leerLlave, prefijoDe } from '../src/llaves';
 import { crearLlaveOperador, crearTenant, iniciarLocal, crearLlaveDemo, modoDeTenant, TENANT_DEMO } from '../src/operador';
-import { caiAleatorio, cerrarPool, cliente, crearCaja, EMISOR, FECHA_LIMITE, nombreTenant, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
+import { caiAleatorio, cerrarPool, cliente, crearCaja, EMISOR, FECHA_LIMITE, fijarModo, nombreTenant, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -41,17 +42,6 @@ async function insertarLlave(pool: pg.Pool, tenant: string, l: { prefijo: string
   } catch (e) {
     await c.query('ROLLBACK');
     throw e;
-  } finally {
-    c.release();
-  }
-}
-async function fijarModo(pool: pg.Pool, tenant: string, modo: 'prueba' | 'produccion') {
-  const c = await pool.connect();
-  try {
-    await c.query('BEGIN');
-    await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
-    await c.query('UPDATE api_tenants SET modo = $2 WHERE tenant = $1', [tenant, modo]);
-    await c.query('COMMIT');
   } finally {
     c.release();
   }
@@ -166,6 +156,21 @@ conBase('modo del tenant', () => {
     expect((await sesion(prod.llaveAdmin)).estado).toBe(200);
   });
 
+  it('una llave cuya marca no coincide con el modo se cobra como un secreto equivocado: 401 y luego 429', async () => {
+    const pool = await poolPrueba();
+    const t = await crearTenant(pool, { tenant: nombreTenant('cobro'), nombre: 'c' });
+    const app = crearApp({ pool, modo: 'alojado', rol: ROL, registrar: () => undefined, limiteIntentos: { porSegundo: 0.01, rafaga: 2 } });
+    expect((await cliente(app, t.llaveAdmin)('GET', '/v1/sesion')).status).toBe(200);
+    await fijarModo(pool, t.tenant, 'prueba');
+    try {
+      const estados: number[] = [];
+      for (let i = 0; i < 4; i++) estados.push((await cliente(app, t.llaveAdmin, { ip: '192.0.2.50' })('GET', '/v1/sesion')).status);
+      expect(estados).toEqual([401, 401, 429, 429]);
+    } finally {
+      await fijarModo(pool, t.tenant, 'produccion');
+    }
+  });
+
   it('migración v8: los tenants que ya existían quedan en producción y el demo de demostración, en prueba', async () => {
     const p = await poolPrueba();
     const esquema = `prueba_v8_${randomBytes(4).toString('hex')}`;
@@ -199,6 +204,47 @@ conBase('modo del tenant', () => {
       await propio.end();
       await p.query(`DROP SCHEMA ${esquema} CASCADE`);
     }
+  });
+
+  it('migración v8: un tenant «demo» con el emisor ficticio pero un CAI real queda en producción; «demo llave» se niega', async () => {
+    const p = await poolPrueba();
+    const esquema = `prueba_v8r_${randomBytes(4).toString('hex')}`;
+    await p.query(`CREATE SCHEMA ${esquema}`);
+    const u = new URL(URL_PG!);
+    u.searchParams.set('options', `-c search_path=${esquema}`);
+    const propio = new pg.Pool({ connectionString: u.toString(), max: 2 });
+    try {
+      await migrarApi(propio, ROL);
+      // Como en la 0.2.0: un «demo» con el emisor ficticio al que se le registró un CAI real.
+      await propio.query("INSERT INTO api_tenants (tenant, nombre) VALUES ('demo', 'demo')");
+      await propio.query("INSERT INTO api_emisores (tenant, datos) VALUES ('demo', $1)", [JSON.stringify(EMISOR_DEMO)]);
+      await registrarAutorizacion(new AlmacenPostgres(propio, { tenant: TENANT_DEMO, rol: ROL }), {
+        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: FECHA_LIMITE,
+      } as AutorizacionCAI, { actor: 'prueba' });
+      await propio.query('ALTER TABLE api_tenants DROP COLUMN modo');
+      await propio.query('DELETE FROM fhn_migraciones WHERE clave = $1', [`api-v${VERSION_ESQUEMA_API}-${ROL}`]);
+      await migrarApi(propio, ROL);
+      expect(await modoDeTenant(propio, TENANT_DEMO)).toBe('produccion');
+      await expect(crearLlaveDemo(propio)).rejects.toThrow(/es de producción/);
+    } finally {
+      await propio.end();
+      await p.query(`DROP SCHEMA ${esquema} CASCADE`);
+    }
+  });
+
+  it('la base impone el modo también al SDK: prueba solo CAI ficticios, producción ninguno; sin tenant de la API, nada cambia', async () => {
+    const pool = await poolPrueba();
+    const prod = await crearTenant(pool, { tenant: nombreTenant('sdkp'), nombre: 'p' });
+    const sbx = await crearTenant(pool, { tenant: nombreTenant('sdks'), nombre: 's', modo: 'prueba' });
+    const aut = (cai: string) => ({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: FECHA_LIMITE }) as AutorizacionCAI;
+    const registrar = (tenant: string, cai: string) => registrarAutorizacion(new AlmacenPostgres(pool, { tenant, rol: ROL }), aut(cai), { actor: 'sdk' });
+    await expect(registrar(prod.tenant, caiDemo('01'))).rejects.toThrow(/CAI_DE_PRUEBA/);
+    await expect(registrar(sbx.tenant, caiAleatorio())).rejects.toThrow(/AUTORIZACION_REAL_EN_DEMO/);
+    await registrar(prod.tenant, caiAleatorio());
+    await registrar(sbx.tenant, caiDemo('01'));
+    // Un tenant que solo usa el SDK (sin fila en api_tenants) no se ve afectado.
+    await registrar(nombreTenant('solo-sdk'), caiAleatorio());
+    await registrar(nombreTenant('solo-sdk'), caiDemo('01'));
   });
 
   it('consola: tenant crear --modo prueba y llave crear dan llaves fhn_test_; --modo inválido es un error de uso', async () => {
@@ -250,6 +296,17 @@ conBase('libro de ventas con llave de caja', () => {
     });
     expect(nc.status).toBe(201);
     docs.push((await json(nc)).documento);
+    // Una NC de la caja 1 sobre una factura de la caja 2: va en el libro de la caja 1 (su punto) y no en el de la 2.
+    const cruzada = await emitir(caja1, {
+      documento: {
+        tipoDocumento: '06', motivo: 'Devolución', cliente: cliente9,
+        referencia: { cai: docs[1]!.cai, numero: docs[1]!.numero, fecha: docs[1]!.fechaEmision },
+        lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '20.00' }],
+      },
+    });
+    expect(cruzada.status).toBe(201);
+    docs.push((await json(cruzada)).documento);
+    expect(docs.at(-1)!.numero).toBe('000-001-06-00000002');
     const periodo = `desde=${f.fechaEmision}&hasta=${f.fechaEmision}`;
     const delPunto = (punto: string) => docs.filter((d) => d.numero.startsWith(`${punto}-`)).sort((a, b) => a.numero.localeCompare(b.numero));
 
@@ -265,7 +322,8 @@ conBase('libro de ventas con llave de caja', () => {
       expect(csv.headers.get('content-disposition')).toBe(`attachment; filename="libro-ventas_${punto}_${f.fechaEmision}_${f.fechaEmision}.csv"`);
       expect(await bytes(csv)).toBe(libroVentasCSV(esperado.filas));
     }
-    expect((await json(await caja1('GET', `/v1/libro-ventas?${periodo}`))).filas).toHaveLength(3);
+    expect((await json(await caja1('GET', `/v1/libro-ventas?${periodo}`))).filas).toHaveLength(4);
+    expect((await json(await caja2('GET', `/v1/libro-ventas?${periodo}`))).filas).toHaveLength(2);
     // La admin sigue viendo el libro de todo el tenant, con el nombre de siempre.
     const todo = await admin('GET', `/v1/libro-ventas?${periodo}&formato=csv`);
     expect(todo.headers.get('content-disposition')).toBe(`attachment; filename="libro-ventas_${f.fechaEmision}_${f.fechaEmision}.csv"`);

@@ -9,7 +9,7 @@ import { caiDemo } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
 import { crearApp } from '../src/app';
 import { crearLlaveDemo, iniciarLocal, TENANT_DEMO } from '../src/operador';
-import { cerrarPool, cliente, FECHA_LIMITE, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
+import { cerrarPool, cliente, FECHA_LIMITE, fijarModo, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 afterAll(cerrarPool);
 
@@ -18,12 +18,18 @@ const json = async (r: Response) => (await r.json()) as any;
 /** El cuerpo con el BOM del CSV (Response.text() lo quita). */
 const bytes = async (r: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await r.arrayBuffer());
 /**
- * Registra una autorización con el núcleo, sin pasar por la API. Desde los modos de tenant, la API ya no acepta un
- * CAI ficticio en un tenant de producción (CAI_DE_PRUEBA); así se simula una base que lo registró antes.
+ * Registra una autorización ficticia con el núcleo en un tenant de producción, como lo permitía la API antes de
+ * los modos de tenant (DEC-093). Hoy la base lo impide (CAI_DE_PRUEBA): el tenant pasa a prueba solo mientras se
+ * registra, para simular una base que la registró antes.
  */
 async function registrarSinApi(tenant: string, a: Omit<AutorizacionCAI, 'cai'> & { cai: string }) {
-  const almacen = new AlmacenPostgres(await poolPrueba(), { tenant, rol: ROL });
-  return registrarAutorizacion(almacen, a as AutorizacionCAI, { actor: 'prueba' });
+  const pool = await poolPrueba();
+  await fijarModo(pool, tenant, 'prueba');
+  try {
+    return await registrarAutorizacion(new AlmacenPostgres(pool, { tenant, rol: ROL }), a as AutorizacionCAI, { actor: 'prueba' });
+  } finally {
+    await fijarModo(pool, tenant, 'produccion');
+  }
 }
 
 describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {

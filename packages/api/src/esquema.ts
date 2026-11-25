@@ -131,12 +131,15 @@ CREATE INDEX IF NOT EXISTS api_bitacora_tenant ON api_bitacora (tenant, id);
 ALTER TABLE api_bitacora ADD COLUMN IF NOT EXISTS operador text CHECK (operador IS NULL OR length(operador) BETWEEN 1 AND 80);
 
 -- v8: modo del tenant (sandbox con llaves fhn_test_, o producción con llaves fhn_live_). Los tenants que ya
--- existían quedan en producción, salvo el tenant «demo» de demostración (emisor o CAI ficticios), que pasa a
--- prueba. Solo la primera vez, al crear la columna. api_tenants fuerza RLS al dueño: se fija el tenant «demo»
--- para verlo y se devuelve el valor anterior.
+-- existían quedan en producción, salvo el tenant «demo» de demostración, que pasa a prueba: tiene el emisor o un
+-- CAI ficticios y **ninguna** autorización ni documento con un CAI real (la 0.2.0 no impedía registrar un CAI real
+-- en «demo», ni crear en modo alojado un tenant real con ese nombre). Si tiene alguno, queda en producción y se
+-- avisa. Solo la primera vez, al crear la columna. api_tenants fuerza RLS al dueño: se fija el tenant «demo» para
+-- verlo y se devuelve el valor anterior.
 DO $modo$
 DECLARE
   v_previo text := current_setting('factura_hn.tenant', true);
+  v_n integer;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'api_tenants'::regclass AND attname = 'modo' AND NOT attisdropped) THEN
     ALTER TABLE api_tenants ADD COLUMN modo text NOT NULL DEFAULT 'produccion' CHECK (modo IN ('prueba', 'produccion'));
@@ -144,7 +147,13 @@ BEGIN
     UPDATE api_tenants SET modo = 'prueba'
      WHERE tenant = 'demo'
        AND (EXISTS (SELECT 1 FROM api_emisores e WHERE e.tenant = 'demo' AND e.datos->>'rtn' = '${EMISOR_DEMO.rtn}')
-            OR EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND starts_with(a.cai, 'DEMO00-NO-VALIDO-')));
+            OR EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND starts_with(upper(btrim(a.cai)), 'DEMO00-NO-VALIDO-')))
+       AND NOT EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND NOT starts_with(upper(btrim(a.cai)), 'DEMO00-NO-VALIDO-'))
+       AND NOT EXISTS (SELECT 1 FROM fhn_documentos d WHERE d.tenant = 'demo' AND NOT starts_with(upper(btrim(coalesce(d.datos->>'cai', ''))), 'DEMO00-NO-VALIDO-'));
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    IF v_n = 0 AND EXISTS (SELECT 1 FROM api_tenants WHERE tenant = 'demo') THEN
+      RAISE NOTICE 'factura-hn: el tenant «demo» queda en producción (tiene autorizaciones o documentos con un CAI real, o no es el de demostración).';
+    END IF;
     PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   END IF;
 END $modo$;
@@ -249,7 +258,47 @@ BEGIN
   RETURN NEXT;
 END
 $$$f$, current_schema());
+-- v8: modo del tenant de una autorización, para el disparador de fhn_autorizaciones. null si el tenant no es de
+-- la API (uso del SDK sin api_tenants). Como fhn_api_autenticar: fija el tenant solo para leer api_tenants y
+-- devuelve el valor anterior.
+EXECUTE format($f$
+CREATE OR REPLACE FUNCTION fhn_api_modo_tenant(p_tenant text)
+RETURNS text
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_modo text;
+BEGIN
+  PERFORM set_config('factura_hn.tenant', p_tenant, true);
+  SELECT t.modo INTO v_modo FROM api_tenants t WHERE t.tenant = p_tenant;
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  RETURN v_modo;
+END
+$$$f$, current_schema());
 END $do$;
+
+-- v8: el modo del tenant decide qué CAI se registran, por cualquier camino (la API o el SDK sobre la base de la
+-- API): un tenant de prueba solo CAI ficticios (AUTORIZACION_REAL_EN_DEMO) y uno de producción ninguno
+-- (CAI_DE_PRUEBA). Un tenant sin fila en api_tenants (solo el SDK) no cambia. Solo al insertar: las autorizaciones
+-- que ya estaban no se tocan.
+CREATE OR REPLACE FUNCTION fhn_api_autorizacion_por_modo() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_modo text := fhn_api_modo_tenant(NEW.tenant);
+  v_ficticio boolean := starts_with(upper(btrim(NEW.cai)), 'DEMO00-NO-VALIDO-');
+BEGIN
+  IF v_modo = 'prueba' AND NOT v_ficticio THEN
+    RAISE EXCEPTION 'AUTORIZACION_REAL_EN_DEMO: el tenant % es de prueba y solo acepta CAI ficticios (DEMO00-NO-VALIDO-…)', NEW.tenant
+      USING ERRCODE = 'check_violation';
+  ELSIF v_modo = 'produccion' AND v_ficticio THEN
+    RAISE EXCEPTION 'CAI_DE_PRUEBA: el tenant % es de producción y no acepta CAI ficticios', NEW.tenant
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS fhn_api_autorizacion_por_modo ON fhn_autorizaciones;
+CREATE TRIGGER fhn_api_autorizacion_por_modo BEFORE INSERT ON fhn_autorizaciones
+  FOR EACH ROW EXECUTE FUNCTION fhn_api_autorizacion_por_modo();
+REVOKE ALL ON FUNCTION fhn_api_modo_tenant(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_mantenimiento(integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_autenticar(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_prefijo_registrado(text) FROM PUBLIC;
@@ -275,7 +324,7 @@ GRANT UPDATE (estado, intentos, proximo, ultimo_codigo, ultimo_error) ON api_ent
 GRANT SELECT, INSERT, UPDATE ON api_uso TO ${rol};
 GRANT SELECT, INSERT ON api_bitacora TO ${rol};
 GRANT USAGE ON SEQUENCE api_entregas_id_seq, api_bitacora_id_seq TO ${rol};
-GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
+GRANT EXECUTE ON FUNCTION fhn_api_autenticar(text), fhn_api_modo_tenant(text), fhn_api_prefijo_registrado(text), fhn_api_tenants_con_pendientes(), fhn_api_marcar_uso(text, bytea), fhn_api_mantenimiento(integer) TO ${rol};`;
 }
 
 /**
