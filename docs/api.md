@@ -282,7 +282,7 @@ antes a centavos.
 - `puntos`: el punto de la llave de caja, o todos los que tienen autorizaciones si la llave es admin. Por cada
   tipo (`01`, `06`, `07`): si está `listo`, el `siguienteNumero`, las autorizaciones vigentes (rango, fecha
   límite, días y números restantes, alertas) y, si no está listo, el `problema`;
-- `documentosDelMes` y `limiteMensual`;
+- `documentosDelMes` (de todo el tenant; solo con una llave admin, `null` con una de caja) y `limiteMensual`;
 - `puedeEmitir`: si esta llave ya puede emitir una factura (tipo 01) y, si no, `pendientes`: lo que falta
   (`SIN_EMISOR`, `CAJA_SIN_PUNTO`, `SIN_AUTORIZACION`, `AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`,
   `LIMITE_MENSUAL`), cada uno con `solucion` y `documentacion`.

@@ -696,7 +696,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           llave: { id: s.llaveId, prefijo: s.prefijo, nombre: s.llaveNombre, rol: s.rol, establecimiento: s.establecimiento, puntoEmision: s.puntoEmision },
           emisor: emisor ? { registrado: true, rtn: emisor.datos.rtn, razonSocial: emisor.datos.razonSocial } : { registrado: false, rtn: null, razonSocial: null },
           puntos,
-          documentosDelMes,
+          // El uso del mes es de todo el tenant: solo lo ve una llave admin.
+          documentosDelMes: s.rol === 'admin' ? documentosDelMes : null,
           limiteMensual: s.limiteMensual,
           puedeEmitir: pendientes.length === 0,
           pendientes,

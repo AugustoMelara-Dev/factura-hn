@@ -33,7 +33,7 @@ conBase('GET /v1/sesion', () => {
       puedeEmitir: true,
       pendientes: [],
       limiteMensual: null,
-      documentosDelMes: 0,
+      documentosDelMes: null, // el uso del mes es de todo el tenant: solo para admin
     });
     // Solo su punto de emisión, aunque el tenant tenga otros.
     expect(s.puntos.map((p: { puntoEmision: string }) => p.puntoEmision)).toEqual(['002']);
@@ -50,7 +50,8 @@ conBase('GET /v1/sesion', () => {
     expect((await caja('POST', '/v1/documentos', { documento: venta().documento }, { 'idempotency-key': randomUUID() })).status).toBe(201);
     const despues = await sesionDe(caja);
     expect(despues.puntos[0].tipos[0].siguienteNumero).toBe('000-002-01-00000002');
-    expect(despues.documentosDelMes).toBe(1);
+    expect(despues.documentosDelMes).toBeNull();
+    expect((await sesionDe(admin)).documentosDelMes).toBe(1);
   });
 
   it('admin ve todos los puntos con autorizaciones', async () => {

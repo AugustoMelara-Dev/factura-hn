@@ -2203,7 +2203,8 @@ export interface components {
                     problema: components["schemas"]["ProblemaConGuia"];
                 }[];
             }[];
-            documentosDelMes: number;
+            /** @description Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja. */
+            documentosDelMes: number | null;
             limiteMensual: number | null;
             /** @description Con esta llave ya se puede emitir una factura (tipo 01). */
             puedeEmitir: boolean;

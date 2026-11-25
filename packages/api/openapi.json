@@ -535,7 +535,11 @@
             "description": "Llave de caja: su punto de emisión. Llave admin: los puntos con alguna autorización registrada."
           },
           "documentosDelMes": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja."
           },
           "limiteMensual": {
             "type": [

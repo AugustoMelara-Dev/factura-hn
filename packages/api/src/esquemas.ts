@@ -287,7 +287,7 @@ export const Sesion = z
         }),
       )
       .openapi({ description: 'Llave de caja: su punto de emisión. Llave admin: los puntos con alguna autorización registrada.' }),
-    documentosDelMes: z.number().int(),
+    documentosDelMes: z.number().int().nullable().openapi({ description: 'Documentos emitidos este mes por todo el tenant. Solo para llaves admin; null para una llave de caja.' }),
     limiteMensual: z.number().int().nullable(),
     puedeEmitir: z.boolean().openapi({ description: 'Con esta llave ya se puede emitir una factura (tipo 01).' }),
     pendientes: z.array(ProblemaConGuia).openapi({ description: 'Lo que falta para emitir una factura, con su solución.' }),
