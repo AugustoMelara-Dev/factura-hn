@@ -154,6 +154,8 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
   `DEMO00-NO-VALIDO-`. Para probar, usa un tenant de prueba: el `demo` (`demo llave` en la consola) o uno creado
   con `tenant crear --modo prueba`.
 - **Base:** ninguna fiscal: un CAI ficticio en un tenant real convertiría en «de prueba» un punto de emisión real.
+- **Fuera de la API:** con el SDK sobre la base de la API, la base rechaza el registro con un error cuyo mensaje
+  empieza con `CAI_DE_PRUEBA` (y `AUTORIZACION_REAL_EN_DEMO` en el caso contrario).
 
 ### AUTORIZACION_TIPO
 
@@ -651,7 +653,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### CAJA_SIN_PUNTO
 
-- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión.
+- **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión. Lo devuelven
+  la emisión y `GET /v1/libro-ventas` (una caja recibe solo el libro de su punto, y esta llave no tiene uno).
 - **Solución:** crea otra llave de caja con establecimiento y punto de emisión.
 
 ### CAJA_NO_AUTORIZADA

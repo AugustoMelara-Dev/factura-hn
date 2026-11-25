@@ -171,11 +171,17 @@ Cada tenant tiene un modo, `prueba` o `produccion`, que decide el operador al cr
 - **La fuente de verdad es el modo del tenant.** Una llave `fhn_test_` solo entra a un tenant de prueba y una
   `fhn_live_`, solo a uno de producción; si no, 401 `NO_AUTENTICADO`, como una llave que no existe. La marca no
   se puede cambiar a mano: forma parte de la llave y de su hash.
+- **También fuera de la API.** La regla de las autorizaciones la impone la base (un disparador de
+  `fhn_autorizaciones` que crea la migración de la API): quien registre un CAI con el SDK sobre la base de la API
+  recibe el mismo rechazo, como error de la base con el código en el mensaje. Un tenant que no existe en
+  `api_tenants` (uso del SDK solo) no cambia.
 - **Dónde se ve.** `GET /v1/sesion` trae `modoTenant`, y cada respuesta autenticada (también los errores
   después de autenticar) lleva la cabecera `FacturaHN-Modo: prueba` o `FacturaHN-Modo: produccion`. No
   confundir con `modo` de la sesión y de `/salud`, que es el del servidor (`local` o `alojado`).
 - **Los que ya existían.** Al migrar, todos los tenants quedan en `produccion`, salvo el tenant `demo` de
-  demostración (el del emisor o los CAI ficticios), que queda en `prueba`. Sus llaves viejas siguen entrando.
+  demostración (el del emisor o los CAI ficticios), que queda en `prueba`. Si ese `demo` tiene alguna
+  autorización o algún documento con un CAI real, queda en `produccion` (la migración lo avisa) y `demo llave` ya
+  no le crea llaves. Las llaves viejas siguen entrando.
   Las autorizaciones ficticias que un tenant de producción ya tenía registradas no se tocan: siguen emitiendo
   con la leyenda de prueba.
 - **En modo local** los tenants son `local` (producción) y `demo` (prueba, con `FHN_DEMO=1`). Para pasar a
@@ -272,7 +278,10 @@ estos límites para que un reporte grande no afecte al resto del servicio:
   punto. El resumen, el tope, `excluidos` y la cabecera `Documentos-Prueba-Excluidos` cuentan solo ese punto, y el
   CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de
   emisión (de antes de atar cada caja a su punto) recibe 403 `CAJA_SIN_PUNTO`. Con llave admin, el libro es de
-  todo el tenant. La exportación para el SAR sigue siendo solo de admin.
+  todo el tenant. La exportación para el SAR sigue siendo solo de admin. **No es un límite de
+  confidencialidad:** una llave de caja sigue leyendo los documentos de todo el tenant con `GET /v1/documentos`
+  y `GET /v1/documentos/{numero}`. El libro por punto sirve para el cierre de cada caja, no para ocultarle las
+  ventas de las demás.
 - **Bitácora de la exportación.** Cada exportación queda en la bitácora de la API (`accion: exportacion`) con
   el período, el formato y los documentos contados. Se registra antes de enviar la última parte: si no se puede
   registrar, la respuesta se corta con error. Una exportación cortada (cliente, plazo o error) queda con

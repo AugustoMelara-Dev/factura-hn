@@ -116,7 +116,7 @@ resolución: la herramienta le exige no inventarlos, preguntarte si ya emitiste 
 | `anular_documento` | Art. 41 (marcada como destructiva) |
 | `registrar_cai` | Registra una autorización del SAR con los datos de la resolución (irreversible: marcada como destructiva) |
 | `estado_cai` | Vigencia, restantes y alertas de cada autorización |
-| `libro_ventas` | Ventas de un período con totales |
+| `libro_ventas` | Ventas de un período con totales (contra la API con una llave de caja, solo su punto de emisión) |
 
 Las reglas fiscales las aplica el SDK o la API. Si algo no cumple, la herramienta devuelve los errores para que el
 asistente se los muestre al usuario tal cual. Cada error trae:

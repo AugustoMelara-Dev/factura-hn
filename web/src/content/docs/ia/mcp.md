@@ -52,7 +52,7 @@ los 180 días. Para ver el documento como sale impreso, pide que lo muestre impr
 | `anular_documento` | Anula un documento (Art. 41): conserva número y contenido y lo marca ANULADO | Destructiva |
 | `registrar_cai` | Registra una autorización con los datos de la resolución del SAR (Arts. 59-61) | Destructiva |
 | `estado_cai` | Vigencia, números restantes y alertas de cada autorización (Art. 59) | Solo lectura |
-| `libro_ventas` | Ventas de un período con totales por tarifa e ISV. Los documentos de prueba no entran | Solo lectura |
+| `libro_ventas` | Ventas de un período con totales por tarifa e ISV. Los documentos de prueba no entran. Contra la API con una llave de caja, solo su punto de emisión | Solo lectura |
 
 Si algo no cumple una regla, la herramienta devuelve los errores para que el asistente los muestre tal cual. Cada
 error trae `codigo`, `mensaje`, `solucion` y `guia`, un enlace a su entrada en la

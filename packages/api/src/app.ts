@@ -440,7 +440,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // La fuente de verdad es el modo del tenant: una llave fhn_test_ solo entra a un tenant de prueba y una
     // fhn_live_, solo a uno de producción. Como el hash cubre la marca, esto solo pasa si el operador cambió el modo
     // del tenant en la base. Una llave sin marca vale en su tenant, sea del modo que sea.
-    if (forma.modo !== null && forma.modo !== fila.modo) throw noValida;
+    // Se cobra como un secreto equivocado (al prefijo) y el 401 es el mismo.
+    if (forma.modo !== null && forma.modo !== fila.modo) {
+      verificadas.delete(prefijo);
+      const espera = fallosPorPrefijo.tomar(prefijo);
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+      throw noValida;
+    }
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
@@ -794,7 +800,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           tenant: s.tenant,
           modoTenant: s.modoTenant,
           modo: cfg.modo,
-          demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO,
+          demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO && s.modoTenant === 'prueba',
           llave: { id: s.llaveId, prefijo: s.prefijo, nombre: s.llaveNombre, rol: s.rol, establecimiento: s.establecimiento, puntoEmision: s.puntoEmision },
           emisor: emisor ? { registrado: true, rtn: emisor.datos.rtn, razonSocial: emisor.datos.razonSocial } : { registrado: false, rtn: null, razonSocial: null },
           puntos,
