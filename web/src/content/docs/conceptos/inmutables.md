@@ -59,7 +59,7 @@ auditoría (Art. 53 num. 2; DEC-001). Anular dos veces da
 ## Corregir con una nota
 
 La Nota de Crédito sirve para ajustes, devoluciones, descuentos posteriores y anulación de operaciones; la Nota
-de Débito, para ajustes (Art. 4 num. 31-32). Cada una tiene su propio código (`06` y `07`) y su propia serie
+de Débito, para ajustes (NC: Art. 4 num. 32; ND: Art. 4 num. 31). Cada una tiene su propio código (`06` y `07`) y su propia serie
 (Arts. 25 y 27), así que necesita su propio CAI registrado en la caja.
 
 ```js
@@ -99,8 +99,12 @@ ISV a una tasa que el original no tenía ([`NOTA_TASA_DISTINTA`](/referencia/err
 
 :::note[Interpretación pendiente]
 Ese tope de las notas de crédito es una regla derivada del Art. 4 num. 32, no un texto literal: DEC-051
-[REVISAR]. Los usos concretos de la Nota de Débito (intereses, fletes, diferencias de precio) también están
-por confirmar con un contador (F-19).
+[REVISAR]. Ver [Decisiones](/referencia/decisiones/).
+:::
+
+:::caution[Por confirmar con fuente]
+Los usos concretos de la Nota de Débito (intereses, fletes, diferencias de precio) no tienen fuente en el
+repositorio; el Art. 4 num. 31 solo dice "ajustes". Confírmalos con tu contador.
 :::
 
 Los detalles de cada tipo de documento están en [Documentos](/documentos/).
