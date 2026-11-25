@@ -18,7 +18,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "factura-hn-mcp": "./dist/cli.js"
@@ -26,7 +27,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22.13"
@@ -38,11 +40,19 @@
     "prepack": "node ../../scripts/copiar-docs.mjs packages/mcp LICENSE"
   },
   "dependencies": {
-    "@factura-hn/cliente": "workspace:*",
-    "@factura-hn/sqlite": "workspace:*",
+    "@factura-hn/cliente": "workspace:^",
+    "@factura-hn/sqlite": "workspace:^",
     "@modelcontextprotocol/sdk": "1.32.2",
-    "factura-hn": "workspace:*",
+    "factura-hn": "workspace:^",
     "zod": "4.6.7"
+  },
+  "peerDependencies": {
+    "@types/node": ">=22"
+  },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@factura-hn/api": "workspace:*",

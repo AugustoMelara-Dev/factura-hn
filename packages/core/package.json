@@ -20,6 +20,16 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "demo": [
+        "./dist/demo.d.ts"
+      ],
+      "pruebas": [
+        "./dist/pruebas.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "import": {
@@ -50,7 +60,8 @@
         "types": "./dist/demo.d.cts",
         "default": "./dist/demo.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "factura-hn": "./dist/cli.js"
@@ -62,14 +73,15 @@
     "llms.txt",
     "skills",
     "docs",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/pruebas.ts src/demo.ts --format esm,cjs --dts --splitting --clean && tsup src/cli.ts --format esm --target node18",
+    "build": "tsup src/index.ts src/pruebas.ts src/demo.ts --format esm,cjs --dts --splitting --clean && tsup --config tsup.cli.config.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "prepack": "node ../../scripts/copiar-docs.mjs packages/core README.md AGENTS.md llms.txt LICENSE skills docs",
