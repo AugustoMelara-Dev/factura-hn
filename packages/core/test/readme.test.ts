@@ -1,6 +1,6 @@
 /**
- * La documentación es código: cada bloque ```ts del README y de AGENTS.md debe compilar contra la API
- * actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md, llms.txt y la skill
+ * La documentación es código: cada bloque ```ts del README, de AGENTS.md y de los README de los paquetes debe
+ * compilar contra la API actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md, llms.txt y la skill
  * deben llevar los mismos prompts y nombrar solo funciones y tipos que existen.
  *
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
@@ -78,7 +78,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
 }
 
 describe('los fragmentos de código de la documentación compilan', () => {
-  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md']) {
+  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md', 'packages/sqlite/README.md', 'packages/postgres/README.md', 'packages/pdf/README.md', 'packages/cliente/README.md']) {
     it(archivo, () => {
       const fragmentos = fragmentosTS(archivo);
       expect(fragmentos.length).toBeGreaterThan(0);

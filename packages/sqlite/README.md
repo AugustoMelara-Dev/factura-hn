@@ -3,12 +3,19 @@
 `AlmacenFiscal` de [factura-hn](https://www.npmjs.com/package/factura-hn) sobre SQLite. Sirve para el POS fuera de línea y para la
 instalación local en el negocio.
 
+<!-- declaraciones:
+import type { DocumentoEntrada } from 'factura-hn';
+declare const entrada: DocumentoEntrada;
+declare const cai: string;
+-->
 ```ts
-import Database from 'better-sqlite3'; // o: import { DatabaseSync } from 'node:sqlite'
+import { DatabaseSync } from 'node:sqlite'; // o: import Database from 'better-sqlite3'
 import { emitir, registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 
-const almacen = new AlmacenSQLite(new Database('fiscal.db'));
+// `entrada` es la venta (un DocumentoEntrada: emisor, cliente y líneas) y `cai`, el CAI de tu resolución del SAR.
+const almacen = new AlmacenSQLite(new DatabaseSync('fiscal.db')); // o: new Database('fiscal.db')
+// Una sola vez por base, no en cada arranque: registrar el mismo CAI otra vez da AUTORIZACION_DUPLICADA.
 await registrarAutorizacion(almacen, { cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
   rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30' }); // la de tu resolución
 const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmision: '001' });
