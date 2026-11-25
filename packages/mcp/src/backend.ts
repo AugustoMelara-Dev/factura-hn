@@ -53,7 +53,7 @@ export interface EstadoCAI {
   correlativosRestantes: number;
   diasRestantes: number;
   alertas: Problema[];
-  /** Demo de un punto que ya tiene un CAI real: retirada, sin números (DEC-091). */
+  /** Demo de un punto que ya tiene un CAI real: retirada, sin números. */
   retirada: boolean;
 }
 

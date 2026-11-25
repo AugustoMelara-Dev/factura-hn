@@ -153,7 +153,7 @@ export interface EstadoAutorizacion {
   alertas: Problema[];
   /**
    * Autorización de prueba de un punto que ya tiene una real: está retirada, no se emite con ella y no le quedan
-   * números (DEC-091). Solo aparece en ese caso.
+   * números. Solo aparece en ese caso.
    */
   retirada?: true;
 }
