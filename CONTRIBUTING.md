@@ -27,13 +27,16 @@ pnpm test:ejemplos
 pnpm test:pg            # PostgreSQL en Docker (docker-compose.dev.yml) o en FHN_PG_URL
 pnpm typecheck
 pnpm verificar:dist     # lo que se publicaría en npm
-pnpm sitio              # sitio de documentación en sitio/
+pnpm sitio              # sitio de documentación (web/, Astro Starlight) en sitio/
+pnpm sitio:ver          # el sitio construido en http://localhost:4321/factura-hn/
 ```
 
 ## Antes de abrir un PR
 
 - Pruebas nuevas para lo que cambias. Una regla fiscal nueva va con su caso positivo y negativo, y la fila de
-  la matriz (`docs/investigacion.md`) se actualiza.
+  la matriz (`docs/investigacion.md`) se actualiza. En la columna «Prueba», cita el archivo y el título de la
+  prueba entre comillas latinas (`matriz.test.ts` «Art. 9 …»): `pnpm sitio` falla si una fila cubierta o parcial
+  no tiene prueba o cita una que no existe.
 - `pnpm changeset` si el cambio afecta a un paquete publicado. Describe el cambio en español, para quien lo
   usa.
 - Documentación al día. Los bloques ```ts de README, AGENTS.md y `docs/guia-sdk.md` se compilan en las

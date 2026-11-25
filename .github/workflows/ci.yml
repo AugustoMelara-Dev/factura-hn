@@ -61,7 +61,7 @@ jobs:
         run: |
           pnpm --filter @factura-hn/ejemplo-nextjs build
           pnpm playground
-      - name: Sitio de documentación (enlaces internos verificados)
+      - name: Sitio de documentación (matriz con prueba por fila, enlaces y anclas, buscador, recursos para IA)
         run: pnpm sitio
 
   postgres:
