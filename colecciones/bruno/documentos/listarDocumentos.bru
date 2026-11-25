@@ -1,0 +1,22 @@
+meta {
+  name: Documentos de un período, por fecha de emisión y número (paginado)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/documentos?desde=2026-11-18&hasta=2026-11-18
+  auth: inherit
+}
+
+params:query {
+  desde: 2026-11-18
+  hasta: 2026-11-18
+  ~identificador: 
+  ~limite: 1
+  ~cursor: 
+}
+
+docs {
+  Documentos de un período, por fecha de emisión y número (paginado)
+}

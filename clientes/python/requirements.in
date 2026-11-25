@@ -1,0 +1,7 @@
+# Dependencias directas del cliente de Python generado y de su prueba. requirements.txt (con hashes) sale de aquí:
+#   uv pip compile --universal --python-version 3.12 --generate-hashes requirements.in -o requirements.txt
+openapi-python-client==0.30.0
+pytest==9.2.0
+# Las que importa el código generado (openapi-python-client 0.30 genera con httpx2).
+httpx2==2.16.2
+attrs==26.1.0

@@ -1,0 +1,18 @@
+meta {
+  name: Vigencia y rango restante de una autorización (Arts. 59 y 62)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/autorizaciones/:cai/estado
+  auth: inherit
+}
+
+params:path {
+  cai: DEMO00-NO-VALIDO-0000-0000-0000-01
+}
+
+docs {
+  Vigencia y rango restante de una autorización (Arts. 59 y 62)
+}

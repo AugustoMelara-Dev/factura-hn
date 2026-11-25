@@ -1,0 +1,30 @@
+meta {
+  name: Registra una autorización del SAR (CAI, rango y fecha límite)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/autorizaciones
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+    "tipoDocumento": "01",
+    "establecimiento": "000",
+    "puntoEmision": "002",
+    "rangoInicial": 1,
+    "rangoFinal": 5000,
+    "fechaLimiteEmision": "2027-06-30",
+    "prueba": true
+  }
+}
+
+docs {
+  Registra una autorización del SAR (CAI, rango y fecha límite)
+
+  Un tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de producción no los acepta (`CAI_DE_PRUEBA`).
+}

@@ -2,6 +2,9 @@ packages:
   - packages/*
   - examples/*
   - web
+  - colecciones
 
 allowBuilds:
   esbuild: true
+  # Su postinstall solo avisa de versiones en package.json ajenos: no hace falta (lo trae @usebruno/cli).
+  protobufjs: false

@@ -1,0 +1,21 @@
+meta {
+  name: Vuelve a poner una entrega en la cola
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/v1/webhooks/:id/entregas/:entrega/reenviar
+  auth: inherit
+}
+
+params:path {
+  id: 
+  entrega: 
+}
+
+docs {
+  Vuelve a poner una entrega en la cola
+
+  Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el webhook ya tiene 5 pendientes.
+}

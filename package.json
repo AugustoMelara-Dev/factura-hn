@@ -22,6 +22,7 @@
     "pos": "pnpm --filter @factura-hn/ejemplo-pos-offline start",
     "auditar:datos": "node scripts/auditar-datos.mjs",
     "lint:openapi": "redocly lint packages/api/openapi.json",
+    "colecciones": "pnpm --filter @factura-hn/colecciones generar",
     "changeset": "changeset",
     "release": "pnpm build && node scripts/verificar-dist.mjs && node scripts/publicar.mjs",
     "sitio": "pnpm playground && pnpm --filter @factura-hn/sitio construir",

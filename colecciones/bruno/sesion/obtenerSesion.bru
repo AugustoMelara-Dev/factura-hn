@@ -1,0 +1,16 @@
+meta {
+  name: Con qué llave hablas y qué falta para emitir
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/sesion
+  auth: inherit
+}
+
+docs {
+  Con qué llave hablas y qué falta para emitir
+
+  Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.
+}

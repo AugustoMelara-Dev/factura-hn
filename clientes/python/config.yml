@@ -1,0 +1,3 @@
+# Configuración de openapi-python-client para el cliente de la API de factura-hn (la usa generar.py).
+project_name_override: factura-hn-api-cliente
+package_name_override: factura_hn_api

@@ -1,0 +1,18 @@
+meta {
+  name: Datos del emisor
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/emisores/:id
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+docs {
+  Datos del emisor
+}

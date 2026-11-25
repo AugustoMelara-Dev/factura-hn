@@ -1,0 +1,20 @@
+meta {
+  name: Archivo de texto de un período para el SAR (Art. 53 num. 5)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/exportacion?desde=2026-11-18&hasta=2026-11-18
+  auth: inherit
+}
+
+params:query {
+  desde: 2026-11-18
+  hasta: 2026-11-18
+  ~formato: jsonl
+}
+
+docs {
+  Archivo de texto de un período para el SAR (Art. 53 num. 5)
+}

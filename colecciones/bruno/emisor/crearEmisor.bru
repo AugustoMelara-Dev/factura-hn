@@ -1,0 +1,27 @@
+meta {
+  name: Registra los datos del obligado tributario (uno por tenant)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/emisores
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "rtn": "99999999999999",
+    "razonSocial": "NEGOCIO DE EJEMPLO S. DE R.L.",
+    "nombreComercial": "Negocio de Ejemplo",
+    "direccionCasaMatriz": "Barrio El Centro, Tegucigalpa",
+    "direccionEstablecimiento": "Barrio El Centro, Tegucigalpa",
+    "telefono": "2200-0000",
+    "correo": "facturas@ejemplo.example"
+  }
+}
+
+docs {
+  Registra los datos del obligado tributario (uno por tenant)
+}

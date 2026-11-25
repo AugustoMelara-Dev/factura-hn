@@ -1,0 +1,22 @@
+meta {
+  name: Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/libro-ventas?desde=2026-11-18&hasta=2026-11-18
+  auth: inherit
+}
+
+params:query {
+  desde: 2026-11-18
+  hasta: 2026-11-18
+  ~formato: json
+}
+
+docs {
+  Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)
+
+  Con una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de emisión recibe 403 `CAJA_SIN_PUNTO`.
+}

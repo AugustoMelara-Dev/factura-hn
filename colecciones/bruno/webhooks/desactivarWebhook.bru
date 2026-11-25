@@ -1,0 +1,18 @@
+meta {
+  name: Desactiva un webhook
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/v1/webhooks/:id
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+docs {
+  Desactiva un webhook
+}

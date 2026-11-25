@@ -1,0 +1,21 @@
+meta {
+  name: Descargar el PDF
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}{{enlacePdf}}
+  auth: inherit
+}
+
+tests {
+  test("descarga el PDF", function () {
+    expect(res.status).to.equal(200);
+    expect(res.headers["content-type"]).to.contain("application/pdf");
+  });
+}
+
+docs {
+  El PDF de la factura que acabas de emitir, del enlace `enlaces.pdf` de la respuesta (con la misma llave).
+}

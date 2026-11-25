@@ -1,0 +1,25 @@
+meta {
+  name: Un documento: JSON, o la representación impresa con .pdf, .html o .txt
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/v1/documentos/:archivo
+  auth: inherit
+}
+
+params:query {
+  ~formato: carta
+  ~ancho: 32
+}
+
+params:path {
+  archivo: 000-001-01-00000001.pdf
+}
+
+docs {
+  Un documento: JSON, o la representación impresa con .pdf, .html o .txt
+
+  La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).
+}

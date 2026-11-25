@@ -1,0 +1,25 @@
+meta {
+  name: Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/v1/emisores/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+body:json {
+  {
+    "telefono": "2200-0001"
+  }
+}
+
+docs {
+  Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)
+}

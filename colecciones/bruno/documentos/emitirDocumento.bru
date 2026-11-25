@@ -1,0 +1,36 @@
+meta {
+  name: Emite una factura, nota de crédito o nota de débito
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/documentos
+  body: json
+  auth: inherit
+}
+
+headers {
+  Idempotency-Key: {{idempotencyKey}}
+}
+
+body:json {
+  {
+    "documento": {
+      "preciosIncluyenISV": true,
+      "lineas": [
+        {
+          "descripcion": "Café",
+          "cantidad": "2",
+          "precioUnitario": "57.50"
+        }
+      ]
+    }
+  }
+}
+
+docs {
+  Emite una factura, nota de crédito o nota de débito
+
+  Reserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. `enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.
+}
