@@ -780,6 +780,10 @@ integración (DEC-086 a DEC-089).
     quedar en 429 por los fallos de otra. Un prefijo inexistente gasta una ficha; la reserva se suelta en un
     `finally`; una llave válida no gasta nada. Así, 100 llaves falsas en paralelo desde una dirección hacen 20
     consultas (4 corren, 16 esperan en cola, 80 reciben 429).
+  - Un prefijo que ya se sabe registrado no gasta fichas de la dirección, pero con el semáforo saturado la
+    dirección no puede tener más de `rafaga` consultas en curso (tercera revisión): sin ese tope, quien conoce
+    muchos prefijos (un admin que crea llaves y las «quema» con un secreto equivocado) llenaba los lugares y la
+    cola, y las llaves nuevas de otros tenants recibían 429.
   - Un prefijo registrado sin llave activa (revocada o tenant inactivo) se recuerda 15 s (`memoriaInactivaMs`):
     mientras tanto se responde 401 o 429 (cubeta del prefijo) sin consultar la base. Un tenant reactivado vuelve
     a entrar al pasar ese tiempo.

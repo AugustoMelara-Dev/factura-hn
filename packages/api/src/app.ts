@@ -258,7 +258,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const reloj = cfg.reloj ?? (() => new Date());
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
   const li = cfg.limiteIntentos ?? {};
-  const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
+  const rafagaIntentos = li.rafaga ?? 20;
+  const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, rafagaIntentos);
   const fallosPorPrefijo = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
   const consultasNuevas = new Semaforo(li.consultasSimultaneas ?? 4, li.maxEnCola ?? 256, li.esperaMaxMs ?? 5000);
   const memoriaInactivaMs = li.memoriaInactivaMs ?? 15_000;
@@ -384,15 +385,16 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         // Quien llega mientras ya se consulta su prefijo espera ese resultado: no consulta la base ni reserva.
         let enCurso = enVueloPorPrefijo.get(prefijo);
         if (!enCurso) {
-          if (!registradoConocido) {
-            // La cubeta de la dirección solo frena cuando hay que hacer cola.
-            if (consultasNuevas.saturado) {
-              const espera = intentosPorIp.espera(ip, enVueloPorIp.get(ip) ?? 0);
-              if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
-            }
-            enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
-            reservada = true;
+          // La dirección solo frena cuando hay que hacer cola. Un prefijo desconocido necesita una ficha libre; uno
+          // ya conocido no gasta fichas, pero la dirección no puede tener más de `rafaga` consultas en curso: si no,
+          // quien conoce muchos prefijos (p. ej. un admin con muchas llaves) llena la cola para todos.
+          if (consultasNuevas.saturado) {
+            const enVuelo = enVueloPorIp.get(ip) ?? 0;
+            const espera = registradoConocido ? (enVuelo >= rafagaIntentos ? 1 : 0) : intentosPorIp.espera(ip, enVuelo);
+            if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
           }
+          enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
+          reservada = true;
           enCurso = consultasNuevas.con(() => buscarLlave(prefijo)).finally(() => enVueloPorPrefijo.delete(prefijo));
           enVueloPorPrefijo.set(prefijo, enCurso);
         }

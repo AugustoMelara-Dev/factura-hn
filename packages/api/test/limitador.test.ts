@@ -198,6 +198,23 @@ conBase('límite de solicitudes', () => {
     expect((await cliente(app, await crearCaja(admin, '001'), { ip })('GET', '/v1/sesion')).status).toBe(200);
   });
 
+  it('una dirección con muchos prefijos conocidos no llena la cola: con el semáforo saturado, a lo sumo «rafaga» consultas en curso', async () => {
+    const { app, admin } = await tenantListo({ limiteIntentos: { consultasSimultaneas: 1, maxEnCola: 8, rafaga: 2, porSegundo: 0.01 } });
+    const llaves = [];
+    for (let i = 0; i < 20; i++) llaves.push(await crearCaja(admin, null, 'admin'));
+    const caja = await crearCaja(admin, '001');
+    // Se «queman» una vez con un secreto equivocado: quedan como prefijos conocidos.
+    const ip = '198.51.100.60';
+    for (const l of llaves) expect((await cliente(app, llaveFalsa(l.split('_')[1]), { ip })('GET', '/v1/sesion')).status).toBe(401);
+    const ataque = llaves.map((l) => cliente(app, llaveFalsa(l.split('_')[1]), { ip })('GET', '/v1/sesion'));
+    const legitima = cliente(app, caja, { ip: '198.51.100.61' })('GET', '/v1/sesion');
+    const [a, v] = await Promise.all([Promise.all(ataque), legitima]);
+    expect(v.status).toBe(200);
+    const estados = a.map((r) => r.status);
+    expect(estados.filter((s) => s === 401)).toHaveLength(2);
+    expect(estados.filter((s) => s === 429)).toHaveLength(18);
+  });
+
   it('cola llena o espera agotada: 429 DEMASIADOS_INTENTOS con Retry-After', async () => {
     const p = await poolPrueba();
     const app = crearApp({ pool: p, modo: 'local', rol: ROL, registrar: () => undefined, limiteIntentos: { consultasSimultaneas: 1, maxEnCola: 2, esperaMaxMs: 2000 } });
