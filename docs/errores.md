@@ -770,6 +770,19 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 - **Qué significa (409):** el negocio ya tiene el máximo de webhooks activos.
 - **Solución:** desactiva uno (`DELETE /v1/webhooks/{id}`) antes de crear otro.
 
+### WEBHOOK_INACTIVO
+
+- **Qué significa (409):** se pidió reenviar una entrega, enviar un evento de prueba o rotar el secreto de un
+  webhook desactivado. Un webhook desactivado no se reactiva.
+- **Solución:** crea otro webhook con `POST /v1/webhooks` (su secreto es nuevo) y recupera lo que no llegó
+  consultando la API (por ejemplo, `GET /v1/documentos?desde&hasta`).
+
+### ENTREGA_VENCIDA
+
+- **Qué significa (409):** se pidió reenviar una entrega cuyo cuerpo ya se borró por retención
+  (`FHN_RETENCION_DIAS`, 30 días por defecto). Queda solo como registro de que el aviso se envió.
+- **Solución:** consulta el dato en la API (por ejemplo, `GET /v1/autorizaciones/{cai}/estado`).
+
 ### ERROR_INTERNO
 
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.
