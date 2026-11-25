@@ -129,7 +129,9 @@ conBase('errores con solución', () => {
     expect(sinCabecera.status).toBe(400);
     const faltante = await json(sinCabecera);
     expect(faltante.error).toMatchObject({ codigo: 'IDEMPOTENCY_KEY', documentacion: documentacionDe('IDEMPOTENCY_KEY') });
-    expect(faltante.error.solucion).toContain('Idempotency-Key: <un valor único por venta>');
+    expect(faltante.error.solucion).toContain('Idempotency-Key` con un valor único por venta');
+    // Windows PowerShell 5.1 borra de ErrorDetails.Message lo que parece una etiqueta («<…>»).
+    expect(faltante.error.solucion).not.toMatch(/[<>]/);
     expect(faltante.error.solucion).toContain('reutiliza el mismo valor');
 
     const grande = await caja('POST', '/v1/documentos', { relleno: 'x'.repeat(600 * 1024) }, { 'idempotency-key': 'k' });

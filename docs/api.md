@@ -429,7 +429,7 @@ antes a centavos.
   tenga. También es 422 `PERIODO_DEMASIADO_GRANDE`, y `MONTO_FUERA_DE_RANGO` cuando el total del documento pasaría
   de L 9,999,999,999,999.99 (un tope técnico, no fiscal: ver `docs/errores.md`); no consume número.
 - **Sin `Idempotency-Key`** al emitir (o vacía, o con más de 255 caracteres): 400 `IDEMPOTENCY_KEY`, con su
-  `solucion` (envía `Idempotency-Key: <un valor único por venta>` y reutilízalo si reintentas esa venta), no
+  `solucion` (envía `Idempotency-Key` con un valor único por venta y reutilízalo si reintentas esa venta), no
   `SOLICITUD_INVALIDA`. En la especificación la cabecera sigue siendo obligatoria.
 - Los demás: 401 llave · 403 rol, caja o `TENANT_FUERA_DEL_MODO_LOCAL` · 404 · 409 conflicto · 413 cuerpo > 512 KB · 429 límites, todos con
   `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que

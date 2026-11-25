@@ -72,7 +72,7 @@ export interface ContextoGuia {
  */
 export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Record<string, string> {
   const cabecera =
-    'Envía la cabecera `Authorization: Bearer fhn_live_<prefijo>_<secreto>` (o `fhn_test_…` en un tenant de prueba) con una llave ' +
+    'Envía la cabecera `Authorization: Bearer` seguida de la llave completa (`fhn_live_…`, o `fhn_test_…` en un tenant de prueba), ' +
     'activa, sin espacios ni saltos de línea. Una llave fhn_test_ no sirve en un tenant de producción, ni una fhn_live_ en uno de prueba. ';
   return {
     NO_AUTENTICADO:
@@ -118,7 +118,7 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     CUERPO_DEMASIADO_GRANDE: 'El cuerpo admite hasta 512 KB: divide la venta en varios documentos o acorta los textos.',
     SOLICITUD_INVALIDA: 'Corrige el campo de `error.campo` (la lista completa está en `errores`). La forma de cada ruta está en /docs.',
     IDEMPOTENCY_KEY:
-      'Envía la cabecera `Idempotency-Key: <un valor único por venta>` (p. ej. el id del pedido o de la venta) y, si reintentas ' +
+      'Envía la cabecera `Idempotency-Key` con un valor único por venta (p. ej. el id del pedido o de la venta) y, si reintentas ' +
       'esa misma venta, reutiliza el mismo valor: así nunca se emite dos veces.',
     IDEMPOTENCIA_CONFLICTO: 'Esa clave ya emitió otra venta. Usa una clave nueva para una venta distinta; para reintentar la misma venta, manda el mismo cuerpo.',
     BASE_NO_DISPONIBLE:
