@@ -1,0 +1,57 @@
+# Mediciones largas de calidad (Lote 5): cada noche y a mano. Cada encargo deja su trabajo en su sección.
+# Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml.
+name: Nocturno
+
+on:
+  schedule:
+    - cron: '17 8 * * *' # 02:17 en Honduras (UTC−6)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nocturno
+  cancel-in-progress: false
+
+jobs:
+  # ── Sección: propiedades, contrato OpenAPI y fuzzing (lote5/propiedades) ──────────────────────────────────────────
+  # El CI corre lo mismo con 200 casos por propiedad y 300 casos de fuzz de la API; aquí, 20 000 de cada uno.
+  # Un fallo imprime la semilla de fast-check: FHN_PROP_SEMILLA=<semilla> lo reproduce (docs/calidad/propiedades.md).
+  propiedades:
+    name: Propiedades, contrato OpenAPI y fuzzing (20 000 casos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: factura_hn_pruebas
+          # Solo en el contenedor efímero del CI.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TZ: UTC
+      FHN_PG_URL: postgres://postgres@localhost:5432/factura_hn_pruebas
+      FHN_PROP_CORRIDAS: '20000'
+      FHN_FUZZ_CASOS: '20000'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
+      - run: pnpm build
+      - name: Propiedades del núcleo, contrato de cada respuesta de la API y fuzz
+        run: pnpm calidad:propiedades
+  # ── Fin de la sección propiedades ─────────────────────────────────────────────────────────────────────────────────
