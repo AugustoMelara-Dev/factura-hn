@@ -68,13 +68,32 @@ function puntoDe(a: Pick<AutorizacionCAI, 'establecimiento' | 'puntoEmision'>): 
   return `${String(a.establecimiento).padStart(3, '0')}-${String(a.puntoEmision).padStart(3, '0')}`;
 }
 
+/** Fecha de hoy y último correlativo consumido por serie: deciden qué autorizaciones siguen en uso. */
+export interface EstadoPunto {
+  hoy: string;
+  /** Último correlativo consumido de la serie (`NNN-NNN-TT`), o null si no ha emitido. */
+  ultimo: (identificador: string) => number | null;
+}
+
+/**
+ * Si la autorización todavía puede emitir: vigente (fecha límite ≥ hoy, Art. 62) y con números después del último
+ * consumido de su serie.
+ */
+function enUso(a: AutorizacionCAI, estado: EstadoPunto): boolean {
+  if (!esFechaValida(a.fechaLimiteEmision) || a.fechaLimiteEmision < estado.hoy) return false;
+  const consumido = Math.max(estado.ultimo(identificadorDe(a)) ?? 0, a.ultimoEmitidoAntes ?? 0);
+  return consumido < a.rangoFinal;
+}
+
 /**
  * Problemas de registrar `nueva` junto a las autorizaciones ya registradas. `existentes` trae las del mismo
- * punto de emisión (todos los tipos): las de otro identificador solo cuentan para el modo de prueba.
+ * punto de emisión (todos los tipos): las de otro identificador solo cuentan para el modo de prueba, y solo si
+ * siguen en uso (vigentes y no agotadas) cuando se pasa `estado`: un CAI de prueba vencido o agotado no impide
+ * registrar uno real en el mismo punto.
  * Dos autorizaciones de un mismo identificador no pueden compartir números: cada número del rango
  * pertenece a un solo CAI (Arts. 10 num. 3-5 y 59).
  */
-export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI): Problema[] {
+export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI, estado?: EstadoPunto): Problema[] {
   const problemas = validarAutorizacion(nueva).filter((p) => !esAdvertencia(p));
   // B-15: no se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
   const tipo = problemaDeTipo(nueva.tipoDocumento);
@@ -94,13 +113,15 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
   // los documentos de prueba no consumen números de una serie real, ni una nota real cita una factura de prueba.
   const punto = puntoDe(nueva);
   const dePrueba = esAutorizacionDePrueba(nueva);
-  const mezcla = existentes.find((a) => puntoDe(a) === punto && esAutorizacionDePrueba(a) !== dePrueba);
+  const mezcla = existentes.find(
+    (a) => puntoDe(a) === punto && esAutorizacionDePrueba(a) !== dePrueba && (!estado || enUso(a, estado)),
+  );
   if (mezcla) {
     problemas.push({
       codigo: 'AUTORIZACION_MODO_MEZCLADO',
       mensaje: dePrueba
-        ? `El punto de emisión ${punto} ya tiene autorizaciones reales (CAI ${mezcla.cai}): no se le puede registrar una de prueba.`
-        : `El punto de emisión ${punto} tiene autorizaciones de prueba (CAI ${mezcla.cai}): no se le puede registrar una real.`,
+        ? `El punto de emisión ${punto} ya tiene autorizaciones reales en uso (CAI ${mezcla.cai}): no se le puede registrar una de prueba.`
+        : `El punto de emisión ${punto} tiene autorizaciones de prueba en uso (CAI ${mezcla.cai}): no se le puede registrar una real.`,
       campo: 'prueba',
     });
   }
@@ -130,13 +151,20 @@ export async function registrarAutorizacion(
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
     const id = identificadorDe(autorizacion);
-    await tx.bloquearSerie(id);
-    // Todas las del punto de emisión: el modo de prueba se decide por punto, no por tipo.
+    // Todas las series del punto de emisión, en orden fijo: el modo de prueba se decide por punto, no por tipo,
+    // y dos registros simultáneos de tipos distintos en el mismo punto no deben validarse a la vez. El orden
+    // fijo evita bloqueos cruzados.
     const delPunto: AutorizacionCAI[] = [];
-    for (const tipo of Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>) {
-      delPunto.push(...(await tx.autorizaciones(identificadorDe({ ...autorizacion, tipoDocumento: tipo }))));
+    const ultimos = new Map<string, number | null>();
+    for (const tipo of (Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>).sort()) {
+      const serie = identificadorDe({ ...autorizacion, tipoDocumento: tipo });
+      ultimos.set(serie, (await tx.bloquearSerie(serie)).ultimo);
+      delPunto.push(...(await tx.autorizaciones(serie)));
     }
-    const problemas = validarNuevaAutorizacion(delPunto, autorizacion);
+    const problemas = validarNuevaAutorizacion(delPunto, autorizacion, {
+      hoy: fechaHonduras(ahora),
+      ultimo: (serie) => ultimos.get(serie) ?? null,
+    });
     if (problemas.length) throw new ErrorValidacion(problemas);
     const normalizada: AutorizacionCAI = {
       ...autorizacion,

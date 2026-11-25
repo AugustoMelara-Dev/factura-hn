@@ -97,7 +97,9 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 ### AUTORIZACION_MODO_MEZCLADO
 
 - **Qué significa:** se intentó registrar una autorización de prueba en un punto de emisión con autorizaciones
-  reales, o al revés. Un punto de emisión es entero de prueba o entero real, en todos los tipos de documento.
+  reales en uso, o al revés. Un punto de emisión es entero de prueba o entero real, en todos los tipos de
+  documento. Solo cuentan las autorizaciones en uso (vigentes y con números libres): una de prueba vencida o
+  agotada no impide registrar una real.
 - **Causa:** se usó el mismo almacén y la misma caja para probar con `autorizacionDemo()` y para facturar.
 - **Solución:** prueba en otro almacén: otra base de datos, o `AlmacenFiscalMemoria`. No pruebes en otro punto
   de emisión del almacén real: sus documentos de prueba se mezclarían con los reales en las consultas.

@@ -52,6 +52,22 @@ conPostgres('Postgres', () => {
     return { a, doc };
   };
 
+  it('registros simultáneos de prueba y real en un mismo punto, de tipos distintos: solo uno entra', async () => {
+    const fecha = '2099-12-31';
+    for (let i = 0; i < 5; i++) {
+      const tenant = `prueba-${randomUUID()}`;
+      const prueba = { cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01', prueba: true, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: fecha } as const;
+      const real = { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06', tipoDocumento: '06', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: fecha } as const;
+      const r = await Promise.allSettled([
+        registrarAutorizacion(new AlmacenPostgres(pool, { tenant }), prueba),
+        registrarAutorizacion(new AlmacenPostgres(nuevoPool(), { tenant }), real),
+      ]);
+      expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+      const rechazo = r.find((x) => x.status === 'rejected') as PromiseRejectedResult;
+      expect(rechazo.reason).toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
+    }
+  });
+
   it('un tenant no ve los documentos de otro', async () => {
     const { a, doc } = await emitido();
     expect(await buscarDocumento(a, doc.numero)).not.toBeNull();
