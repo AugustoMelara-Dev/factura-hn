@@ -164,11 +164,13 @@ export async function registrarAutorizacion(
   return almacen.transaccion(async (tx) => {
     const id = identificadorDe(autorizacion);
     // Todas las series del punto de emisión, en orden fijo: el modo de prueba se decide por punto, no por tipo,
-    // y dos registros simultáneos de tipos distintos en el mismo punto no deben validarse a la vez. El orden
-    // fijo evita bloqueos cruzados.
+    // y dos registros simultáneos de tipos distintos en el mismo punto no deben validarse a la vez.
+    // Orden: primero las notas (06, 07) y después los demás tipos. Una nota de crédito bloquea su serie 06 y
+    // luego la del original (problemasDeNotaCredito); si aquí la 01 fuera antes que la 06, una nota y un
+    // registro simultáneos se esperarían el uno al otro (deadlock en Postgres).
     const delPunto: AutorizacionCAI[] = [];
     const ultimos = new Map<string, number | null>();
-    for (const tipo of (Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>).sort()) {
+    for (const tipo of ORDEN_DE_BLOQUEO) {
       const serie = identificadorDe({ ...autorizacion, tipoDocumento: tipo });
       ultimos.set(serie, (await tx.bloquearSerie(serie)).ultimo);
       delPunto.push(...(await tx.autorizaciones(serie)));
@@ -291,6 +293,14 @@ export interface OpcionesEmision {
   alEmitir?: (doc: DocumentoFiscal, tx: TransaccionFiscal) => Promise<void>;
   /** Integración contable o de inventarios (Art. 53 num. 1); corre dentro de la transacción. */
   libroContable?: LibroContable;
+}
+
+/** Orden en que `registrarAutorizacion` bloquea las series de un punto: notas primero (ver allí). */
+const ORDEN_DE_BLOQUEO = (Object.keys(TIPOS_DOCUMENTO) as Array<AutorizacionCAI['tipoDocumento']>).sort(
+  (x, y) => Number(!esNota(x)) - Number(!esNota(y)) || x.localeCompare(y),
+);
+function esNota(tipo: string): boolean {
+  return tipo === '06' || tipo === '07';
 }
 
 /**

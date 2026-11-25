@@ -1151,9 +1151,14 @@ intentos de la API se corrigió en DEC-070.
 ### DEC-092 · Registrar una autorización bloquea todas las series del punto
 - **Contexto:** `registrarAutorizacion` bloqueaba solo la serie del tipo nuevo. Dos registros simultáneos en el
   mismo punto, uno de prueba del tipo 01 y uno real del tipo 06, se validaban a la vez y entraban los dos.
-- **Elegida:** bloquea las series de todos los tipos del punto (01, 06 y 07, ordenados) antes de leer sus
-  autorizaciones. El orden fijo evita bloqueos cruzados entre registros. La prueba de Postgres fallaba antes del
+- **Elegida:** bloquea las series de todos los tipos del punto antes de leer sus autorizaciones, en orden fijo:
+  primero las notas (06, 07) y después los demás tipos (01, 04, 05, 08). La prueba de Postgres fallaba antes del
   cambio.
+- **Orden de bloqueo:** el único otro camino que bloquea dos series es la nota de crédito: su serie 06 y luego la
+  del original. Con la 01 antes que la 06, una nota y un registro simultáneos se esperaban el uno al otro y
+  Postgres cortaba uno con 40P01 (la API respondía 500). Con las notas primero, ningún camino toma una 06 o 07
+  después de una 01. Anular, corregir fechas y los no utilizados bloquean una sola serie. Una prueba de Postgres
+  fuerza el cruce y fallaba con el orden anterior.
 - **Alternativa:** un candado consultivo por punto. Haría falta en cada almacén (Postgres, SQLite, memoria); el
   bloqueo de series ya existe en el contrato del almacén.
 
