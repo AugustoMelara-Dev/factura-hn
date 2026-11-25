@@ -261,6 +261,48 @@ conPostgres('Postgres', () => {
     await expect(pool.query("UPDATE fhn_eventos SET tipo = 'X' WHERE tenant = $1", [t])).rejects.toThrow(/bitácora/);
   });
 
+  it('la purga de prueba borra solo datos con CAI ficticio, del tenant pedido y en esa transacción', async () => {
+    const purgar = async (tenant: string, pedido: string) => {
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query("SELECT set_config('factura_hn.purga_prueba', $1, true)", [pedido]);
+        for (const tabla of ['fhn_documentos', 'fhn_eventos', 'fhn_series', 'fhn_autorizaciones']) {
+          await c.query(`DELETE FROM ${tabla} WHERE tenant = $1`, [tenant]);
+        }
+        await c.query('COMMIT');
+      } catch (e) {
+        await c.query('ROLLBACK');
+        throw e;
+      } finally {
+        c.release();
+      }
+    };
+    // Con un CAI real, la purga no borra nada aunque se pida para ese tenant.
+    const { a } = await emitido();
+    const t = (a as unknown as { tenant: string }).tenant;
+    await expect(purgar(t, t)).rejects.toThrow(/no se borran/);
+
+    // Un tenant solo de prueba (CAI ficticio): la purga lo borra completo, pero solo si se pide para ese tenant.
+    const tp = `prueba-${randomUUID()}`;
+    const ap = new AlmacenPostgres(pool, { tenant: tp });
+    await registrarAutorizacion(ap, {
+      cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01', prueba: true, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
+      rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2099-12-31',
+    } as never);
+    await emitir(D.entrada(), { almacen: ap, establecimiento: '000', puntoEmision: '001', opciones: { reloj: D.reloj } });
+    await expect(purgar(tp, 'otro-tenant')).rejects.toThrow(/no se borran/);
+    await expect(pool.query('DELETE FROM fhn_documentos WHERE tenant = $1', [tp])).rejects.toThrow(/no se borran/);
+    await expect(pool.query('DELETE FROM fhn_eventos WHERE tenant = $1', [tp])).rejects.toThrow(/bitácora/);
+    await purgar(tp, tp);
+    const quedan = await pool.query(
+      `SELECT (SELECT count(*) FROM fhn_documentos WHERE tenant = $1) + (SELECT count(*) FROM fhn_autorizaciones WHERE tenant = $1)
+            + (SELECT count(*) FROM fhn_series WHERE tenant = $1) + (SELECT count(*) FROM fhn_eventos WHERE tenant = $1) AS n`,
+      [tp],
+    );
+    expect(Number(quedan.rows[0].n)).toBe(0);
+  });
+
   it('cada transacción fija factura_hn.tenant (local a la transacción) para las políticas RLS', async () => {
     const tenant = `prueba-${randomUUID()}`;
     const vistos: string[] = [];

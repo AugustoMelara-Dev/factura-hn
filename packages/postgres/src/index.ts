@@ -134,7 +134,7 @@ GRANT SELECT, INSERT ON fhn_eventos TO ${r};
 DO $$ BEGIN EXECUTE format('GRANT USAGE ON SEQUENCE %s TO ${r}', pg_get_serial_sequence('fhn_eventos', 'id')); END $$;`;
 }
 
-export const VERSION_ESQUEMA_POSTGRES = 3;
+export const VERSION_ESQUEMA_POSTGRES = 4;
 
 /** Esquema idempotente; `migrar()` lo aplica con un candado consultivo para no chocar entre réplicas. */
 export const ESQUEMA_POSTGRES = `
@@ -182,8 +182,28 @@ CREATE TABLE IF NOT EXISTS fhn_eventos (
 );
 CREATE INDEX IF NOT EXISTS fhn_eventos_identificador ON fhn_eventos (tenant, identificador, id);
 
+-- v4: purga de datos de prueba. Un documento o una autorización con CAI ficticio (DEMO00-NO-VALIDO-…) no tiene
+-- valor fiscal. Se puede borrar solo si la transacción pide la purga de ese tenant
+-- (factura_hn.purga_prueba = tenant) y el tenant no tiene ninguna autorización con un CAI real; entonces se borran
+-- también sus series y su bitácora. Solo el dueño de las tablas tiene DELETE (el rol de la aplicación no). Un
+-- documento con CAI real nunca se borra (Art. 41).
+CREATE OR REPLACE FUNCTION fhn_purga_prueba_permitida(p_tenant text) RETURNS boolean LANGUAGE sql STABLE AS $f$
+  SELECT p_tenant <> '' AND coalesce(current_setting('factura_hn.purga_prueba', true), '') = p_tenant
+     AND NOT EXISTS (SELECT 1 FROM fhn_autorizaciones a
+                      WHERE a.tenant = p_tenant AND NOT starts_with(upper(btrim(a.cai)), 'DEMO00-NO-VALIDO-'))
+$f$;
+
 CREATE OR REPLACE FUNCTION fhn_no_borrar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  IF fhn_purga_prueba_permitida(OLD.tenant) THEN
+    IF TG_TABLE_NAME = 'fhn_documentos' THEN
+      IF starts_with(upper(btrim(coalesce(OLD.datos->>'cai', ''))), 'DEMO00-NO-VALIDO-') THEN RETURN OLD; END IF;
+    ELSIF TG_TABLE_NAME = 'fhn_autorizaciones' THEN
+      IF starts_with(upper(btrim(OLD.cai)), 'DEMO00-NO-VALIDO-') THEN RETURN OLD; END IF;
+    ELSE
+      RETURN OLD;
+    END IF;
+  END IF;
   RAISE EXCEPTION 'factura-hn: % no se borran (Art. 41)', TG_TABLE_NAME;
 END $$;
 
@@ -224,6 +244,8 @@ DROP TRIGGER IF EXISTS fhn_documentos_solo_anular ON fhn_documentos;
 CREATE TRIGGER fhn_documentos_solo_anular BEFORE UPDATE ON fhn_documentos FOR EACH ROW EXECUTE FUNCTION fhn_solo_anular();
 CREATE OR REPLACE FUNCTION fhn_bitacora_inmutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  -- v4: la bitácora de un tenant solo de prueba se borra con él en la purga (ver fhn_no_borrar).
+  IF TG_OP = 'DELETE' AND fhn_purga_prueba_permitida(OLD.tenant) THEN RETURN OLD; END IF;
   RAISE EXCEPTION 'factura-hn: la bitácora no se modifica';
 END $$;
 
