@@ -83,6 +83,7 @@ import {
   exigirPeriodoAcotado,
   maxDocumentosReporte,
   ReportesEnCurso,
+  REPORTES_POR_LLAVE,
   REPORTES_SIMULTANEOS,
   reportesSimultaneosProceso,
   transmitir,
@@ -157,6 +158,11 @@ export interface ConfigApi {
   maxDocumentosReporte?: number;
   /** Reportes de período en curso a la vez por tenant en este proceso; más allá, 429. Por defecto 2. */
   reportesSimultaneos?: number;
+  /**
+   * Reportes de período en curso a la vez por llave; más allá, 429 `LIMITE_SOLICITUDES`. Por defecto 1: una llave
+   * (p. ej. una caja que lee despacio) no ocupa todos los cupos de su tenant.
+   */
+  reportesPorLlave?: number;
   /**
    * Reportes de período en curso a la vez en todo el proceso, de cualquier tenant; más allá, 429. Cada reporte
    * transmitido retiene una conexión del pool mientras el cliente lee. Por defecto
@@ -1239,10 +1245,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   // cupos por tenant y por proceso (ver ./reportes). Los cupos se registran antes que las rutas.
   const maxDocumentos = maxDocumentosReporte(cfg.maxDocumentosReporte);
   const reportes = new ReportesEnCurso({
+    porLlave: cfg.reportesPorLlave ?? REPORTES_POR_LLAVE,
     porTenant: cfg.reportesSimultaneos ?? REPORTES_SIMULTANEOS,
     proceso: reportesSimultaneosProceso(cfg.reportesSimultaneosProceso, cfg.pool.options?.max ?? 10),
   });
-  const limiteReportes = reportes.middleware((c) => (c.get('sesion') as Sesion).tenant);
+  const limiteReportes = reportes.middleware(
+    (c) => (c.get('sesion') as Sesion).tenant,
+    (c) => (c.get('sesion') as Sesion).prefijo,
+  );
   /**
    * Responde un reporte transmitido desde una transacción de solo lectura del tenant: `preparar` cuenta y aplica
    * el tope antes de enviar nada (un 422 todavía es posible) y `producir` escribe en la misma instantánea.

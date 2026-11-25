@@ -5,8 +5,9 @@
  * conexiones a la base a los demás tenants:
  * - tope de documentos por reporte (`maxDocumentosReporte`, `FHN_MAX_DOCUMENTOS_REPORTE`, 50 000 por defecto):
  *   se cuenta antes de enviar nada y, si se pasa, 422 `PERIODO_DEMASIADO_GRANDE`;
- * - reportes en curso por tenant (`reportesSimultaneos`, 2) y en todo el proceso (`reportesSimultaneosProceso`,
- *   `FHN_REPORTES_SIMULTANEOS_PROCESO`, por defecto un cuarto del pool, nunca más que el pool menos 1): el siguiente recibe 429
+ * - reportes en curso por llave (`reportesPorLlave`, 1), por tenant (`reportesSimultaneos`, 2) y en todo el proceso
+ *   (`reportesSimultaneosProceso`, `FHN_REPORTES_SIMULTANEOS_PROCESO`, por defecto un cuarto del pool redondeado hacia
+ *   arriba, nunca más que el pool menos 1): el siguiente recibe 429
  *   `LIMITE_SOLICITUDES` con `Retry-After`. Un reporte transmitido retiene una conexión del pool mientras el
  *   cliente lee; el límite del proceso deja siempre conexiones libres para el resto de la API;
  * - el libro y la exportación se transmiten por partes (de unos 64 KB), con un plazo por parte (30 s: un
@@ -18,6 +19,11 @@ import { ErrorApi } from './errores';
 
 export const MAX_DOCUMENTOS_REPORTE = 50_000;
 export const REPORTES_SIMULTANEOS = 2;
+/**
+ * Reportes en curso a la vez por llave. Con 1, una caja que lee despacio el libro de ventas ocupa a lo sumo uno de
+ * los cupos del tenant: el otro queda para la exportación del admin.
+ */
+export const REPORTES_POR_LLAVE = 1;
 /** Plazo para que el cliente reciba cada parte de una respuesta transmitida. */
 export const ESPERA_ESCRITURA_MS = 30_000;
 /** Plazo total de una respuesta transmitida. */
@@ -34,10 +40,11 @@ export function maxDocumentosReporte(opcion: number | undefined, env: Entorno = 
 
 /**
  * Reportes en curso en todo el proceso: la opción, o `FHN_REPORTES_SIMULTANEOS_PROCESO`, o un cuarto del pool
- * (al menos 1), para que los reportes nunca ocupen todas las conexiones.
+ * redondeado hacia arriba (al menos 1), para que los reportes nunca ocupen todas las conexiones. Con el pool por
+ * omisión de `pg` (10) son 3: más que el cupo de un tenant (2), así que un solo tenant no llena el proceso.
  */
 export function reportesSimultaneosProceso(opcion: number | undefined, tamanoPool: number, env: Entorno = process.env): number {
-  const porDefecto = Math.max(1, Math.floor(tamanoPool / 4));
+  const porDefecto = Math.max(1, Math.ceil(tamanoPool / 4));
   const n = desdeEntorno(opcion, 'reportesSimultaneosProceso', env, 'FHN_REPORTES_SIMULTANEOS_PROCESO', porDefecto);
   // Cada reporte transmitido retiene una conexión: siempre debe quedar al menos una para el resto de la API (con
   // un pool de 1, un solo reporte, y las demás solicitudes esperan a que termine).
@@ -99,39 +106,53 @@ export class CuposSimultaneos {
 
 const muchos = () => new ErrorApi(429, 'LIMITE_SOLICITUDES', 'Ya hay demasiados reportes en curso. Espera a que terminen y reintenta.', { reintentarEn: 1 });
 
+const muchosDeLaLlave = () =>
+  new ErrorApi(429, 'LIMITE_SOLICITUDES', 'Esta llave ya tiene un reporte en curso. Espera a que termine y reintenta.', { reintentarEn: 1 });
+
 /**
- * Cupos de los reportes: por tenant y en todo el proceso. El middleware toma ambos antes de la ruta y los
- * libera al terminar; una ruta que transmite su respuesta los reclama (`reclamar`) y los libera cuando
+ * Cupos de los reportes: por llave, por tenant y en todo el proceso. El middleware los toma antes de la ruta y
+ * los libera al terminar; una ruta que transmite su respuesta los reclama (`reclamar`) y los libera cuando
  * termina la transmisión.
  */
 export class ReportesEnCurso {
+  readonly porLlave: CuposSimultaneos;
   readonly porTenant: CuposSimultaneos;
   readonly proceso: CuposSimultaneos;
   private readonly cupos = new WeakMap<Request, { liberar: () => void; reclamado: boolean }>();
 
-  constructor(limites: { porTenant: number; proceso: number }) {
+  constructor(limites: { porTenant: number; proceso: number; porLlave?: number }) {
+    this.porLlave = new CuposSimultaneos(limites.porLlave ?? REPORTES_POR_LLAVE);
     this.porTenant = new CuposSimultaneos(limites.porTenant);
     this.proceso = new CuposSimultaneos(limites.proceso);
   }
 
   /**
-   * Middleware de las rutas de reportes. Va después de la autenticación: `clave` lee el tenant de la sesión.
-   * HEAD no se atiende (405): su cuerpo se descarta sin leerse.
+   * Middleware de las rutas de reportes. Va después de la autenticación: `clave` lee el tenant de la sesión y
+   * `llave`, el prefijo de la llave (sin `llave`, no hay cupo por llave). HEAD no se atiende (405): su cuerpo se
+   * descarta sin leerse.
    */
-  middleware(clave: (c: Context) => string): MiddlewareHandler {
+  middleware(clave: (c: Context) => string, llave?: (c: Context) => string): MiddlewareHandler {
     return async (c, next) => {
       if (c.req.method === 'HEAD') {
         return c.json({ error: { codigo: 'METODO_NO_PERMITIDO', mensaje: 'Usa GET para pedir este reporte.' } }, 405, { Allow: 'GET' });
       }
+      // La llave primero: la que ya tiene un reporte en curso no toma (ni devuelve) cupos del tenant.
+      const deLaLlave = llave ? this.porLlave.tomar(`${clave(c)}:${llave(c)}`) : () => undefined;
+      if (!deLaLlave) throw muchosDeLaLlave();
       const delTenant = this.porTenant.tomar(clave(c));
-      if (!delTenant) throw muchos();
+      if (!delTenant) {
+        deLaLlave();
+        throw muchos();
+      }
       const delProceso = this.proceso.tomar('');
       if (!delProceso) {
         delTenant();
+        deLaLlave();
         throw muchos();
       }
       const cupo = {
         liberar: () => {
+          deLaLlave();
           delTenant();
           delProceso();
         },
