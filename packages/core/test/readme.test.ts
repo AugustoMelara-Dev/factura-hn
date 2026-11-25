@@ -6,6 +6,7 @@
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
  * HTML inmediatamente anterior:  <!-- declaraciones: declare const carrito: Item[]; -->
  */
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
@@ -85,6 +86,20 @@ describe('los fragmentos de código de la documentación compilan', () => {
     }, 60_000);
   }
 
+  // Las páginas del sitio escritas a mano: cada bloque ```ts compila, archivo por archivo.
+  // Solo las versionadas: las que se generan al construir (referencia/api…) salen de docs/ y se prueban allí.
+  const paginas = execFileSync('git', ['ls-files', 'web/src/content/docs'], { cwd: RAIZ, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => /\.mdx?$/.test(f) && fragmentosTS(f).length > 0);
+  it('el sitio tiene páginas con código que se comprueba', () => {
+    expect(paginas.length).toBeGreaterThan(5);
+  });
+  for (const archivo of paginas) {
+    it(archivo, () => {
+      expect(compilar(fragmentosTS(archivo))).toEqual([]);
+    }, 60_000);
+  }
+
   it('detecta un fragmento roto (control de la propia prueba)', () => {
     const roto = { archivo: 'control', linea: 1, codigo: "import { crearDocumento } from 'factura-hn';\nexport {};\n" };
     expect(compilar([roto]).join('\n')).toMatch(/crearDocumento/);
@@ -123,12 +138,12 @@ it('el ejemplo «En 30 segundos» del README corre tal cual, con el reloj real, 
 
 // --- Prompts y nombres en la documentación para agentes -------------------------------------------------
 
-const DOCS_AGENTES = ['README.md', 'AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md'];
+const DOCS_AGENTES = ['README.md', 'AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md', 'web/src/content/docs/ia/prompts.md'];
 const PROMPT_SDK = 'Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.';
 const PROMPT_API = 'Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.';
 
 describe('documentación para agentes', () => {
-  it('los cuatro documentos traen los mismos prompts de una línea (SDK y API)', () => {
+  it('los documentos para agentes traen los mismos prompts de una línea (SDK y API)', () => {
     for (const archivo of DOCS_AGENTES) {
       const texto = readFileSync(join(RAIZ, archivo), 'utf8');
       expect(texto.includes(PROMPT_SDK), `${archivo}: prompt del SDK`).toBe(true);

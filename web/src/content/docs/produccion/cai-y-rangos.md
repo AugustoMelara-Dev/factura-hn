@@ -60,6 +60,10 @@ numeración desde el primer documento, y una autorización registrada no se pued
 
 ### Con el SDK
 
+<!-- declaraciones:
+import type { AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
 ```ts
 import { registrarAutorizacion } from 'factura-hn';
 
@@ -127,6 +131,10 @@ registrar (DEC-081).
 Si parte del rango ya se usó en un talonario u otro sistema, indica el último número usado. La serie continúa en el
 siguiente y no repite números:
 
+<!-- declaraciones:
+import { registrarAutorizacion, type AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
 ```ts
 await registrarAutorizacion(almacen, {
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
@@ -184,6 +192,9 @@ factura-hn avisa en estos casos:
 
 Para mostrarlas en la caja con el SDK:
 
+<!-- declaraciones:
+declare const almacen: import('factura-hn').AlmacenFiscal;
+-->
 ```ts
 import { estadoAutorizacion, identificadorDe, type AlmacenFiscal } from 'factura-hn';
 

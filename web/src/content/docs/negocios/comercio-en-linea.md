@@ -74,6 +74,9 @@ export async function facturarPedido(pedido: { id: string; cliente?: DocumentoEn
 
 Con datos ficticios:
 
+<!-- declaraciones:
+declare function facturarPedido(pedido: { id: string; cliente?: unknown; lineas: { descripcion: string; cantidad: string; precioUnitario: string }[] }): Promise<unknown>;
+-->
 ```ts
 await facturarPedido({ id: '1001', lineas: [{ descripcion: 'Audífonos inalámbricos', cantidad: '1', precioUnitario: '1150.00' }] });
 // → { ok: true, numero: '000-002-01-00000002', total: 1150 }

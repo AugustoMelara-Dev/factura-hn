@@ -90,6 +90,9 @@ export async function cobrarCuenta(cuenta: Cuenta) {
 
 Con datos ficticios:
 
+<!-- declaraciones:
+declare function cobrarCuenta(cuenta: { id: string; mesero: string; consumo: { descripcion: string; cantidad: string; precio: string }[] }): Promise<unknown>;
+-->
 ```ts
 await cobrarCuenta({
   id: 'mesa-4-2026-11-24-1',

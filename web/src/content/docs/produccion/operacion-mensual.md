@@ -22,6 +22,10 @@ herramienta equivalente. Los reportes en detalle están en [Reportes](/guias/rep
 
 ## Libro de ventas
 
+<!-- declaraciones:
+import type { AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
 ```ts
 import { libroVentas, libroVentasCSV } from 'factura-hn';
 
@@ -55,6 +59,10 @@ apoyo para el contador, no un formulario del SAR. Ver [Consulta al SAR](/producc
 El Art. 53 num. 5 pide que el sistema genere archivos de texto para enviarlos al SAR. factura-hn genera tres
 formatos propios y versionados:
 
+<!-- declaraciones:
+import type { DocumentoFiscal } from 'factura-hn';
+declare const docs: DocumentoFiscal[];
+-->
 ```ts
 import { exportarTexto, separarDocumentosDePrueba } from 'factura-hn';
 
@@ -88,6 +96,10 @@ acontecimiento (Art. 42, C L.1958-1990). Las causales más comunes:
 factura-hn calcula los rangos, la causal y la fecha límite del aviso. **No envía el aviso**: se hace en el sistema
 del SAR.
 
+<!-- declaraciones:
+import type { AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
 ```ts
 import { noUtilizadosDelAlmacen } from 'factura-hn';
 
@@ -128,6 +140,10 @@ obligatorio (DEC-001). Nada se borra. Ver [Anular](/guias/anular/).
 
 Al cerrar el mes, revisa las anulaciones con su motivo y quién las hizo:
 
+<!-- declaraciones:
+import type { AlmacenFiscal } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+-->
 ```ts
 import { eventosAuditoria } from 'factura-hn';
 

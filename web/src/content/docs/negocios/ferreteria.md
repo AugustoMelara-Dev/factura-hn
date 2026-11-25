@@ -110,6 +110,10 @@ en `DATABASE_URL`, no la de producción: un punto de emisión no mezcla document
 
 Un cliente exonerado con Orden de Compra Exenta y constancia (números ficticios):
 
+<!-- declaraciones:
+import type { Facturador } from 'factura-hn';
+declare const caja: Facturador;
+-->
 ```ts
 const exonerada = await caja.emitir({
   cliente: { nombre: 'Asociación Ejemplo', rtn: '99990000000003' },
@@ -120,6 +124,10 @@ const exonerada = await caja.emitir({
 
 Una venta en dólares, con precios sin ISV:
 
+<!-- declaraciones:
+import type { Facturador } from 'factura-hn';
+declare const caja: Facturador;
+-->
 ```ts
 const enDolares = await caja.emitir({
   cliente: { nombre: 'Constructora Ejemplo S. A.', rtn: '99990000000002' },

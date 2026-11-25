@@ -17,6 +17,11 @@ El SDK lanza `ErrorValidacion` con una lista de problemas. Cada uno trae `codigo
 del SDK, `solucion` y `documentacion` (el enlace a su explicación). Compara siempre el `codigo`, nunca el texto,
 y muestra el mensaje tal cual a quien opera.
 
+<!-- declaraciones:
+import type { AlmacenFiscal, DocumentoEntrada } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const entrada: DocumentoEntrada;
+-->
 ```ts
 import { emitir, esErrorValidacion } from 'factura-hn';
 
