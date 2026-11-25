@@ -21,7 +21,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { BASE, DOCS, PAGINAS_PRODUCTO, RAIZ, REPO, SALIDA, WEB } from '../sitio.config.mjs';
+import { API_DEMO, BASE, DOCS, MARCADOR_API, PAGINAS_PRODUCTO, RAIZ, REPO, SALIDA, WEB } from '../sitio.config.mjs';
 import { COMANDOS } from '../src/datos/comandos.mjs';
 
 /**
@@ -104,6 +104,10 @@ for (const f of archivos.filter((x) => /\.(md|html)$/.test(x) || /(^|\/)llms[^/]
   const texto = readFileSync(join(SALIDA, f), 'utf8');
   if (texto.includes('\u0000')) errores.push(`${f}: contiene U+0000 (NUL)`);
   if (texto.includes('�')) errores.push(`${f}: contiene U+FFFD (carácter de reemplazo)`);
+  // El marcador de la URL de la demostración nunca llega al visitante: se reemplaza por la URL real o se quita.
+  if (texto.includes(MARCADOR_API)) errores.push(`${f}: contiene el marcador ${MARCADOR_API} (falta <!-- con-demo --> o la URL)`);
+  // Los avisos de Starlight (:::note) no son Markdown común: en las copias para IA van como cita.
+  if (!f.endsWith('.html') && /^:::/m.test(texto)) errores.push(`${f}: contiene un aviso de Starlight (:::) sin convertir`);
 }
 
 // --- 4. Buscador --------------------------------------------------------------------------------------------
@@ -156,13 +160,24 @@ for (const { ruta } of PAGINAS_PRODUCTO) {
   if (!/<meta name="viewport" content="width=device-width, initial-scale=1"/.test(contenido)) errores.push(`${pagina}: falta la etiqueta viewport`);
   if (!/<html lang="es"/.test(contenido)) errores.push(`${pagina}: falta lang="es" en <html>`);
   const isla = /<astro-island\b/.test(contenido);
+  // Lo que el sitio promete de la demostración tiene que coincidir con lo que hay: sin API, nada lleva a crear un
+  // entorno de prueba que no existe; con ella, /probar/ tiene la isla.
+  if (!API_DEMO && /<a class="boton[^"]*" href="[^"]*\/probar\/"/.test(contenido)) errores.push(`${pagina}: un botón lleva a /probar/ y la demostración no está en línea`);
   if (ruta === 'probar') {
     const sinJs = /<noscript>[\s\S]*necesita JavaScript[\s\S]*\/v1\/demo\/entornos[\s\S]*<\/noscript>/.test(contenido);
-    const noPublicada = contenido.includes('La demo en línea aún no está publicada');
+    const noPublicada = contenido.includes('La demostración pública aún no está en línea');
+    if (isla !== Boolean(API_DEMO)) errores.push(`${pagina}: la isla ${isla ? 'está' : 'falta'} y la demostración ${API_DEMO ? 'está' : 'no está'} en línea`);
     if (isla ? !sinJs : !noPublicada) {
-      errores.push(`${pagina}: sin JavaScript no dice qué hacer (falta el <noscript> con el curl, o el aviso de demo no publicada)`);
+      errores.push(`${pagina}: sin JavaScript no dice qué hacer (falta el <noscript> con el curl, o el aviso de demostración no publicada)`);
     }
-  } else if (isla || /react/i.test(contenido.match(/<script[^>]*src="[^"]*"/g)?.join(' ') ?? '')) {
+  }
+  if (!isla) {
+    // Sin isla, ni su JavaScript ni sus estilos (astryx.css, unos 300 KB sin comprimir).
+    const css = [...contenido.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
+    const peso = css.reduce((t, href) => t + (href.startsWith(`${BASE}/`) && existsSync(join(SALIDA, href.slice(BASE.length))) ? statSync(join(SALIDA, href.slice(BASE.length))).size : 0), 0);
+    if (peso > 120_000) errores.push(`${pagina}: carga ${Math.round(peso / 1000)} KB de CSS sin isla (¿astryx.css fuera de la isla?)`);
+  }
+  if (ruta !== 'probar' && (isla || /react/i.test(contenido.match(/<script[^>]*src="[^"]*"/g)?.join(' ') ?? ''))) {
     errores.push(`${pagina}: carga JavaScript propio (solo /probar/ puede)`);
   }
 }

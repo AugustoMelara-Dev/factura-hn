@@ -5,7 +5,9 @@ import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
 import rehypeBase from './src/plugins/rehype-base.mjs';
-import { BASE, MENU, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
+import remarkDemo from './src/plugins/remark-demo.mjs';
+import temaClaroSinJs from './src/plugins/tema-claro.mjs';
+import { API_DEMO, BASE, MENU, META_SOCIAL, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
 
 export default defineConfig({
   site: SITIO_URL,
@@ -25,7 +27,7 @@ export default defineConfig({
   // El sitio casi no tiene imágenes: sin sharp (y sin su script de instalación).
   image: { service: passthroughImageService() },
   markdown: {
-    processor: unified({ rehypePlugins: [[rehypeBase, { base: BASE }]] }),
+    processor: unified({ remarkPlugins: [[remarkDemo, { api: API_DEMO }]], rehypePlugins: [[rehypeBase, { base: BASE }]] }),
   },
   integrations: [
     starlight({
@@ -35,11 +37,14 @@ export default defineConfig({
       defaultLocale: 'root',
       locales: { root: { label: 'Español', lang: 'es' } },
       favicon: '/favicon.svg',
+      head: META_SOCIAL.map((attrs) => ({ tag: 'meta', attrs })),
       social: [{ icon: 'github', label: 'GitHub', href: REPO }],
       customCss: ['./src/styles/fuentes.css', './src/styles/tokens.css', './src/styles/tema.css'],
       components: {
         Footer: './src/components/Pie.astro',
         Header: './src/components/CabeceraDocs.astro',
+        MobileMenuFooter: './src/components/MenuMovilDocs.astro',
+        SiteTitle: './src/components/TituloDocs.astro',
         ThemeProvider: './src/components/ProveedorTema.astro',
       },
       credits: false,
@@ -61,5 +66,6 @@ export default defineConfig({
     }),
     // Solo la isla de /probar/ hidrata React en el navegador; el resto del sitio no lleva JavaScript propio.
     react(),
+    temaClaroSinJs(),
   ],
 });

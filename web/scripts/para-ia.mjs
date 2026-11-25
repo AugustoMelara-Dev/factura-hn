@@ -13,7 +13,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { BASE, BLOQUES, DOCS, PAGINAS_PRODUCTO, RAIZ, SALIDA, SITIO_URL, WEB } from '../sitio.config.mjs';
+import { BASE, BLOQUES, DOCS, filtrarDemo, PAGINAS_PRODUCTO, RAIZ, SALIDA, SITIO_URL, WEB } from '../sitio.config.mjs';
 import { reescribirEnlaces, resolverEnlace } from './lib/enlaces-md.mjs';
 import { mapaDeEnlaces } from './lib/paginas.mjs';
 
@@ -48,7 +48,7 @@ export function paginasDelSitio() {
         .replace(/^[ \t]*<\/?[A-Z][\w.]*(\s[^>]*)?\/?>[ \t]*$/gm, '')
         .replace(/\n{3,}/g, '\n\n');
     }
-    cuerpo = cuerpo.replace(/<!-- Generado por [^\n]*-->\n+/, '').trim();
+    cuerpo = filtrarDemo(cuerpo.replace(/<!-- Generado por [^\n]*-->\n+/, '')).trim();
     const bloque = BLOQUES.findIndex((b) => ruta === b.dir || ruta.startsWith(`${b.dir}/`));
     const orden = Number(/order:\s*(\d+)/.exec(fm?.[1] ?? '')?.[1] ?? (ruta.endsWith('/') || !ruta.includes('/') ? 0 : 100));
     return { archivo, ruta, md: `${ruta || 'index'}.md`, titulo, descripcion, cuerpo, clave: [bloque, ruta === BLOQUES[bloque]?.dir ? -1 : orden, titulo] };
@@ -56,10 +56,26 @@ export function paginasDelSitio() {
   // Páginas del producto: antes que la documentación, en el orden de PAGINAS_PRODUCTO.
   PAGINAS_PRODUCTO.forEach(({ ruta, md }, i) => {
     const { titulo, descripcion } = delHtml(ruta);
-    const cuerpo = readFileSync(join(WEB, 'src', 'md', md), 'utf8').replace(/\r\n/g, '\n').trim();
+    const cuerpo = filtrarDemo(readFileSync(join(WEB, 'src', 'md', md), 'utf8').replace(/\r\n/g, '\n')).trim();
     paginas.push({ archivo: `src/md/${md}`, ruta, md: `${ruta || 'index'}.md`, titulo, descripcion, cuerpo, producto: true, clave: [-1, i, titulo] });
   });
   return paginas.sort((a, b) => a.clave[0] - b.clave[0] || a.clave[1] - b.clave[1] || a.clave[2].localeCompare(b.clave[2], 'es'));
+}
+
+const AVISOS = { note: 'Nota', tip: 'Consejo', caution: 'Atención', danger: 'Peligro' };
+
+/**
+ * Los avisos de Starlight (`:::caution[Título]` … `:::`) no son Markdown común: en las copias para IA pasan a una
+ * cita con su título en negrita, `> **Atención:** …`, que cualquier lector de Markdown entiende.
+ */
+export function sinDirectivas(md) {
+  return md.replace(/^:::(note|tip|caution|danger)(?:\[([^\]\n]*)\])?[^\n]*\n([\s\S]*?)^:::[ \t]*$/gm, (_, tipo, titulo, cuerpo) => {
+    const cabeza = titulo ? `**${AVISOS[tipo]}: ${titulo}.**` : `**${AVISOS[tipo]}:**`;
+    const texto = cuerpo.trim();
+    // Un bloque de código, una lista o una tabla no pueden seguir al título en la misma línea.
+    const lineas = `${cabeza}${/^(```|[-*|>]|\d+\.)/.test(texto) ? '\n\n' : ' '}${texto}`.split('\n');
+    return lineas.map((l) => (l ? `> ${l}` : '>')).join('\n');
+  });
 }
 
 function escribir(relativo, contenido) {
@@ -74,7 +90,7 @@ if (!existsSync(join(SALIDA, 'index.html'))) {
 }
 
 const paginas = paginasDelSitio();
-const enMarkdown = (p) => `# ${p.titulo}\n\n> ${p.descripcion}\n\nURL: ${URL_SITIO}/${p.ruta ? `${p.ruta}/` : ''}\n\n${reescribirEnlaces(p.cuerpo, absoluta)}\n`;
+const enMarkdown = (p) => `# ${p.titulo}\n\n> ${p.descripcion}\n\nURL: ${URL_SITIO}/${p.ruta ? `${p.ruta}/` : ''}\n\n${sinDirectivas(reescribirEnlaces(p.cuerpo, absoluta))}\n`;
 
 for (const p of paginas) escribir(p.md, enMarkdown(p));
 

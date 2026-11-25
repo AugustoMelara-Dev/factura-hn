@@ -1,21 +1,24 @@
 ---
 // Pruébalo ahora: un clic crea un entorno de prueba en la demostración pública (isla de React con Astryx, la única
-// página con JavaScript propio). Sin PUBLIC_FHN_DEMO_API, la página lo dice y no carga la isla. Los pasos para
-// conectar un asistente son HTML estático: se leen también sin JavaScript. Su versión para IA es src/md/probar.md.
-import '@astryxdesign/core/astryx.css';
+// página con JavaScript propio, que trae sus propios estilos). Sin PUBLIC_FHN_DEMO_API, la página dice que la
+// demostración aún no está en línea, no carga la isla ni sus estilos y lleva al playground y a la receta para
+// levantarla en tu equipo. Los pasos para conectar un asistente son HTML estático: se leen también sin JavaScript.
+// Su versión para IA es src/md/probar.md.
 import Sitio from '../layouts/Sitio.astro';
 import Probar from '../islas/Probar.tsx';
 import { conBase } from '../datos/navegacion';
-import { API_DEMO, MARCADOR_API } from '../datos/demo';
-import { BASE } from '../../sitio.config.mjs';
+import { API_DEMO } from '../datos/demo';
+import { BASE, REPO } from '../../sitio.config.mjs';
 
-const api = API_DEMO ?? MARCADOR_API;
-const curl = `curl -X POST ${api}/v1/demo/entornos`;
+const curl = `curl -X POST ${API_DEMO}/v1/demo/entornos`;
+const recetaLocal = `${REPO}/blob/main/docs/demo.md#probar-el-modo-demo-en-tu-equipo`;
 ---
 
 <Sitio
 	titulo="Pruébalo ahora"
-	descripcion="Crea en un clic un entorno de prueba de factura-hn: tu llave de la API, tu URL del MCP para Claude o ChatGPT y ejemplos para copiar. Dura 24 horas y solo tiene datos de prueba."
+	descripcion={API_DEMO
+		? 'Crea en un clic un entorno de prueba de factura-hn: tu llave de la API, tu URL del MCP para Claude o ChatGPT y ejemplos para copiar. Dura 24 horas y solo tiene datos de prueba.'
+		: 'La demostración pública de factura-hn aún no está en línea. Mientras tanto, prueba el SDK en el navegador o levanta la demostración en tu equipo.'}
 	ruta="/probar/"
 >
 	<header class="pagina-cabeza">
@@ -31,15 +34,15 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 
 	<div class="contenedor probar-rejilla">
 		<section class="probar-panel" aria-labelledby="crear-titulo">
-			<h2 id="crear-titulo" class="probar-titulo">Crear el entorno</h2>
+			<h2 id="crear-titulo" class="probar-titulo">Crear el entorno de prueba</h2>
 			{
 				API_DEMO ? (
 					<>
 						<Probar client:only="react" api={API_DEMO} base={BASE} />
 						<noscript>
 							<p class="probar-sin-js">
-								Esta página necesita JavaScript para crear el entorno con un clic. Sin JavaScript, créalo desde una
-								terminal; la respuesta trae tu llave, tu URL del MCP y los ejemplos:
+								Esta página necesita JavaScript para crear el entorno de prueba con un clic. Sin JavaScript, créalo desde
+								una terminal; la respuesta trae tu llave, tu URL del MCP y los ejemplos:
 							</p>
 							<pre class="probar-pre">
 								<code>{curl}</code>
@@ -48,17 +51,18 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 					</>
 				) : (
 					<div class="probar-no-publicada">
-						<p class="probar-no-publicada-titulo">La demo en línea aún no está publicada.</p>
+						<p class="probar-no-publicada-titulo">La demostración pública aún no está en línea.</p>
 						<p>
-							Mientras tanto, prueba el SDK en el navegador o levanta la API en tu equipo: es la misma API que usará la
-							demostración, con un tenant de prueba.
+							Cuando lo esté, esta página creará tu entorno de prueba con un clic. Mientras tanto, prueba el SDK en el
+							navegador, sin instalar nada, o levanta la demostración en tu equipo con Docker: la misma API en modo
+							demostración, con tus propios entornos de prueba.
 						</p>
 						<div class="botones">
 							<a class="boton boton-primario" href={conBase('/empezar/playground/')}>
-								Abrir el playground
+								Pruébalo en el navegador
 							</a>
-							<a class="boton boton-secundario" href={conBase('/guias/autoalojar/')}>
-								Instalar la API
+							<a class="boton boton-secundario" href={recetaLocal} rel="noopener">
+								La demostración en tu equipo
 							</a>
 						</div>
 					</div>
@@ -67,7 +71,7 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 		</section>
 
 		<aside class="probar-lado" aria-labelledby="recibes-titulo">
-			<h2 id="recibes-titulo" class="probar-titulo">Qué recibes</h2>
+			<h2 id="recibes-titulo" class="probar-titulo">{API_DEMO ? 'Qué recibes' : 'Qué recibirás'}</h2>
 			<ul class="probar-lista">
 				<li><strong>Una llave de la API</strong> (<code>fhn_test_…</code>) para curl y el SDK.</li>
 				<li><strong>Una URL personal del MCP</strong> para pegar en Claude o ChatGPT, también desde el teléfono.</li>
@@ -75,7 +79,7 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 			</ul>
 			<h2 class="probar-titulo">Lo que conviene saber</h2>
 			<ul class="probar-lista">
-				<li>A las <strong>24 horas</strong> el entorno se borra con sus documentos y su llave.</li>
+				<li>A las <strong>24 horas</strong> el entorno de prueba se borra con sus documentos y su llave.</li>
 				<li>Todo lo que emitas dice <strong>«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»</strong>.</li>
 				<li>La llave y la URL se muestran una sola vez y solo en esta página: no quedan en la dirección ni en el navegador.</li>
 				<li>No pongas datos reales de clientes.</li>
@@ -83,74 +87,103 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 		</aside>
 	</div>
 
-	<section class="seccion" aria-labelledby="conectar-titulo">
-		<div class="contenedor">
-			<div class="cabeza-seccion">
-				<p class="antetitulo">Conecta tu asistente</p>
-				<h2 class="titulo-seccion" id="conectar-titulo">Agrega tu URL del MCP como conector personalizado.</h2>
-				<p class="entrada">
-					El asistente emite, consulta y anula en tu entorno de prueba con las mismas reglas del SDK. Los pasos de cada
-					cliente cambian seguido: si algo no coincide, sigue su guía oficial.
-				</p>
-			</div>
-			<div class="rejilla rejilla-2">
-				<div class="tarjeta pasos">
-					<h3>Claude (web, escritorio y móvil)</h3>
-					<ol>
-						<li>
-							En claude.ai, abre <strong>Customize &gt; Connectors</strong> y pulsa <strong>+ &gt; Add custom connector</strong>.
-							En planes Team y Enterprise lo agrega quien administra la organización.
-						</li>
-						<li>Ponle un nombre, por ejemplo «factura-hn prueba», y pega tu URL del MCP. Deja vacíos los campos de OAuth.</li>
-						<li>Guarda. En una conversación nueva, activa el conector y pide: «emite una factura de prueba por dos cafés de 57.50».</li>
-					</ol>
-					<p>El conector que agregas en la web aparece también en la aplicación de escritorio y en la del teléfono.</p>
-					<a
-						class="tarjeta-enlace flecha"
-						href="https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
-						rel="noopener">Guía de Claude</a
-					>
-				</div>
-				<div class="tarjeta pasos">
-					<h3>ChatGPT</h3>
-					<ol>
-						<li>Activa el modo de desarrollador según la guía de tu plan.</li>
-						<li>Agrega un servidor MCP propio: nombre, tu URL del MCP como URL de conexión y autenticación «sin autenticación».</li>
-						<li>Acepta el aviso sobre servidores de terceros, crea el conector, actívalo en una conversación y pide una factura de prueba.</li>
-					</ol>
-					<p>
-						Con todas las herramientas (emitir, anular) solo en los planes Business, Enterprise y Edu, y en la web; en otros
-						planes el acceso es de solo lectura o no está disponible.
+	{
+		API_DEMO && (
+			<section class="seccion" aria-labelledby="conectar-titulo">
+				<div class="contenedor">
+					<div class="cabeza-seccion">
+						<p class="antetitulo">Conecta tu asistente</p>
+						<h2 class="titulo-seccion" id="conectar-titulo">
+							Agrega tu URL del MCP como conector personalizado.
+						</h2>
+						<p class="entrada">
+							El asistente emite, consulta y anula en tu entorno de prueba con las mismas reglas del SDK. Pasos
+							verificados el 25-11-2026 con la ayuda oficial de cada cliente; si algo no coincide, sigue su guía.
+						</p>
+					</div>
+					<div class="rejilla rejilla-2">
+						<div class="tarjeta pasos">
+							<h3>Claude (web, escritorio y móvil)</h3>
+							<ol>
+								<li>
+									Abre <strong>claude.ai</strong> en un navegador (sirve el del teléfono; no se agrega desde la aplicación
+									móvil). Ve a <strong>Customize &gt; Connectors</strong>, pulsa <strong>+ Add</strong> y elige{' '}
+									<strong>Add custom connector</strong>.
+								</li>
+								<li>
+									Nombre: «factura-hn prueba». URL: tu URL del MCP. En <strong>Authentication</strong>, elige{' '}
+									<strong>No sign in</strong> y pulsa <strong>Add</strong>.
+								</li>
+								<li>
+									En una conversación nueva, en la web, el escritorio o la aplicación del teléfono, pulsa{' '}
+									<strong>+</strong> abajo a la izquierda, entra a <strong>Connectors</strong> y actívalo. Pide: «emite
+									una factura de prueba por dos cafés de 57.50».
+								</li>
+							</ol>
+							<p>En planes Team y Enterprise lo agrega quien administra la organización.</p>
+							<a
+								class="tarjeta-enlace flecha"
+								href="https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp"
+								rel="noopener">Guía de Claude</a
+							>
+						</div>
+						<div class="tarjeta pasos">
+							<h3>ChatGPT (en la web)</h3>
+							<ol>
+								<li>
+									En <strong>chatgpt.com</strong>, abre <strong>Plugins</strong>, pulsa <strong>+</strong> y elige{' '}
+									<strong>Add custom MCP server</strong>.
+								</li>
+								<li>
+									Nombre: «factura-hn prueba». En <strong>Connection</strong>, tu URL del MCP. En la autenticación, la
+									opción sin autenticación.
+								</li>
+								<li>
+									Marca <strong>I understand and want to continue</strong>, pulsa <strong>Create as a plugin</strong> e
+									instálalo. En una conversación, escribe <strong>@</strong>, elige el plugin y pide una factura de prueba.
+								</li>
+							</ol>
+							<p>Con todas las herramientas solo en Business, Enterprise y Edu; en Pro, solo lectura. No está en la aplicación del teléfono.</p>
+							<a
+								class="tarjeta-enlace flecha"
+								href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta"
+								rel="noopener">Guía de ChatGPT</a
+							>
+						</div>
+					</div>
+					<p class="probar-mas">
+						Cómo revocar la URL, el MCP Inspector y más detalles: <a href={conBase('/ia/mcp-remoto/')}>MCP remoto</a>.
 					</p>
-					<a
-						class="tarjeta-enlace flecha"
-						href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta"
-						rel="noopener">Guía de ChatGPT</a
-					>
 				</div>
-			</div>
-		</div>
-	</section>
+			</section>
+		)
+	}
 
-	<section class="seccion" aria-labelledby="limites-titulo">
-		<div class="contenedor probar-limites">
-			<div>
-				<p class="antetitulo">Límites</p>
-				<h2 class="titulo-seccion" id="limites-titulo">Para probar, no para facturar.</h2>
-			</div>
-			<div class="prosa">
-				<p>
-					Un entorno dura 24 horas, emite hasta 50 documentos y atiende unas 30 solicitudes por minuto. Cada dirección crea a
-					lo sumo 3 entornos por día. Al pasar un límite, la página dice cuánto esperar.
-				</p>
-				<p>
-					En la demostración no se puede registrar un CAI real, cambiar el emisor ficticio ni configurar webhooks. Para
-					facturar de verdad, <a href={conBase('/empezar/elegir-camino/')}>instala factura-hn</a> con los datos de tu negocio:
-					es gratis y de código abierto.
-				</p>
-			</div>
-		</div>
-	</section>
+	{
+		API_DEMO && (
+			<section class="seccion" aria-labelledby="limites-titulo">
+				<div class="contenedor probar-limites">
+					<div>
+						<p class="antetitulo">Límites</p>
+						<h2 class="titulo-seccion" id="limites-titulo">
+							Para probar, no para facturar.
+						</h2>
+					</div>
+					<div class="prosa">
+						<p>
+							Un entorno de prueba dura 24 horas, emite hasta 50 documentos y atiende unas 30 solicitudes por minuto. Cada
+							dirección crea a lo sumo 3 entornos por día. Al pasar un límite, la página dice cuánto esperar.
+						</p>
+						<p>
+							En la demostración no se puede registrar un CAI real, cambiar el emisor ficticio ni configurar webhooks.
+							Para facturar de verdad, <a href={conBase('/empezar/elegir-camino/')}>instala factura-hn</a> con los datos
+							de tu negocio: es gratis y de código abierto.
+						</p>
+					</div>
+				</div>
+			</section>
+		)
+	}
 </Sitio>
 
 <style is:global>
@@ -355,6 +388,22 @@ const curl = `curl -X POST ${api}/v1/demo/entornos`;
 	.pasos strong {
 		color: var(--fhn-texto);
 		font-weight: 600;
+	}
+	.probar-mas {
+		margin: 2rem 0 0;
+		color: var(--fhn-gris-3);
+	}
+	.probar-copiar {
+		display: grid;
+		gap: 0.5rem;
+		justify-items: stretch;
+		color: var(--fhn-gris-3);
+		font-size: 0.875rem;
+	}
+	.probar-copiar button {
+		min-height: 3rem;
+		width: 100%;
+		font-size: 1rem;
 	}
 	.tarjeta-enlace {
 		color: var(--fhn-acento-texto);

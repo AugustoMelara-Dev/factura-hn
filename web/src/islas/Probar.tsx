@@ -4,6 +4,10 @@
 // - La llave y la URL viven solo en la memoria de esta página: nunca en la URL ni en el almacenamiento del navegador.
 // - POST {api}/v1/demo/entornos sin cuerpo, con CORS y sin credenciales, y un límite de 15 s.
 // - Los errores de la API ({ error: { codigo, mensaje } }) se muestran tal cual; 429 y 503 traen Retry-After.
+// - Los estilos de Astryx (astryx.css, unos 50 KB comprimidos) los agrega la isla al montarse, como un <link>: así
+//   solo se descargan cuando la isla está en la página (con la demostración en línea). Importados como CSS, Astro
+//   los pondría en la página aunque la isla no se muestre. Hasta que cargan, la isla no pinta nada.
+import urlEstilosAstryx from '@astryxdesign/core/astryx.css?url';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
@@ -151,6 +155,39 @@ function Campo({ titulo, children }: { titulo: string; children: ReactNode }) {
   );
 }
 
+/** Un botón grande para copiar la URL del MCP: en el teléfono es más fácil de tocar que el ícono del bloque. */
+function BotonCopiar({ texto }: { texto: string }) {
+  const [estado, setEstado] = useState<'listo' | 'copiada' | 'fallo'>('listo');
+  useEffect(() => {
+    if (estado === 'listo') return;
+    const t = setTimeout(() => setEstado('listo'), 2500);
+    return () => clearTimeout(t);
+  }, [estado]);
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setEstado('copiada');
+    } catch {
+      // Sin permiso para el portapapeles (algunos navegadores incrustados): se copia desde un campo oculto.
+      const campo = document.createElement('textarea');
+      campo.value = texto;
+      campo.setAttribute('readonly', '');
+      campo.style.cssText = 'position:fixed;opacity:0';
+      document.body.append(campo);
+      campo.select();
+      const ok = document.execCommand('copy');
+      campo.remove();
+      setEstado(ok ? 'copiada' : 'fallo');
+    }
+  };
+  return (
+    <div className="probar-copiar">
+      <Button label={estado === 'copiada' ? 'URL copiada' : 'Copiar la URL del MCP'} variant="primary" size="lg" clickAction={copiar} />
+      <span role="status">{estado === 'fallo' ? 'No se pudo copiar: selecciona la URL y cópiala a mano.' : ''}</span>
+    </div>
+  );
+}
+
 function Resultado({ datos, onLimpiar }: { datos: Entorno; onLimpiar: () => void }) {
   const [ejemplo, setEjemplo] = useState<'curl' | 'sdk' | 'mcp'>('curl');
   const { entorno } = datos;
@@ -181,6 +218,7 @@ function Resultado({ datos, onLimpiar }: { datos: Entorno; onLimpiar: () => void
               tu entorno hasta que venza.
             </p>
             <CodeBlock code={datos.mcp.url} hasCopyButton isWrapped size="sm" />
+            <BotonCopiar texto={datos.mcp.url} />
           </>
         ) : (
           <p>Este servidor de la demostración no tiene MCP remoto. La llave sirve igual con curl y el SDK.</p>
@@ -256,7 +294,10 @@ function Contenido({ api, base }: Props) {
   const enlaces = (
     <>
       Mientras tanto, prueba el SDK en el <a href={`${base}/empezar/playground/`}>playground</a> o{' '}
-      <a href={`${base}/guias/autoalojar/`}>instala la API en tu equipo</a>.
+      <a href="https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md#probar-el-modo-demo-en-tu-equipo">
+        levanta la demostración en tu equipo
+      </a>
+      .
     </>
   );
 
@@ -306,8 +347,37 @@ function Contenido({ api, base }: Props) {
   );
 }
 
+/** Agrega astryx.css a la página (una sola vez) y avisa cuando cargó. */
+function useEstilosAstryx() {
+  const [listos, setListos] = useState(false);
+  useEffect(() => {
+    let enlace = document.querySelector<HTMLLinkElement>('link[data-astryx]');
+    if (enlace?.sheet) {
+      setListos(true);
+      return;
+    }
+    if (!enlace) {
+      enlace = document.createElement('link');
+      enlace.rel = 'stylesheet';
+      enlace.href = urlEstilosAstryx;
+      enlace.dataset.astryx = '';
+      document.head.append(enlace);
+    }
+    const listo = () => setListos(true);
+    enlace.addEventListener('load', listo);
+    // Si la hoja no carga, la isla se muestra igual (sin estilos de Astryx) en vez de quedar en blanco.
+    enlace.addEventListener('error', listo);
+    return () => {
+      enlace?.removeEventListener('load', listo);
+      enlace?.removeEventListener('error', listo);
+    };
+  }, []);
+  return listos;
+}
+
 export default function Probar(props: Props) {
   const tema = useTemaDeLaPagina();
+  if (!useEstilosAstryx()) return null;
   return (
     <InternationalizationProvider locale="es-ES" messages={{ 'es-ES': esES }}>
       <Theme theme={neutralTheme} mode={tema}>
