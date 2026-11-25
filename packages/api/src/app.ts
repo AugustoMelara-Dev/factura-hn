@@ -230,7 +230,10 @@ function jsonEstable(v: unknown): string {
   return JSON.stringify(v);
 }
 
-const conError = (description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
+/** Tipo de todo cuerpo JSON de la API, con su codificación explícita (Windows PowerShell 5.1 la necesita). */
+export const TIPO_JSON = 'application/json; charset=utf-8';
+
+const conError =(description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
 /** Respuestas de error que puede dar una operación. Cada ruta declara solo las que su código devuelve. */
 const CATALOGO_ERRORES = {
   400: conError('Solicitud mal formada: forma, parámetros, cabeceras o JSON'),
@@ -401,6 +404,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
+  });
+  // Todo JSON sale con `charset=utf-8`, también los errores, el 404, /salud y /openapi.json. Sin él, Windows
+  // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
+  app.use('*', async (c, next) => {
+    await next();
+    if (/^application\/json\s*$/i.test(c.res.headers.get('content-type') ?? '')) c.header('Content-Type', TIPO_JSON);
   });
   app.use('/v1/*', bodyLimit({ maxSize: 512 * 1024, onError: () => { throw new ErrorApi(413, 'CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 512 KB.'); } }));
 
@@ -1415,7 +1424,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         ...cabeceraExcluidos(preparado.excluidos),
         ...(csv
           ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${punto ? `${punto}_` : ''}${q.desde}_${q.hasta}.csv"` }
-          : { 'Content-Type': 'application/json' }),
+          : { 'Content-Type': TIPO_JSON }),
       }) as never;
     },
   );

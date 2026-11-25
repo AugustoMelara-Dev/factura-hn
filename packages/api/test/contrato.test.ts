@@ -10,6 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { fechaHonduras } from 'factura-hn';
 import { crearApp, segundosHastaElMesSiguiente, VERSION_API } from '../src/app';
 import { cerrarPool, cliente, crearCaja, ROL, tenantListo, URL_PG, venta } from './ayuda';
+import { validarRespuesta } from './openapi-validador';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -168,6 +169,29 @@ describe('Solicitud-Id y FacturaHN-Version (sin base)', () => {
     expect(log[0]).toMatch(/^Error interno \(solicitud [0-9a-f-]{36} \(cliente caso-500\)\)$/);
     const sinPropio = await roto.request('/salud');
     expect(log[1]).toBe(`Error interno (solicitud ${sinPropio.headers.get('solicitud-id')})`);
+  });
+});
+
+describe('JSON con charset=utf-8 (sin base)', () => {
+  it('toda respuesta JSON declara charset=utf-8: /openapi.json, un 404, un 401, un 500 y el validador lo exige', async () => {
+    const app = crearApp({ pool: {} as pg.Pool, modo: 'alojado' });
+    for (const ruta of ['/openapi.json', '/no-existe', '/v1/sesion']) {
+      const r = await app.request(ruta);
+      expect(r.headers.get('content-type'), ruta).toBe('application/json; charset=utf-8');
+    }
+    const roto = crearApp({ pool: { query: async () => { throw new Error('caída'); } } as unknown as pg.Pool, modo: 'local', registrar: () => {} });
+    expect((await roto.request('/salud')).headers.get('content-type')).toBe('application/json; charset=utf-8');
+    const sano = crearApp({ pool: { query: async () => ({ rows: [] }) } as unknown as pg.Pool, modo: 'local' });
+    const salud = await sano.request('/salud');
+    expect(salud.status).toBe(200);
+    expect(salud.headers.get('content-type')).toBe('application/json; charset=utf-8');
+    // El validador del contrato rechaza un JSON sin charset.
+    const sinCharset = new Response('{"ok":true,"version":"x","modo":"local"}', {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'solicitud-id': 'x', 'facturahn-version': VERSION_API },
+    });
+    const { violaciones } = await validarRespuesta('GET', '/salud', sinCharset);
+    expect(violaciones.join(' ')).toContain('charset=utf-8');
   });
 });
 
