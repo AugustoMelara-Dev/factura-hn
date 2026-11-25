@@ -1,50 +1,76 @@
 #!/usr/bin/env node
 /**
- * Servidor MCP por stdio.
+ * Ejecutable de `@factura-hn/mcp`. Sin comando, arranca el servidor MCP por stdio:
  *
+ * Vía el SDK local (SQLite en este equipo); `npx -y @factura-hn/mcp init` crea la base y el emisor:
+ *   FHN_SQLITE=./factura.db FHN_EMISOR=./emisor.json FHN_ESTABLECIMIENTO=000 FHN_PUNTO=001 factura-hn-mcp
  * Vía la API:
  *   FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=fhn_… factura-hn-mcp
- * Vía el SDK local (SQLite en este equipo):
- *   FHN_SQLITE=./factura.db FHN_EMISOR=./emisor.json FHN_ESTABLECIMIENTO=000 FHN_PUNTO=001 factura-hn-mcp
- * `emisor.json` tiene los datos del Emisor (RTN, razón social, …). Las autorizaciones se registran antes
- * con el SDK o la API: el servidor MCP no registra CAI.
  * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora.
+ *
+ * Con comando: `init` (o `iniciar`), `registrar-cai` y `ayuda` (ver `comandos.ts`).
  */
-import { createRequire } from 'node:module';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BackendApi, BackendLocal, type Backend } from './backend';
+import { abrirBase, ejecutarComando } from './comandos';
+import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { leerEmisor } from './emisor';
 import { crearServidorMCP } from './servidor';
 
-function backendDesdeEntorno(env: NodeJS.ProcessEnv): Backend {
+function backendDesdeEntorno(env: NodeJS.ProcessEnv): { backend: Backend; descripcion: string } {
   if (env.FHN_API_URL) {
     if (!env.FHN_LLAVE) throw new Error('Falta FHN_LLAVE (llave de API).');
-    return new BackendApi({
-      url: env.FHN_API_URL, llave: env.FHN_LLAVE, establecimiento: env.FHN_ESTABLECIMIENTO, puntoEmision: env.FHN_PUNTO, operador: env.FHN_OPERADOR || undefined,
-    });
+    return {
+      backend: new BackendApi({
+        url: env.FHN_API_URL, llave: env.FHN_LLAVE, establecimiento: env.FHN_ESTABLECIMIENTO, puntoEmision: env.FHN_PUNTO, operador: env.FHN_OPERADOR || undefined,
+      }),
+      descripcion: `modo API (${env.FHN_API_URL})`,
+    };
   }
   if (env.FHN_SQLITE) {
-    if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor).');
+    if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor). Créalo con `npx -y @factura-hn/mcp init`.');
     if (env.FHN_SQLITE.trim() === ':memory:' || env.FHN_SQLITE.startsWith('file::memory:')) {
       throw new Error('FHN_SQLITE debe ser un archivo (p. ej. ./factura.db): en memoria se perderían los documentos al cerrar.');
     }
-    // node:sqlite se carga solo aquí: el modo API funciona en cualquier Node, y el empaquetador no lo reescribe.
-    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(env.FHN_SQLITE);
-    return new BackendLocal({
-      db,
-      operador: env.FHN_OPERADOR || undefined,
-      emisor: leerEmisor(env.FHN_EMISOR),
-      establecimiento: env.FHN_ESTABLECIMIENTO ?? '000',
-      puntoEmision: env.FHN_PUNTO ?? '001',
-    });
+    const emisor = leerEmisor(env.FHN_EMISOR);
+    const establecimiento = env.FHN_ESTABLECIMIENTO ?? '000';
+    const puntoEmision = env.FHN_PUNTO ?? '001';
+    return {
+      backend: new BackendLocal({ db: abrirBase(env.FHN_SQLITE), operador: env.FHN_OPERADOR || undefined, emisor, establecimiento, puntoEmision }),
+      descripcion: `modo SQLite (${env.FHN_SQLITE}), emite en ${establecimiento}-${puntoEmision}`,
+    };
   }
-  throw new Error('Configura FHN_API_URL + FHN_LLAVE, o FHN_SQLITE + FHN_EMISOR.');
+  throw new Error(
+    'Configura FHN_SQLITE + FHN_EMISOR (modo local) o FHN_API_URL + FHN_LLAVE (modo API).\n' +
+      'Para empezar: `npx -y @factura-hn/mcp init --demo` crea todo e imprime la configuración. Ayuda: `npx -y @factura-hn/mcp ayuda`.',
+  );
+}
+
+/** Orientación al arrancar, en el log del cliente MCP (stderr): modo, punto de emisión y si falta el CAI. */
+async function orientar(backend: Backend, descripcion: string) {
+  const lineas = [`factura-hn MCP: ${descripcion}.`];
+  try {
+    const cais = await backend.estadoCAI();
+    if (!cais.length) {
+      lineas.push('Aviso: no hay CAI registrado; no se puede emitir. Regístralo con `npx -y @factura-hn/mcp registrar-cai` o con la herramienta registrar_cai.');
+    } else if (cais.some((e) => esCAIDemo(e.cai))) {
+      lineas.push(`Modo de prueba (CAI ficticio): ${LEYENDA_PRUEBA}.`);
+    }
+  } catch {
+    // En modo API, la API puede no estar arriba todavía: lo dirán las herramientas.
+  }
+  console.error(lineas.join('\n'));
 }
 
 try {
-  const servidor = crearServidorMCP(backendDesdeEntorno(process.env));
-  await servidor.connect(new StdioServerTransport());
+  const r = await ejecutarComando(process.argv.slice(2), { cwd: process.cwd(), env: process.env });
+  if (r === 'servidor') {
+    const { backend, descripcion } = backendDesdeEntorno(process.env);
+    await crearServidorMCP(backend).connect(new StdioServerTransport());
+    await orientar(backend, descripcion);
+  } else {
+    process.exitCode = r;
+  }
 } catch (e) {
   // stdout es el canal MCP: los mensajes van a stderr.
   console.error(e instanceof Error ? e.message : e);
