@@ -1,5 +1,5 @@
 /**
- * Reglamento Art. 53 num. 2, «controles de auditoría»: la bitácora guarda quién hizo cada operación
+ * La bitácora apoya los controles de auditoría del Reglamento (Art. 53 num. 2): guarda quién hizo cada operación
  * (`actor`: sistema, caja o llave) y, si se indica, la persona que operó (`operador`, p. ej. el cajero). El
  * operador también se puede imprimir en el documento («Atendido por»); no es un requisito del Reglamento.
  */
@@ -36,7 +36,7 @@ async function preparar() {
   return almacen;
 }
 
-describe('Art. 53 num. 2: actor y operador en la bitácora', () => {
+describe('actor y operador en la bitácora (apoya los controles de auditoría del Art. 53 num. 2; el operador es opcional y no lo exige el Reglamento)', () => {
   it('cada emisión deja DOCUMENTO_EMITIDO con actor y operador, en la misma transacción', async () => {
     const almacen = await preparar();
     const doc = await emitir(entrada(), { almacen, ...caja, actor: 'llave:abc (Caja 1, caja)', operador: '  María López ' });

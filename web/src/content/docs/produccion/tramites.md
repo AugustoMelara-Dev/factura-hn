@@ -10,7 +10,7 @@ negocio que factura con un sistema computarizado. Los hace el negocio, normalmen
 presenta nada ante el SAR.
 
 Cada paso cita su artículo y la línea del texto consolidado («C L.n») con el que trabaja el proyecto. Las fuentes
-están en [Normativa](/referencia/normativa/).
+y cómo se citan están en la [matriz de cumplimiento](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/cumplimiento.md#fuentes-y-c%C3%B3mo-se-citan).
 
 :::caution[Por confirmar con fuente]
 Esta página tiene los artículos, no el procedimiento. Falta lo siguiente:

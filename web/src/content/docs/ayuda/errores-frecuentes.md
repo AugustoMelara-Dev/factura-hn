@@ -93,7 +93,8 @@ empiezan por `AVISO_` no bloquean: el documento se emite y el aviso queda en `do
 - **Causa:** se envió `fechaEmision` con un día distinto de hoy en Honduras.
 - **Solución:** no envíes `fechaEmision`: la pone el reloj. Si la fecha de hoy está mal, corrige el reloj del
   equipo.
-- **Base:** Arts. 14 y 43 (momento de emisión y archivo en orden cronológico).
+- **Base:** lectura de factura-hn de los Arts. 14 y 43 (momento de emisión y archivo en orden cronológico); esos
+  artículos no lo prohíben de forma literal.
 - [Ver en la referencia](/referencia/errores/#fecha_emision_no_es_hoy)
 
 ## 7. `RELOJ_ADELANTADO_SOSPECHOSO` y `FECHA_ANTERIOR_AL_ULTIMO`

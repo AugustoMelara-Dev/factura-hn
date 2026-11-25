@@ -145,4 +145,3 @@ dígitos con guiones.
 
 - `render.ts` del núcleo y `packages/pdf`; matriz de [cumplimiento](/referencia/cumplimiento/), filas 10, 11, 38
   y 41.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

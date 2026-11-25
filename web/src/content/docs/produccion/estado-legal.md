@@ -23,8 +23,9 @@ con la información completa.
 - **No está certificado, homologado, registrado ni aprobado** por el SAR ni por otra autoridad. El repositorio no
   encontró en el Reglamento un registro ni una certificación de proveedores de software. Eso no prueba que no
   exista: confírmalo con tu contador.
-- **No ha pasado una revisión profesional.** Las revisiones que registra el repositorio, fiscales y de seguridad,
-  son internas del proyecto. No hay constancia de una revisión por un contador o un abogado.
+- **No ha pasado una revisión profesional.** No hay constancia de una revisión por un contador o un abogado. Las
+  pruebas de seguridad y de calidad del código están en
+  [`docs/calidad/`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/docs/calidad).
 - **No es asesoría fiscal, contable ni legal.**
 - **No hace los trámites del negocio**: inscripción, solicitud y renovación del CAI, Declaración Jurada del Art. 53,
   aviso de no utilizados, uso temporal, talonarios de contingencia ni certificación del papel térmico. Ver

@@ -30,7 +30,7 @@ horaHonduras(instante);  // "23:30"
 
 `emitir` toma la fecha del reloj. Si envías `fechaEmision` con otra fecha, falla con
 [`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. Que la fecha sea
-siempre la de hoy es una decisión aprobada del proyecto, porque los Arts. 14 y 43 no lo prohíben literalmente.
+siempre la de hoy es una decisión de diseño de factura-hn, porque los Arts. 14 y 43 no lo prohíben literalmente.
 
 Un documento con la fecha equivocada no se edita: se anula y se emite otro. Ver
 [Documentos inmutables](/conceptos/inmutables/).

@@ -164,9 +164,10 @@ proyecto; falta confirmarla.
 
 Una exportación de mercancías gravadas va con `isv: 'GRAVADO0'` (Art. 12), no con `EXENTO`.
 
-:::caution[Por confirmar con fuente]
+:::caution[Lectura de factura-hn]
 El Reglamento (Art. 12) habla de tasa cero, y la Ley del ISV dice que los bienes que se exportan quedan exentos.
-El documento sigue al Reglamento hasta que la autoridad responda.
+El documento sigue al Reglamento: es la lectura de factura-hn, porque el Reglamento no resuelve el conflicto de
+forma literal. Confírmalo con tu contador.
 :::
 
 ## Dinero exacto

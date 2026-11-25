@@ -43,7 +43,7 @@ const combinaciones = Object.entries(spec.paths).flatMap(([p, item]) =>
   Object.entries(item).flatMap(([m, op]) => Object.keys(op.responses).map((e) => `${m.toUpperCase()} ${p} ${e}`)),
 );
 const vistas = new Set(respuestas.map((r) => r.clave));
-// Las del fuzz (incluye las ~30 solicitudes con que prepara el tenant), no las de hallazgos-fuzz.test.ts.
+// Las del fuzz (incluye las ~30 solicitudes con que prepara el tenant), no las de fuzz-casos.test.ts.
 const deFuzz = respuestas.filter((r) => /[\\/]fuzz\.test\.ts$/.test(r.archivo));
 const violaciones = respuestas.filter((r) => r.violaciones.length);
 

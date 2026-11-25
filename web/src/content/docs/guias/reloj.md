@@ -131,8 +131,8 @@ Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y 
 
 ## Fuentes
 
-- Investigación normativa, «Reloj del dispositivo y orden cronológico (Art. 43)»; matriz de
+- Reglamento, Arts. 14 y 43; matriz de
   [cumplimiento](/referencia/cumplimiento/), filas 14, 41 y 43.
 - `corregirFechaAdelantada` y `eventosAuditoria` en el núcleo; sección «Reloj del dispositivo» de
   `AGENTS.md`.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).
+- El umbral de 7 días y el procedimiento ante un reloj adelantado son decisiones de diseño de factura-hn.

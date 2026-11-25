@@ -72,7 +72,7 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     expect(forma.solucion).toEqual(expect.any(String));
     expect(forma.documentacion).toMatch(/#solicitud_invalida$/);
 
-    // Art. 53 num. 2: el operador del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
+    // El operador (opcional) del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
     const cajero = crearCliente({ url: 'http://api.local', llave: llaveAdmin, operador: 'José Núñez', fetch: fetchApi });
     const conOperador = await cajero.emitir({ ...venta, imprimirOperador: true }, { idempotencyKey: 'venta-3' });
     expect(conOperador.documento.operador).toBe('José Núñez');

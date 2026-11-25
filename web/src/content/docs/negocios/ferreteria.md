@@ -161,7 +161,7 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
 - **Retenciones** de grandes contribuyentes y el Comprobante de Retención (05): el repositorio solo sabe que está en
   el Art. 33. factura-hn no lo emite.
 - **Usos concretos de la [Nota de Débito (07)](/documentos/nota-debito/)**: intereses, fletes, diferencias de precio. El Reglamento solo dice
-  «ajustes» (Art. 4 num. 32).
+  «ajustes» (Art. 4 num. 31).
 - **Exonerado agroindustrial solo con el registro SAG/RUPNSA**, sin Orden de Compra Exenta: es la lectura adoptada, pendiente de confirmación.
 - **Productos exentos**: el repositorio no tiene listas.
 - **Si el equivalente en lempiras** de un documento en dólares es exigible y con qué redondeo.

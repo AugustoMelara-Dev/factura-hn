@@ -8,7 +8,7 @@
  * - Reglamento Art. 12: lo gravado con alícuota cero no lleva ISV.
  *
  * Las propiedades de redondeo del ISV por grupo de tasa (no por línea) siguen la lectura documentada en
- * calculo.ts, pendiente de consulta al SAR; no la vuelven regla.
+ * calculo.ts (lectura de factura-hn); no la vuelven regla.
  */
 import { describe, expect, it } from 'vitest';
 import {

@@ -168,4 +168,3 @@ son el cuerpo ya convertido a JSON, el secreto equivocado o el reloj del recepto
 
 - [Referencia de la API](/referencia/api/), «Webhooks»; `@factura-hn/cliente` (`verificarFirmaWebhook`,
   `AvisoWebhook`); `examples/express`.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

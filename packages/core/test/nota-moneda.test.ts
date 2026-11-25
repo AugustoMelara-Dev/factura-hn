@@ -1,6 +1,7 @@
 /**
  * Las notas se emiten en lempiras (Arts. 26 num. 9 y 28 num. 8). Si la factura original está en
- * moneda extranjera, la nota convierte con el tipo de cambio del original y lo imprime como referencia.
+ * moneda extranjera, la nota convierte con el tipo de cambio del original y lo imprime como referencia (lectura de
+ * factura-hn: los artículos no dicen qué tipo de cambio usar).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {

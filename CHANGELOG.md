@@ -85,7 +85,8 @@ van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0
 
 ### Agregado
 
-- **Operador en la bitácora (Art. 53 num. 2, controles de auditoría).**
+- **Operador en la bitácora.** Apoya los controles de auditoría del Art. 53 num. 2; el operador es opcional y no
+  lo exige el Reglamento.
   - `emitir`, `anular`, `corregirFechaAdelantada` y `registrarAutorizacion` aceptan `operador` (p. ej. el
     cajero). Queda en `EventoAuditoria.operador`.
   - Cada emisión deja un evento `DOCUMENTO_EMITIDO`.

@@ -42,7 +42,7 @@ La corrida nocturna de prueba (antes de que el fuzz metiera caracteres de contro
 | Respuestas sin declarar | `openapi.json` | `Idempotency-Replayed`, CSV y TXT de la exportación, 403 del libro de ventas, `FacturaHN-Modo` en los 429 | declaradas |
 
 Cada uno tiene su caso fijo en `packages/core/test/casos-limite.test.ts` o
-`packages/api/test/hallazgos-fuzz.test.ts`. Ninguno cambió una regla fiscal.
+`packages/api/test/fuzz-casos.test.ts`. Ninguno cambió una regla fiscal.
 
 ## Cómo se reproduce
 
