@@ -56,8 +56,10 @@ enviado.
 
 ## El contador
 
-1. **Modalidad y documentos.** Confirmar que el negocio puede facturar por sistema y qué documentos necesita. Un
-   sistema emite Factura (01), Nota de Crédito (06) y Nota de Débito (07). No emite el Recibo por Honorarios (04)
+1. **Modalidad y documentos.** Confirmar que el negocio puede facturar por sistema y qué documentos necesita. factura-hn
+   emite Factura (01), Nota de Crédito (06) y Nota de Débito (07). El Reglamento permite al sistema también el
+   Comprobante de Retención (05), la Guía de Remisión (08) y la Boleta de Compra (11), que factura-hn aún no emite.
+   Un sistema no emite el Recibo por Honorarios (04)
    ni la Factura Prevalorada (10), que son solo de imprenta (Art. 46); ni el Ticket (09), que es solo de máquina
    registradora (Art. 4 num. 43); ni la Constancia de Donación (12), que el Art. 47 excluye.
 2. **Tratamiento de ISV de cada producto o servicio**: 15 %, 18 %, exento, exonerado o gravado 0 %. El SDK no trae
