@@ -44,8 +44,9 @@ export const MAX_FIRMAS_V1 = 8;
 /** Espera máxima entre dos intentos, antes de la fluctuación. */
 export const ESPERA_MAXIMA_MS = 6 * 3600 * 1000;
 /**
- * Tiempo que una pasada del despacho sigue con un tenant que tiene más de un lote vencido (30 s). El servidor
- * omite al tenant en las pasadas siguientes mientras tanto (`enCurso`), así que no se entrega nada dos veces.
+ * Tiempo pasado el cual una pasada del despacho no reclama lotes nuevos de un tenant con más de un lote vencido
+ * (30 s). Se revisa entre lotes: el lote en curso termina, así que con un receptor colgado una pasada puede
+ * durar más (lote × tiempo máximo por entrega). El servidor omite al tenant en las pasadas siguientes mientras tanto (`enCurso`), así que no se entrega nada dos veces.
  */
 export const PRESUPUESTO_PASADA_MS = 30_000;
 /** Fluctuación de cada espera: ±20 %. Reparte en el tiempo los reintentos de muchas entregas que fallaron juntas. */

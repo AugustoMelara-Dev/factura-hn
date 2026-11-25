@@ -496,8 +496,8 @@ arrancar y cada hora.
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
 y un despachador los entrega cada 5 s; si un tenant tiene más de un lote vencido (por ejemplo, lo que se
-acumuló mientras su receptor estaba caído), la misma pasada sigue con el lote siguiente hasta vaciarlo (a lo
-sumo 30 s por pasada). Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
+acumuló mientras su receptor estaba caído), la misma pasada sigue con el lote siguiente hasta vaciarlo (no
+reclama lotes nuevos pasados 30 s; el lote en curso termina). Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
 intentos, con espera creciente (30 s, 1 min, 2 min, 4 min, … 2 h 8 min, 4 h 16 min y después 6 h entre cada uno)
 y una fluctuación de ±20 % en cada espera, para que los avisos que fallaron juntos no vuelvan todos a la vez.
 Entre el primer intento y el último pasan unas 74 h y media de media (con la fluctuación, entre unas 60 y 89 h
