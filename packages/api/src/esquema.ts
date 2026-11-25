@@ -11,8 +11,9 @@
  */
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
+import { EMISOR_DEMO } from 'factura-hn/demo';
 
-export const VERSION_ESQUEMA_API = 7;
+export const VERSION_ESQUEMA_API = 8;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
@@ -129,6 +130,25 @@ CREATE INDEX IF NOT EXISTS api_bitacora_tenant ON api_bitacora (tenant, id);
 -- v3 (DEC-031): persona que operó (p. ej. el cajero), si la solicitud la indica.
 ALTER TABLE api_bitacora ADD COLUMN IF NOT EXISTS operador text CHECK (operador IS NULL OR length(operador) BETWEEN 1 AND 80);
 
+-- v8: modo del tenant (sandbox con llaves fhn_test_, o producción con llaves fhn_live_). Los tenants que ya
+-- existían quedan en producción, salvo el tenant «demo» de demostración (emisor o CAI ficticios), que pasa a
+-- prueba. Solo la primera vez, al crear la columna. api_tenants fuerza RLS al dueño: se fija el tenant «demo»
+-- para verlo y se devuelve el valor anterior.
+DO $modo$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'api_tenants'::regclass AND attname = 'modo' AND NOT attisdropped) THEN
+    ALTER TABLE api_tenants ADD COLUMN modo text NOT NULL DEFAULT 'produccion' CHECK (modo IN ('prueba', 'produccion'));
+    PERFORM set_config('factura_hn.tenant', 'demo', true);
+    UPDATE api_tenants SET modo = 'prueba'
+     WHERE tenant = 'demo'
+       AND (EXISTS (SELECT 1 FROM api_emisores e WHERE e.tenant = 'demo' AND e.datos->>'rtn' = '${EMISOR_DEMO.rtn}')
+            OR EXISTS (SELECT 1 FROM fhn_autorizaciones a WHERE a.tenant = 'demo' AND starts_with(a.cai, 'DEMO00-NO-VALIDO-')));
+    PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  END IF;
+END $modo$;
+
 CREATE OR REPLACE FUNCTION fhn_api_solo_insertar() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'La bitácora de la API es de solo inserción';
@@ -137,7 +157,7 @@ DROP TRIGGER IF EXISTS fhn_api_bitacora_inmutable ON api_bitacora;
 CREATE TRIGGER fhn_api_bitacora_inmutable BEFORE UPDATE OR DELETE ON api_bitacora
   FOR EACH ROW EXECUTE FUNCTION fhn_api_solo_insertar();
 
--- v3 cambia las columnas que devuelve (id y nombre de la llave): hay que reemplazarla.
+-- v3 cambia las columnas que devuelve (id y nombre de la llave) y v8 agrega el modo del tenant: hay que reemplazarla.
 DROP FUNCTION IF EXISTS fhn_api_autenticar(text);
 DO $do$ BEGIN
 EXECUTE format($f$
@@ -146,7 +166,7 @@ EXECUTE format($f$
 -- al dueño), se fija su tenant solo para leer api_tenants y se devuelve el valor anterior. Si algo falla, el
 -- error aborta la transacción (o la subtransacción) de quien llama, y con ella se deshace el set_config.
 CREATE OR REPLACE FUNCTION fhn_api_autenticar(p_prefijo text)
-RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text)
+RETURNS TABLE (tenant text, hash bytea, rol text, establecimiento text, punto_emision text, limite_mensual integer, id uuid, nombre text, modo text)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
 #variable_conflict use_column
 DECLARE
@@ -154,15 +174,16 @@ DECLARE
   v_llave api_llaves%%ROWTYPE;
   v_limite integer;
   v_activo boolean;
+  v_modo text;
 BEGIN
   SELECT * INTO v_llave FROM api_llaves l WHERE l.prefijo = p_prefijo AND l.revocada IS NULL;
   IF NOT FOUND THEN RETURN; END IF;
   PERFORM set_config('factura_hn.tenant', v_llave.tenant, true);
-  SELECT t.limite_mensual, t.activo INTO v_limite, v_activo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
+  SELECT t.limite_mensual, t.activo, t.modo INTO v_limite, v_activo, v_modo FROM api_tenants t WHERE t.tenant = v_llave.tenant;
   PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
   IF v_activo IS NOT TRUE THEN RETURN; END IF;
   RETURN QUERY SELECT v_llave.tenant, v_llave.hash, v_llave.rol, v_llave.establecimiento, v_llave.punto_emision,
-    v_limite, v_llave.id, v_llave.nombre;
+    v_limite, v_llave.id, v_llave.nombre, v_modo;
 END
 $$$f$, current_schema());
 
@@ -311,8 +332,10 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
   }
 }
 
-/** Función que añadió la versión actual del esquema: si el rol de la API no la ve, la base no está migrada. */
+/** Función que añadió la v7 del esquema: si el rol de la API no la ve, la base no está migrada. */
 export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
+/** Columna que añadió la v8 (modo del tenant). */
+export const MARCA_COLUMNA_API = 'api_tenants.modo';
 
 /**
  * Falla con un mensaje claro si la base tiene el esquema de la API en una versión anterior a la del código.
@@ -321,13 +344,14 @@ export const MARCA_ESQUEMA_API = 'fhn_api_prefijo_registrado(text)';
  */
 export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, consola = 'node packages/api/dist/cli.js'): Promise<void> {
   const r = await pool.query<{ ok: boolean }>(
-    "SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false) AS ok",
+    `SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false)
+        AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_tenants') AND attname = 'modo' AND NOT attisdropped) AS ok`,
     [MARCA_ESQUEMA_API, rol],
   );
   if (r.rows[0]?.ok) return;
   throw new Error(
     `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
-      `(falta ${MARCA_ESQUEMA_API} o el rol de la API no puede usarla). Migra antes de arrancar: arranca con ` +
+      `(falta ${MARCA_ESQUEMA_API} o ${MARCA_COLUMNA_API}, o el rol de la API no puede usarla). Migra antes de arrancar: arranca con ` +
       `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
       'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',
   );

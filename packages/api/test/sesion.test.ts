@@ -28,7 +28,7 @@ conBase('GET /v1/sesion', () => {
       tenant,
       modo: 'local',
       demo: false,
-      llave: { rol: 'caja', nombre: 'caja 002', establecimiento: '000', puntoEmision: '002', prefijo: llave.split('_')[1] },
+      llave: { rol: 'caja', nombre: 'caja 002', establecimiento: '000', puntoEmision: '002', prefijo: llave.split('_')[2] },
       emisor: { registrado: true, rtn: '99990000000001' },
       puedeEmitir: true,
       pendientes: [],
@@ -45,7 +45,7 @@ conBase('GET /v1/sesion', () => {
     expect(nd).toMatchObject({ tipoDocumento: '07', listo: false, autorizaciones: [], problema: { codigo: 'SIN_AUTORIZACION' } });
     const texto = JSON.stringify(s);
     expect(texto).not.toContain(llave);
-    expect(texto).not.toMatch(/hash|secreto|fhn_[0-9a-f]{12}_/);
+    expect(texto).not.toMatch(/hash|secreto|fhn_(?:live_|test_)?[0-9a-f]{12}_/);
 
     expect((await caja('POST', '/v1/documentos', { documento: venta().documento }, { 'idempotency-key': randomUUID() })).status).toBe(201);
     const despues = await sesionDe(caja);

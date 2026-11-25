@@ -38,16 +38,19 @@ const COMANDOS: Comando[] = [
   },
   {
     nombre: ['tenant', 'crear'],
-    uso: 'tenant crear <tenant> [--nombre "Mi Negocio"] [--limite 1000]',
-    descripcion: 'Crea un tenant (modo alojado) y su primera llave admin. <tenant>: minúsculas, dígitos, «-» o «_».',
+    uso: 'tenant crear <tenant> [--nombre "Mi Negocio"] [--limite 1000] [--modo produccion|prueba]',
+    descripcion:
+      'Crea un tenant (modo alojado) y su primera llave admin. <tenant>: minúsculas, dígitos, «-» o «_». --modo (por defecto ' +
+      'produccion) no cambia después: un tenant de prueba solo acepta CAI ficticios y sus llaves empiezan con fhn_test_; ' +
+      'uno de producción no acepta CAI ficticios y sus llaves empiezan con fhn_live_.',
     posicionales: { obligatorios: ['tenant'] },
-    opciones: ['nombre', 'limite'],
+    opciones: ['nombre', 'limite', 'modo'],
     usaBase: true,
   },
   {
     nombre: ['llave', 'crear'],
     uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002]',
-    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración.',
+    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración.',
     posicionales: { obligatorios: ['tenant'] },
     opciones: ['rol', 'nombre', 'caja'],
     usaBase: true,
@@ -55,7 +58,7 @@ const COMANDOS: Comando[] = [
   {
     nombre: ['demo', 'llave'],
     uso: 'demo llave [--rol caja|admin] [--solo-llave]',
-    descripcion: 'Crea otra llave del tenant de demostración (CAI ficticio, sin validez fiscal); por defecto, de caja en 000-001. Con --solo-llave imprime solo la llave en la salida estándar (el aviso va a la de errores).',
+    descripcion: 'Crea otra llave (fhn_test_…) del tenant de demostración (CAI ficticio, sin validez fiscal); por defecto, de caja en 000-001. Con --solo-llave imprime solo la llave en la salida estándar (el aviso va a la de errores).',
     posicionales: { obligatorios: [] },
     opciones: ['rol'],
     banderas: ['solo-llave'],
@@ -178,6 +181,9 @@ export async function ejecutarConsola(
       if (!/^\d{1,9}$/.test(opciones.limite)) throw new ErrorUso('--limite debe ser un número entero de documentos por mes.', comando);
       limite = Number(opciones.limite);
     }
+    if (opciones.modo !== undefined && opciones.modo !== 'produccion' && opciones.modo !== 'prueba') {
+      throw new ErrorUso('--modo debe ser produccion o prueba.', comando);
+    }
     if (clave === 'llave crear') {
       if (opciones.rol !== 'admin' && opciones.rol !== 'caja') throw new ErrorUso('--rol debe ser admin o caja.', comando);
       if (opciones.rol === 'caja' && !opciones.caja) throw new ErrorUso('Una llave de caja se ata a su punto de emisión: agrega --caja 000-001.', comando);
@@ -205,8 +211,12 @@ export async function ejecutarConsola(
         salida.log('Esquema al día.');
         return 0;
       case 'tenant crear': {
-        const r = await crearTenant(pool, { tenant: posicionales[0]!, nombre: opciones.nombre ?? posicionales[0]!, limiteMensual: limite });
-        salida.log(`Tenant ${r.tenant} creado.\nLlave admin (solo se muestra ahora): ${r.llaveAdmin}`);
+        const r = await crearTenant(pool, {
+          tenant: posicionales[0]!, nombre: opciones.nombre ?? posicionales[0]!, limiteMensual: limite,
+          modo: opciones.modo as 'produccion' | 'prueba' | undefined,
+        });
+        const aviso = r.modo === 'prueba' ? ' Es de prueba: solo acepta CAI ficticios y nada de lo que emita tiene validez fiscal.' : '';
+        salida.log(`Tenant ${r.tenant} creado (modo ${r.modo}).${aviso}\nLlave admin (solo se muestra ahora): ${r.llaveAdmin}`);
         return 0;
       }
       case 'llave crear': {

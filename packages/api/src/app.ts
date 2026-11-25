@@ -63,8 +63,8 @@ import {
   type CuerpoError,
   type ProblemaApi,
 } from './errores';
-import { EMISOR_DEMO, TENANT_DEMO } from './operador';
-import { coincide, generarLlave, prefijoDe, type RolLlave } from './llaves';
+import { TENANT_DEMO } from './operador';
+import { coincide, generarLlave, leerLlave, type ModoTenant, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import { CofreSecretos, comoTransaccionPostgres, encolarEvento, MAX_WEBHOOKS_ACTIVOS, problemaDeURL, type EventoWebhook } from './webhooks';
 import {
@@ -167,6 +167,8 @@ export interface Sesion {
   establecimiento: string | null;
   puntoEmision: string | null;
   limiteMensual: number | null;
+  /** Modo del tenant: `prueba` (sandbox) o `produccion`. */
+  modoTenant: ModoTenant;
 }
 
 type Env = { Variables: { sesion: Sesion } };
@@ -180,6 +182,7 @@ interface LlaveAutenticada {
   limite_mensual: number | null;
   id: string;
   nombre: string;
+  modo: ModoTenant;
 }
 /** La llave activa de un prefijo, si la hay, y si el prefijo existe aunque la llave esté revocada o su tenant inactivo. */
 interface BusquedaLlave {
@@ -309,7 +312,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openAPIRegistry.registerComponent('securitySchemes', 'llave', {
     type: 'http',
     scheme: 'bearer',
-    description: 'Llave de API `fhn_<prefijo>_<secreto>`. Rol `caja`: emite y consulta. Rol `admin`: todo.',
+    description:
+      'Llave de API `fhn_live_<prefijo>_<secreto>` (tenant de producción) o `fhn_test_<prefijo>_<secreto>` (tenant de prueba). ' +
+      'Las llaves anteriores, `fhn_<prefijo>_<secreto>`, siguen valiendo en su tenant. Rol `caja`: emite y consulta. Rol `admin`: todo.',
   });
 
   // --- Infraestructura -------------------------------------------------------------------------------------
@@ -343,13 +348,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   });
   app.notFound((c) => c.json<CuerpoError>({ error: { codigo: 'NO_ENCONTRADO', mensaje: 'Ruta no encontrada.' } }, 404));
 
-  // Autenticación: Authorization: Bearer fhn_<prefijo>_<secreto>
+  // Autenticación: Authorization: Bearer fhn_live_<prefijo>_<secreto>, fhn_test_<prefijo>_<secreto> o fhn_<prefijo>_<secreto>
   app.use('/v1/*', async (c, next) => {
     const auth = c.req.header('authorization') ?? '';
     const llave = /^bearer +(\S+)$/i.exec(auth.trim())?.[1] ?? '';
-    const prefijo = prefijoDe(llave);
+    const forma = leerLlave(llave);
     const noValida = new ErrorApi(401, 'NO_AUTENTICADO', 'Falta la llave de API o no es válida.');
-    if (!prefijo) throw noValida;
+    if (!forma) throw noValida;
+    const { prefijo } = forma;
     const limitarLlave = () => {
       const espera = limitador.tomar(prefijo);
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
@@ -431,6 +437,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       }
     }
     const fila = busqueda.fila!;
+    // La fuente de verdad es el modo del tenant: una llave fhn_test_ solo entra a un tenant de prueba y una
+    // fhn_live_, solo a uno de producción. Como el hash cubre la marca, esto solo pasa si el operador cambió el modo
+    // del tenant en la base. Una llave sin marca vale en su tenant, sea del modo que sea.
+    if (forma.modo !== null && forma.modo !== fila.modo) throw noValida;
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);
@@ -452,8 +462,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       establecimiento: fila.establecimiento,
       puntoEmision: fila.punto_emision,
       limiteMensual: fila.limite_mensual,
+      modoTenant: fila.modo,
     });
     await next();
+    c.header('FacturaHN-Modo', fila.modo);
   });
 
   // El cuerpo debe ser UTF-8 válido. Sin esto, un byte en otra codificación (p. ej. «é» en Latin-1 desde una
@@ -624,6 +636,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'post', path: '/v1/autorizaciones', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Registra una autorización del SAR (CAI, rango y fecha límite)',
+      description:
+        'Un tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de ' +
+        'producción no los acepta (`CAI_DE_PRUEBA`).',
       request: { body: { content: { 'application/json': { schema: S.Autorizacion } }, required: true } },
       responses: { 201: json(S.RespuestaAutorizacion, 'Registrada'), ...respuestasError },
     }),
@@ -631,26 +646,17 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       exigirAdmin(c);
       const cuerpo = c.req.valid('json') as AutorizacionCAI;
       const caiDemo = esCAIDemo(cuerpo.cai);
-      // El tenant de demostración solo recibe CAI ficticios; los demás, un CAI ficticio solo con `prueba: true`
-      // explícito: un DEMO00 pegado por error no convierte en «de prueba» un punto de emisión real.
-      if (c.get('sesion').tenant === TENANT_DEMO && !caiDemo) {
-        const ficticio = await enTenant(c, async (tx) =>
-          (
-            await tx.consulta<{ demo: boolean }>(
-              `SELECT EXISTS (SELECT 1 FROM api_emisores WHERE tenant = $1 AND datos->>'rtn' = $2)
-                   OR EXISTS (SELECT 1 FROM fhn_autorizaciones WHERE tenant = $1 AND starts_with(cai, $3)) AS demo`,
-              [tx.tenant, EMISOR_DEMO.rtn, 'DEMO00-NO-VALIDO-'],
-            )
-          ).rows[0]?.demo === true,
-        );
-        if (ficticio) {
-          const mensaje = 'El tenant «demo» es de demostración: solo acepta CAI ficticios (DEMO00-NO-VALIDO-…).';
-          throw new ErrorApi(422, 'AUTORIZACION_REAL_EN_DEMO', mensaje, { errores: [{ codigo: 'AUTORIZACION_REAL_EN_DEMO', mensaje, campo: 'cai' }] });
-        }
+      const { tenant, modoTenant } = sesion(c);
+      // DEC-063 y DEC-093, con el modo del tenant: un tenant de prueba (sandbox) solo registra CAI ficticios y uno
+      // de producción ninguno. Un CAI real en el sandbox emitiría documentos con apariencia válida fuera de la serie
+      // real; un DEMO00 pegado por error en producción convertiría en «de prueba» un punto de emisión real.
+      if (modoTenant === 'prueba' && !caiDemo) {
+        const mensaje = `El tenant «${tenant}» es de prueba: solo acepta CAI ficticios (DEMO00-NO-VALIDO-…). Registra tu CAI real en un tenant de producción, con su llave fhn_live_.`;
+        throw new ErrorApi(422, 'AUTORIZACION_REAL_EN_DEMO', mensaje, { errores: [{ codigo: 'AUTORIZACION_REAL_EN_DEMO', mensaje, campo: 'cai' }] });
       }
-      if (caiDemo && cuerpo.prueba !== true && c.get('sesion').tenant !== TENANT_DEMO) {
-        const mensaje = `El CAI ${cuerpo.cai} es ficticio: para registrarlo como autorización de prueba, envía «prueba: true».`;
-        throw new ErrorApi(422, 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, { errores: [{ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', mensaje, campo: 'prueba' }] });
+      if (modoTenant === 'produccion' && caiDemo) {
+        const mensaje = `El CAI ${cuerpo.cai} es ficticio y el tenant «${tenant}» es de producción: no acepta CAI ficticios. Para probar, usa un tenant de prueba (llave fhn_test_).`;
+        throw new ErrorApi(422, 'CAI_DE_PRUEBA', mensaje, { errores: [{ codigo: 'CAI_DE_PRUEBA', mensaje, campo: 'cai' }] });
       }
       const a = await registrarAutorizacion(almacenDe(c), cuerpo, { reloj, actor: actor(c), operador: operadorDe(c, undefined) });
       return c.json({ autorizacion: a as unknown as z.infer<typeof S.Autorizacion> }, 201);
@@ -786,6 +792,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return c.json({
         sesion: {
           tenant: s.tenant,
+          modoTenant: s.modoTenant,
           modo: cfg.modo,
           demo: cfg.modo === 'local' && s.tenant === TENANT_DEMO,
           llave: { id: s.llaveId, prefijo: s.prefijo, nombre: s.llaveNombre, rol: s.rol, establecimiento: s.establecimiento, puntoEmision: s.puntoEmision },
@@ -1082,11 +1089,29 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
    */
   const contarPeriodo = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }) => {
     const total = await contarDocumentos(tx, filtro);
+    return contarExcluidos(tx, filtro, total);
+  };
+  /**
+   * Como `contarPeriodo`, solo con los documentos de un punto de emisión (`NNN-NNN`), y las series del punto que
+   * tienen documentos en el período, en orden.
+   */
+  const contarPeriodoDePunto = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }, punto: string) => {
+    const ptx = comoTransaccionPostgres(tx);
+    const f = (await ptx.consulta<{ total: number; identificadores: string[] }>(
+      `SELECT count(*)::int AS total, coalesce(array_agg(DISTINCT identificador ORDER BY identificador), '{}') AS identificadores
+         FROM fhn_documentos
+        WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3 AND left(identificador, 7) = $4`,
+      [ptx.tenant, filtro.desde, filtro.hasta, punto],
+    )).rows[0]!;
+    return { ...(await contarExcluidos(tx, filtro, f.total, punto)), identificadores: f.identificadores };
+  };
+  const contarExcluidos = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }, total: number, punto?: string) => {
     const excluidos = total === 0 ? 0 : (await comoTransaccionPostgres(tx).consulta<{ n: number }>(
       `SELECT count(*)::int AS n FROM fhn_documentos
         WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3
-          AND (datos->>'modo' = 'prueba' OR starts_with(upper(btrim(datos->>'cai')), 'DEMO00-NO-VALIDO-'))`,
-      [comoTransaccionPostgres(tx).tenant, filtro.desde, filtro.hasta],
+          AND (datos->>'modo' = 'prueba' OR starts_with(upper(btrim(datos->>'cai')), 'DEMO00-NO-VALIDO-'))
+          ${punto ? 'AND left(identificador, 7) = $4' : ''}`,
+      [comoTransaccionPostgres(tx).tenant, filtro.desde, filtro.hasta, ...(punto ? [punto] : [])],
     )).rows[0]!.n;
     const reales = total - excluidos;
     exigirPeriodoAcotado(reales, maxDocumentos);
@@ -1163,6 +1188,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/libro-ventas', tags: ['Reportes'], security: seguridad,
       summary: 'Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)',
+      description:
+        'Con una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos ' +
+        'de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin ' +
+        'punto de emisión recibe 403 `CAJA_SIN_PUNTO`.',
       request: { query: S.periodo({ formato: z.enum(['json', 'csv']).optional() }) },
       responses: {
         200: {
@@ -1187,18 +1216,34 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const q = c.req.valid('query');
       const filtro = { desde: q.desde, hasta: q.hasta };
       const csv = q.formato === 'csv';
+      // Una caja ve solo el libro de su punto de emisión, como en GET /v1/sesion. Los números llevan el punto al
+      // inicio y las páginas van por número: recorrer las series del punto en orden da las mismas filas, en el mismo
+      // orden, que el libro del tenant filtrado a ese punto.
+      const s = sesion(c);
+      let punto: string | null = null;
+      if (s.rol === 'caja') {
+        if (!s.establecimiento || !s.puntoEmision) {
+          throw new ErrorApi(403, 'CAJA_SIN_PUNTO', 'Esta llave de caja no está atada a un punto de emisión; crea otra con establecimiento y punto de emisión.');
+        }
+        punto = `${s.establecimiento}-${s.puntoEmision}`;
+      }
       // Fila por fila, sin las líneas de cada documento (el libro solo usa encabezado y totales). Mismos bytes
       // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen, excluidos })` con `libroVentas(docs)`,
       // sin tener todas las filas a la vez. Los documentos de prueba no entran: se cuentan en `excluidos`.
       const { preparado, cuerpo } = await reporteTransmitido(
         c,
-        (tx) => contarPeriodo(tx, filtro),
-        async (tx, { reales, excluidos }, escribir) => {
+        (tx): Promise<{ reales: number; excluidos: number; identificadores?: string[] }> =>
+          punto ? contarPeriodoDePunto(tx, filtro, punto) : contarPeriodo(tx, filtro),
+        async (tx, { reales, excluidos, identificadores }, escribir) => {
           const resumen = acumuladorResumenVentas();
           if (!(await escribir(csv ? inicioLibroVentasCSV() : '{"filas":['))) return;
           let primera = true;
+          const paginas = async function* () {
+            if (!identificadores) yield* documentosPorPaginas(tx, filtro, { sinLineas: true });
+            else for (const identificador of identificadores) yield* documentosPorPaginas(tx, { ...filtro, identificador }, { sinLineas: true });
+          };
           if (reales > 0) {
-            for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
+            for await (const pagina of paginas()) {
               for (const d of pagina) {
                 if (esDocumentoDePrueba(d)) continue;
                 const fila = filaLibroVentas(d);
@@ -1215,7 +1260,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return c.body(cuerpo, 200, {
         ...cabeceraExcluidos(preparado.excluidos),
         ...(csv
-          ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
+          ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${punto ? `${punto}_` : ''}${q.desde}_${q.hasta}.csv"` }
           : { 'Content-Type': 'application/json' }),
       }) as never;
     },
@@ -1321,7 +1366,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (Boolean(b.establecimiento) !== Boolean(b.puntoEmision) || (b.rol === 'caja' && !b.establecimiento)) {
         throw new ErrorApi(400, 'CAJA_INCOMPLETA', 'Una llave de caja se ata a un establecimiento y punto de emisión: indica ambos.');
       }
-      const { llave, prefijo, hash } = generarLlave();
+      const { llave, prefijo, hash } = generarLlave(sesion(c).modoTenant);
       const fila = await enTenant(c, async (tx) => {
         const r = await tx.consulta<FilaLlave>(
           `INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)

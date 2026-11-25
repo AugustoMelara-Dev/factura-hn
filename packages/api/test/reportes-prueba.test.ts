@@ -4,8 +4,9 @@
  * reales. El tenant demo, todo de prueba, exporta archivos vacíos con el aviso. Requiere FHN_PG_URL.
  */
 import { afterAll, describe, expect, it } from 'vitest';
-import { exportarTexto, libroVentas, libroVentasCSV, LEYENDA_PRUEBA, type DocumentoFiscal } from 'factura-hn';
+import { exportarTexto, libroVentas, libroVentasCSV, LEYENDA_PRUEBA, registrarAutorizacion, type AutorizacionCAI, type DocumentoFiscal } from 'factura-hn';
 import { caiDemo } from 'factura-hn/demo';
+import { AlmacenPostgres } from '@factura-hn/postgres';
 import { crearApp } from '../src/app';
 import { crearLlaveDemo, iniciarLocal, TENANT_DEMO } from '../src/operador';
 import { cerrarPool, cliente, FECHA_LIMITE, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
@@ -16,16 +17,23 @@ const sinLimite = { limiteSolicitudes: { porSegundo: 1000, rafaga: 1000 } };
 const json = async (r: Response) => (await r.json()) as any;
 /** El cuerpo con el BOM del CSV (Response.text() lo quita). */
 const bytes = async (r: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await r.arrayBuffer());
+/**
+ * Registra una autorización con el núcleo, sin pasar por la API. Desde los modos de tenant, la API ya no acepta un
+ * CAI ficticio en un tenant de producción (CAI_DE_PRUEBA); así se simula una base que lo registró antes.
+ */
+async function registrarSinApi(tenant: string, a: Omit<AutorizacionCAI, 'cai'> & { cai: string }) {
+  const almacen = new AlmacenPostgres(await poolPrueba(), { tenant, rol: ROL });
+  return registrarAutorizacion(almacen, a as AutorizacionCAI, { actor: 'prueba' });
+}
 
 describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
   /** Tenant con una caja real (000-001) y una de prueba (000-002, CAI ficticio): 2 documentos reales y 1 de prueba. */
   async function conPrueba(config = {}) {
     const t = await tenantListo({ ...sinLimite, ...config });
-    const a = await t.admin('POST', '/v1/autorizaciones', {
+    await registrarSinApi(t.tenant, {
       cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '002',
       rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE, prueba: true,
     });
-    expect(a.status).toBe(201);
     const docs: DocumentoFiscal[] = [];
     for (const [clave, cuerpo] of [['r1', venta('100.00')], ['p1', venta('50.00', { puntoEmision: '002' })], ['r2', venta('200.00')]] as const) {
       const r = await t.admin('POST', '/v1/documentos', cuerpo, { 'idempotency-key': `${clave}-${Date.now()}` });
@@ -133,9 +141,9 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
   });
 
   it('POST /v1/autorizaciones: de demo a real en el mismo punto se acepta y retira la demo; de real a demo, no', async () => {
-    const { admin } = await tenantListo(sinLimite);
-    const punto = { tipoDocumento: '01', establecimiento: '000', puntoEmision: '004', fechaLimiteEmision: FECHA_LIMITE };
-    expect((await admin('POST', '/v1/autorizaciones', { ...punto, cai: caiDemo('01'), rangoInicial: 1, rangoFinal: 100, prueba: true })).status).toBe(201);
+    const { admin, tenant } = await tenantListo(sinLimite);
+    const punto = { tipoDocumento: '01', establecimiento: '000', puntoEmision: '004', fechaLimiteEmision: FECHA_LIMITE } as const;
+    await registrarSinApi(tenant, { ...punto, cai: caiDemo('01'), rangoInicial: 1, rangoFinal: 100, prueba: true });
     const real = await admin('POST', '/v1/autorizaciones', { ...punto, cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04', rangoInicial: 1, rangoFinal: 500 });
     expect(real.status).toBe(201);
     const e = await admin('POST', '/v1/documentos', venta('10.00', { puntoEmision: '004' }), { 'idempotency-key': `dr-${Date.now()}` });
@@ -148,23 +156,27 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     expect(estadoDemo.estado).toMatchObject({ retirada: true, vigente: false, correlativosRestantes: 0, siguienteCorrelativo: null, alertas: [] });
     const estadoReal = await json(await admin('GET', '/v1/autorizaciones/A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-04/estado'));
     expect(estadoReal.estado).toMatchObject({ retirada: false, vigente: true, correlativosRestantes: 499 });
+    // De real a demo: la API ya lo frena por el modo del tenant (CAI_DE_PRUEBA) y el núcleo, por el punto.
     const otra = await admin('POST', '/v1/autorizaciones', { ...punto, tipoDocumento: '06', cai: caiDemo('06'), rangoInicial: 1, rangoFinal: 100, prueba: true });
     expect(otra.status).toBe(422);
-    expect((await json(otra)).errores).toMatchObject([{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }]);
+    expect((await json(otra)).errores).toMatchObject([{ codigo: 'CAI_DE_PRUEBA' }]);
+    await expect(registrarSinApi(tenant, { ...punto, tipoDocumento: '06', cai: caiDemo('06'), rangoInicial: 1, rangoFinal: 100, prueba: true }))
+      .rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
   });
 
-  it('POST /v1/autorizaciones: un CAI ficticio necesita prueba: true; el tenant demo no acepta CAI reales', async () => {
+  it('POST /v1/autorizaciones: un tenant de producción no acepta CAI ficticios; el tenant demo no acepta CAI reales', async () => {
     const { admin } = await tenantListo(sinLimite);
     const aut = { cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '003', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE };
-    const sin = await admin('POST', '/v1/autorizaciones', aut);
-    expect(sin.status).toBe(422);
-    const e = await json(sin);
-    expect(e.error).toMatchObject({ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', solucion: expect.stringContaining('"prueba": true') });
-    expect(e.error.documentacion).toMatch(/errores\.md#autorizacion_demo_sin_prueba$/);
-    expect(e.errores).toMatchObject([{ codigo: 'AUTORIZACION_DEMO_SIN_PRUEBA', campo: 'prueba' }]);
-    const con = await admin('POST', '/v1/autorizaciones', { ...aut, prueba: true });
-    expect(con.status).toBe(201);
-    expect((await json(con)).autorizacion.prueba).toBe(true);
+    // Con o sin prueba: true (antes, con prueba: true se aceptaba: DEC-093).
+    for (const cuerpo of [aut, { ...aut, prueba: true }]) {
+      const r = await admin('POST', '/v1/autorizaciones', cuerpo);
+      expect(r.status).toBe(422);
+      const e = await json(r);
+      expect(e.error).toMatchObject({ codigo: 'CAI_DE_PRUEBA', solucion: expect.stringContaining('tenant de prueba') });
+      expect(e.error.documentacion).toMatch(/errores\.md#cai_de_prueba$/);
+      expect(e.errores).toMatchObject([{ codigo: 'CAI_DE_PRUEBA', campo: 'cai' }]);
+    }
+    expect((await json(await admin('GET', '/v1/autorizaciones'))).autorizaciones.some((a: any) => a.cai === aut.cai)).toBe(false);
 
     const pool = await poolPrueba();
     await iniciarLocal(pool, { demo: true, rol: ROL });
