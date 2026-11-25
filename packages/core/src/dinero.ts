@@ -36,6 +36,18 @@ const DIGITOS_MAXIMOS = 40;
 /** La coma solo separa miles, en grupos de 3 («1,234.50»). «89,50» no es 8950 ni 89.50: es un error. */
 const PATRON_MILES = /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d*)?(?:[eE][+-]?\d+)?$/;
 
+/**
+ * El valor para un mensaje de error, sin poder lanzar: `String` lanza TypeError con `Object.create(null)` o con un
+ * objeto cuyo `toString` lanza, y aquí todo error debe ser ErrorMonto.
+ */
+function textoDe(valor: unknown): string {
+  try {
+    return String(valor);
+  } catch {
+    return 'objeto';
+  }
+}
+
 /** Descompone un decimal en signo, dígitos y exponente base 10: valor = signo · dígitos · 10^exp. */
 function descomponer(valor: Monto): { negativo: boolean; digitos: bigint; exp: number } {
   let texto: string;
@@ -53,10 +65,10 @@ function descomponer(valor: Monto): { negativo: boolean; digitos: bigint; exp: n
       texto = texto.replace(/,/g, '');
     }
   } else {
-    throw new ErrorMonto(`Monto inválido: ${String(valor)}`);
+    throw new ErrorMonto(`Monto inválido: ${textoDe(valor)}`);
   }
   const m = PATRON_DECIMAL.exec(texto);
-  if (!m || (m[2] === '' && (m[3] ?? '') === '')) throw new ErrorMonto(`Monto inválido: "${String(valor)}"`);
+  if (!m || (m[2] === '' && (m[3] ?? '') === '')) throw new ErrorMonto(`Monto inválido: "${textoDe(valor)}"`);
   const enteros = m[2]!; // el grupo (\d*) siempre participa: a lo sumo es ''
   const fraccion = m[3] ?? '';
   // Tope de magnitud antes de cualquier potencia de 10: «1e10000000» cabe en 10 caracteres pero
@@ -64,7 +76,7 @@ function descomponer(valor: Monto): { negativo: boolean; digitos: bigint; exp: n
   // (los totales en letras ya fallan desde 10^15).
   const expTexto = Number(m[4] ?? 0);
   if (!Number.isSafeInteger(expTexto) || Math.abs(expTexto) > EXPONENTE_MAXIMO || enteros.length + fraccion.length > DIGITOS_MAXIMOS) {
-    throw new ErrorMonto(`Monto fuera de rango: "${String(valor)}"`);
+    throw new ErrorMonto(`Monto fuera de rango: "${textoDe(valor)}"`);
   }
   const exp = expTexto - fraccion.length;
   return { negativo: m[1] === '-', digitos: BigInt(enteros + fraccion), exp }; // nunca vacío: se revisó arriba
@@ -113,7 +125,7 @@ export function parsearDecimal(valor: Monto, escala: number, campo = 'monto'): b
   else {
     const div = potencia10(-desplazamiento);
     if (digitos % div !== 0n) {
-      throw new ErrorMonto(`${campo} admite como máximo ${escala} decimales: "${String(valor)}"`);
+      throw new ErrorMonto(`${campo} admite como máximo ${escala} decimales: "${textoDe(valor)}"`);
     }
     r = digitos / div;
   }

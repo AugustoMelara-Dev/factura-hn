@@ -55,7 +55,8 @@ function leer(valor: LineaEntrada[keyof LineaEntrada], escala: number, campo: st
   try {
     return parsearDecimal(valor as string | number, escala, campo);
   } catch (e) {
-    // Siempre es ErrorMonto (parsearDecimal no lanza otra cosa): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
+    // Siempre es ErrorMonto (parsearDecimal solo lanza ErrorMonto, también con un objeto que no se puede
+    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
     if (e instanceof ErrorMonto) return e.message;
     throw e;
   }

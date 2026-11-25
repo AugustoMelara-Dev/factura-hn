@@ -44,6 +44,12 @@ describe('validarLineas: un problema por campo, con su línea y su mensaje', () 
     expect(validarLineas([linea({ cantidad: '1.00001' })])).toEqual(problema('Línea 1: La cantidad admite como máximo 4 decimales: "1.00001"'));
     expect(validarLineas([linea({ cantidad: '0.0001' })])).toEqual([]);
   });
+  it('un objeto que no se puede convertir a texto es un problema de la línea, no un TypeError', () => {
+    const problema = [{ codigo: 'LINEA_CANTIDAD', mensaje: 'Línea 1: Monto inválido: objeto', campo: 'lineas[0]' }];
+    expect(validarLineas([linea({ cantidad: Object.create(null) })])).toEqual(problema);
+    const toStringQueLanza = { toString: () => { throw new Error('no'); } };
+    expect(validarLineas([linea({ cantidad: toStringQueLanza as never })])).toEqual(problema);
+  });
   it('precio: no negativo (0 se acepta), legible y con hasta 4 decimales', () => {
     const problema = (mensaje: string) => [{ codigo: 'LINEA_PRECIO', mensaje, campo: 'lineas[0]' }];
     expect(validarLineas([linea({ precioUnitario: '-0.01' })])).toEqual(problema('Línea 1: el precio unitario no puede ser negativo.'));
