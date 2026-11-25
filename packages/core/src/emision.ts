@@ -49,6 +49,20 @@ function exigirOperador(operador: string | undefined) {
 }
 
 /**
+ * Sin almacén no hay dónde reservar el número ni guardar el documento. Se avisa con un error del SDK en lugar
+ * del `TypeError` que daría leer `transaccion` de `undefined`.
+ */
+export function exigirAlmacen(almacen: unknown, operacion: string): asserts almacen is AlmacenFiscal {
+  if (!almacen || typeof (almacen as AlmacenFiscal).transaccion !== 'function') {
+    throw error(
+      'ALMACEN_REQUERIDO',
+      `${operacion}: falta el almacén fiscal («almacen»), donde se reservan los números y se guardan los documentos.`,
+      'almacen',
+    );
+  }
+}
+
+/**
  * Problemas de registrar `nueva` junto a las autorizaciones ya registradas del mismo identificador.
  * Dos autorizaciones de un mismo identificador no pueden compartir números: cada número del rango
  * pertenece a un solo CAI (Arts. 10 num. 3-5 y 59).
@@ -69,6 +83,17 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
     }
   }
   const id = identificadorDe(nueva);
+  // Producto, no regla fiscal: los documentos de prueba no consumen números de una serie real ni al revés.
+  const mezcla = existentes.find((a) => identificadorDe(a) === id && (a.prueba === true) !== (nueva.prueba === true));
+  if (mezcla) {
+    problemas.push({
+      codigo: 'AUTORIZACION_MODO_MEZCLADO',
+      mensaje: nueva.prueba === true
+        ? `${id} ya tiene autorizaciones reales: no se le puede registrar una de prueba.`
+        : `${id} tiene autorizaciones de prueba (CAI ${mezcla.cai}): no se le puede registrar una real.`,
+      campo: 'prueba',
+    });
+  }
   for (const a of existentes) {
     if (identificadorDe(a) !== id) continue;
     if (a.cai.trim().toUpperCase() === nueva.cai.trim().toUpperCase()) {
@@ -90,6 +115,7 @@ export async function registrarAutorizacion(
   autorizacion: AutorizacionCAI,
   opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
 ): Promise<AutorizacionCAI> {
+  exigirAlmacen(almacen, 'registrarAutorizacion');
   exigirOperador(opciones.operador);
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
@@ -130,14 +156,29 @@ export async function registrarAutorizacion(
  *   números ≥ ese siguiente. Si su rango empieza más adelante, se salta hasta su inicio: los números
  *   saltados pertenecen a autorizaciones vencidas que se reportan como no utilizados (Art. 42); nunca se
  *   emiten.
+ *
+ * @param identificador serie `NNN-NNN-TT`, si se conoce: los mensajes la nombran y dicen cómo resolver.
  */
 export function elegirAutorizacion(
   autorizaciones: AutorizacionCAI[],
   ultimo: number | null,
   hoy: string,
+  identificador?: string,
 ): { autorizacion: AutorizacionCAI; correlativo: number } | { error: Problema } {
+  const serie = identificador ? ` (${nombreDeIdentificador(identificador)}, serie ${identificador})` : '';
   if (autorizaciones.length === 0) {
-    return { error: { codigo: 'SIN_AUTORIZACION', mensaje: 'No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).' } };
+    const problema: Problema = {
+      codigo: 'SIN_AUTORIZACION',
+      mensaje: `No hay autorización (CAI) registrada para este punto de emisión y tipo de documento${serie} (Arts. 59-61).`,
+    };
+    if (identificador) {
+      const [est, pto, tipo] = identificador.split('-');
+      problema.solucion =
+        `Registra el CAI de esa serie una vez: registrarAutorizacion(almacen, { cai, tipoDocumento: '${tipo}', ` +
+        `establecimiento: '${est}', puntoEmision: '${pto}', rangoInicial, rangoFinal, fechaLimiteEmision }), con los datos ` +
+        'de la resolución del SAR. Para probar sin un CAI real, usa crearFacturadorDemo() de factura-hn/demo.';
+    }
+    return { error: problema };
   }
   const ordenadas = [...autorizaciones].sort((a, b) => a.rangoInicial - b.rangoInicial);
   // Una serie migrada continúa después de lo emitido fuera del sistema (`ultimoEmitidoAntes`).
@@ -147,9 +188,23 @@ export function elegirAutorizacion(
   const candidata = vigentes.find((a) => a.rangoFinal >= siguiente);
   if (candidata) return { autorizacion: candidata, correlativo: Math.max(siguiente, candidata.rangoInicial) };
   if (vigentes.length === 0) {
-    return { error: { codigo: 'AUTORIZACION_VENCIDA', mensaje: 'Todas las autorizaciones de este punto de emisión y tipo están vencidas (Art. 62). Solicita un nuevo CAI.' } };
+    const ultimaFecha = ordenadas.map((a) => a.fechaLimiteEmision).filter(esFechaValida).sort().pop();
+    return {
+      error: {
+        codigo: 'AUTORIZACION_VENCIDA',
+        mensaje: `Todas las autorizaciones de este punto de emisión y tipo${serie} están vencidas` +
+          `${ultimaFecha ? ` (la última venció el ${ultimaFecha})` : ''} (Art. 62). Solicita un nuevo CAI.`,
+      },
+    };
   }
-  return { error: { codigo: 'RANGO_AGOTADO', mensaje: 'Se agotaron los rangos autorizados vigentes de este punto de emisión y tipo. Solicita un nuevo CAI.' } };
+  const ultimaVigente = vigentes[vigentes.length - 1]!;
+  return {
+    error: {
+      codigo: 'RANGO_AGOTADO',
+      mensaje: `Se agotaron los rangos autorizados vigentes de este punto de emisión y tipo${serie}: el último número ` +
+        `autorizado es el ${ultimaVigente.rangoFinal} (CAI ${ultimaVigente.cai}). Solicita un nuevo CAI.`,
+    },
+  };
 }
 
 export interface OpcionesEmision {
@@ -194,6 +249,7 @@ export interface OpcionesEmision {
  *   FECHA_ANTERIOR_AL_ULTIMO o los de `validarEntrada`.
  */
 export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision): Promise<DocumentoFiscal> {
+  exigirAlmacen(config?.almacen, 'emitir');
   const tipo = entrada.tipoDocumento ?? '01';
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
@@ -240,7 +296,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
         }),
       );
     }
-    const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy);
+    const eleccion = elegirAutorizacion(await tx.autorizaciones(id), serie.ultimo, hoy, id);
     if ('error' in eleccion) throw new ErrorValidacion([eleccion.error]);
     if (tipo === '06' || tipo === '07') entrada = await monedaDelOriginal(tx, entrada);
     const adicionales = tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada) : [];
@@ -284,6 +340,7 @@ export async function anular(
     libroContable?: LibroContable;
   },
 ): Promise<DocumentoFiscal> {
+  exigirAlmacen(config?.almacen, 'anular');
   exigirOperador(config.operador);
   const ahora = relojDe(config.reloj)();
   return config.almacen.transaccion(async (tx) => {
@@ -341,6 +398,7 @@ export async function corregirFechaAdelantada(
   almacen: AlmacenFiscal,
   config: { identificador: string; motivo: string; reloj?: () => Date; actor?: string; operador?: string; libroContable?: LibroContable },
 ): Promise<DocumentoFiscal[]> {
+  exigirAlmacen(almacen, 'corregirFechaAdelantada');
   exigirOperador(config.operador);
   const motivo = config.motivo?.trim();
   if (!motivo) {
@@ -394,6 +452,7 @@ export async function corregirFechaAdelantada(
 
 /** La bitácora de auditoría, en orden de registro. */
 export async function eventosAuditoria(almacen: AlmacenFiscal, filtro: FiltroEventos = {}): Promise<EventoAuditoria[]> {
+  exigirAlmacen(almacen, 'eventosAuditoria');
   return almacen.transaccion((tx) => tx.eventos(filtro));
 }
 
@@ -523,6 +582,7 @@ async function monedaDelOriginal(tx: TransaccionFiscal, entrada: DocumentoEntrad
 
 /** Busca un documento guardado y lo devuelve inmutable. */
 export async function buscarDocumento(almacen: AlmacenFiscal, numero: string): Promise<DocumentoFiscal | null> {
+  exigirAlmacen(almacen, 'buscarDocumento');
   const doc = await almacen.transaccion((tx) => tx.buscarDocumento(numero));
   return doc ? congelar(doc) : null;
 }

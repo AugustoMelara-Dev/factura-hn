@@ -46,6 +46,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
     baseUrl: RAIZ,
     paths: {
       'factura-hn': [INDICE],
+      'factura-hn/demo': [join(RAIZ, 'packages', 'core', 'src', 'demo.ts')],
       '@factura-hn/postgres': [join(RAIZ, 'packages', 'postgres', 'src', 'index.ts')],
       '@factura-hn/sqlite': [join(RAIZ, 'packages', 'sqlite', 'src', 'index.ts')],
       '@factura-hn/cliente': [join(RAIZ, 'packages', 'cliente', 'src', 'index.ts')],
@@ -72,7 +73,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
 }
 
 describe('los fragmentos de código de la documentación compilan', () => {
-  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md']) {
+  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md']) {
     it(archivo, () => {
       const fragmentos = fragmentosTS(archivo);
       expect(fragmentos.length).toBeGreaterThan(0);
@@ -133,6 +134,7 @@ describe('documentación para agentes', () => {
 
   it('las funciones y los tipos que nombran existen en algún paquete', () => {
     const paquetes = ['core', 'sqlite', 'postgres', 'pdf', 'api', 'cliente', 'mcp'].map((n) => join(RAIZ, 'packages', n, 'src', 'index.ts'));
+    paquetes.push(join(RAIZ, 'packages', 'core', 'src', 'demo.ts'));
     const programa = ts.createProgram(paquetes, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, skipLibCheck: true, noEmit: true });
     const checker = programa.getTypeChecker();
     const exportados = new Set<string>();

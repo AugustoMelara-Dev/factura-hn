@@ -3,12 +3,13 @@
  *
  * El contenido sale de `renderizarTexto` del núcleo, de modo que el PDF lleva exactamente los mismos datos
  * que el ticket térmico (Arts. 10 y 11 del Reglamento) y las copias son idénticas al original (Art. 38).
- * Un documento ANULADO lleva la leyenda al inicio y al final (Art. 41) y una marca de agua diagonal.
+ * Un documento ANULADO lleva la leyenda al inicio y al final (Art. 41) y una marca de agua diagonal. Un documento
+ * de prueba (`modo: 'prueba'`) lleva `LEYENDA_PRUEBA` al inicio y al final, en negrita, y la marca de agua PRUEBA.
  *
  * Papel térmico (Art. 38): imprimir en papel térmico exige presentar antes al SAR la certificación del
  * proveedor de que la impresión se conserva al menos 5 años.
  */
-import { renderizarTexto, type DocumentoFiscal } from 'factura-hn';
+import { esDocumentoDePrueba, LEYENDA_PRUEBA, renderizarTexto, type DocumentoFiscal } from 'factura-hn';
 import { degrees, PDFDocument, rgb, StandardFonts, type PDFFont } from 'pdf-lib';
 
 export interface OpcionesPDF {
@@ -87,7 +88,12 @@ export async function renderizarPDF(doc: DocumentoFiscal, opciones: OpcionesPDF 
   const anchoTexto = normal.widthOfTextAtSize('M', f.tamano) * f.columnas;
   const x = Math.max(f.margen, (f.ancho - anchoTexto) / 2);
   const anulada = doc.estado === 'ANULADO';
-  const resaltar = (l: string) => /\*\*\* ANULADA \*\*\*|^\s*N° /.test(l) || l.trim() === doc.nombreDocumento.toUpperCase();
+  const prueba = esDocumentoDePrueba(doc);
+  const leyendaPrueba = aWinAnsi(LEYENDA_PRUEBA);
+  const resaltar = (l: string) =>
+    /\*\*\* ANULADA \*\*\*|^\s*N° /.test(l) ||
+    l.trim() === doc.nombreDocumento.toUpperCase() ||
+    (prueba && (/^\*+$/.test(l) || l.trim() === leyendaPrueba));
 
   for (let i = 0; i < lineas.length; i += porPagina) {
     const pagina = pdf.addPage([f.ancho, alto]);
@@ -107,6 +113,18 @@ export async function renderizarPDF(doc: DocumentoFiscal, opciones: OpcionesPDF 
         font: negrita,
         color: rgb(0.8, 0, 0),
         opacity: 0.25,
+        rotate: degrees(45),
+      });
+    } else if (prueba) {
+      const tam = f.ancho / 6;
+      const w = negrita.widthOfTextAtSize('PRUEBA', tam);
+      pagina.drawText('PRUEBA', {
+        x: f.ancho / 2 - (w / 2) * Math.cos(Math.PI / 4),
+        y: alto / 2 - (w / 2) * Math.sin(Math.PI / 4),
+        size: tam,
+        font: negrita,
+        color: rgb(0.8, 0, 0),
+        opacity: 0.2,
         rotate: degrees(45),
       });
     }

@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: /^factura-hn\/pruebas$/, replacement: core('pruebas.ts') },
+      { find: /^factura-hn\/demo$/, replacement: core('demo.ts') },
       { find: /^factura-hn$/, replacement: core('index.ts') },
     ],
   },

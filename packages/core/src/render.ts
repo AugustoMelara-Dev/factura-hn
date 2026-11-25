@@ -2,8 +2,9 @@
  * Representación impresa del documento: HTML (carta o ticket 80 mm) y texto plano
  * para impresoras térmicas. Incluye todos los campos de los Arts. 10 y 11.
  */
-import { escaladoATexto, formatearMonto, parsearDecimal } from './dinero';
+import { deCentavos, dividirRedondeando, escaladoATexto, formatearMonto, parsearDecimal, redondearDecimal } from './dinero';
 import { formatearDNI, formatearRTN } from './identificacion';
+import { esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
 import type { DocumentoFiscal, TratamientoISV } from './tipos';
 
 export interface OpcionesRender {
@@ -66,6 +67,27 @@ function filasTotales(doc: DocumentoFiscal): Array<[string, number, boolean?]> {
   return filas;
 }
 
+/**
+ * Equivalente en lempiras de los impuestos y el total de un documento en moneda extranjera, con su tipo de
+ * cambio (Reglamento Art. 11, párrafo final: la tasa de cambio vigente a la fecha). Es información para el
+ * adquirente: los importes del documento siguen en su moneda. Cálculo exacto en centavos, redondeado al
+ * centavo. null si el documento está en lempiras.
+ */
+function equivalenteLempiras(doc: DocumentoFiscal): Array<[string, number]> | null {
+  if (doc.moneda === 'HNL' || !doc.tipoCambio) return null;
+  const tc = parsearDecimal(doc.tipoCambio, 6, 'tipoCambio');
+  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
+  const t = doc.totales;
+  return [
+    ...(t.isv15 > 0 ? [['I.S.V. 15%', L(t.isv15)] as [string, number]] : []),
+    ...(t.isv18 > 0 ? [['I.S.V. 18%', L(t.isv18)] as [string, number]] : []),
+    ['Total', L(t.total)],
+  ];
+}
+
+const ESTILO_PRUEBA =
+  'border:3px double #b00;color:#b00;font-weight:800;font-size:16px;letter-spacing:1px;text-align:center;padding:6px;margin:6px 0;';
+
 function identificacionCliente(doc: DocumentoFiscal): string {
   const c = doc.cliente;
   if (c.rtn) return `RTN: ${formatearRTN(c.rtn)}`;
@@ -82,6 +104,10 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   const e = doc.emisor;
   const simbolo = doc.moneda === 'HNL' ? 'L' : '$';
   const idCliente = identificacionCliente(doc);
+  // Un documento de prueba lleva la leyenda al inicio y al final; uno real no cambia en nada.
+  const prueba = esDocumentoDePrueba(doc);
+  const marcaPrueba = prueba ? `<div class="prueba" style="${ESTILO_PRUEBA}">${esc(LEYENDA_PRUEBA)}</div>` : '';
+  const equivalente = equivalenteLempiras(doc);
 
   const lineas = doc.lineas
     .map(
@@ -123,7 +149,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(opciones.titulo ?? `${doc.nombreDocumento} ${doc.numero}`)}</title>
+<title>${prueba ? 'PRUEBA · ' : ''}${esc(opciones.titulo ?? `${doc.nombreDocumento} ${doc.numero}`)}</title>
 <style>
   :root { --tinta:#111; --suave:#555; --linea:#ccc; }
   * { box-sizing: border-box; }
@@ -153,7 +179,7 @@ export function renderizarHTML(doc: DocumentoFiscal, opciones: OpcionesRender = 
   @media print { .hoja { padding:${ticket ? '0' : '10mm'}; } @page { ${ticket ? 'size:80mm auto; margin:2mm;' : 'size:letter; margin:8mm;'} } }
 </style></head>
 <body><div class="hoja">
-${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anulada-motivo">Anulada el ${esc(fechaLegible(doc.anulacion!.fecha))}: ${esc(doc.anulacion!.motivo)}</div>` : ''}
+${marcaPrueba}${doc.estado === 'ANULADO' ? `<div class="anulada">ANULADA</div><div class="anulada-motivo">Anulada el ${esc(fechaLegible(doc.anulacion!.fecha))}: ${esc(doc.anulacion!.motivo)}</div>` : ''}
 <header>
   <div>
     ${opciones.logo ? `<img src="${esc(opciones.logo)}" alt="">` : ''}
@@ -195,7 +221,9 @@ ${doc.preciosIncluyenISV ? '<div class="desc">Precios incluyen ISV. G = gravado 
 
 <table class="totales"><tbody>${totales}</tbody></table>
 <div class="letras">${esc(doc.totales.totalEnLetras)}</div>
-${doc.moneda !== 'HNL' && doc.tipoCambio ? `<div>Tipo de cambio: L ${esc(doc.tipoCambio)} por ${esc(doc.moneda)}</div>` : ''}
+${doc.moneda !== 'HNL' && doc.tipoCambio ? `<div>Tipo de cambio: L ${esc(doc.tipoCambio)} por ${esc(doc.moneda)}</div>` : ''}${
+  equivalente ? `<div class="equivalente">Equivalente en lempiras: ${equivalente.map(([etq, monto]) => `${esc(etq)} L ${esc(formatearMonto(monto))}`).join(' · ')}</div>` : ''
+}
 ${doc.observaciones ? `<div class="bloque">${esc(doc.observaciones)}</div>` : ''}
 ${doc.tipoDocumento === '06' ? `<section class="bloque"><h3>Recibido por (Art. 26 num. 7)</h3>
   <div>Nombre: ______________________________</div>
@@ -205,7 +233,7 @@ ${doc.tipoDocumento === '06' ? `<section class="bloque"><h3>Recibido por (Art. 2
 <footer>
   <div>${esc(doc.destinoEjemplares)}</div>
   ${leyenda ? `<div>${esc(leyenda)}</div>` : ''}
-</footer>
+</footer>${marcaPrueba}
 </div></body></html>`;
 }
 
@@ -233,6 +261,15 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   };
   const e = doc.emisor;
   const sim = doc.moneda === 'HNL' ? 'L' : '$';
+
+  // Un documento de prueba lleva la leyenda al inicio y al final; uno real no cambia en nada.
+  const prueba = esDocumentoDePrueba(doc);
+  const marcaPrueba = () => {
+    out.push('*'.repeat(W));
+    centro(LEYENDA_PRUEBA);
+    out.push('*'.repeat(W));
+  };
+  if (prueba) marcaPrueba();
 
   // Art. 41: leyenda ANULADA al inicio y al final del texto impreso.
   const anulada = doc.estado === 'ANULADO';
@@ -284,6 +321,11 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   out.push(sep);
   izq(doc.totales.totalEnLetras);
   if (doc.moneda !== 'HNL' && doc.tipoCambio) izq(`Tipo de cambio: L ${doc.tipoCambio}`);
+  const equivalente = equivalenteLempiras(doc);
+  if (equivalente) {
+    izq('Equivalente en lempiras:');
+    for (const [etq, monto] of equivalente) par(`  ${etq}`, `L ${formatearMonto(monto)}`);
+  }
   if (doc.preciosIncluyenISV) izq('Precios incluyen ISV.');
   if (doc.tipoDocumento === '06') {
     out.push(sep);
@@ -296,6 +338,7 @@ export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number
   out.push(sep);
   centro(doc.destinoEjemplares);
   if (anulada) centro('*** ANULADA ***');
+  if (prueba) marcaPrueba();
   if (leyenda) centro(leyenda);
   return out.join('\n') + '\n';
 }
