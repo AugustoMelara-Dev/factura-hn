@@ -9,6 +9,16 @@
 # su puerto: solo la API lo alcanza, por la red interna de Compose (sin contraseñas en el repo). Para desarrollo
 # y pruebas, docker-compose.dev.yml publica la base en 127.0.0.1:54329. Para producción usa contraseñas y TLS
 # (ver docs/autoalojamiento.md).
+#
+# Por qué `trust` aquí (sin contraseña): la base no publica ningún puerto y solo la alcanzan los contenedores de
+# este proyecto, en su red interna; la API solo escucha en 127.0.0.1. Quien puede llegar a la base ya puede correr
+# `docker compose exec` en este equipo, y con eso entraría igual con o sin contraseña. Así `docker compose up -d
+# --build --wait` funciona sin crear nada antes. Por la misma razón FHN_MIGRAR_URL se queda en el entorno de la API:
+# con trust, quitarla no le quita a ese proceso el acceso como dueño. Lo que sí protege: la API atiende como
+# fhn_api (sin permisos de dueño ni BYPASSRLS) y cierra la conexión del dueño al terminar de migrar. En un equipo
+# compartido o en un servidor, pasa a contraseñas con un docker-compose.override.yml y un .env que no se versiona
+# (docs/autoalojamiento.md, «Contraseña de la base»): ahí DATABASE_URL lleva la de fhn_api y la del dueño queda solo
+# en FHN_MIGRAR_URL. Ni .env ni docker-compose.override.yml entran en la imagen (.dockerignore).
 services:
   db:
     image: postgres:16-alpine
