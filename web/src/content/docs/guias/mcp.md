@@ -29,7 +29,7 @@ cliente: [Servidor MCP](/ia/mcp/#pruébalo-en-3-pasos).
 
 En [Pruébalo ahora](/probar/) creas un entorno de prueba con tu **URL personal del MCP**. La pegas como conector
 personalizado en Claude (web, escritorio y móvil) o en ChatGPT, sin instalar nada. El entorno dura 24 horas y
-luego se borra con todo lo emitido.
+luego se borra con todo lo emitido. Los pasos para Claude y ChatGPT están en [MCP remoto](/ia/mcp-remoto/).
 
 ## Las herramientas
 
@@ -39,5 +39,6 @@ tu cliente lo permite.
 
 ## Sigue con
 
+- [MCP remoto](/ia/mcp-remoto/): conectar la URL personal en Claude o ChatGPT, y los límites de la demostración.
 - [Servidor MCP](/ia/mcp/): las 7 herramientas, el modo SQLite y el modo API, y la seguridad.
 - [IA y agentes](/ia/): prompts, la skill y `llms.txt`.
