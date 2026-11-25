@@ -504,7 +504,7 @@ conBase('arranque en modo demo', () => {
     }
   });
 
-  it('las funciones de la demo no se pueden ejecutar desde los roles de la API de datos de Supabase', async () => {
+  it('las funciones y tablas de factura-hn no quedan para los roles de la API de datos de Supabase', async () => {
     const admin = await poolPrueba();
     const existia = (await admin.query("SELECT 1 FROM pg_roles WHERE rolname = 'anon'")).rowCount === 1;
     if (!existia) await admin.query('CREATE ROLE anon NOLOGIN');
@@ -512,13 +512,25 @@ conBase('arranque en modo demo', () => {
     const esquema = decodeURIComponent(new URL(b.url).searchParams.get('options')!).split('=')[1]!;
     const p = new pg.Pool({ connectionString: b.url, max: 2 });
     try {
-      // Como en Supabase: lo nuevo del esquema se le da a anon por defecto.
+      // Como en Supabase: lo nuevo del esquema se le da a anon por defecto. Una tabla ajena a factura-hn no se toca.
       await p.query('ALTER DEFAULT PRIVILEGES IN SCHEMA ' + esquema + ' GRANT EXECUTE ON FUNCTIONS TO anon');
+      await p.query('ALTER DEFAULT PRIVILEGES IN SCHEMA ' + esquema + ' GRANT ALL ON TABLES TO anon');
+      await p.query('ALTER DEFAULT PRIVILEGES IN SCHEMA ' + esquema + ' GRANT ALL ON SEQUENCES TO anon');
+      await p.query(`CREATE TABLE ${esquema}.otra_aplicacion (id int)`);
       await migrarApi(p, ROL);
       for (const fn of ['fhn_api_purgar_demo(timestamptz, integer)', 'fhn_api_demo_resumen(timestamptz)', 'fhn_api_crear_entorno_demo(text, text, timestamptz, timestamptz, text, integer, integer, integer)']) {
         expect((await p.query("SELECT has_function_privilege('anon', $1, 'EXECUTE') AS puede", [esquema + '.' + fn])).rows[0].puede, fn).toBe(false);
         expect((await p.query("SELECT has_function_privilege($1, $2, 'EXECUTE') AS puede", [ROL, esquema + '.' + fn])).rows[0].puede, fn).toBe(true);
       }
+      // Tampoco las tablas: las que no tienen RLS (el interruptor global, las migraciones) quedarían abiertas por HTTP.
+      const tablas = (await p.query<{ t: string; anon: boolean }>(
+        `SELECT relname AS t, has_table_privilege('anon', oid, 'SELECT, INSERT, UPDATE, DELETE') AS anon FROM pg_class
+          WHERE relnamespace = $1::regnamespace AND relkind = 'r' ORDER BY relname`, [esquema],
+      )).rows;
+      expect(tablas.filter((f) => f.anon).map((f) => f.t)).toEqual(['otra_aplicacion']);
+      expect(tablas.map((f) => f.t)).toEqual(expect.arrayContaining(['api_demo_control', 'fhn_migraciones', 'api_tenants', 'fhn_documentos']));
+      expect((await p.query(`SELECT has_sequence_privilege('anon', $1, 'USAGE') AS puede`, [`${esquema}.api_bitacora_id_seq`])).rows[0].puede).toBe(false);
+      expect((await p.query(`SELECT has_table_privilege($1, $2, 'SELECT') AS puede`, [ROL, `${esquema}.api_demo_control`])).rows[0].puede).toBe(true);
     } finally {
       await p.end();
       await b.cerrar();
@@ -563,6 +575,75 @@ conBase('arranque en modo demo', () => {
     } finally {
       await p.end();
       await b.cerrar();
+    }
+  });
+
+  it('dueño sin superusuario ni BYPASSRLS (como Postgres de Supabase): migra, revisa la base, crea entornos, limpia y se niega ante datos reales', async (ctx) => {
+    const admin = await poolPrueba();
+    // Crear otro dueño y darle un esquema pide superusuario (el Postgres de las pruebas lo es; si FHN_PG_URL no, se omite).
+    if (!(await admin.query('SELECT rolsuper FROM pg_roles WHERE rolname = current_user')).rows[0]?.rolsuper) return ctx.skip();
+    const h = randomBytes(4).toString('hex');
+    const [dueno, app, login, esquema] = [`fhn_dueno_demo_${h}`, `fhn_app_demo_${h}`, `fhn_api_demo_${h}`, `prueba_demo_dueno_${h}`];
+    await admin.query(`CREATE ROLE ${dueno} LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS`);
+    await admin.query(`CREATE SCHEMA ${esquema} AUTHORIZATION ${dueno}; GRANT USAGE ON SCHEMA ${esquema} TO PUBLIC`);
+    const url = (usuario: string) => {
+      const u = new URL(URL_PG!);
+      u.username = usuario;
+      u.searchParams.set('options', `-c search_path=${esquema}`);
+      return u.toString();
+    };
+    // Como en Fly.io: la dirección pública por Fly-Client-IP y el MCP remoto por la red privada de la organización.
+    const env = {
+      ...ENV, FHN_ROL: app, DATABASE_URL: url(login), FHN_MIGRAR_URL: url(dueno),
+      FHN_IP_CLIENTE_CABECERA: 'Fly-Client-IP', FHN_PROXIES_DE_CONFIANZA: 'fdaa:0:1a2b::/48',
+    };
+    const p = new pg.Pool({ connectionString: url(dueno), max: 2 });
+    const salida = { log: [] as string[], error: [] as string[] };
+    const consola = (args: string[]) =>
+      ejecutarConsola(args, { env: { FHN_MIGRAR_URL: url(dueno), DATABASE_URL: url(login), FHN_ROL: app }, salida: { log: (t) => void salida.log.push(t), error: (t) => void salida.error.push(t) } });
+    try {
+      const s = await arrancar(env);
+      try {
+        const r = await s.app.request('/v1/demo/entornos', { method: 'POST', headers: { 'fly-client-ip': '203.0.113.10' } });
+        expect(r.status).toBe(201);
+        const e = await json(r);
+        expect((await emitir(e.llave, s.app)).status).toBe(201);
+        // El dueño solo ve las filas quitando el forzado de RLS en una transacción que se revierte: el forzado sigue.
+        expect(await datosRealesEnBase(p)).toEqual([]);
+        const forzadas = await p.query<{ relname: string }>(
+          "SELECT relname FROM pg_class WHERE relnamespace = current_schema()::regnamespace AND relname IN ('api_tenants', 'fhn_documentos') AND relforcerowsecurity ORDER BY relname",
+        );
+        expect(forzadas.rows.map((f) => f.relname)).toEqual(['api_tenants', 'fhn_documentos']);
+        // La sesión de la API no es el dueño, ni superusuario, ni salta RLS.
+        const yo = await s.app.request('/v1/sesion', { headers: { authorization: `Bearer ${e.llave}` } });
+        expect(yo.status).toBe(200);
+      } finally {
+        await s.cerrar();
+      }
+
+      // Vencido: la consola del operador (como el dueño) lo borra con todos sus datos.
+      await admin.query(`UPDATE ${esquema}.api_demo_entornos SET creado = now() - interval '2 days', expira = now() - interval '1 day'`);
+      expect(await consola(['demo', 'estado'])).toBe(0);
+      expect(salida.log.at(-1)).toMatch(/vigentes: 0 · vencidos por borrar: 1/);
+      expect(await consola(['demo', 'limpiar'])).toBe(0);
+      expect(salida.log.at(-1)).toBe('Entornos de prueba vencidos borrados: 1.');
+      for (const t of ['api_tenants', 'api_llaves', 'fhn_documentos', 'fhn_autorizaciones', 'api_demo_entornos']) {
+        expect((await admin.query(`SELECT count(*)::int AS n FROM ${esquema}.${t}`)).rows[0].n, t).toBe(0);
+      }
+      expect(await consola(['demo', 'pausar', '--motivo', 'prueba'])).toBe(0);
+      expect(await consola(['demo', 'reanudar'])).toBe(0);
+
+      // Un tenant de producción: el dueño lo ve pese al forzado de RLS y la API no arranca.
+      const { crearTenant } = await import('../src/operador');
+      await crearTenant(p, { tenant: 'negocio-real', nombre: 'Negocio Real' });
+      expect(await datosRealesEnBase(p)).toEqual([expect.stringMatching(/«negocio-real» es de producción/)]);
+      await expect(arrancar(env)).rejects.toThrow(/datos reales/);
+      expect(salida.error).toEqual([]);
+    } finally {
+      await p.end();
+      await admin.query(`DROP SCHEMA IF EXISTS ${esquema} CASCADE`);
+      // Si FHN_PG_URL no es superusuario, puede no poder borrar los roles que creó el dueño: quedan sin permisos.
+      for (const r of [login, app, dueno]) await admin.query(`DROP OWNED BY ${r}; DROP ROLE IF EXISTS ${r}`).catch(() => undefined);
     }
   });
 

@@ -499,6 +499,31 @@ BEGIN
 END $do$;
 `;
 
+/**
+ * En Supabase, los privilegios por defecto del esquema `public` dan todas las tablas y secuencias nuevas a los roles de
+ * su API de datos (`anon`, `authenticated`, `service_role`), y esa API las publica por HTTP con una llave que es
+ * pública por diseño. Las tablas sin RLS (`api_demo_control`, `fhn_migraciones`) quedarían a la vista y modificables
+ * desde internet. Se quitan esos privilegios en cada migración, solo en las tablas de factura-hn (`fhn_*`, `api_*`) del
+ * esquema: lo demás que haya en el esquema no se toca.
+ */
+const SIN_ROLES_API_DE_DATOS = `DO $do$
+DECLARE
+  v_rol text;
+  v_obj record;
+BEGIN
+  FOREACH v_rol IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+      FOR v_obj IN
+        SELECT c.relname, c.relkind FROM pg_class c
+         WHERE c.relnamespace = current_schema()::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+           AND (c.relname LIKE 'fhn\\_%' OR c.relname LIKE 'api\\_%')
+      LOOP
+        EXECUTE format('REVOKE ALL ON %s %I FROM %I', CASE WHEN v_obj.relkind = 'S' THEN 'SEQUENCE' ELSE 'TABLE' END, v_obj.relname, v_rol);
+      END LOOP;
+    END IF;
+  END LOOP;
+END $do$;`;
+
 const ROL = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** Permisos mínimos del rol de la aplicación: sin DELETE; columnas acotadas donde se actualiza. */
@@ -567,6 +592,8 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
     }
     // Fuera de la clave de versión: el rol LOGIN puede cambiar sin que cambie el esquema.
     if (sqlLogin) await c.query(sqlLogin);
+    // También fuera: los privilegios por defecto de un Postgres administrado pueden haber dado las tablas a otros roles.
+    await c.query(SIN_ROLES_API_DE_DATOS);
     await c.query('COMMIT');
   } catch (e) {
     await c.query('ROLLBACK').catch(() => undefined);
