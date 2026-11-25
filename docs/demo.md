@@ -268,13 +268,18 @@ repositorio. Lo esencial:
   máquina del MCP, porque esa cambia cuando la máquina se recrea. Así las solicitudes públicas cuentan por
   `Fly-Client-IP` y las del MCP, por el `X-Forwarded-For` que pone el MCP. Ojo: dentro de la red privada,
   cualquier máquina de la organización puede poner esas cabeceras; usa una organización sin otras aplicaciones.
-- **Base.** `DATABASE_URL` con el rol de la API (`fhn_api`) y `FHN_MIGRAR_URL` con el usuario `postgres` de Supabase,
-  que puede crear roles pero no es superusuario ni salta las políticas de fila: alcanza (las pruebas cubren un dueño
-  así: migración, revisión de arranque, entornos y limpieza). La migración corre antes de cada despliegue
-  (`release_command = "factura-hn-api migrar"`). Mejor la conexión directa (IPv6) o el pooler en modo sesión; en modo
-  transacción también funciona porque todo lo que la API fija en la conexión (`SET LOCAL ROLE`,
+- **Base, sin credenciales de dueño en el servidor.** La API en Fly solo tiene `DATABASE_URL` con su rol
+  (`fhn_api`) y arranca con `FHN_MIGRAR_AL_ARRANCAR=0`: no migra, exige que el esquema esté al día y que su rol no
+  sea dueño de las tablas, superusuario ni `BYPASSRLS`. La migración (`factura-hn-api migrar`, con `FHN_MODO=demo`
+  y `FHN_MIGRAR_URL` con el usuario `postgres` de Supabase) corre fuera de Fly, antes de cada despliegue: desde el
+  equipo de quien la administra o desde un entorno protegido de GitHub. Con `FHN_MODO=demo`, `migrar` también se
+  niega si la base tiene datos que no son de la demostración. El usuario `postgres` de Supabase puede crear roles
+  pero no es superusuario ni salta las políticas de fila: alcanza (las pruebas cubren un dueño así: migración,
+  revisión de la base, entornos y limpieza). La API usa la conexión directa (IPv6) o el pooler en modo sesión; el
+  modo transacción también funciona porque todo lo que la API fija en la conexión (`SET LOCAL ROLE`,
   `set_config(…, true)`) vale solo para su transacción. Node no conoce la autoridad del certificado de Supabase:
-  `sslmode=verify-full&sslrootcert=…` con el certificado del proyecto. El MCP remoto no tiene `DATABASE_URL`.
+  `sslmode=verify-full&sslrootcert=…` con el certificado del proyecto, nunca `no-verify`. El MCP remoto no tiene
+  `DATABASE_URL`.
 - **API de datos de Supabase.** Supabase publica por HTTP (PostgREST) los esquemas que se le indiquen, con los roles
   `anon`, `authenticated` y `service_role`, y la llave `anon` es pública por diseño. Desactiva la API de datos, o
   quita de «Exposed schemas» el esquema de factura-hn (`public`, si no le diste otro). Además, cada migración les
@@ -282,7 +287,7 @@ repositorio. Lo esencial:
   defecto de Supabase se los den; las tablas sin políticas de fila (el interruptor global, las migraciones) quedarían
   si no modificables desde internet.
 - **Gasto.** El tráfico saliente se cobra por GB y no hay tope de gasto: deja los límites por defecto, revisa
-  `demo estado` y ten a mano `demo pausar` (o `FHN_DEMO_PAUSADO=1` y reiniciar).
+  `demo estado` y ten a mano `demo pausar` (o `FHN_DEMO_PAUSADO=1`, que no necesita al dueño de la base).
 - **Limpieza.** La API ya limpia al arrancar y cada minuto: no hace falta una tarea programada aparte (por qué, en
   [despliegue-demo.md](despliegue-demo.md#limpieza-a-las-24-horas-el-reinicio-automático-de-los-datos)).
 - **El sitio.** La página «Pruébalo ahora» llama a `POST /v1/demo/entornos` desde el navegador. Toma la URL de la API

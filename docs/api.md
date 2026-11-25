@@ -180,6 +180,7 @@ Python contra la imagen de Docker en cada cambio.
 |---|---|---|
 | `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13; sirve Supabase). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas: migra y prepara el modo local al arrancar, y la usa la consola. Sin ella, la API usa `DATABASE_URL` para todo, corre como dueño de las tablas y lo avisa en el log |
+| `FHN_MIGRAR_AL_ARRANCAR` | `1` | `0`: la API no migra al arrancar ni necesita al dueño de las tablas; exige el esquema al día y que `DATABASE_URL` no sea dueño, superusuario ni `BYPASSRLS`. La migración corre aparte (`factura-hn-api migrar`). No sirve en modo local |
 | `FHN_MODO` | `local` | `local`, `alojado` o `demo` (la demostración pública, ver [demo](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
