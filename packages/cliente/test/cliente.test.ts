@@ -42,7 +42,7 @@ describe.skipIf(!URL_PG)('contra la API', () => {
       },
     });
     const cai = 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4';
-    await fhn.registrarAutorizacion({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31' });
+    await fhn.registrarAutorizacion({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: new Date(Date.now() + 300 * 86_400_000).toISOString().slice(0, 10) });
 
     const venta = { establecimiento: '000', puntoEmision: '001', documento: { preciosIncluyenISV: true, lineas: [{ descripcion: 'Café', cantidad: 2, precioUnitario: '57.50' }] } };
     const a = await fhn.emitir(venta, { idempotencyKey: 'venta-1' });

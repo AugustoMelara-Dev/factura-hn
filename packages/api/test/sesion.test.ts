@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, expect, it, describe } from 'vitest';
 import { crearApp } from '../src/app';
 import { crearTenant } from '../src/operador';
-import { cerrarPool, cliente, crearCaja, nombreTenant, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
+import { cerrarPool, cliente, crearCaja, DESPUES_DEL_LIMITE, nombreTenant, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -94,7 +94,7 @@ conBase('GET /v1/sesion', () => {
     expect(agotado.pendientes).toMatchObject([{ codigo: 'RANGO_AGOTADO', solucion: expect.stringContaining('POST /v1/autorizaciones') }]);
 
     const { llaveAdmin: otra } = await tenantListo();
-    const futuro = crearApp({ pool, modo: 'local', rol: ROL, registrar: () => undefined, reloj: () => new Date('2027-11-15T15:00:00Z') });
+    const futuro = crearApp({ pool, modo: 'local', rol: ROL, registrar: () => undefined, reloj: () => DESPUES_DEL_LIMITE });
     const vencida = await sesionDe(cliente(futuro, otra));
     expect(vencida.pendientes).toMatchObject([{ codigo: 'AUTORIZACION_VENCIDA' }]);
     expect(vencida.puntos[0].tipos[0].autorizaciones).toEqual([]);

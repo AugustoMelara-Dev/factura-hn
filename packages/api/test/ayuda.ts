@@ -21,6 +21,14 @@ const hex = (n: number) => randomBytes(n).toString('hex').toUpperCase();
 export const caiAleatorio = () => `${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(1)}`;
 export const nombreTenant = (p = 't') => `${p}-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
 
+const DIA_MS = 86_400_000;
+/** La fecha (AAAA-MM-DD, UTC) dentro de `dias` días: las pruebas no dependen del calendario. */
+export const fechaEn = (dias: number): string => new Date(Date.now() + dias * DIA_MS).toISOString().slice(0, 10);
+/** Fecha límite de emisión de los CAI de prueba: dentro de 300 días. */
+export const FECHA_LIMITE = fechaEn(300);
+/** Un instante 15 días después de `FECHA_LIMITE`, para probar autorizaciones vencidas. */
+export const DESPUES_DEL_LIMITE = new Date(`${fechaEn(315)}T15:00:00Z`);
+
 let pool: pg.Pool | null = null;
 export async function poolPrueba(): Promise<pg.Pool> {
   if (!pool) {
@@ -71,7 +79,7 @@ export async function tenantListo(
     for (const tipoDocumento of ['01', '06'] as const) {
       const a = await admin('POST', '/v1/autorizaciones', {
         cai: caiAleatorio(), tipoDocumento, establecimiento: '000', puntoEmision: punto,
-        rangoInicial: 1, rangoFinal: o.rangoFinal ?? 1000, fechaLimiteEmision: '2027-10-31',
+        rangoInicial: 1, rangoFinal: o.rangoFinal ?? 1000, fechaLimiteEmision: FECHA_LIMITE,
       });
       if (a.status !== 201) throw new Error(`autorización: ${a.status} ${await a.text()}`);
     }

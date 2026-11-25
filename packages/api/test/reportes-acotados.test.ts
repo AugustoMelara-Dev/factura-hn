@@ -10,7 +10,7 @@ import { fechaHonduras, filaLibroVentas, noUtilizadosDelAlmacen, type AlmacenFis
 import { crearApp } from '../src/app';
 import { exportarTextoAnterior } from '../../core/test/exportacion-anterior';
 import { libroVentasCSVAnterior, resumenVentasAnterior } from '../../core/test/libro-anterior';
-import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
+import { cerrarPool, cliente, crearCaja, fechaEn, poolPrueba, ROL, tenantListo, URL_PG, venta, type Cliente } from './ayuda';
 
 afterAll(cerrarPool);
 
@@ -147,9 +147,10 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     expect(await almacen.transaccion((tx) => tx.correlativos!('000-001-01'))).toEqual([1, 2, 3]);
     // Sin `correlativos` el núcleo recurre a los documentos completos: el resultado debe ser el mismo.
     const sinProyeccion: AlmacenFiscal = { transaccion: (fn) => almacen.transaccion((tx) => fn({ ...tx, correlativos: undefined })) };
-    for (const hoy of ['2026-12-01', '2027-11-20']) {
-      const proyectado = await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy, evento: hoy < '2027' ? { causal: 5, fecha: hoy } : undefined });
-      const completo = await noUtilizadosDelAlmacen(sinProyeccion, '000-001-01', { hoy, evento: hoy < '2027' ? { causal: 5, fecha: hoy } : undefined });
+    // Antes de la fecha límite, con un evento (causal 5); después, por vencimiento.
+    for (const [hoy, conEvento] of [[fechaEn(7), true], [fechaEn(320), false]] as const) {
+      const proyectado = await noUtilizadosDelAlmacen(almacen, '000-001-01', { hoy, evento: conEvento ? { causal: 5, fecha: hoy } : undefined });
+      const completo = await noUtilizadosDelAlmacen(sinProyeccion, '000-001-01', { hoy, evento: conEvento ? { causal: 5, fecha: hoy } : undefined });
       expect(proyectado).toEqual(completo);
       expect(proyectado.map((r) => [r.desde, r.hasta])).toEqual([[4, 1000]]);
     }

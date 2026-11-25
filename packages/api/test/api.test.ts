@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
 import { generarLlave } from '../src/llaves';
 import { crearLlaveOperador } from '../src/operador';
-import { cerrarPool, cliente, crearCaja, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
+import { cerrarPool, cliente, crearCaja, FECHA_LIMITE, poolPrueba, ROL, tenantListo, URL_PG, venta } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -46,7 +46,7 @@ conBase('autenticación y roles', () => {
     const { documento } = await json(r);
     expect((await caja('GET', `/v1/documentos/${documento.numero}`)).status).toBe(200);
     for (const [m, ruta, cuerpo] of [
-      ['POST', '/v1/autorizaciones', { cai: 'X', tipoDocumento: '01', establecimiento: '000', puntoEmision: '009', rangoInicial: 1, rangoFinal: 2, fechaLimiteEmision: '2027-01-01' }],
+      ['POST', '/v1/autorizaciones', { cai: 'X', tipoDocumento: '01', establecimiento: '000', puntoEmision: '009', rangoInicial: 1, rangoFinal: 2, fechaLimiteEmision: FECHA_LIMITE }],
       ['POST', `/v1/documentos/${documento.numero}/anular`, { motivo: 'x' }],
       ['POST', '/v1/series/000-001-01/corregir-fecha', { motivo: 'x' }],
       ['GET', '/v1/bitacora'],

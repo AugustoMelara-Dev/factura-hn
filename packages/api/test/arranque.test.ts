@@ -11,7 +11,7 @@ import { comandoLlaveAdminLocal, crearLlaveOperador, crearTenant, TENANT_DEMO, T
 import { usuarioDeUrlSiHay } from '../src/pool';
 import { arrancar } from '../src/servidor';
 import { CofreSecretos, despacharWebhooks } from '../src/webhooks';
-import { caiAleatorio, cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG, venta } from './ayuda';
+import { caiAleatorio, cerrarPool, cliente, EMISOR, FECHA_LIMITE, poolPrueba, ROL, URL_PG, venta } from './ayuda';
 
 const esquemas: string[] = [];
 const roles: string[] = [];
@@ -90,7 +90,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
         const admin = cliente(s.app, llaveAdmin);
         expect((await admin('POST', '/v1/emisores', EMISOR)).status).toBe(201);
         const aut = await admin('POST', '/v1/autorizaciones', {
-          cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
+          cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE,
         });
         expect(aut.status).toBe(201);
         expect((await admin('POST', '/v1/webhooks', { url: 'https://hooks.ejemplo.example/factura', eventos: ['documento.emitido'] })).status).toBe(201);
@@ -296,7 +296,7 @@ describe.skipIf(!URL_PG)('arranque', () => {
       const admin = cliente(s2.app, llaveAdmin);
       expect((await admin('POST', '/v1/emisores', EMISOR)).status).toBe(201);
       expect((await admin('POST', '/v1/autorizaciones', {
-        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2027-10-31',
+        cai: caiAleatorio(), tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE,
       })).status).toBe(201);
       expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': 'vieja' })).status).toBe(201);
     } finally {
