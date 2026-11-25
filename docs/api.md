@@ -96,6 +96,59 @@ Documentación interactiva en `/docs` y especificación en `/openapi.json` (tamb
 `anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método. La CI pasa
 la especificación por un linter (`pnpm lint:openapi`, Redocly) y falla con cualquier error.
 
+### Colecciones de Bruno y Postman, y clientes en otros lenguajes
+
+Para probar la API sin programar, el repositorio trae dos colecciones generadas de `packages/api/openapi.json`
+(`pnpm colecciones`; no se editan a mano): `colecciones/bruno/` y `colecciones/postman/`. Las dos tienen una
+carpeta por etiqueta, con una solicitud por operación, y antes la carpeta **Primera factura**: sesión, emitir y
+descargar el PDF, con pruebas. Las dos traen el entorno `demo` (`baseUrl` = `http://127.0.0.1:8787` y `llave`,
+secreta y vacía) y un script previo que pone una `Idempotency-Key` nueva en cada solicitud: cada envío de
+«Emitir» es otra venta y emite otra factura de prueba. En tu sistema la clave es estable por venta (el id del
+pedido), no una nueva por intento.
+
+Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea una llave de caja del demo con
+`docker compose exec -T api factura-hn-api demo llave --solo-llave`.
+
+- **Bruno** ([usebruno.com](https://www.usebruno.com/), sin cuenta): abre la carpeta `colecciones/bruno` como
+  colección, elige el entorno `demo` y pega la llave en `llave`. Desde la terminal, con la CLI que trae el
+  repositorio como dependencia de desarrollo:
+
+  ```bash
+  pnpm install
+  LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
+  pnpm --filter @factura-hn/colecciones bruno --env-var "llave=$LLAVE"            # corre «Primera factura»
+  ```
+
+  Con la API en otro puerto, agrega `--env-var baseUrl=http://127.0.0.1:8788`.
+- **Postman**: importa `colecciones/postman/factura-hn.postman_collection.json` y el entorno
+  `colecciones/postman/demo.postman_environment.json`, elige `demo` y pega la llave en `llave`. La colección no
+  está en el espacio público de Postman.
+
+**Python.** `clientes/python/` genera un cliente con
+[openapi-python-client](https://github.com/openapi-generators/openapi-python-client) y lo prueba emitiendo una
+factura de prueba (correlativo, total y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»). El código generado no
+se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual dentro del repositorio:
+
+```bash
+python -m venv .venv-python
+.venv-python/bin/pip install -r clientes/python/requirements.txt     # en Windows: .venv-python\Scripts\pip
+.venv-python/bin/python clientes/python/generar.py
+FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=$LLAVE .venv-python/bin/python -m pytest clientes/python
+```
+
+En tu proyecto, `from factura_hn_api import AuthenticatedClient` y
+`from factura_hn_api.api.documentos import emitir_documento`: cada método se llama como el `operationId` de su
+operación, en snake_case. Los módulos se agrupan por etiqueta (`documentos`, `webhooks`…); los de etiquetas con
+tilde quedan como `sesi_ó_n` y `auditor_í_a`.
+
+**Otros lenguajes.** Genera el cliente desde `/openapi.json` (OpenAPI 3.1) con el generador de tu lenguaje, por
+ejemplo [Kiota](https://learn.microsoft.com/openapi/kiota/) (C#, PHP, Go, Java, Python…) o
+openapi-generator si soporta los `anyOf` y los tipos con `null` de 3.1. Lo que ningún generador hace por ti y
+hay que escribir a mano: una `Idempotency-Key` estable por venta, mostrar tal cual los errores 422
+(`errores[].mensaje`), la cabecera `X-Operador` codificada con `encodeURIComponent` si lleva tildes, y la
+verificación de la firma de los webhooks (ver «Webhooks»). La CI corre la colección de Bruno y la prueba de
+Python contra la imagen de Docker en cada cambio.
+
 ### Variables de entorno
 
 | Variable | Por defecto | |
