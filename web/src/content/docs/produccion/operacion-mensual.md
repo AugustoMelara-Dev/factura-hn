@@ -110,7 +110,7 @@ Cómo cuenta los plazos, y qué decisiones hay detrás:
 - Para el vencimiento, el acontecimiento es la fecha límite misma. Es la lectura conservadora: el aviso nunca queda
   tarde (DEC-009).
 - Solo descuenta sábados y domingos. Los feriados de Honduras cambian por decreto y el SDK no los trae: pásalos en
-  `feriados`. Sin ellos, la fecha calculada puede quedar uno o dos días después de la real (DEC-010 [REVISAR]).
+  `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real (DEC-010 [REVISAR]).
 - No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR (DEC-094).
 
 Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).

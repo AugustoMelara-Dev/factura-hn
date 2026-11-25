@@ -69,7 +69,7 @@ una regla del SAR: son **interpretaciones pendientes de revisión**, y conviene 
 | Decisión | Qué se decidió | Por qué importa |
 |---|---|---|
 | DEC-008 [REVISAR] | `ultimoEmitidoAntes`: al migrar desde otro sistema o un talonario, la serie continúa en el número siguiente y los anteriores se tratan como documentos externos | Notas sobre documentos emitidos antes de la migración |
-| DEC-010 [REVISAR] | El plazo del Art. 42 descuenta solo sábados y domingos; los feriados los pasa el integrador | Sin feriados, la fecha límite del aviso puede quedar 1 o 2 días después de la real |
+| DEC-010 [REVISAR] | El plazo del Art. 42 descuenta solo sábados y domingos; los feriados los pasa el integrador | Sin feriados, la fecha límite del aviso puede quedar uno o más días después de la real |
 | DEC-011 [REVISAR] | El archivo de texto del Art. 53 num. 5 usa formatos propios (jsonl, csv, txt) y conserva los importes de los anulados | No hay formato oficial (P-14) |
 | DEC-012 [REVISAR] | El asiento contable (Art. 53 num. 1) corre dentro de la transacción fiscal: si falla, no hay documento | Integración con la contabilidad o el inventario |
 | DEC-025 [REVISAR] | El aviso de renovación se abre dos meses de calendario antes de la fecha límite (Art. 59) | Cuándo empieza a avisar la caja |
