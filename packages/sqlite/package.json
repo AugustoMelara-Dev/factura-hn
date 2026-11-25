@@ -1,6 +1,6 @@
 {
   "name": "@factura-hn/sqlite",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Adaptador SQLite de AlmacenFiscal para factura-hn (POS fuera de línea). Funciona con better-sqlite3 o node:sqlite. Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
