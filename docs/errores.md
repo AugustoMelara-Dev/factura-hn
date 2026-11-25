@@ -564,6 +564,17 @@ moneda: la mayoría de estos errores desaparecen.
   control.
 - **Solución:** corrígelo u omite el campo. No lo exige el Reglamento: es para la bitácora y el «Atendido por».
 
+### TEXTO_CARACTER_NO_PERMITIDO
+
+- **Qué significa:** un texto de la entrada (emisor, cliente, líneas, referencia, exoneración, motivo,
+  observaciones…) tiene un carácter de control, como NUL (` `) o ESC, o la mitad suelta de un par sustituto
+  UTF-16. `campo` dice cuál, por ejemplo `lineas[0].descripcion`.
+- **Causa:** casi siempre un copiar y pegar, un lector de códigos de barras o un texto mal decodificado.
+- **Solución:** quita esos caracteres. De los de control se permiten el tabulador, el salto de línea y el retorno
+  de carro.
+- **Base:** no es una regla fiscal. PostgreSQL no guarda esos caracteres en `jsonb` (la emisión terminaba en error
+  500) y la impresora toma los de control como comandos (DEC-060). Se rechaza antes de consumir número.
+
 ## SDK: avisos
 
 ### AVISO_AJUSTE_CENTAVO

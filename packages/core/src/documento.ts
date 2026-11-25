@@ -168,6 +168,54 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
 }
 
 /**
+ * Caracteres que ningún texto de un documento puede llevar:
+ * - los de control Unicode (categoría Cc: C0, DEL y C1), salvo el tabulador, el salto de línea y el retorno de
+ *   carro, que tienen sentido en texto libre (descripciones, direcciones, observaciones);
+ * - las mitades sueltas de un par sustituto UTF-16, que no son texto válido.
+ * No es una regla fiscal: un NUL o un sustituto suelto no se pueden guardar en `jsonb` de PostgreSQL (la
+ * emisión o el listado terminaban en error 500) y los de control la impresora los toma como comandos (DEC-060).
+ */
+const CARACTER_NO_PERMITIDO = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/** Profundidad máxima que se recorre en la entrada; más allá no hay campos del documento. */
+const PROFUNDIDAD_TEXTOS = 6;
+
+/**
+ * Un problema `TEXTO_CARACTER_NO_PERMITIDO` por cada texto de la entrada que lleva un carácter no permitido
+ * (`CARACTER_NO_PERMITIDO`). Recorre todos los textos (emisor, cliente, líneas, referencia, exoneración, motivo,
+ * observaciones…), no solo los que el SDK conoce. `operador` ya lo valida `problemaDeOperador` (código `OPERADOR`).
+ */
+export function problemasDeTexto(entrada: unknown): Problema[] {
+  const problemas: Problema[] = [];
+  const recorrer = (valor: unknown, campo: string, profundidad: number): void => {
+    if (typeof valor === 'string') {
+      const m = CARACTER_NO_PERMITIDO.exec(valor);
+      if (m) {
+        const punto = `U+${m[0].charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+        const que = /[\ud800-\udfff]/.test(m[0]) ? `una mitad suelta de un par sustituto UTF-16 (${punto})` : `un carácter de control (${punto})`;
+        problemas.push({
+          codigo: 'TEXTO_CARACTER_NO_PERMITIDO',
+          mensaje: `El texto de «${campo}» tiene ${que} en la posición ${m.index + 1}. De los caracteres de control solo se permiten el tabulador y los saltos de línea.`,
+          campo,
+        });
+      }
+      return;
+    }
+    if (profundidad >= PROFUNDIDAD_TEXTOS || valor === null || typeof valor !== 'object') return;
+    if (Array.isArray(valor)) {
+      valor.forEach((v, i) => recorrer(v, `${campo}[${i}]`, profundidad + 1));
+      return;
+    }
+    for (const [clave, v] of Object.entries(valor)) {
+      if (profundidad === 0 && clave === 'operador') continue;
+      recorrer(v, campo ? `${campo}.${clave}` : clave, profundidad + 1);
+    }
+  };
+  recorrer(entrada, '', 0);
+  return problemas;
+}
+
+/**
  * Problemas de los datos del emisor: todos son obligatorios (Reglamento Art. 10 num. 1; Arts. 25 y 27 num. 1
  * para las notas). Es la misma comprobación que hace `emitir`; sirve para validar la configuración del negocio
  * al arrancar.
@@ -213,6 +261,7 @@ export function validarEntrada(
   if (problemaTipo) problemas.push(problemaTipo);
   const problemaOperador = problemaDeOperador(entrada.operador);
   if (problemaOperador) problemas.push(problemaOperador);
+  problemas.push(...problemasDeTexto(entrada));
 
   // Autorización
   problemas.push(...validarAutorizacion(autorizacion, { caiEstricto: opciones.caiEstricto ?? false }));
