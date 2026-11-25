@@ -2445,6 +2445,20 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Reglas fiscales: lista de errores */
             422: {
                 headers: {

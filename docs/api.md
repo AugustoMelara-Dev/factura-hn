@@ -309,6 +309,9 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
   página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
   El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
   páginas solo (`fhn.documentos`) o una por una (`fhn.paginaDocumentos`).
+- Una página de `GET /v1/documentos` trae además a lo sumo unos 8 MiB de documentos: se corta antes del documento
+  que empieza pasado ese tope (siempre trae al menos uno). Puede traer menos de `limite` con `hayMas: true`; sigue
+  pidiendo mientras `hayMas` sea `true`, no hasta recibir menos de `limite`.
 - Los reportes (`libro-ventas`, `exportacion`, `no-utilizados`) y `corregir-fecha` responden completos.
 
 ### Cabeceras de cada respuesta
@@ -587,7 +590,10 @@ tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se
   (y de fallos por llave), aplicado **antes** de consultar la base (ver «Límites de solicitudes»); límite de documentos por mes
   por tenant, en la base. El último uso de una llave se registra solo con el secreto correcto.
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
-  IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.
+  IPv4 incrustadas; también los nombres con punto final, como `localhost.`), y la conexión va a la misma IP que se
+  validó (sin DNS rebinding) y sin redirecciones. De la respuesta del receptor solo se guarda el código de estado.
+- Las pruebas de `packages/api/test/owasp/` recorren el OWASP API Security Top 10 (2023) contra la API; el resultado
+  está en `docs/calidad/owasp.md` y se repite con `pnpm calidad:owasp`.
 - `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca. Sin definir, avisa en el log; en
   modo local, una base con tenants de otros negocios no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión

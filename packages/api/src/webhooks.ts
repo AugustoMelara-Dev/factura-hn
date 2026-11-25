@@ -209,7 +209,9 @@ export function problemaDeURL(url: string, permitirRedInterna: boolean): string 
   if (u.username || u.password) return 'La URL no puede llevar usuario ni contraseña.';
   if (permitirRedInterna) return u.protocol === 'https:' || u.protocol === 'http:' ? null : 'Solo http o https.';
   if (u.protocol !== 'https:') return 'En el modo alojado los webhooks deben usar https.';
-  const host = u.hostname.replace(/^\[|\]$/g, '');
+  // Sin el punto final: «localhost.» y «servicio.internal.» son los mismos nombres (FQDN) y resuelven igual.
+  const host = u.hostname.replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+  if (!host) return 'URL inválida.';
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) {
     return 'El destino no puede ser una dirección interna.';
   }
