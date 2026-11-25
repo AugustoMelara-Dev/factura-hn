@@ -27,9 +27,11 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 ## Principios no negociables
 
 1. **No inventes reglas fiscales.** Usa `validarEntrada` y `emitir`, y muestra al usuario los mensajes de
-   `ErrorValidacion.errores` tal cual (traen `codigo`, `mensaje` y `campo`).
+   `ErrorValidacion.errores` tal cual (traen `codigo`, `mensaje`, `campo` y, si el código es del SDK,
+   `solucion` y `documentacion`, un enlace al catálogo `docs/errores.md`).
 2. **Un solo camino.** Se emite con `emitir` y se anula con `anular`, siempre sobre un `AlmacenFiscal`. No
-   calcules el siguiente número por tu cuenta ni guardes el documento en otra transacción.
+   calcules el siguiente número por tu cuenta ni guardes el documento en otra transacción. La fachada
+   `crearFacturador` llama a esas mismas funciones: úsala si prefieres configurar una sola vez.
 3. **Usa un almacén probado.** `@factura-hn/postgres` (`AlmacenPostgres`) o `@factura-hn/sqlite`
    (`AlmacenSQLite`). Si el proyecto usa otra base, implementa `AlmacenFiscal` y hazlo pasar la batería
    `ejecutarContratoAlmacen` de `factura-hn/pruebas` (ver `docs/persistencia.md`). `AlmacenFiscalMemoria` es
@@ -73,6 +75,33 @@ await registrarAutorizacion(almacen, {
 
 Cada tipo de documento (01, 06, 07) y cada punto de emisión tiene **su propia autorización y su propia
 serie**. Cuando el SAR otorga un rango nuevo, se registra igual; la numeración continúa sola.
+
+## Prueba primero y fachada
+
+Para ver una factura sin CAI real ni base: `npx factura-hn demo` (escribe `factura-demo.html`) o
+`npx factura-hn init` (crea `emitir.mjs` y `emisor.json`) y `node emitir.mjs`. En código,
+`crearFacturadorDemo()` de `factura-hn/demo` devuelve un facturador en memoria con CAI ficticios de prueba
+(`autorizacionDemo()`). Todo lo que emite lleva `modo: 'prueba'` y la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
+FISCAL» en todo impreso. **No uses `factura-hn/demo` en producción**: ahí el CAI viene de la resolución del SAR.
+Prueba en otro almacén (otra base), nunca en el de producción. `exportarTexto` y `libroVentas` dejan fuera los
+documentos de prueba; `esCAIDemo(cai)` reconoce un CAI ficticio.
+
+`crearFacturador({ almacen, emisor, establecimiento, puntoEmision })` guarda la configuración del negocio y
+expone `registrarAutorizacion`, `cotizar`, `emitir`, `notaCredito`, `notaDebito`, `anular`, `documento` y
+`documentos`. Es una fachada sobre `emitir` y `anular`: mismas validaciones, misma transacción y misma bitácora.
+Créala una vez al arrancar (no en cada petición) y registra el CAI una vez, desde la configuración.
+
+<!-- declaraciones:
+import type { AlmacenFiscal, Emisor } from 'factura-hn';
+declare const almacen: AlmacenFiscal;
+declare const emisor: Emisor;
+-->
+```ts
+import { crearFacturador } from 'factura-hn';
+
+const caja = crearFacturador({ almacen, emisor, establecimiento: '000', puntoEmision: '001', preciosIncluyenISV: true });
+const factura = await caja.emitir({ lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '2', precioUnitario: '89.50' }] });
+```
 
 ## Mapeo carrito → `DocumentoEntrada`
 
@@ -308,9 +337,15 @@ Si el agente debe operar la facturación (no integrarla), usa el servidor MCP `@
 
 ## Referencia rápida de errores
 
+Cada error del SDK trae su `solucion` y un enlace (`documentacion`) a su explicación en `docs/errores.md`.
+
 | Código | Qué hacer |
 |---|---|
+| `ALMACEN_REQUERIDO` | Pasar `almacen` (un `AlmacenFiscal`) a la llamada o a `crearFacturador` |
 | `SIN_AUTORIZACION` | Registrar el CAI de ese punto de emisión y tipo |
+| `AUTORIZACION_MODO_MEZCLADO` | No mezclar CAI de prueba y reales en un punto de emisión: probar en otro almacén (otra base) |
+| `AUTORIZACION_PRUEBA_CAI_REAL` | `prueba: true` solo con un CAI ficticio (`DEMO00-NO-VALIDO-…`); con un CAI real, quitarlo |
+| `REFERENCIA_MODO_MEZCLADO` | La nota va en el mismo modo (prueba o real) que su documento |
 | `AUTORIZACION_VENCIDA` / `RANGO_AGOTADO` | Pedir al usuario que registre un nuevo CAI |
 | `RANGO_SOLAPADO` / `AUTORIZACION_DUPLICADA` | Revisar los datos de la resolución: el rango ya está registrado |
 | `FECHA_EMISION_NO_ES_HOY` | No enviar `fechaEmision`: la pone el reloj |

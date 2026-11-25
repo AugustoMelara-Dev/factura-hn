@@ -15,6 +15,7 @@
  */
 import { centavosATexto, redondearDecimal, textoSeguroCSV } from './dinero';
 import type { TransaccionFiscal } from './almacen';
+import { esDocumentoDePrueba } from './modo';
 import type { DocumentoFiscal, ResumenDocumento } from './tipos';
 
 export type FormatoExportacion = 'jsonl' | 'csv' | 'txt';
@@ -67,9 +68,12 @@ function fila(d: ResumenDocumento): Record<(typeof COLUMNAS)[number], string> {
  *
  * Los anulados se exportan con sus importes originales y `estado = ANULADO`: el archivo conserva lo que se
  * emitió; quien lo procese decide cómo contarlo (el libro de ventas los pone en cero).
+ *
+ * Los documentos de prueba (`esDocumentoDePrueba`) no se exportan: no tienen valor fiscal. El formato de las
+ * filas no cambia; para saber cuántos quedaron fuera, usa `separarDocumentosDePrueba(docs).excluidos`.
  */
 export function exportarTexto(docs: readonly DocumentoFiscal[], opciones: { formato: FormatoExportacion }): string {
-  const ordenados = [...docs].sort((a, b) => (a.numero < b.numero ? -1 : a.numero > b.numero ? 1 : 0));
+  const ordenados = separarDocumentosDePrueba(docs).reales.sort((a, b) => (a.numero < b.numero ? -1 : a.numero > b.numero ? 1 : 0));
   return inicioExportacion(opciones.formato, ordenados.length) + ordenados.map((d) => lineaExportacion(d, opciones.formato)).join('');
 }
 
@@ -92,7 +96,21 @@ export function inicioExportacion(formato: FormatoExportacion, total: number): s
   }
 }
 
-/** Línea de un documento en el archivo de `exportarTexto`, con su salto de línea final. `jsonl` necesita el documento completo. */
+/**
+ * Separa los documentos reales de los de prueba (`esDocumentoDePrueba`: `modo: 'prueba'` o CAI ficticio).
+ * `exportarTexto` y `libroVentas` lo usan para dejar fuera los de prueba; `excluidos` dice cuántos quedaron
+ * fuera. Úsalo también antes de `lineaExportacion` o `filaLibroVentas` cuando armes el archivo por partes.
+ */
+export function separarDocumentosDePrueba<T extends Pick<DocumentoFiscal, 'modo' | 'cai'>>(docs: readonly T[]): { reales: T[]; excluidos: number } {
+  const reales = docs.filter((d) => !esDocumentoDePrueba(d));
+  return { reales, excluidos: docs.length - reales.length };
+}
+
+/**
+ * Línea de un documento en el archivo de `exportarTexto`, con su salto de línea final. `jsonl` necesita el
+ * documento completo. No filtra: si armas el archivo por partes, deja fuera los documentos de prueba
+ * (`esDocumentoDePrueba`) y cuenta solo los reales en `inicioExportacion`.
+ */
 export function lineaExportacion(d: DocumentoFiscal, formato: FormatoExportacion): string;
 export function lineaExportacion(d: ResumenDocumento, formato: 'csv' | 'txt'): string;
 export function lineaExportacion(d: ResumenDocumento, formato: FormatoExportacion): string {

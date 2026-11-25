@@ -4,6 +4,8 @@
 import type { AutorizacionCAI, Problema } from './tipos';
 import { CORRELATIVO_MAXIMO, TIPOS_DOCUMENTO } from './numeracion';
 import { esCAIValido, normalizarCAI, PATRON_CAI_BASICO } from './identificacion';
+import { conSolucion } from './errores';
+import { esCAIDemo } from './modo';
 
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -82,8 +84,19 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
     problemas.push({ codigo: 'PUNTO_EMISION', mensaje: 'Punto de emisión debe tener hasta 3 dígitos.', campo: 'puntoEmision' });
   }
   const enRango = (n: number) => Number.isInteger(n) && n >= 1 && n <= CORRELATIVO_MAXIMO;
-  if (!enRango(aut.rangoInicial) || !enRango(aut.rangoFinal) || aut.rangoInicial > aut.rangoFinal) {
-    problemas.push({ codigo: 'RANGO', mensaje: 'Rango autorizado inválido.', campo: 'rangoInicial' });
+  if (!enRango(aut.rangoInicial) || !enRango(aut.rangoFinal)) {
+    const malo = !enRango(aut.rangoInicial) ? 'rangoInicial' : 'rangoFinal';
+    problemas.push({
+      codigo: 'RANGO',
+      mensaje: `Rango autorizado inválido: ${malo} (${String(aut[malo])}) debe ser un entero entre 1 y ${CORRELATIVO_MAXIMO}.`,
+      campo: malo,
+    });
+  } else if (aut.rangoInicial > aut.rangoFinal) {
+    problemas.push({
+      codigo: 'RANGO',
+      mensaje: `Rango autorizado inválido: el inicial (${aut.rangoInicial}) es mayor que el final (${aut.rangoFinal}).`,
+      campo: 'rangoInicial',
+    });
   }
   if (!esFechaValida(aut.fechaLimiteEmision)) {
     problemas.push({ codigo: 'FECHA_LIMITE', mensaje: 'fechaLimiteEmision debe ser YYYY-MM-DD.', campo: 'fechaLimiteEmision' });
@@ -105,7 +118,22 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
       }
     }
   }
-  return problemas;
+  // Producto, no regla fiscal: `prueba` es booleano, y solo un CAI ficticio puede ser de prueba. Así un CAI
+  // con forma real nunca gasta correlativos en documentos «sin valor fiscal».
+  if (aut.prueba !== undefined && typeof aut.prueba !== 'boolean') {
+    problemas.push({
+      codigo: 'AUTORIZACION_PRUEBA_FORMATO',
+      mensaje: `«prueba» debe ser true o false (booleano), no ${JSON.stringify(aut.prueba)}.`,
+      campo: 'prueba',
+    });
+  } else if (aut.prueba === true && aut.cai && !esCAIDemo(aut.cai)) {
+    problemas.push({
+      codigo: 'AUTORIZACION_PRUEBA_CAI_REAL',
+      mensaje: `El CAI ${aut.cai} no es ficticio: una autorización de prueba usa un CAI que empieza con DEMO00-NO-VALIDO-.`,
+      campo: 'prueba',
+    });
+  }
+  return problemas.map((p) => (esAdvertencia(p) ? p : conSolucion(p)));
 }
 
 /** Separa errores bloqueantes de advertencias. */

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "paths": {
       "factura-hn": ["../core/src/index.ts"],
-      "factura-hn/pruebas": ["../core/src/pruebas.ts"]
+      "factura-hn/pruebas": ["../core/src/pruebas.ts"],
+      "factura-hn/demo": ["../core/src/demo.ts"]
     }
   },
   "include": ["src", "test", "vitest.config.ts"]
