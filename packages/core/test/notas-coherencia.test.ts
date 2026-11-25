@@ -1,5 +1,5 @@
 /**
- * B-13 · coherencia de las notas de crédito (06) y débito (07) con el documento que modifican.
+ * Coherencia de las notas de crédito (06) y débito (07) con el documento que modifican.
  * Reglamento Art. 4 num. 31-32 (definiciones), Art. 6 (Comprobantes Fiscales), Arts. 26 y 28 (requisitos al
  * emitir), Art. 41 (anulación).
  */
@@ -112,13 +112,13 @@ describe('contra el almacén, dentro de emitir', () => {
     expect(await codigoAlEmitir(nota({ ...factura, numero: '000-001-01-00000050' }))).toBe('REFERENCIA_NO_EXISTE');
   });
 
-  it('DEC-004: original fuera del almacén (talonario de imprenta u otro sistema): se emite con AVISO_ORIGINAL_EXTERNO', async () => {
+  it('original fuera del almacén (talonario de imprenta u otro sistema): se emite con AVISO_ORIGINAL_EXTERNO', async () => {
     const nc = await emitir(nota({ cai: 'FFFFFF-D4E5F6-A1B2C3-D4E5F6-A1B2C3-99', numero: '000-002-01-00000010', fechaEmision: '2026-10-01' }), { almacen, ...caja });
     expect(nc.advertencias.map((p) => p.codigo)).toEqual(['AVISO_ORIGINAL_EXTERNO']);
     expect(nc.referencia).toEqual({ cai: 'FFFFFF-D4E5F6-A1B2C3-D4E5F6-A1B2C3-99', numero: '000-002-01-00000010', fecha: '2026-10-01' });
   });
 
-  it('DEC-004: original emitido antes de la migración (ultimoEmitidoAntes): aviso; la serie continúa después', async () => {
+  it('original emitido antes de la migración (ultimoEmitidoAntes): aviso; la serie continúa después', async () => {
     const migrado = new AlmacenFiscalMemoria();
     await registrarAutorizacion(migrado, { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-0F'), ultimoEmitidoAntes: 40 });
     await registrarAutorizacion(migrado, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));

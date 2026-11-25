@@ -1,5 +1,5 @@
 /**
- * Lote 4: un NUL (u otro carácter de control) en un texto de la venta llegaba a Postgres y el listado de documentos
+ * Un NUL (u otro carácter de control) en un texto de la venta llegaba a Postgres y el listado de documentos
  * respondía 500 (`datos::jsonb - 'lineas'`). Ahora el núcleo lo rechaza con 422 `TEXTO_CARACTER_NO_PERMITIDO`.
  */
 import { randomUUID } from 'node:crypto';

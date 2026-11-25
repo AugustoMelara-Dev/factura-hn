@@ -26,7 +26,7 @@ descuento. Si el documento tuvo un error al emitirse, se anula y se emite otro (
 | Motivo | Art. 26 num. 4 | `motivo` obligatorio |
 | Importe en números y letras, impuestos por tarifa, fecha, descripción y unidades | Art. 26 num. 5-6, 8 y 10 | Igual que en la factura |
 | Nombre, identidad y firma de quien recibe la nota | Art. 26 num. 7 | El impreso deja los tres campos en blanco para llenarlos a mano |
-| Moneda nacional | Art. 26 num. 9 | Solo en lempiras (`NOTA_MONEDA`; DEC-018) |
+| Moneda nacional | Art. 26 num. 9 | Solo en lempiras (`NOTA_MONEDA`) |
 
 ## Campos obligatorios
 
@@ -98,10 +98,10 @@ Si el original está en el mismo almacén, `emitir` lo compara con la nota. Esta
 se emite y no consume número.
 
 - **El original existe y no está anulado.** Un documento anulado no respalda una operación que ajustar:
-  `REFERENCIA_ANULADA` (DEC-004, aprobada; el Art. 41 trata el anulado como un documento con errores).
-- **Mismo CAI, fecha y RTN del adquirente** (Art. 26 num. 1-3; DEC-004, aprobada):
+  `REFERENCIA_ANULADA` (el Art. 41 trata el anulado como un documento con errores).
+- **Mismo CAI, fecha y RTN del adquirente** (Art. 26 num. 1-3):
   `REFERENCIA_CAI_NO_COINCIDE`, `REFERENCIA_FECHA_NO_COINCIDE`, `REFERENCIA_RTN_NO_COINCIDE`.
-- **La nota no es anterior al original** (DEC-017, aprobada): `REFERENCIA_FECHA_POSTERIOR`.
+- **La nota no es anterior al original**: `REFERENCIA_FECHA_POSTERIOR`.
 - **Mismo modo.** Una nota de prueba no modifica un documento real, ni al revés: `REFERENCIA_MODO_MEZCLADO`.
   Esta regla es del producto, no fiscal.
 
@@ -115,11 +115,10 @@ tipo de cambio.
 La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV sobre un original exonerado
 (`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
 
-:::caution[Interpretación pendiente de revisión]
+:::caution[Lectura de factura-hn]
 Ningún artículo fija un tope numérico para la Nota de Crédito. El tope y la regla de la tasa se derivan del
 Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así que no puede devolver más de lo vendido ni a
-otra tasa. Es la DEC-051, marcada [REVISAR]. Todavía no está en la [consulta al SAR](/produccion/consulta-sar/);
-consulta con tu contador.
+otra tasa. Es la lectura que aplica factura-hn; confírmala con tu contador.
 :::
 
 ## El RTN del adquirente
@@ -130,9 +129,10 @@ Toda nota lleva nombre y RTN del adquirente (Art. 26 num. 1-2). Por eso una devo
 Si pasas `cliente` con nombre y RTN y el original no tenía RTN, la nota se emite con
 `AVISO_ORIGINAL_SIN_RTN`: confirma que es el mismo cliente.
 
-:::caution[Interpretación pendiente de revisión]
-Si una nota sobre un original sin RTN debe aceptarse, y con qué RTN, no está decidido. Así, la nota puede dar
-crédito fiscal a un adquirente que el original no identificaba. Es la DEC-079, marcada [REVISAR]. Consulta con tu
+:::caution[Lectura de factura-hn]
+Los Arts. 26 y 28 no dicen si una nota sobre un original sin RTN debe aceptarse, ni con qué RTN. factura-hn la
+acepta con el aviso `AVISO_ORIGINAL_SIN_RTN`; así, la nota puede dar crédito fiscal a un adquirente que el original
+no identificaba. Consulta con tu
 contador antes de emitir notas sobre ventas a consumidor final.
 :::
 
@@ -140,7 +140,7 @@ contador antes de emitir notas sobre ventas a consumidor final.
 
 Una nota puede modificar un documento emitido en un talonario de imprenta, en otro sistema o antes de migrar a
 factura-hn. Como no hay con qué compararlo, se emite con la referencia completa y el aviso
-`AVISO_ORIGINAL_EXTERNO` (DEC-004). Revisa a mano que la referencia y el cliente coinciden con el papel.
+`AVISO_ORIGINAL_EXTERNO`. Revisa a mano que la referencia y el cliente coinciden con el papel.
 
 <!-- declaraciones:
 import type { Facturador } from 'factura-hn';
@@ -164,18 +164,18 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 - **Números que este sistema administra.** Si el número del original cae en una autorización registrada aquí y
   todavía no se emitió, el documento no puede existir: `REFERENCIA_NO_EXISTE`.
 - **Series migradas.** Para una serie que se emitió en parte fuera de factura-hn, la autorización acepta
-  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente. Es la
-  DEC-008, marcada [REVISAR].
+  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente. El
+  Reglamento no regula la migración de una serie: es la lectura que aplica factura-hn.
 - **Con la API REST**, una nota sobre un original externo exige una llave admin. Con una llave de caja la
   respuesta es 403 `SOLO_ADMIN` y no se consume número. Es una política de seguridad de la API, no una regla
-  fiscal (DEC-051).
+  fiscal.
 
 ## Moneda extranjera
 
 La nota se emite en lempiras (Art. 26 num. 9). Si el original está en dólares, escribe las líneas de la nota en
 dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Con el original
 en el almacén, la moneda y el tipo de cambio se toman de él. Con un original externo, indica
-`referencia.moneda` y `referencia.tipoCambio` (DEC-018, aprobada).
+`referencia.moneda` y `referencia.tipoCambio`.
 
 ## En el libro de ventas
 
@@ -204,5 +204,4 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 
 - Reglamento, Arts. 4 num. 32, 6, 25, 26 y 41: matriz de [cumplimiento](/referencia/cumplimiento/), filas 4.31-32
   y 25-28.
-- Interpretaciones: DEC-004, DEC-008, DEC-017, DEC-018, DEC-051 y DEC-079 en
-  [decisiones](/referencia/decisiones/).
+- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

@@ -42,7 +42,7 @@ La respuesta trae el `webhook` y su `secreto` (`whsec_…`). El secreto se muest
 variable de entorno del receptor. `GET /v1/webhooks` los lista y `DELETE /v1/webhooks/{id}` desactiva uno.
 
 - **Tope de 20.** Cada negocio tiene a lo sumo 20 webhooks activos. Con 20, crear otro da 409
-  `LIMITE_WEBHOOKS`: desactiva uno antes (DEC-058).
+  `LIMITE_WEBHOOKS`: desactiva uno antes.
 - **URL.** En el modo alojado, solo HTTPS y nunca hacia direcciones internas. En el modo local, también http y
   hacia la red del negocio. Una URL que no cumple da `WEBHOOK_URL`.
 
@@ -168,4 +168,3 @@ son el cuerpo ya convertido a JSON, el secreto equivocado o el reloj del recepto
 
 - [Referencia de la API](/referencia/api/), «Webhooks»; `@factura-hn/cliente` (`verificarFirmaWebhook`,
   `AvisoWebhook`); `examples/express`.
-- DEC-033 y DEC-058 en [decisiones](/referencia/decisiones/).

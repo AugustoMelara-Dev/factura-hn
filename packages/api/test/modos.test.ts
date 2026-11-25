@@ -115,7 +115,7 @@ conBase('modo del tenant', () => {
     const ficticio = await admin('POST', '/v1/autorizaciones', { ...aut, cai: caiDemo('01') });
     expect(ficticio.status).toBe(201);
     expect((await json(ficticio)).advertencias).toEqual([]);
-    // Lote 4: el registro devuelve sus avisos. Una fecha límite a más de un año de la autorización (Art. 62).
+    // El registro devuelve sus avisos. Una fecha límite a más de un año de la autorización (Art. 62).
     const [anio, mes, dia] = FECHA_LIMITE.split('-');
     const larga = await admin('POST', '/v1/autorizaciones', { ...aut, puntoEmision: '002', cai: caiDemo('01'), fechaAutorizacion: `${Number(anio) - 2}-${mes}-${dia}` });
     expect(larga.status).toBe(201);

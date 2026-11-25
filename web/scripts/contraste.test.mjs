@@ -76,7 +76,7 @@ for (const [nombreTema, tema] of [['oscuro', oscuro], ['claro', claro]]) {
   });
 }
 
-// `node scripts/contraste.test.mjs --tabla` imprime la tabla de la DEC.
+// `node scripts/contraste.test.mjs --tabla` imprime la tabla de contrastes de cada tema.
 if (process.argv.includes('--tabla')) {
   for (const [nombreTema, tema] of [['oscuro', oscuro], ['claro', claro]]) {
     console.log(`\n${nombreTema}`);

@@ -1,6 +1,6 @@
 // Matriz de cumplimiento generada desde las pruebas.
 //
-// La fuente es la sección 1 de docs/investigacion.md: cada fila cita, en la columna «Prueba», el archivo de
+// La fuente son las tablas de docs/cumplimiento.md: cada fila cita, en la columna «Prueba», el archivo de
 // prueba y el título de la prueba entre comillas latinas («…»; los puntos suspensivos abrevian el título). Este
 // módulo lee esas referencias, las busca en el código de las pruebas y genera la tabla requisito → artículo →
 // prueba (enlace a la línea en GitHub) → estado. Si una fila cubierta o parcial se queda sin prueba, o cita un
@@ -18,17 +18,17 @@ export const ESTADOS = {
 };
 const SIMBOLO = new RegExp(`^(${Object.keys(ESTADOS).join('|')})`, 'u');
 
-/** Las tablas de la sección 1: [{ titulo, filas: [{ celdas por nombre de columna }] }]. */
+/**
+ * Las tablas de la matriz: [{ titulo, filas: [{ celdas por nombre de columna }] }]. Una tabla es de la matriz si su
+ * cabecera tiene las columnas «#» y «Prueba»; el título es el encabezado `##` o `###` anterior.
+ */
 export function leerTablas(texto) {
-  const inicio = texto.indexOf('\n## 1. ');
-  const fin = texto.indexOf('\n## 2. ', inicio);
-  if (inicio < 0 || fin < 0) throw new Error('docs/investigacion.md: no se encontró la sección «## 1.» de la matriz');
-  const seccion = texto.slice(inicio, fin);
   const tablas = [];
   let titulo = '';
   let cabecera = null;
-  for (const linea of seccion.split('\n')) {
-    const h = /^### (.+)/.exec(linea);
+  let deMatriz = false;
+  for (const linea of texto.split('\n')) {
+    const h = /^#{2,3} (.+)/.exec(linea);
     if (h) {
       titulo = h[1].trim();
       cabecera = null;
@@ -41,12 +41,14 @@ export function leerTablas(texto) {
     const celdas = linea.slice(1, linea.trimEnd().endsWith('|') ? linea.trimEnd().length - 1 : undefined).split('|').map((c) => c.trim());
     if (!cabecera) {
       cabecera = celdas;
-      tablas.push({ titulo, filas: [] });
+      deMatriz = celdas.includes('#') && celdas.includes('Prueba');
+      if (deMatriz) tablas.push({ titulo, filas: [] });
       continue;
     }
-    if (celdas.every((c) => /^:?-+:?$/.test(c))) continue;
+    if (!deMatriz || celdas.every((c) => /^:?-+:?$/.test(c))) continue;
     tablas.at(-1).filas.push(Object.fromEntries(cabecera.map((c, i) => [c, celdas[i] ?? ''])));
   }
+  if (!tablas.length) throw new Error('docs/cumplimiento.md: no hay tablas con las columnas «#» y «Prueba»');
   return tablas;
 }
 
@@ -111,7 +113,7 @@ export function lineaDelTitulo(codigo, cita) {
 }
 
 /** Recorre la matriz y devuelve las filas con sus pruebas resueltas y la lista de problemas. */
-export function construirMatriz(texto = readFileSync(join(RAIZ, 'docs/investigacion.md'), 'utf8')) {
+export function construirMatriz(texto = readFileSync(join(RAIZ, 'docs/cumplimiento.md'), 'utf8')) {
   const problemas = [];
   const codigoDe = new Map();
   const tablas = leerTablas(texto).map(({ titulo, filas }) => ({
@@ -163,7 +165,7 @@ export function construirMatriz(texto = readFileSync(join(RAIZ, 'docs/investigac
 export function verificarMatriz(texto) {
   const r = construirMatriz(texto);
   if (r.problemas.length) {
-    throw new Error(`Matriz de cumplimiento (docs/investigacion.md §1): hay reglas sin prueba verificable.\n  ${r.problemas.join('\n  ')}`);
+    throw new Error(`Matriz de cumplimiento (docs/cumplimiento.md): hay reglas sin prueba verificable.\n  ${r.problemas.join('\n  ')}`);
   }
   return r;
 }
@@ -178,7 +180,7 @@ export function matrizMarkdown({ tablas }) {
   const cuenta = Object.values(ESTADOS).map((e) => `${total.filter((f) => f.estado === e).length} ${e.texto.toLowerCase()}`);
   let md = `Cada fila es un requisito del Reglamento del Régimen de Facturación (Acuerdo 481-2017, texto consolidado) o de la
 Ley del Impuesto Sobre Ventas, con su artículo, cómo lo cumple factura-hn y la prueba que lo verifica. La tabla se
-genera al construir el sitio desde la [matriz de investigación](${REPO}/blob/main/docs/investigacion.md#1-matriz-de-cumplimiento)
+genera al construir el sitio desde [docs/cumplimiento.md](${REPO}/blob/main/docs/cumplimiento.md)
 y desde el código de las pruebas: si una regla cubierta pierde su prueba, la construcción falla.
 
 Filas: ${total.length} (${cuenta.join(', ')}).
@@ -194,9 +196,9 @@ Filas: ${total.length} (${cuenta.join(', ')}).
 \`ejecutarContratoAlmacen\` de \`factura-hn/pruebas\`, que corre en memoria, SQLite y PostgreSQL.
 
 :::note
-factura-hn no es un sistema autorizado por el SAR. La matriz muestra cómo el código implementa cada requisito;
-las interpretaciones pendientes están en las [decisiones](/referencia/decisiones/) marcadas [REVISAR] y en la
-[consulta al SAR](/produccion/consulta-sar/).
+factura-hn no es un sistema autorizado por el SAR. La matriz muestra cómo el código implementa cada requisito.
+Donde el Reglamento no es literal, la fila dice qué lectura aplica factura-hn; el resumen está en
+[estado legal](/produccion/estado-legal/).
 :::
 `;
   for (const { titulo, filas } of tablas) {

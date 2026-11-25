@@ -30,7 +30,7 @@ export interface OpcionesTienda {
   /** Guarda en el pedido el número de su factura. */
   guardarFactura: (pedidoId: string, numero: string) => Promise<void>;
   /**
-   * Quién factura (DEC-031), p. ej. el usuario de la sesión que despacha el pedido. Queda en la bitácora de la
+   * Quién factura, p. ej. el usuario de la sesión que despacha el pedido. Queda en la bitácora de la
    * API junto a la llave. Sin esta función, la bitácora solo tiene la llave.
    */
   operadorDe?: (req: Request) => string | undefined;

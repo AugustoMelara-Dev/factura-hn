@@ -1,7 +1,7 @@
 # Publicación en npm con changesets y publicación de confianza (trusted publishing, OIDC).
 #
 # Apagado hasta que el responsable lo active: corre solo en main y si la variable del repositorio PUBLICAR_NPM vale
-# "true" (ver docs/lanzamiento.md). Tres trabajos, cada uno con solo los permisos que usa:
+# "true". Tres trabajos, cada uno con solo los permisos que usa:
 # - verificar: instala, compila y prueba, sin permisos de escritura ni OIDC. Guarda los dist/ compilados y dice si
 #   alguna versión de package.json aún no está en npm.
 # - version: con changesets pendientes, abre o actualiza el PR «Versión de paquetes» (`pnpm run version`).
@@ -14,7 +14,8 @@
 # archivo release.yml y el entorno npm; si cambia el nombre de este archivo o del entorno, deja de publicar.
 #
 # El PR de versión lo abre GITHUB_TOKEN, y GitHub no dispara flujos con los eventos de ese token: el PR no corre
-# el CI por sí solo. Ver docs/lanzamiento.md, paso 6.
+# el CI por sí solo. Se lanza a mano sobre su rama:
+#   gh workflow run ci.yml --ref changeset-release/main
 name: Release
 
 on:

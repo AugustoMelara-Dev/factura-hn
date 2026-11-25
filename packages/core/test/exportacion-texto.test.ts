@@ -1,5 +1,5 @@
 /**
- * Paso 9 · B-10: exportación a texto (Reglamento Art. 53 num. 5) e integración contable (Art. 53 num. 1).
+ * Exportación a texto (Reglamento Art. 53 num. 5) e integración contable (Art. 53 num. 1).
  */
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -41,7 +41,7 @@ beforeEach(async () => {
   docs = [nc, f2anulada, f1];
 });
 
-describe('B-10 · Art. 53 num. 5: archivos tipo texto', () => {
+describe('Art. 53 num. 5: archivos tipo texto', () => {
   it('jsonl: ida y vuelta sin pérdida, ordenado por número', () => {
     const texto = exportarTexto(docs, { formato: 'jsonl' });
     expect(texto.trim().split('\n')).toHaveLength(3);
@@ -82,7 +82,7 @@ describe('B-10 · Art. 53 num. 5: archivos tipo texto', () => {
   });
 });
 
-describe('B-10 · Art. 53 num. 1: integración con el sistema contable', () => {
+describe('Art. 53 num. 1: integración con el sistema contable', () => {
   const libro = () => {
     const asientos: string[] = [];
     const l: LibroContable = {

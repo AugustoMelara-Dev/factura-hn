@@ -33,22 +33,23 @@ la moneda extranjera.
   Art. 11 num. 1 a-c).
 - **Venta mixta.** Si la venta tiene partes exentas y partes gravadas, el crédito fiscal se reconoce
   solo sobre las gravadas (Art. 11 num. 3). factura-hn lo calcula en `totales.baseCreditoFiscal` (gravado 15 % más
-  gravado 18 %, DEC-020) y avisa con `AVISO_VENTA_MIXTA`.
+  gravado 18 %; lo gravado al 0 % no genera ISV que acreditar) y avisa con `AVISO_VENTA_MIXTA`.
 - **Venta al crédito.** Se emite al otorgar el crédito o al entregar, lo primero que ocurra (Art. 14). El documento
   lleva `condicionPago: 'CREDITO'`.
 - **Exonerados.** El documento lleva la Orden de Compra Exenta **y** la Constancia del Registro de Exonerados, **o**
-  el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4; DEC-021). Si la Orden de Compra Exenta no cubre
+  el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). Si la Orden de Compra Exenta no cubre
   todos los artículos, se emiten dos facturas: una exonerada con los cubiertos y otra normal con el resto: la
-  exoneración aplica al documento completo (DEC-019; lectura del proyecto: el Reglamento no regula una exoneración
+  exoneración aplica al documento completo (lectura del proyecto: el Reglamento no regula una exoneración
   parcial).
 - **Devoluciones.** Una venta correcta con una devolución posterior se corrige con Nota de Crédito (06) sobre la
   factura (Art. 4 num. 32). La nota lleva el nombre y el RTN del adquirente (Arts. 26 y 28) y el CAI, el número y
   la fecha del documento que modifica (Art. 26 num. 3). factura-hn rechaza una nota de crédito que, sumada a las
   anteriores, supere el original o cambie su tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`). Ningún artículo
-  fija ese tope: es una interpretación pendiente de revisión (DEC-051 [REVISAR]).
+  fija ese tope: es una lectura de factura-hn derivada del Art. 4 num. 32 (la nota ajusta el comprobante
+  correspondiente). Confírmala con tu contador.
 - **Precios en dólares.** Un documento en moneda extranjera lleva la tasa de cambio vigente a la fecha (Art. 11,
-  párrafo final; `tipoCambio`). factura-hn imprime además el equivalente en lempiras (DEC-068 [REVISAR]). Las notas
-  se emiten solo en lempiras, con el tipo de cambio de la factura original (Arts. 26 num. 9 y 28 num. 8; DEC-018).
+  párrafo final; `tipoCambio`). factura-hn imprime además el equivalente en lempiras, aunque ningún texto lo exige. Las notas
+  se emiten solo en lempiras, con el tipo de cambio de la factura original (Arts. 26 num. 9 y 28 num. 8).
 
 ## Ejemplo: venta al crédito y devolución
 
@@ -146,8 +147,8 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
 - **La devolución supera lo facturado.** `NOTA_SUPERA_ORIGINAL`, con el saldo disponible en el mensaje. No se
   consume número.
 - **La factura original es de un talonario u otro sistema.** La nota se emite con `referencia` y `cliente`
-  completos, y sale con el aviso `AVISO_ORIGINAL_EXTERNO` (DEC-004). Con la API, la emite una llave admin
-  (DEC-051 [REVISAR]; es una política de seguridad de la API, no fiscal).
+  completos, y sale con el aviso `AVISO_ORIGINAL_EXTERNO`. Con la API, la emite una llave admin
+  (es una política de seguridad de la API, no fiscal).
 - **El cliente exonerado no trae la constancia.** `EXONERACION_*`: hay que pedir la Orden de Compra Exenta y la
   constancia, o el registro SAG/RUPNSA.
 - **Un error en la cantidad antes de entregar.** Se anula el documento y se emite otro (Art. 41).
@@ -156,17 +157,15 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
 
 :::caution[Por confirmar con fuente]
 - **Guía de Remisión (08)**: si la ferretería debe emitirla al despachar mercadería y cuándo. El repositorio solo
-  sabe que está en el Art. 29, sin su contenido, y factura-hn todavía no la emite (aún sin pregunta propia en la consulta).
+  sabe que está en el Art. 29, sin su contenido, y factura-hn todavía no la emite.
 - **Retenciones** de grandes contribuyentes y el Comprobante de Retención (05): el repositorio solo sabe que está en
-  el Art. 33 (aún sin pregunta propia en la consulta). factura-hn no lo emite.
+  el Art. 33. factura-hn no lo emite.
 - **Usos concretos de la [Nota de Débito (07)](/documentos/nota-debito/)**: intereses, fletes, diferencias de precio. El Reglamento solo dice
-  «ajustes» (Art. 4 num. 32; aún sin pregunta propia en la consulta).
-- **Exonerado agroindustrial solo con el registro SAG/RUPNSA**, sin Orden de Compra Exenta: es la lectura adoptada
-  (DEC-021), pendiente de confirmación (pregunta P-08).
-- **Productos exentos**: el repositorio no tiene listas (aún sin pregunta propia en la consulta).
-- **Si el equivalente en lempiras** de un documento en dólares es exigible y con qué redondeo (DEC-068 [REVISAR]).
-
-Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
+  «ajustes» (Art. 4 num. 31).
+- **Exonerado agroindustrial solo con el registro SAG/RUPNSA**, sin Orden de Compra Exenta: es la lectura adoptada, pendiente de confirmación.
+- **Productos exentos**: el repositorio no tiene listas.
+- **Si el equivalente en lempiras** de un documento en dólares es exigible y con qué redondeo.
+Confírmalo con tu contador antes de emitir.
 :::
 
 ## Qué confirmar con tu contador

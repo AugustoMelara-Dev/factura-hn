@@ -25,8 +25,8 @@ Solo las pruebas: `pnpm --filter @factura-hn/api test:owasp`. En la CI corren de
 
 | Riesgo | Cómo aplica | Prueba | Resultado |
 | --- | --- | --- | --- |
-| **API1** Autorización a nivel de objeto | Ids en la ruta: número, emisor, webhook, entrega, prefijo de llave, CAI, serie. Tenant solo de la llave, con RLS. Cajas atadas a su punto de emisión. | `api1-bola.test.ts`: la admin de B usa los ids de A en las 13 operaciones que los reciben y en todas las listas; la misma `Idempotency-Key` en dos tenants; una caja contra otro punto de emisión. | Pasa: 404 `NO_ENCONTRADO` en cada operación, listas sin nada de A, A sin cambios. Límite conocido (DEC-122): una caja lee los documentos de las otras cajas de su tenant; la prueba lo fija. |
-| **API2** Autenticación | Llave Bearer con SHA-256 y comparación en tiempo constante, llaves revocadas, tenants inactivos, marca `live`/`test` (DEC-118), límite de intentos. | `api2-autenticacion.test.ts`: las 28 operaciones sin llave; la llave en la consulta, una cookie, Basic u otra cabecera; un 401 que distinga un caso de otro; fuerza bruta sobre un prefijo; 30 prefijos inventados desde un socket que cambia `X-Forwarded-For`, con 0 y con 1 proxy de confianza; la llave en claro en la base. | Pasa: 401 sin cabeceras de la llave; el 401 es idéntico en los 5 casos; 429 `DEMASIADOS_INTENTOS` tras la ráfaga sin dejar fuera al dueño; sin proxies, `X-Forwarded-For` se ignora y la dirección del socket se frena (con 1 proxy, ninguna); solo el hash en la base. |
+| **API1** Autorización a nivel de objeto | Ids en la ruta: número, emisor, webhook, entrega, prefijo de llave, CAI, serie. Tenant solo de la llave, con RLS. Cajas atadas a su punto de emisión. | `api1-bola.test.ts`: la admin de B usa los ids de A en las 13 operaciones que los reciben y en todas las listas; la misma `Idempotency-Key` en dos tenants; una caja contra otro punto de emisión. | Pasa: 404 `NO_ENCONTRADO` en cada operación, listas sin nada de A, A sin cambios. Límite conocido, documentado en `docs/api.md`: una caja lee los documentos de las otras cajas de su tenant; la prueba lo fija. |
+| **API2** Autenticación | Llave Bearer con SHA-256 y comparación en tiempo constante, llaves revocadas, tenants inactivos, marca `live`/`test` en la llave, límite de intentos. | `api2-autenticacion.test.ts`: las 28 operaciones sin llave; la llave en la consulta, una cookie, Basic u otra cabecera; un 401 que distinga un caso de otro; fuerza bruta sobre un prefijo; 30 prefijos inventados desde un socket que cambia `X-Forwarded-For`, con 0 y con 1 proxy de confianza; la llave en claro en la base. | Pasa: 401 sin cabeceras de la llave; el 401 es idéntico en los 5 casos; 429 `DEMASIADOS_INTENTOS` tras la ráfaga sin dejar fuera al dueño; sin proxies, `X-Forwarded-For` se ignora y la dirección del socket se frena (con 1 proxy, ninguna); solo el hash en la base. |
 | **API3** Autorización a nivel de propiedad | Campos que decide el servidor (número, CAI, totales, estado, `modo`, emisor, tenant, secreto) y secretos en la salida. | `api3-propiedades.test.ts`: cuerpos con esos campos de más en emitir, llaves, webhooks, rotación y emisor; buscar secretos (llaves, hashes, `whsec_`, `plano:`) en 10 lecturas con llave admin y de caja. | Pasa: Zod descarta lo que no declara. `modo: "prueba"` no saca una venta del libro y un CAI real con `prueba: true` es 422. Ninguna lectura trae secretos. |
 | **API4** Consumo de recursos | Un proceso para todos los tenants. | `api4-consumo.test.ts`: cuerpo por partes de 2 MB sin `Content-Length`; 13 topes de forma (líneas, textos, montos, claves, página, cursor, período); JSON de 150 000 niveles; límite por llave; páginas de documentos grandes y `maxBytesPagina` inválido; lista de eventos repetida. | **Dos fallas, corregidas:** la página de documentos no tenía tope de bytes y la bitácora guardaba la lista de eventos sin quitar repetidos. El resto pasa: 413, 400 o 422, nunca 500. |
 | **API5** Autorización a nivel de función | Rol `caja` (emite y consulta) y `admin` (el resto), más opciones de admin dentro de operaciones de caja. | `api5-funciones.test.ts`: una caja en las 18 operaciones de admin; las 10 de caja con caja; la especificación contra el código; subir de rol; el salto de fecha y la nota de crédito sobre un original externo con caja. | Pasa: 403 `SOLO_ADMIN` sin cambios en el tenant. **Una falla de contrato, corregida:** `GET /v1/libro-ventas` devolvía 403 `CAJA_SIN_PUNTO` y no lo declaraba. |
@@ -36,10 +36,10 @@ Solo las pruebas: `pnpm --filter @factura-hn/api test:owasp`. En la CI corren de
 | **API9** Inventario | Una versión (`/v1`), especificación servida y versionada, clientes generados de ella. | `api9-inventario.test.ts`: rutas del servidor contra la especificación; especificación versionada contra la servida; catálogo de pruebas contra la especificación; middleware (`ALL`) contra una lista conocida; seguridad de cada operación; versiones y prefijos alternativos. | Pasa: el servidor atiende exactamente lo publicado más `/openapi.json`, `/docs` y `/`, sin otro `app.all()`; solo `/salud` es pública; `/v0`, `/v2`, `/api/v1`, `/metrics` y similares dan 404. |
 | **API10** Consumo de APIs de terceros | Respuestas de los receptores de webhooks y Swagger UI del CDN en `/docs`. | `api10-terceros.test.ts`: un receptor con un cuerpo sin fin, uno malicioso (cuerpo y cabeceras), una conexión cortada, un código raro; los recursos externos de `/docs`. | Pasa: solo se guarda el código (`HTTP 500`, `Error de red`), nunca el cuerpo ni las cabeceras; la entrega no lee el cuerpo. `/docs` tiene versión exacta, SRI y CSP sin comodines. |
 
-Controles que ya tenían su prueba y no se duplicaron: reportes acotados (DEC-059, `reportes-limites.test.ts`),
+Controles que ya tenían su prueba y no se duplicaron: reportes acotados (`reportes-limites.test.ts`),
 tope de 20 webhooks y de 5 pruebas pendientes (`webhooks.test.ts`), receptor lento (`webhooks.test.ts`), RLS en la
 base con el rol de la aplicación (`rls.test.ts`), límite mensual (`api.test.ts`) y textos con caracteres de
-control (DEC-123).
+control (`TEXTO_CARACTER_NO_PERMITIDO`).
 
 ## Hallazgos y correcciones
 
@@ -47,7 +47,7 @@ control (DEC-123).
    pesar unos 480 KB (500 líneas, el máximo que cabe en un cuerpo de 512 KB). Una sola página podía cargar unos
    240 MB en el proceso que atiende a todos los tenants. Medido con 20 documentos de ese tamaño: 10 MB en una
    respuesta, 218 ms. Con 500 serían 250 MB por solicitud, y una llave de caja puede pedir varias a la vez. Es el
-   mismo problema que DEC-059 corrigió en los reportes.
+   mismo problema que ya se había corregido en los reportes de período.
    **Corrección:** la página se corta en la base antes del documento que empieza pasado `MAX_BYTES_PAGINA` (8 MiB,
    configurable con `ConfigApi.maxBytesPagina`). Siempre trae al menos un documento, y los que no entran no salen
    de Postgres. Con corte, `hayMas` es `true` aunque la página traiga menos de `limite`. El cursor no cambia, así
@@ -63,21 +63,21 @@ control (DEC-123).
    **Corrección:** se quita el punto final antes de comparar, y un nombre vacío es una URL inválida. Prueba: «cada
    forma de escribir un destino interno se rechaza al validar».
 4. **API5/API9, baja (contrato). 403 no declarado.** `GET /v1/libro-ventas` responde 403 `CAJA_SIN_PUNTO` a una
-   llave de caja sin punto (DEC-122), pero la especificación no declaraba el 403. **Corrección:** se declara. Se
+   llave de caja sin punto de emisión, pero la especificación no declaraba el 403. **Corrección:** se declara. Se
    regeneraron `openapi.json` y los tipos del cliente. Prueba: «la especificación declara 403 exactamente en las
    operaciones que lo pueden dar».
 
 ## Lo que queda como propuesta
 
-Están también en `docs/decisiones.md` (Lote 5, propuestas de OWASP):
+Mejoras que esta revisión no aplicó:
 
 - **Representación impresa costosa (API4).** El PDF de un documento de 500 líneas tarda unos 440 ms de CPU en
   el hilo principal. Una caja con 20 solicitudes por segundo puede ocupar el proceso. Propuesta: renderizar en un
   worker o guardar el PDF en caché, que no cambia porque el documento es inmutable (Art. 38).
 - **Límite por tenant (API4).** El límite de solicitudes es por llave y una admin puede crear llaves sin tope.
   Propuesta: una cubeta por tenant además de la de cada llave, o un tope de llaves activas como el de los webhooks
-  (DEC-058).
-- **Lectura de documentos con llave de caja (API1).** Es el límite conocido de DEC-122: una caja lee los documentos
+  (20 activos por tenant).
+- **Lectura de documentos con llave de caja (API1).** Es el límite conocido de la API: una caja lee los documentos
   de las otras cajas de su tenant. Acotarlo al punto puede ser incompatible.
 - **Listas sin paginar.** `GET /v1/autorizaciones` y `GET /v1/llaves` devuelven todo (`hayMas: false`). Hoy son
   pocas filas por tenant, y paginarlas es aditivo.

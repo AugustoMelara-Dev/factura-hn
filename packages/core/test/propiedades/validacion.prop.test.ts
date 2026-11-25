@@ -2,7 +2,7 @@
  * Propiedades de la validación (src/identificacion.ts, src/autorizacion.ts, src/documento.ts):
  * - RTN de 14 dígitos (Reglamento Art. 10 num. 1 a; Art. 11 num. 1 b) y DNI de 13; solo se valida el formato;
  * - CAI: la forma 6-6-6-6-6-2 hexadecimal **no tiene fuente normativa** (identificacion.ts) y solo se exige con
- *   `caiEstricto`; por defecto solo letras, dígitos y guiones (DEC-013);
+ *   `caiEstricto`; por defecto solo letras, dígitos y guiones (Art. 4 num. 7);
  * - fechas en America/Tegucigalpa (UTC−6 sin horario de verano desde 2007; el de 2006 queda fuera del dominio);
  * - fecha de emisión = hoy en Honduras (Arts. 14 y 43);
  * - vigencia de la autorización de hasta un año (Art. 62), como aviso.
@@ -79,7 +79,7 @@ describe('validación: CAI', () => {
     fc.assert(fc.property(fc.string(), (s) => normalizarCAI(normalizarCAI(s)) === normalizarCAI(s)));
   }, TIEMPO);
 
-  it('sin caiEstricto, CAI_FORMATO ⇔ tras recortar queda un carácter que no es letra, dígito o guion (DEC-013)', () => {
+  it('sin caiEstricto, CAI_FORMATO ⇔ tras recortar queda un carácter que no es letra, dígito o guion (Art. 4 num. 7)', () => {
     const aut = (cai: string): AutorizacionCAI => ({ cai, tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: '2027-06-30' });
     fc.assert(
       fc.property(fc.string({ unit: fc.constantFrom('A', 'b', '1', '-', ' ', '.', 'é', 'Z', '0') }), (cai) => {

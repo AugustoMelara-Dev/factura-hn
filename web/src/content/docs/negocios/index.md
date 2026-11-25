@@ -28,11 +28,9 @@ Para elegir el camino en general, ver [Elegir camino](/empezar/elegir-camino/).
 
 - **Lo que tiene fuente** cita su artículo del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus
   reformas) o de la Ley del Impuesto Sobre Ventas, tal como aparece en el repositorio.
-- **Lo que no tiene fuente** va en un recuadro «Por confirmar con fuente», con su identificador: F-xx para el
-  contenido que falta y P-xx para las preguntas de la [consulta al SAR](/produccion/consulta-sar/), que aún no se ha
-  enviado.
-- **Las interpretaciones del proyecto** se citan como DEC-xxx. Las marcadas [REVISAR] están pendientes de revisión;
-  la lista está en [Estado legal](/produccion/estado-legal/#interpretaciones-pendientes).
+- **Lo que no tiene fuente** va en un recuadro «Por confirmar con fuente»: confírmalo con tu contador.
+- **Donde la norma no es literal**, la página dice qué lectura aplica factura-hn. La lista completa está en
+  [Estado legal](/produccion/estado-legal/#puntos-que-el-reglamento-no-dice-de-forma-literal).
 
 ## Lo que vale para todos
 
@@ -49,7 +47,7 @@ contingencia dependen del negocio.
   L 10,000 hay que pedir nombre e identificación (Art. 11, párrafo final).
 - **Crédito fiscal**: el cliente que necesita la factura como crédito fiscal, costo o gasto da su RTN
   (Art. 11 num. 1 a-c).
-- **Sin retrofechar**: la fecha la pone el reloj, en hora de Honduras (Arts. 14 y 43; DEC-022).
+- **Sin retrofechar**: la fecha la pone el reloj, en hora de Honduras (Arts. 14 y 43).
 - **Errores**: un documento con errores se anula con la leyenda «ANULADA» y no se borra (Art. 41). Una venta
   correcta que luego tiene una devolución o un descuento se corrige con Nota de Crédito (Art. 4 num. 32).
 - **Lo que un sistema no emite**: el Ticket (09) es solo de máquina registradora (Art. 4 num. 43); el Recibo por
@@ -60,7 +58,6 @@ contingencia dependen del negocio.
 
 :::caution[Por confirmar con fuente]
 Ninguna guía dice qué modalidad de facturación le corresponde a cada negocio según su tamaño o giro (sistema,
-imprenta o máquina registradora): el repositorio no lo respalda (aún sin pregunta propia en la consulta). Tampoco tiene listas de bienes exentos
-(aún sin pregunta propia en la consulta) ni la lista oficial de bienes al 18 % (pregunta P-11). Confírmalo con tu contador antes de configurar
-los productos. Ver [Consulta al SAR](/produccion/consulta-sar/).
+imprenta o máquina registradora): el repositorio no lo respalda. Tampoco tiene listas de bienes exentos ni la lista oficial de bienes al 18 %. Confírmalo con tu contador antes de configurar
+los productos.
 :::

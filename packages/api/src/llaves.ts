@@ -7,7 +7,7 @@
  *
  * - `prefijo`: 12 hexadecimales, público; identifica la llave en listados, en la bitácora y en `DELETE /v1/llaves/{prefijo}`.
  * - `secreto`: 32 bytes aleatorios (base64url). Solo se muestra al crearla.
- * En la base se guarda el SHA-256 de la llave completa (DEC-026): con 256 bits de entropía no hace falta un
+ * En la base se guarda el SHA-256 de la llave completa: con 256 bits de entropía no hace falta un
  * hash lento, y la comparación es en tiempo constante. El hash cubre también la marca `live` o `test`: cambiarla
  * da otra llave, que no existe.
  */

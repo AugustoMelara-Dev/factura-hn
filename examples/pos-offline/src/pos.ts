@@ -46,7 +46,7 @@ export interface OpcionesPOS {
 export interface Venta {
   cliente?: { nombre?: string; rtn?: string };
   lineas: LineaEntrada[];
-  /** Quién cobra (DEC-031): queda en la bitácora. */
+  /** Quién cobra: queda en la bitácora. */
   cajero?: string;
   /** Imprime «Atendido por» con el cajero en el ticket. */
   imprimirCajero?: boolean;

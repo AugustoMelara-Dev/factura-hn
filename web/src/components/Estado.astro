@@ -1,18 +1,11 @@
 ---
-// Estado del proyecto en la portada. Los datos se leen del repositorio al construir: la versión del paquete, el
-// estado de la consulta al SAR (la línea «Estado: …» de docs/consulta-sar.md) y las decisiones pendientes.
-// Si cambia el formato de esas fuentes, la construcción falla en vez de publicar un dato viejo.
+// Estado del proyecto en la portada. La versión se lee del paquete al construir, así no se publica un dato viejo.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RAIZ } from '../../sitio.config.mjs';
 
 const leer = (r: string) => readFileSync(join(RAIZ, r), 'utf8');
 const version = JSON.parse(leer('packages/core/package.json')).version as string;
-const m = /^> \*\*Estado: ([^*]+)\*\*\s*(\([^)]*\))?/m.exec(leer('docs/consulta-sar.md'));
-const consulta = m && `${m[1].trim()}${m[2] ? ` ${m[2]}` : ''}`;
-if (!consulta) throw new Error('docs/consulta-sar.md: falta la línea «> **Estado: …**» que muestra la portada');
-const decisiones = leer('docs/decisiones.md');
-const revisar = [...decisiones.matchAll(/^### DEC-\d+ .*\[REVISAR\]/gm)].length;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 ---
 
@@ -22,12 +15,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <dd><code>{version}</code>. Mientras sea 0.x puede haber cambios incompatibles entre versiones menores: ver los <a href={`${base}/ayuda/cambios/`}>cambios</a>.</dd>
   </div>
   <div>
-    <dt>Consulta al SAR</dt>
-    <dd>{consulta.charAt(0).toUpperCase() + consulta.slice(1)}. Mientras no haya respuesta, factura-hn aplica la lectura provisional de cada pregunta. <a href={`${base}/produccion/consulta-sar/`}>Ver la consulta</a>.</dd>
-  </div>
-  <div>
-    <dt>Interpretaciones pendientes</dt>
-    <dd>{revisar} decisiones marcadas [REVISAR], aún sin aprobar. <a href={`${base}/referencia/decisiones/`}>Ver las decisiones</a>.</dd>
+    <dt>Lectura del Reglamento</dt>
+    <dd>Algunos puntos del Reglamento no son literales; factura-hn aplica una lectura declarada en cada caso. <a href={`${base}/produccion/estado-legal/`}>Ver el estado legal</a>.</dd>
   </div>
   <div>
     <dt>Cumplimiento</dt>

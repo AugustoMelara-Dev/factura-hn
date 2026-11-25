@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Medición del Lote 5, rama «propiedades»: propiedades del núcleo (fast-check), contrato OpenAPI de las respuestas
+ * Medición de las propiedades del núcleo (fast-check), contrato OpenAPI de las respuestas
  * de la API y fuzzing. Imprime los números de `docs/calidad/propiedades.md`.
  *
  * - Núcleo: corre `packages/core/test/propiedades` y cuenta propiedades y casos (`FHN_PROP_INFORME`).
@@ -43,7 +43,7 @@ const combinaciones = Object.entries(spec.paths).flatMap(([p, item]) =>
   Object.entries(item).flatMap(([m, op]) => Object.keys(op.responses).map((e) => `${m.toUpperCase()} ${p} ${e}`)),
 );
 const vistas = new Set(respuestas.map((r) => r.clave));
-// Las del fuzz (incluye las ~30 solicitudes con que prepara el tenant), no las de hallazgos-fuzz.test.ts.
+// Las del fuzz (incluye las ~30 solicitudes con que prepara el tenant), no las de fuzz-casos.test.ts.
 const deFuzz = respuestas.filter((r) => /[\\/]fuzz\.test\.ts$/.test(r.archivo));
 const violaciones = respuestas.filter((r) => r.violaciones.length);
 

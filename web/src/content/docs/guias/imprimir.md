@@ -66,7 +66,7 @@ lo emite una máquina registradora (Art. 4 num. 43). Ver [documentos no emitible
 Node, en funciones serverless y en el navegador.
 
 - **Mismo contenido que el texto.** El PDF dibuja las líneas de `renderizarTexto`: a 90 columnas en carta y a 42
-  en ticket (DEC-014). Un solo lugar decide qué se imprime.
+  en ticket. Un solo lugar decide qué se imprime.
 - **Determinista.** El mismo documento produce los mismos bytes.
 - **Latin-1.** Las fuentes estándar de PDF solo dibujan la tabla WinAnsi. Los acentos y la ñ salen bien; un emoji
   u otro carácter fuera de la tabla sale como «?» (`aWinAnsi`).
@@ -79,7 +79,7 @@ Node, en funciones serverless y en el navegador.
 Un documento emitido con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva `modo: 'prueba'`. El HTML, el texto y el
 PDF imprimen `LEYENDA_PRUEBA`, «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL», al inicio y al final; el PDF agrega una
 marca de agua PRUEBA. El texto es fijo: no se traduce ni se personaliza. Es una marca del producto, no una regla
-fiscal (DEC-046, DEC-063): evita que un documento de demostración pase por uno real. Un documento real se imprime
+fiscal: evita que un documento de demostración pase por uno real. Un documento real se imprime
 sin ella.
 
 ### Documento anulado
@@ -128,8 +128,7 @@ fiscal.
 
 :::caution[Por confirmar con fuente]
 El repositorio no dice quién gestiona esa certificación ni qué son los «resúmenes de ventas» que menciona el
-mismo artículo, ni en qué formato se entregan. Es la pregunta P-07 de la [consulta al SAR](/produccion/consulta-sar/),
-aún sin respuesta.
+mismo artículo, ni en qué formato se entregan. Confírmalo con tu contador.
 :::
 
 ## Errores frecuentes
@@ -146,4 +145,3 @@ dígitos con guiones.
 
 - `render.ts` del núcleo y `packages/pdf`; matriz de [cumplimiento](/referencia/cumplimiento/), filas 10, 11, 38
   y 41.
-- DEC-014, DEC-046 y DEC-063 en [decisiones](/referencia/decisiones/).

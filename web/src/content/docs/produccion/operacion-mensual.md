@@ -10,7 +10,7 @@ los reportes. Los artículos son del Reglamento del Régimen de Facturación (Ac
 
 | Tarea | Cuándo | Fuente |
 |---|---|---|
-| [Libro de ventas](#libro-de-ventas) | Al cerrar el mes | Formato propio; ver DEC-050 [REVISAR] |
+| [Libro de ventas](#libro-de-ventas) | Al cerrar el mes | Formato propio de factura-hn |
 | [Archivo de texto](#archivo-de-texto-art-53-num-5) | Cuando el SAR lo pida; conviene generarlo cada mes como respaldo | Art. 53 num. 5 |
 | [Documentos no utilizados](#documentos-no-utilizados) | Dentro de los 10 días hábiles del mes siguiente al acontecimiento | Art. 42 |
 | [Anulaciones del mes](#anulaciones-del-mes) | Al cerrar el mes | Art. 41 |
@@ -40,18 +40,18 @@ console.log(resumen, `${excluidos} documentos de prueba fuera del libro`);
 - Cada fila trae fecha, tipo, número, CAI, cliente y RTN, los importes exonerado, exento, gravado 0 %, gravado 15 %
   y gravado 18 %, el ISV por tasa, el total y si está anulado.
 - Los documentos anulados salen con su número y los montos en cero: el número existe y no se puede saltar.
-- Los documentos de prueba (CAI `DEMO00-…`) quedan fuera (DEC-064).
+- Los documentos de prueba (CAI `DEMO00-…`) quedan fuera.
 - Un documento en moneda extranjera se convierte a lempiras con el tipo de cambio que imprime, campo por campo.
-  Por eso la suma de las partes puede diferir del total en 1 centavo. Es una interpretación pendiente de revisión
-  (DEC-050 [REVISAR]).
+  Por eso la suma de las partes puede diferir del total en 1 centavo. El Reglamento no dice en qué moneda va el
+  libro: es la lectura que aplica factura-hn. Confírmala con tu contador.
 
 Con la API: `GET /v1/libro-ventas?desde=2026-11-01&hasta=2026-11-30&formato=csv` (llave de caja o admin). Con el
 MCP: la herramienta `libro_ventas`.
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene una norma que fije el formato del libro de ventas, ni la fuente de la declaración mensual
-del ISV: formulario, nombre y campos, y cómo se relaciona con este libro (aún sin pregunta propia en la consulta). El libro de factura-hn es un
-apoyo para el contador, no un formulario del SAR. Ver [Consulta al SAR](/produccion/consulta-sar/).
+del ISV: formulario, nombre y campos, y cómo se relaciona con este libro. El libro de factura-hn es un
+apoyo para el contador, no un formulario del SAR.
 :::
 
 ## Archivo de texto (Art. 53 num. 5)
@@ -71,15 +71,14 @@ const { excluidos } = separarDocumentosDePrueba(docs);   // cuántos de prueba q
 ```
 
 A diferencia del libro de ventas, el archivo conserva los importes de los documentos anulados junto con su estado
-y el motivo de la anulación: refleja lo que se emitió (DEC-011 [REVISAR]).
+y el motivo de la anulación: refleja lo que se emitió.
 
 Con la API: `GET /v1/exportacion?desde=2026-11-01&hasta=2026-11-30&formato=csv` (solo llave admin). Cada
 exportación queda en la bitácora de la API.
 
 :::caution[Por confirmar con fuente]
-No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5 (preguntas P-04 y
-P-14). Si el SAR publica uno, se agregará como un formato más de `exportarTexto`. Ver
-[Consulta al SAR](/produccion/consulta-sar/).
+No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5. Los formatos de factura-hn
+son propios. Si el SAR publica uno, se agregará como un formato más de `exportarTexto`.
 :::
 
 ## Documentos no utilizados
@@ -120,23 +119,23 @@ Cómo cuenta los plazos, y qué decisiones hay detrás:
 - Sin `evento`, solo reporta las autorizaciones **vencidas** con números libres. Una autorización vigente todavía
   se puede usar.
 - Para el vencimiento, el acontecimiento es la fecha límite misma. Es la lectura conservadora: el aviso nunca queda
-  tarde (DEC-009).
+  tarde.
 - Solo descuenta sábados y domingos. Los feriados de Honduras cambian por decreto y el SDK no los trae: pásalos en
-  `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real (DEC-010 [REVISAR]).
-- No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR (DEC-094).
+  `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real.
+- No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR.
 
 Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).
 
 :::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio (pregunta
-P-04). Ver [Consulta al SAR](/produccion/consulta-sar/).
+El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio. Confírmalo con tu
+contador.
 :::
 
 ## Anulaciones del mes
 
 Un documento con errores se anula: lleva la leyenda «ANULADA», conserva su número y se resguarda el original y la
 copia en orden cronológico (Art. 41, C L.1943-1955). En factura-hn se anula con `anular`, con un motivo
-obligatorio (DEC-001). Nada se borra. Ver [Anular](/guias/anular/).
+obligatorio. Nada se borra. Ver [Anular](/guias/anular/).
 
 Al cerrar el mes, revisa las anulaciones con su motivo y quién las hizo:
 
@@ -166,7 +165,7 @@ Qué mirar:
 ## Renovación del CAI
 
 Revisa las alertas de cada caja. La nueva autorización se solicita dentro de los dos meses previos a la fecha
-límite (Art. 59), y factura-hn avisa desde que se abre esa ventana (`AVISO_VENCIMIENTO`, DEC-025 [REVISAR]) y al
+límite (Art. 59), y factura-hn avisa desde que se abre esa ventana (`AVISO_VENCIMIENTO`, contando dos meses de calendario) y al
 usar el 90 % del rango (`AVISO_RANGO`). Cómo verlas y qué hacer: [CAI y rangos](/produccion/cai-y-rangos/#renovar-antes-de-vencer-o-de-agotar).
 
 ## Respaldos y conservación
@@ -184,6 +183,6 @@ no protege de un disco dañado: el respaldo es responsabilidad del negocio.
 El plazo de conservación se tomó del Código Tributario (Arts. 58 num. 4, 63 num. 3, 144 y 145) en una
 compilación de 2024 del Poder Judicial, no de La Gaceta. Con esa fuente, el proyecto adoptó conservar los
 documentos **al menos 5 años desde el vencimiento de la declaración del período** para quien está inscrito en el
-RTN (pregunta P-06). Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
-borres nada. Ver [Consulta al SAR](/produccion/consulta-sar/).
+RTN. Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
+borres nada.
 :::

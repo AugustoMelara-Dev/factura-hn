@@ -1,5 +1,5 @@
 /**
- * El cliente a través de cortes. `@factura-hn/cliente` NO reintenta solo (DEC-RES-003): lanza el error y el
+ * El cliente a través de cortes. `@factura-hn/cliente` NO reintenta solo (decisión de diseño de factura-hn): lanza el error y el
  * integrador reintenta `emitir` con la misma `idempotencyKey`. Estas pruebas fijan lo que el integrador ve en
  * cada corte y que ese reintento da un solo documento:
  * - la respuesta se pierde después de que la API emitió (corte de red a la vuelta): el reintento devuelve el

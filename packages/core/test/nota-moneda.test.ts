@@ -1,6 +1,7 @@
 /**
- * DEC-018: las notas se emiten en lempiras (Arts. 26 num. 9 y 28 num. 8). Si la factura original está en
- * moneda extranjera, la nota convierte con el tipo de cambio del original y lo imprime como referencia.
+ * Las notas se emiten en lempiras (Arts. 26 num. 9 y 28 num. 8). Si la factura original está en
+ * moneda extranjera, la nota convierte con el tipo de cambio del original y lo imprime como referencia (lectura de
+ * factura-hn: los artículos no dicen qué tipo de cambio usar).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -46,7 +47,7 @@ beforeEach(async () => {
   }, { almacen, ...caja });
 });
 
-describe('DEC-018 · nota sobre una factura en moneda extranjera', () => {
+describe('Arts. 26 num. 9 y 28 num. 8: nota sobre una factura en moneda extranjera', () => {
   it('se emite en lempiras con el tipo de cambio del original, tomado del almacén, y lo imprime', async () => {
     const nc = await emitir(nota(), { almacen, ...caja });
     expect(nc.moneda).toBe('HNL');

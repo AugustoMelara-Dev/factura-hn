@@ -30,16 +30,13 @@ imprime en columnas distintas.
 :::caution[Por confirmar con fuente]
 **La tasa del 18 %.** El código usa 15 % y 18 %, y atribuye el 18 % al Decreto 278-2013, Art. 16. Ese texto no
 está entre las fuentes primarias del repositorio, y la copia de la Ley del ISV que sí está aún muestra las tasas
-anteriores. Falta el texto oficial del decreto y la lista vigente de bienes y servicios al 18 % (pregunta P-11).
-Hasta entonces es una interpretación pendiente: DEC-069 [REVISAR]. Ver la
-[consulta al SAR](/produccion/consulta-sar/) y [Decisiones](/referencia/decisiones/).
+anteriores. Falta el texto oficial del decreto y la lista vigente de bienes y servicios al 18 %.
+Hasta entonces, mantener el 18 % es la lectura que aplica factura-hn. Confírmalo con tu contador.
 :::
 
 :::caution[Por confirmar con fuente]
 **Qué producto lleva qué tratamiento.** El SDK no decide qué va al 18 %, qué es exento ni qué es gravado 0 %: lo
-indica tu sistema en cada línea, guardado en el producto. El repositorio no tiene la lista de bienes al 18 %
-(P-11) ni la de bienes exentos, que aún no tiene pregunta propia en la consulta. Decídelo con tu contador. Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+indica tu sistema en cada línea, guardado en el producto. El repositorio no tiene la lista de bienes al 18 % ni la de bienes exentos. Decídelo con tu contador.
 :::
 
 ```js
@@ -70,7 +67,7 @@ la tasa por la base impresa, y el total cuadra con la suma de importes más impu
 :::caution[Por confirmar con fuente]
 Calcular por grupo de tasa y no por línea es una lectura del proyecto: el Art. 9 de la Ley del ISV habla del
 «precio del artículo vendido» y el Art. 11 num. 1 h-i del Reglamento pide subtotales e impuestos por tarifa.
-Está en la consulta al SAR como P-10. Ver la [consulta al SAR](/produccion/consulta-sar/).
+Confírmalo con tu contador.
 :::
 
 ## Precios con ISV incluido
@@ -98,7 +95,7 @@ medio centavo o más se puede subir. El SDK calcula siempre el ISV como la tasa 
 
 Con precios con ISV incluido, no todos los totales tienen una base exacta. Por ejemplo, ninguna base da un total
 de L 0.27 al 15 %. En ese caso el SDK toma la mayor base cuyo total no supera el precio: el cliente paga
-**un centavo menos, nunca más** (decisión D-01 de la investigación normativa).
+**un centavo menos, nunca más** (lectura del Art. 9 de la Ley del ISV que aplica factura-hn).
 
 ```js
 import { calcularDocumento, sugerirPrecioSinAjuste } from 'factura-hn';
@@ -139,7 +136,7 @@ calcularDocumento([
 
 Con ventas exentas y gravadas en un mismo documento, el crédito fiscal se reconoce solo sobre las gravadas
 (Art. 11 num. 3). `totales.baseCreditoFiscal` es el gravado al 15 % más el gravado al 18 %; no incluye el
-gravado 0 %, que no genera ISV que acreditar (DEC-020).
+gravado 0 %, que no genera ISV que acreditar.
 
 Si el cliente tiene RTN y la venta mezcla partes exentas o exoneradas con partes gravadas, el documento lleva el
 aviso [`AVISO_VENTA_MIXTA`](/referencia/errores/#aviso_venta_mixta).
@@ -155,22 +152,22 @@ exoneracion: { ordenCompraExenta: '…', constanciaRegistroExonerado: '…' }
 exoneracion: { registroSAG: '…' }
 ```
 
-La exoneración aplica al documento completo (DEC-019). Si la Orden de Compra Exenta no cubre todos los
+La exoneración aplica al documento completo. Si la Orden de Compra Exenta no cubre todos los
 artículos, emite dos facturas: una con `exoneracion` y los artículos cubiertos, y otra normal con el resto.
 
 :::caution[Por confirmar con fuente]
 Aceptar el registro SAG/RUPNSA sin la orden ni la constancia es la lectura del Art. 11 num. 4 que adoptó el
-proyecto (DEC-021); falta confirmarla (P-08). Ver la [consulta al SAR](/produccion/consulta-sar/).
+proyecto; falta confirmarla.
 :::
 
 ## Exportaciones
 
 Una exportación de mercancías gravadas va con `isv: 'GRAVADO0'` (Art. 12), no con `EXENTO`.
 
-:::caution[Por confirmar con fuente]
+:::caution[Lectura de factura-hn]
 El Reglamento (Art. 12) habla de tasa cero, y la Ley del ISV dice que los bienes que se exportan quedan exentos.
-El documento sigue al Reglamento hasta que la autoridad responda (P-09). Ver la
-[consulta al SAR](/produccion/consulta-sar/).
+El documento sigue al Reglamento: es la lectura de factura-hn, porque el Reglamento no resuelve el conflicto de
+forma literal. Confírmalo con tu contador.
 :::
 
 ## Dinero exacto
@@ -182,8 +179,7 @@ diezmilésimas para la cantidad y el precio unitario (hasta 4 decimales).
   números. Un precio o una cantidad con más de 4 decimales es un error
   ([`LINEA_PRECIO`](/referencia/errores/#linea_precio), [`LINEA_CANTIDAD`](/referencia/errores/#linea_cantidad)):
   no se redondea en silencio.
-- **Los montos de salida** (`totales.total`, `isv15`…) son números en lempiras con dos decimales como máximo
-  (DEC-048). `Math.round(monto * 100)` recupera los centavos exactos; si sumas montos de salida, pásalos antes
+- **Los montos de salida** (`totales.total`, `isv15`…) son números en lempiras con dos decimales como máximo. `Math.round(monto * 100)` recupera los centavos exactos; si sumas montos de salida, pásalos antes
   a centavos. Para mostrarlos, `formatearMonto` y `formatearMoneda`; en letras, `totales.totalEnLetras` o
   `montoEnLetras`.
 

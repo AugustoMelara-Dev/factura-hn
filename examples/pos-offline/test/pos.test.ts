@@ -41,7 +41,7 @@ describe('POS fuera de línea', () => {
     });
   });
 
-  it('DEC-031: el cajero queda en la bitácora y se imprime solo si se pide', async () => {
+  it('el cajero queda en la bitácora (apoya los controles de auditoría del Art. 53 num. 2; opcional, no lo exige el Reglamento) y se imprime solo si se pide', async () => {
     const { pos } = await posListo();
     const a = await pos.vender('venta-cajero-1', { ...venta, cajero: 'Rosa' });
     const b = await pos.vender('venta-cajero-2', { ...venta, cajero: 'Luis', imprimirCajero: true });

@@ -2,7 +2,7 @@
 
 La API de factura-hn y su base PostgreSQL corren en un equipo del negocio con Docker Compose. Así varias
 cajas de la red local emiten contra el mismo correlativo, y los documentos quedan en el establecimiento
-(los sistemas alojados por terceros están pendientes de una consulta al SAR).
+(el Reglamento no prevé de forma literal un sistema alojado por un tercero; Art. 47).
 
 Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 
@@ -116,7 +116,7 @@ docker compose exec -T db pg_restore -U postgres -d factura_hn --clean --if-exis
 docker compose up -d --wait
 ```
 
-Prueba la restauración al menos una vez. El plazo de conservación está pendiente de una consulta al SAR: mientras tanto, conserva todo.
+Prueba la restauración al menos una vez. El Reglamento remite el plazo de conservación al de prescripción del Código Tributario (Arts. 5 y 43) y no lo fija: mientras tanto, conserva todo.
 
 ## Actualizar
 

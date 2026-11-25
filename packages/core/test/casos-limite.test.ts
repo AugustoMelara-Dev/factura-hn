@@ -1,5 +1,5 @@
 /**
- * Lo que encontraron las pruebas de propiedades y el fuzzing del Lote 5 en el núcleo, con su caso fijo.
+ * Lo que encontraron las pruebas de propiedades y el fuzzing en el núcleo, con su caso fijo.
  */
 import { describe, expect, it } from 'vitest';
 import {

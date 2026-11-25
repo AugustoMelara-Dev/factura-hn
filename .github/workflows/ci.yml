@@ -44,6 +44,8 @@ jobs:
       - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
       - name: Datos de ejemplo ficticios
         run: pnpm auditar:datos
+      - name: Sin términos del proceso interno (códigos, jerga, documentos internos)
+        run: pnpm verificar:terminos
       - name: Build
         run: pnpm build
       - name: Tipos
@@ -78,7 +80,9 @@ jobs:
           pnpm playground
       - name: Sitio de documentación (matriz con prueba por fila, enlaces y anclas, buscador, recursos para IA)
         if: matrix.node != 20
-        run: pnpm sitio
+        run: |
+          pnpm sitio
+          node scripts/verificar-terminos.mjs --sitio
 
   postgres:
     name: Postgres (almacén, API, cliente, MCP, Express, Next.js)

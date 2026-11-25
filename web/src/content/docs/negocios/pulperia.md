@@ -37,7 +37,7 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   sistemas computarizados (Art. 9, C L.559-566). factura-hn no tiene una función para juntar las ventas del día.
 - **Arriba de L 10,000**, la venta a consumidor final lleva el nombre y la identificación del cliente (Art. 11,
   párrafo final). factura-hn lo exige (`CONSUMIDOR_FINAL_IDENTIFICACION`).
-- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (decisión D-01). Por eso se cobra siempre
+- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn). Por eso se cobra siempre
   `totales.total` y se calcula antes con `cotizar`. Para evitar el ajuste, `sugerirPrecioSinAjuste` propone precios
   que no lo necesitan.
 - **Papel térmico.** Antes de imprimir en papel térmico, el Art. 38 pide la certificación del proveedor del papel
@@ -46,8 +46,7 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   sanciona (Art. 55).
 
 :::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es una lectura del proyecto, pendiente de respuesta
-(P-10). Ver [Consulta al SAR](/produccion/consulta-sar/).
+El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
 :::
 
 ## Ejemplo: una venta típica
@@ -123,16 +122,13 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
 
 :::caution[Por confirmar con fuente]
 - **Productos exentos.** El repositorio no tiene ninguna lista de bienes exentos (canasta básica u otros). La
-  clasificación de cada producto la decide el negocio con su contador (aún sin pregunta propia en la consulta).
+  clasificación de cada producto la decide el negocio con su contador.
 - **Productos al 18 %.** La Ley del ISV, en la copia del repositorio, no trae las tasas vigentes. La de 18 % viene
-  del Decreto 278-2013, Art. 16, que no está en texto primario (pregunta P-11; DEC-069 [REVISAR]).
-- **Si una pulpería está obligada a facturar con un sistema** o puede usar talonarios de imprenta, según su tamaño
-  (aún sin pregunta propia en la consulta).
-- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
-- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» que menciona
-  (pregunta P-07).
-
-Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
+  del Decreto 278-2013, Art. 16, que no está en texto primario.
+- **Si una pulpería está obligada a facturar con un sistema** o puede usar talonarios de imprenta, según su tamaño.
+- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos.
+- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» que menciona.
+Confírmalo con tu contador antes de emitir.
 :::
 
 ## Qué confirmar con tu contador

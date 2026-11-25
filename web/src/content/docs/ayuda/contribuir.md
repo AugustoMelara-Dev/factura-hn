@@ -21,15 +21,14 @@ y cita el artículo y la fuente exacta. Sirve para:
 
 - una regla que falta, sobra o se interpreta mal;
 - un aviso «Por confirmar con fuente» de este sitio;
-- una de las preguntas abiertas de la [consulta al SAR](/produccion/consulta-sar/);
-- una decisión marcada «en revisión» en [Decisiones](/referencia/decisiones/).
+- uno de los [puntos que el Reglamento no dice de forma literal](/produccion/estado-legal/#puntos-que-el-reglamento-no-dice-de-forma-literal).
 
 No hace falta escribir código.
 
 ## Reglas del proyecto
 
-1. **No se inventan reglas fiscales.** Cada validación cita su artículo en un comentario y tiene una prueba. Una
-   interpretación se registra como decisión, marcada en revisión hasta que el responsable la apruebe.
+1. **No se inventan reglas fiscales.** Cada validación cita su artículo en un comentario y tiene una prueba. Donde
+   la norma no es literal, la documentación dice qué lectura aplica factura-hn y por qué.
 2. **Sin punto flotante en dinero.** Montos como texto decimal o enteros escalados.
 3. **Correlativos atómicos y sin huecos.** Un número nunca se borra ni se reutiliza.
 4. **Documentos inmutables.** Solo se anulan (Art. 41) o se corrigen con notas 06 y 07.

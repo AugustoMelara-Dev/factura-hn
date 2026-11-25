@@ -468,7 +468,7 @@ describe('operador', () => {
   });
 });
 
-describe('problemasDeTexto (DEC-060)', () => {
+describe('problemasDeTexto', () => {
   it('mensaje distinto para un valor y para un nombre de campo, con la posición y el punto de código en mayúsculas', () => {
     expect(problemasDeTexto({ cliente: { nombre: 'Ana\u001b' } })).toEqual([
       {

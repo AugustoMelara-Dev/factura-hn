@@ -1,6 +1,5 @@
 /**
- * Fechas en America/Tegucigalpa, nunca la zona del servidor; sin retrofechar (Reglamento Arts. 14 y 43,
- * docs/investigacion.md B-08).
+ * Fechas en America/Tegucigalpa, nunca la zona del servidor; sin retrofechar (Reglamento Arts. 14 y 43).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

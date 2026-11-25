@@ -282,11 +282,11 @@ const conEnlaces = <R extends { documento: { numero: string } }>(r: R) => ({
   },
 });
 
-// --- Paginación (DEC-047) ------------------------------------------------------------------------------------
+// --- Paginación ------------------------------------------------------------------------------------------
 const LIMITE_POR_DEFECTO = 100;
 /** Bytes de documentos por página de `GET /v1/documentos`, por defecto. Ver `ConfigApi.maxBytesPagina`. */
 export const MAX_BYTES_PAGINA = 8 * 1024 * 1024;
-/** Avisos de una nota de crédito que la API solo acepta con llave admin (DEC-051). */
+/** Avisos de una nota de crédito que la API solo acepta con llave admin (política de seguridad de la API, no una regla fiscal: sin el original no se puede verificar el ajuste). */
 const AVISOS_NOTA_SOLO_ADMIN = new Set(['AVISO_ORIGINAL_EXTERNO']);
 const FECHA_CURSOR = /^\d{4}-\d{2}-\d{2}$/;
 /** Validación de cursores antes de la base: un valor fuera de rango daría 500 en lugar de 400 `CURSOR_INVALIDO`. */
@@ -642,7 +642,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   const sesion = (c: Context<Env>) => c.get('sesion');
   const almacenDe = (c: Context<Env>) => base.paraTenant(sesion(c).tenant);
-  // DEC-031: el actor es el id interno de la llave, con su rol y nombre al momento de la operación.
+  // La bitácora apoya los controles de auditoría del Art. 53 num. 2; el operador es opcional y no lo exige el
+  // Reglamento. El actor es el id interno de la llave, con su rol y nombre al momento de la operación.
   const actor = (c: Context<Env>) => {
     const s = sesion(c);
     return `llave:${s.llaveId} (${s.rol}: ${s.llaveNombre})`;
@@ -801,7 +802,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const cuerpo = c.req.valid('json') as AutorizacionCAI;
       const caiDemo = esCAIDemo(cuerpo.cai);
       const { tenant, modoTenant } = sesion(c);
-      // DEC-063 y DEC-093, con el modo del tenant: un tenant de prueba (sandbox) solo registra CAI ficticios y uno
+      // Modo de prueba visible, según el modo del tenant: un tenant de prueba (sandbox) solo registra CAI ficticios y uno
       // de producción ninguno. Un CAI real en el sandbox emitiría documentos con apariencia válida fuera de la serie
       // real; un DEMO00 pegado por error en producción convertiría en «de prueba» un punto de emisión real.
       if (modoTenant === 'prueba' && !caiDemo) {
@@ -845,7 +846,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         const a = (await tx.consulta<{ datos: AutorizacionCAI; identificador: string }>('SELECT datos, identificador FROM fhn_autorizaciones WHERE tenant = $1 AND cai = $2', [tx.tenant, cai])).rows[0];
         if (!a) return null;
         const s = (await tx.consulta<{ ultimo: number | null }>('SELECT ultimo FROM fhn_series WHERE tenant = $1 AND identificador = $2', [tx.tenant, a.identificador])).rows[0];
-        // Una demo de un punto que ya tiene una autorización real (de cualquier tipo) está retirada (DEC-091).
+        // Una demo de un punto que ya tiene una autorización real (de cualquier tipo) está retirada: un punto pasa de prueba a real, nunca al revés.
         let puntoConReal = false;
         if (esAutorizacionDePrueba(a.datos)) {
           const delPunto = await tx.consulta<{ datos: AutorizacionCAI }>(
@@ -1081,7 +1082,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           confirmarSaltoDeFecha: cuerpo.confirmarSaltoDeFecha,
           opciones: { reloj },
           alEmitir: async (doc, t) => {
-            // Política de la API (DEC-051): una nota de crédito sobre un original que no está en el sistema no se
+            // Política de seguridad de la API, no una regla fiscal: una nota de crédito sobre un original que no está en el sistema no se
             // pudo verificar (importe ni tasa) y reduce el débito fiscal del tenant; solo una llave admin la emite.
             // Con el original en el sistema, superarlo o cambiar la tasa ya es error del núcleo (422) para todos.
             // Se lanza dentro de la transacción, así que el número no se consume.
@@ -1404,7 +1405,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
             'text/csv': { schema: z.string() },
           },
         },
-        // 403 `CAJA_SIN_PUNTO`: una llave de caja sin punto de emisión (DEC-122).
+        // 403 `CAJA_SIN_PUNTO`: una llave de caja sin punto de emisión.
         ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),

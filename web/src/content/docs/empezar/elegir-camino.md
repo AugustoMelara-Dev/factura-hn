@@ -57,8 +57,8 @@ Tiene dos modos:
 
 :::caution[Por confirmar con fuente]
 El encaje del modo alojado con el Art. 47 del Reglamento («el establecimiento donde se encuentre el servidor»)
-está pendiente: es la pregunta P-02, que aún no tiene respuesta. Mientras tanto, la recomendación es el
-modo local. Ver la [consulta al SAR](/produccion/consulta-sar/).
+no está resuelto: el Reglamento no lo dice de forma literal. Mientras tanto, la recomendación es el
+modo local.
 :::
 
 Detalle en la [referencia de la API](/referencia/api/) y en [Autoalojar](/guias/autoalojar/).

@@ -7,8 +7,7 @@
  * Art. 53 num. 1: «El sistema de facturación debe estar integrado al menos a un sistema contable o de
  * inventarios.»
  *
- * En las fuentes revisadas el SAR no fija un formato de archivo para autoimpresores (pendiente de
- * consulta al SAR). Por eso
+ * En las fuentes revisadas el SAR no fija un formato de archivo para autoimpresores. Por eso
  * se ofrecen tres formatos abiertos y
  * documentados; cuando exista un formato oficial se agrega aquí.
  * Todos los importes se escriben desde centavos enteros, sin punto flotante.

@@ -1,5 +1,5 @@
 /**
- * DEC-031 (Art. 53 num. 2): en la bitácora, el actor es el id interno de la llave con su rol y nombre, y cada
+ * La bitácora apoya los controles de auditoría del Art. 53 num. 2; el operador es opcional y no lo exige el Reglamento. En la bitácora, el actor es el id interno de la llave con su rol y nombre, y cada
  * solicitud puede indicar el operador (p. ej. el cajero) en el cuerpo o en la cabecera X-Operador.
  */
 import { randomUUID } from 'node:crypto';
@@ -9,7 +9,7 @@ import { cerrarPool, cliente, crearCaja, tenantListo, URL_PG, venta } from './ay
 afterAll(cerrarPool);
 const json = async (r: Response) => (await r.json()) as Record<string, any>;
 
-describe.skipIf(!URL_PG)('DEC-031: actor y operador', () => {
+describe.skipIf(!URL_PG)('actor y operador en la bitácora (operador opcional)', () => {
   it('actor = id de la llave (rol: nombre); operador del cuerpo o de X-Operador en ambas bitácoras; impreso solo si se pide', async () => {
     const { app, admin } = await tenantListo();
     const caja = cliente(app, await crearCaja(admin, '001'));

@@ -4,7 +4,7 @@
  * Cómo aplica: la URL de un webhook la elige el cliente y el servidor le hace POST. En modo alojado solo se permite
  * https hacia direcciones públicas: se valida al registrar (`problemaDeURL`), otra vez antes de cada entrega, y al
  * conectar (`lookupSeguro`, que resuelve el nombre, rechaza si alguna dirección es interna y conecta a la dirección
- * validada). No se siguen redirecciones. En modo local se permite la red del negocio (DEC-035).
+ * validada). No se siguen redirecciones. En modo local se permite la red del negocio.
  *
  * Ataque, solo con receptores locales: formas alternativas de escribir una dirección interna; un nombre con punto
  * final; un nombre que resuelve a la red interna; una URL guardada en modo local que se entrega en modo alojado; una

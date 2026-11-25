@@ -2,8 +2,8 @@
  * OWASP API2:2023 · Broken Authentication.
  *
  * Cómo aplica: la única credencial es la llave de API en `Authorization: Bearer` (SHA-256 de 256 bits de entropía,
- * comparación en tiempo constante, DEC-026). Hay llaves revocadas, tenants inactivos y llaves con la marca de modo
- * equivocada (DEC-118), y un límite de intentos fallidos por prefijo y por dirección (DEC-035).
+ * comparación en tiempo constante). Hay llaves revocadas, tenants inactivos y llaves con la marca de modo
+ * equivocada, y un límite de intentos fallidos por prefijo y por dirección.
  *
  * Ataque: todas las operaciones sin llave; la llave en otros lugares (consulta, cookie, Basic, otra cabecera);
  * llaves mal formadas; un 401 que distinga «no existe» de «secreto equivocado»; fuerza bruta sobre un prefijo; prefijos
@@ -111,7 +111,7 @@ conBase('API2 · autenticación', () => {
   });
 
   it('prefijos inventados con X-Forwarded-For cambiante: sin proxies de confianza cuentan todos a la dirección del socket', async () => {
-    // El límite por dirección solo frena con el semáforo de consultas lleno (DEC-035): una consulta a la vez y
+    // El límite por dirección solo frena con el semáforo de consultas lleno: una consulta a la vez y
     // todas las demás llegan mientras tanto. Cada prefijo es nuevo, así que lo que frena es la cubeta de la dirección,
     // no la del prefijo. La misma ráfaga, desde el mismo socket, con 0 y con 1 proxy de confianza.
     const rafaga = async (proxiesDeConfianza: number) => {
