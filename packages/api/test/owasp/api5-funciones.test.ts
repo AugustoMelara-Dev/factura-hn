@@ -49,7 +49,11 @@ conBase('API5 · autorización a nivel de función', () => {
     const deAdmin = operaciones(t).filter((o) => o.soloAdmin).map((o) => o.operationId);
     // Las de admin, más las dos de caja con restricciones propias: emitir (caja de otro punto, salto de fecha, nota
     // externa) y el libro de ventas (caja sin punto).
-    expect([...con403].sort()).toEqual([...deAdmin, 'emitirDocumento', 'obtenerLibroVentas'].sort());
+    expect([...deAdmin, 'emitirDocumento', 'obtenerLibroVentas'].filter((id) => !con403.has(id))).toEqual([]);
+    // Además, toda operación de /v1 declara 403 por TENANT_FUERA_DEL_MODO_LOCAL: el servidor en modo local no atiende
+    // llaves de otro tenant. La única sin 403 es /salud, que es pública.
+    const todas = Object.values(spec.paths).flatMap((ops) => Object.values(ops).map((op) => op.operationId));
+    expect(todas.filter((id) => !con403.has(id))).toEqual(['obtenerSalud']);
   });
 
   it('una caja no se crea una llave admin ni otra caja, ni revoca la llave admin', async () => {

@@ -127,7 +127,7 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     // Libro: los mismos bytes que `c.json({ filas, resumen })` y que `libroVentasCSV(filas)` de antes.
     const filas = docs.map(filaLibroVentas);
     const libro = await admin('GET', `/v1/libro-ventas?${PERIODO}`);
-    expect(libro.headers.get('content-type')).toBe('application/json');
+    expect(libro.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas), excluidos: 0 }));
     const csv = await admin('GET', `/v1/libro-ventas?${PERIODO}&formato=csv`);
     expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8');

@@ -87,13 +87,14 @@ describe('OpenAPI: estados de error', () => {
     expect(con422.sort()).toEqual(['GET /v1/exportacion', 'GET /v1/libro-ventas']);
   });
 
-  it('toda operación de /v1 declara 401, 429 y 500; el 413, toda operación que no es GET', async () => {
+  it('toda operación de /v1 declara 401, 403, 429 y 500; el 413, toda operación que no es GET', async () => {
     for (const o of await especificacion()) {
       const estados = Object.keys(o.op.responses);
       expect(estados, o.nombre).toContain('500');
       // Toda operación que puede dar 500 también puede dar 503 BASE_NO_DISPONIBLE (la base se reinicia).
       expect(estados, o.nombre).toContain('503');
-      if (o.ruta.startsWith('/v1/')) expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '429']));
+      // 403 TENANT_FUERA_DEL_MODO_LOCAL: el servidor en modo local no atiende llaves de otro tenant, en ninguna operación.
+      if (o.ruta.startsWith('/v1/')) expect(estados, o.nombre).toEqual(expect.arrayContaining(['401', '403', '429']));
       // bodyLimit cubre todo /v1/*: una operación sin cuerpo esperado (DELETE, POST sin cuerpo) también puede dar 413.
       expect(estados.includes('413'), o.nombre).toBe(o.metodo !== 'get');
     }

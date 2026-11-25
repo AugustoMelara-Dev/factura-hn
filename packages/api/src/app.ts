@@ -66,7 +66,7 @@ import {
   type CuerpoError,
   type ProblemaApi,
 } from './errores';
-import { TENANT_DEMO } from './operador';
+import { TENANT_DEMO, TENANT_LOCAL } from './operador';
 import { coincide, generarLlave, leerLlave, type ModoTenant, type RolLlave } from './llaves';
 import * as S from './esquemas';
 import {
@@ -170,6 +170,13 @@ export interface ConfigApi {
    * antes del documento que empieza pasado el tope, con `hayMas: true`; siempre trae al menos un documento.
    */
   maxBytesPagina?: number;
+  /**
+   * Con `modo: 'local'`, solo atiende llaves de los tenants `local` y `demo`; la de otro tenant recibe 403
+   * `TENANT_FUERA_DEL_MODO_LOCAL`. Es la red de seguridad del modo local, de un solo negocio: `arrancar` (el servidor
+   * de `factura-hn-api` y de la imagen de Docker) lo activa. Por defecto `false`, para quien monta la app con sus
+   * propios tenants (p. ej. las pruebas). En modo alojado no hace nada.
+   */
+  soloTenantsLocales?: boolean;
   registrar?: (mensaje: string, error?: unknown) => void;
 }
 
@@ -233,7 +240,7 @@ function jsonEstable(v: unknown): string {
 /** Tipo de todo cuerpo JSON de la API, con su codificación explícita (Windows PowerShell 5.1 la necesita). */
 export const TIPO_JSON = 'application/json; charset=utf-8';
 
-const conError =(description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
+const conError = (description: string) => ({ description, content: { 'application/json': { schema: S.ErrorRespuesta } } });
 /** Respuestas de error que puede dar una operación. Cada ruta declara solo las que su código devuelve. */
 const CATALOGO_ERRORES = {
   400: conError('Solicitud mal formada: forma, parámetros, cabeceras o JSON'),
@@ -344,6 +351,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   /** Hash de las llaves que este proceso ya validó, por prefijo: quien presenta el secreto correcto no gasta intentos. */
   const verificadas = new Map<string, Buffer>();
   const guia = soluciones({ consola: cfg.consola ?? CONSOLA_POR_DEFECTO, modo: cfg.modo, hayDemo: cfg.hayDemo });
+  /** La guía de un 422 fuera de `POST /v1/documentos`: sin reintentar con una Idempotency-Key que la ruta no lleva. */
+  const guiaSinEmision = { ...guia, VALIDACION: 'Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta.' };
   const conGuia = (p: ProblemaApi): ProblemaApi => conSolucion({ error: { codigo: '_', mensaje: '' }, errores: [p] }, guia).errores![0]!;
   const buscarLlave = (prefijo: string): Promise<BusquedaLlave> =>
     base.transaccion(async (t) => {
@@ -404,11 +413,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
-  });
-  // Todo JSON sale con `charset=utf-8`, también los errores, el 404, /salud y /openapi.json. Sin él, Windows
-  // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
-  app.use('*', async (c, next) => {
-    await next();
+    // Todo JSON sale con `charset=utf-8`, también los errores, el 404, /salud y /openapi.json. Sin él, Windows
+    // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
     if (/^application\/json\s*$/i.test(c.res.headers.get('content-type') ?? '')) c.header('Content-Type', TIPO_JSON);
   });
   app.use('/v1/*', bodyLimit({ maxSize: 512 * 1024, onError: () => { throw new ErrorApi(413, 'CUERPO_DEMASIADO_GRANDE', 'El cuerpo supera 512 KB.'); } }));
@@ -433,7 +439,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return c.json<CuerpoError>(
         conSolicitud(c, conSolucion(
           { error: { codigo: noEncontrado ? 'NO_ENCONTRADO' : 'VALIDACION', mensaje: e.errores.map((p) => p.mensaje).join(' ') }, errores: e.errores, advertencias: e.advertencias },
-          guia,
+          // Reintentar con la misma Idempotency-Key solo aplica a la emisión: las demás rutas no la llevan.
+          c.req.method === 'POST' && c.req.path === '/v1/documentos' ? guia : guiaSinEmision,
         )),
         noEncontrado ? 404 : 422,
       );
@@ -571,6 +578,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const espera = fallosPorPrefijo.tomar(prefijo);
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
       throw noValida;
+    }
+    // Red de seguridad del modo local (un solo negocio): una llave de otro tenant no entra. El arranque se niega con
+    // tenants ajenos y `tenant crear` también, pero un tenant creado por otra vía mientras corre tendría webhooks
+    // sin el filtro de la red interna hasta el próximo arranque.
+    if (cfg.modo === 'local' && cfg.soloTenantsLocales && fila.tenant !== TENANT_LOCAL && fila.tenant !== TENANT_DEMO) {
+      throw new ErrorApi(403, 'TENANT_FUERA_DEL_MODO_LOCAL', 'Este servidor corre en modo local, para un solo negocio, y la llave es de otro tenant.');
     }
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
@@ -713,7 +726,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/emisores', operationId: 'listarEmisores', tags: ['Emisor'], security: seguridad, summary: 'El emisor del tenant (lista de 0 o 1)',
-      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasDe(401, 429, 500) },
+      responses: { 200: json(S.pagina('emisores', S.EmisorGuardado), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       const e = await enTenant(c, leerEmisor);
@@ -726,7 +739,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/emisores/{id}', operationId: 'obtenerEmisor', tags: ['Emisor'], security: seguridad, summary: 'Datos del emisor',
       request: { params: rutaEmisorId },
-      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
+      responses: { 200: json(S.RespuestaEmisor, 'Emisor'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       const { id } = c.req.valid('param');
@@ -798,7 +811,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/autorizaciones', operationId: 'listarAutorizaciones', tags: ['Autorizaciones'], security: seguridad, summary: 'Autorizaciones registradas',
-      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasDe(401, 429, 500) },
+      responses: { 200: json(S.pagina('autorizaciones', S.Autorizacion), 'Lista'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       const lista = await enTenant(c, async (tx) =>
@@ -813,7 +826,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'get', path: '/v1/autorizaciones/{cai}/estado', operationId: 'obtenerEstadoAutorizacion', tags: ['Autorizaciones'], security: seguridad,
       summary: 'Vigencia y rango restante de una autorización (Arts. 59 y 62)',
       request: { params: z.object({ cai: z.string().min(1).max(60) }) },
-      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 429, 500) },
+      responses: { 200: json(S.RespuestaEstado, 'Estado'), 404: json(S.ErrorRespuesta, 'No existe'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       const cai = normalizarCAI(c.req.valid('param').cai);
@@ -851,7 +864,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         'Tenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya ' +
         'se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede ' +
         'llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones.',
-      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasDe(401, 429, 500) },
+      responses: { 200: json(S.RespuestaSesion, 'Sesión'), ...respuestasDe(401, 403, 429, 500) },
     }),
     async (c) => {
       const s = sesion(c);
@@ -954,7 +967,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         'La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. ' +
         '`enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave.',
       request: {
-        headers: z.object({ 'idempotency-key': z.string().openapi({ description: 'Clave única por venta (p. ej. un UUID generado por el POS).' }) }),
+        // Opcional en el esquema solo para que su falta llegue al código y responda 400 `IDEMPOTENCY_KEY` con su
+        // solución, no `SOLICITUD_INVALIDA`: la ruta la exige siempre.
+        headers: z.object({
+          'idempotency-key': z.string().optional().openapi({
+            param: { required: true },
+            description: 'Obligatoria. Clave única por venta (p. ej. el id del pedido o un UUID generado por el POS), la misma en cada reintento de esa venta.',
+          }),
+        }),
         body: { content: { 'application/json': { schema: S.SolicitudEmision } }, required: true },
       },
       responses: {
@@ -1110,7 +1130,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         'Cada página trae a lo sumo `limite` documentos y además se corta en unos 8 MiB: puede traer menos de `limite` con ' +
         '`hayMas: true`. Sigue pidiendo con `cursor=<siguiente>` mientras `hayMas` sea `true`; no te detengas al recibir menos de `limite`.',
       request: { query: S.periodo({ identificador: z.string().regex(IDENTIFICADOR).optional(), ...S.Paginacion }) },
-      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 429, 500) },
+      responses: { 200: json(S.pagina('documentos', S.DocumentoFiscal), 'Una página'), ...respuestasDe(400, 401, 403, 429, 500) },
     }),
     async (c) => {
       const q = c.req.valid('query');
@@ -1151,7 +1171,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       description: 'La copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41).',
       request: {
         params: z.object({ archivo: z.string().openapi({ example: '000-001-01-00000001.pdf' }) }),
-        query: z.object({ formato: z.enum(['carta', 'ticket']).optional(), ancho: z.coerce.number().int().min(32).max(120).optional() }),
+        query: z.object({ formato: z.enum(['carta', 'ticket']).optional(), ancho: S.Entero(32, 120, { texto: true }).optional() }),
       },
       responses: {
         200: {
@@ -1164,7 +1184,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           },
         },
         404: json(S.ErrorRespuesta, 'No existe'),
-        ...respuestasDe(400, 401, 429, 500),
+        ...respuestasDe(400, 401, 403, 429, 500),
       },
     }),
     async (c) => {

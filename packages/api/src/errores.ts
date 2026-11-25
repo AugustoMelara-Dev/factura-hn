@@ -89,6 +89,9 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
       'Si pasa seguido, reparte las solicitudes en el tiempo.',
     LIMITE_SOLICITUDES: 'Ya hay reportes en curso: espera a que terminen y reintenta después de Retry-After. Si un período tarda, divídelo.',
     LIMITE_MENSUAL: 'Se alcanzó el límite de documentos del mes del tenant. Se reinicia el primer día del mes siguiente; pide al operador que lo suba.',
+    TENANT_FUERA_DEL_MODO_LOCAL:
+      'Usa una llave del tenant «local» (tu negocio) o del «demo». Si este servidor sirve a varios negocios, el operador debe ' +
+      'arrancarlo con FHN_MODO=alojado (y FHN_CLAVE_CIFRADO).',
     SOLO_ADMIN: 'Esta operación requiere una llave con rol admin. Las llaves de caja solo emiten y consultan; `GET /v1/sesion` dice el rol de tu llave.',
     CAJA_SIN_PUNTO:
       'Crea una llave de caja atada a su punto de emisión (`POST /v1/llaves` con `rol: "caja"`, `establecimiento` y `puntoEmision`) y revoca esta.',
@@ -114,7 +117,9 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     CUERPO_NO_UTF8: 'Guarda el JSON en un archivo UTF-8 y envíalo tal cual: con curl, `--data-binary @factura.json`.',
     CUERPO_DEMASIADO_GRANDE: 'El cuerpo admite hasta 512 KB: divide la venta en varios documentos o acorta los textos.',
     SOLICITUD_INVALIDA: 'Corrige el campo de `error.campo` (la lista completa está en `errores`). La forma de cada ruta está en /docs.',
-    IDEMPOTENCY_KEY: 'Envía la cabecera `Idempotency-Key` con un identificador estable de la venta (p. ej. el id del pedido), igual en cada reintento.',
+    IDEMPOTENCY_KEY:
+      'Envía la cabecera `Idempotency-Key: <un valor único por venta>` (p. ej. el id del pedido o de la venta) y, si reintentas ' +
+      'esa misma venta, reutiliza el mismo valor: así nunca se emite dos veces.',
     IDEMPOTENCIA_CONFLICTO: 'Esa clave ya emitió otra venta. Usa una clave nueva para una venta distinta; para reintentar la misma venta, manda el mismo cuerpo.',
     BASE_NO_DISPONIBLE:
       'La base de datos se está reiniciando o no responde. Reintenta después de los segundos de Retry-After; al emitir, con la ' +

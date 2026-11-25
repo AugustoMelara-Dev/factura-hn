@@ -25,8 +25,9 @@ export const CABECERAS_RESPUESTA: Record<string, Cabecera> = {
   'FacturaHN-Modo': {
     description:
       'Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). ' +
-      'Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; ' +
-      'sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `DEMASIADOS_REPORTES`).',
+      'Solo después de validar la llave: nunca en un 401, un 413, un 403 `TENANT_FUERA_DEL_MODO_LOCAL` ni un 429 ' +
+      '`DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, ' +
+      '`LIMITE_SOLICITUDES`).',
     schema: { type: 'string', example: 'prueba' },
   },
   'RateLimit-Policy': {
