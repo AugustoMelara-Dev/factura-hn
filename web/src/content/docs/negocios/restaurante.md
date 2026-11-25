@@ -118,12 +118,14 @@ CAI de cada caja y una llave de caja por punto de emisión. Ver [Autoalojamiento
   emitir. Un documento emitido no se edita; el Reglamento solo prevé anularlo (Art. 41) o modificarlo con notas.
   Si ya salió a CONSUMIDOR FINAL, si procede anularlo y emitir otro lo decide el contador: el repositorio no trata
   ese caso.
-- **Se cae el equipo de la API.** Las cajas no pueden emitir. Se usan los talonarios de contingencia (Art. 55) y,
-  al volver, se emite con la fecha de hoy: no se retrofecha (DEC-022).
+- **Se cae el equipo de la API.** Las cajas no pueden emitir. Se usan los talonarios de contingencia (Art. 55).
+  Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy (DEC-022).
 
 ## Por confirmar con fuente
 
 :::caution[Por confirmar con fuente]
+- **Ventas del talonario de contingencia**: cómo se reportan en el libro de ventas y en la declaración. Confírmalo
+  con tu contador; el repositorio no lo trata.
 - **Propina o cargo por servicio.** El repositorio no tiene ningún artículo sobre si forma parte de la base del
   ISV ni sobre cómo se imprime (F-17, pregunta nueva fuera de P-01 a P-14). Por eso el ejemplo no la incluye.
 - **Cuentas divididas entre comensales**: si cada parte es un documento separado y con qué datos (F-17).

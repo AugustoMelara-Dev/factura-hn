@@ -75,13 +75,15 @@ permite vender sin documento. Lo que eso significa en la práctica:
 
 - Los talonarios se tienen **antes** de necesitarlos, impresos por una imprenta certificada. El Reglamento regula
   a las imprentas en el Registro Fiscal de Imprentas (Arts. 66-70).
-- La contingencia **no justifica retrofechar**. Cuando el sistema vuelve, emite con la fecha de hoy; no se
-  «pasan» al sistema las ventas del talonario con su fecha original. factura-hn no permite una fecha de emisión
-  distinta de la de hoy (`FECHA_EMISION_NO_ES_HOY`, DEC-022).
+- La contingencia **no justifica retrofechar**. Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy (DEC-022). factura-hn no permite una fecha de emisión distinta de la
+  de hoy (`FECHA_EMISION_NO_ES_HOY`).
 - Si una nota de crédito o débito modifica un documento del talonario, el original no está en el almacén: la nota
   sale con el aviso `AVISO_ORIGINAL_EXTERNO` (DEC-004), y con la API la emite una llave admin (DEC-051).
 
 :::caution[Por confirmar con fuente]
+Cómo se reportan las ventas del talonario en el libro de ventas y en la declaración: confírmalo con tu contador.
+El repositorio no lo trata.
+
 Las sanciones concretas por vender sin documento (montos y tipos de falta) están en el Código Tributario, que el
 repositorio no ha analizado para este fin (F-22). Tampoco está la fuente de la declaración mensual (formulario,
 nombre y campos) ni su relación con el libro de ventas (F-21). Confírmalo con tu contador.
