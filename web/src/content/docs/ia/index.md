@@ -3,6 +3,7 @@ title: IA y agentes
 description: Cómo usar factura-hn con asistentes que escriben la integración y con asistentes que emiten documentos.
 sidebar:
   order: 0
+  label: Resumen
 ---
 
 Un asistente de IA puede hacer dos trabajos distintos con factura-hn. Cada uno usa recursos diferentes.
