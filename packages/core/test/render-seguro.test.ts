@@ -85,13 +85,16 @@ describe('renderizarHTML escapa todo valor interpolado', () => {
 
 describe('renderizarTexto no deja pasar caracteres de control a la impresora', () => {
   it('ESC, GS y NUL en el cliente y en una línea se cambian por «?»', async () => {
+    // `emitir` ya rechaza estos caracteres (TEXTO_CARACTER_NO_PERMITIDO): aquí llegan en un documento importado.
     const f = await emitir({
       emisor: EMISOR,
-      cliente: { nombre: 'Cliente\u001b@Ejemplo\u001dV\u0000' },
-      lineas: [{ descripcion: 'Soda\u001bd\u0005 fría\u009b', cantidad: 1, precioUnitario: '20.00' }],
-      observaciones: 'Nota\u001b',
+      cliente: { nombre: 'Cliente' },
+      lineas: [{ descripcion: 'Soda', cantidad: 1, precioUnitario: '20.00' }],
     }, { almacen, ...caja });
     const doc = manipular(f, (d) => {
+      d.cliente.nombre = d.cliente.nombreImpreso = 'Cliente\u001b@Ejemplo\u001dV\u0000';
+      d.lineas[0].descripcion = 'Soda\u001bd\u0005 fría\u009b';
+      d.observaciones = 'Nota\u001b';
       d.emisor.razonSocial = 'Pulpería\u001bE\u0001';
       d.motivo = 'x\r\u001b';
     });

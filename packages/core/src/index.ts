@@ -76,6 +76,7 @@ export type { OpcionesCalculo, TotalesCentavos } from './calculo';
 export {
   validarEntrada,
   problemaDeOperador,
+  problemasDeTexto,
   problemaDeTipo,
   TIPOS_NO_EMITIBLES_POR_SISTEMA,
   COMPROBANTES_FISCALES,
@@ -103,6 +104,7 @@ export {
   anular,
   buscarDocumento,
   registrarAutorizacion,
+  registrarAutorizacionConAvisos,
   corregirFechaAdelantada,
   eventosAuditoria,
   SALTO_MAXIMO_DIAS,
@@ -111,7 +113,7 @@ export {
   autorizacionesActivas,
   nombreDeIdentificador,
 } from './emision';
-export type { OpcionesEmision } from './emision';
+export type { OpcionesEmision, OpcionesRegistroAutorizacion, RegistroAutorizacion } from './emision';
 export { crearFacturador } from './facturador';
 export type { AutorizacionCaja, ConfigFacturador, Facturador, NotaEntrada, OpcionesOperacion, Venta } from './facturador';
 export { conSolucion, enlaceError, SOLUCIONES, URL_ERRORES } from './errores';

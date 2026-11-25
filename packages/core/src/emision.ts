@@ -152,13 +152,49 @@ export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: A
   return problemas;
 }
 
-/** Registra una autorización del SAR (CAI + rango + fecha límite) validando que no se solape. */
+/** Opciones de `registrarAutorizacion` y `registrarAutorizacionConAvisos`. */
+export interface OpcionesRegistroAutorizacion {
+  reloj?: () => Date;
+  /** Quién registra (usuario, llave de API), para la bitácora. */
+  actor?: string;
+  /** Persona que opera, para la bitácora. */
+  operador?: string;
+}
+
+/** Resultado de `registrarAutorizacionConAvisos`: la autorización guardada y sus avisos. */
+export interface RegistroAutorizacion {
+  autorizacion: AutorizacionCAI;
+  /**
+   * Avisos de la autorización (`AVISO_*` de `validarAutorizacion`), p. ej. `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62).
+   * No impiden el registro. Sus códigos quedan también en el evento `AUTORIZACION_REGISTRADA` de la bitácora.
+   */
+  advertencias: Problema[];
+}
+
+/**
+ * Registra una autorización del SAR (CAI + rango + fecha límite) validando que no se solape. Devuelve la
+ * autorización guardada; para recibir también sus avisos, usa `registrarAutorizacionConAvisos`.
+ */
 export async function registrarAutorizacion(
   almacen: AlmacenFiscal,
   autorizacion: AutorizacionCAI,
-  opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
+  opciones: OpcionesRegistroAutorizacion = {},
 ): Promise<AutorizacionCAI> {
   exigirAlmacen(almacen, 'registrarAutorizacion');
+  return (await registrarAutorizacionConAvisos(almacen, autorizacion, opciones)).autorizacion;
+}
+
+/**
+ * Igual que `registrarAutorizacion`, y además devuelve los avisos que no impiden el registro, como
+ * `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62: vigencia de hasta un año). Muéstralos a quien registra: suelen ser
+ * un error al copiar la fecha de la resolución.
+ */
+export async function registrarAutorizacionConAvisos(
+  almacen: AlmacenFiscal,
+  autorizacion: AutorizacionCAI,
+  opciones: OpcionesRegistroAutorizacion = {},
+): Promise<RegistroAutorizacion> {
+  exigirAlmacen(almacen, 'registrarAutorizacionConAvisos');
   exigirOperador(opciones.operador);
   const ahora = relojDe(opciones.reloj)();
   return almacen.transaccion(async (tx) => {
@@ -184,6 +220,7 @@ export async function registrarAutorizacion(
       puntoEmision: String(autorizacion.puntoEmision).padStart(3, '0'),
     };
     await tx.guardarAutorizacion(normalizada);
+    const advertencias = validarAutorizacion(normalizada).filter(esAdvertencia);
     await tx.registrarEvento(
       evento('AUTORIZACION_REGISTRADA', ahora, {
         identificador: id,
@@ -194,11 +231,11 @@ export async function registrarAutorizacion(
           rangoInicial: normalizada.rangoInicial,
           rangoFinal: normalizada.rangoFinal,
           fechaLimiteEmision: normalizada.fechaLimiteEmision,
-          advertencias: validarAutorizacion(normalizada).filter(esAdvertencia).map((p) => p.codigo),
+          advertencias: advertencias.map((p) => p.codigo),
         },
       }),
     );
-    return normalizada;
+    return { autorizacion: normalizada, advertencias };
   });
 }
 
@@ -619,6 +656,9 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
   const numero = formatearNumero(parsearNumero(r.numero));
   const original = await tx.buscarDocumento(numero);
   if (!original || original.estado === 'ANULADO') return []; // externo: aviso; anulado: REFERENCIA_ANULADA
+  // Orden de bloqueo global: toda serie de nota (06, 07) antes que cualquier otra. Esta nota ya tiene su serie 06 y
+  // el original es un comprobante fiscal (REFERENCIA_TIPO), nunca una nota, así que dos notas sobre documentos de
+  // puntos distintos no se esperan en ciclo (prueba de Postgres «dos notas de crédito cruzadas»).
   await tx.bloquearSerie(identificadorDeNumero(numero));
   const problemas: Problema[] = [];
   const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6, 'tipoCambio') : 1_000_000n;

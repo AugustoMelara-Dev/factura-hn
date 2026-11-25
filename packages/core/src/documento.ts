@@ -168,6 +168,77 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
 }
 
 /**
+ * Caracteres que ningún texto de un documento puede llevar:
+ * - los de control Unicode (categoría Cc: C0, DEL y C1), salvo el tabulador, el salto de línea y el retorno de
+ *   carro, que tienen sentido en texto libre (descripciones, direcciones, observaciones);
+ * - las mitades sueltas de un par sustituto UTF-16, que no son texto válido.
+ * No es una regla fiscal: un NUL o un sustituto suelto no se pueden guardar en `jsonb` de PostgreSQL (la
+ * emisión o el listado terminaban en error 500) y los de control la impresora los toma como comandos (DEC-060).
+ */
+const CARACTER_NO_PERMITIDO = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+const CARACTER_NO_PERMITIDO_GLOBAL = new RegExp(CARACTER_NO_PERMITIDO.source, 'g');
+
+/** `U+XXXX` de un carácter (o de la primera unidad UTF-16 de una mitad suelta). */
+const puntoDeCodigo = (c: string) => `U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+
+/** Un nombre de campo apto para `campo` y el mensaje: sus caracteres no permitidos se escriben como `U+XXXX`. */
+const claveLegible = (clave: string) => clave.replace(CARACTER_NO_PERMITIDO_GLOBAL, (c) => `<${puntoDeCodigo(c)}>`);
+
+const SOLUCION_EMISOR =
+  'El carácter está en la configuración del emisor, no en la venta: corrígelo en `crearFacturador({ emisor })` o, en la API, con `PATCH /v1/emisores/{id}`.';
+
+/**
+ * Un problema `TEXTO_CARACTER_NO_PERMITIDO` por cada texto de la entrada, o nombre de campo, que lleva un carácter
+ * no permitido (`CARACTER_NO_PERMITIDO`). Recorre todos los textos (emisor, cliente, líneas, referencia,
+ * exoneración, motivo, observaciones…) a cualquier profundidad, no solo los que el SDK conoce; un objeto que se
+ * contiene a sí mismo se recorre una vez. `operador` ya lo valida `problemaDeOperador` (código `OPERADOR`).
+ * Los problemas de `emisor.*` traen una solución propia: el texto viene de la configuración, no de la venta.
+ */
+export function problemasDeTexto(entrada: unknown): Problema[] {
+  const problemas: Problema[] = [];
+  const reportar = (texto: string, campo: string, deClave: boolean) => {
+    const m = CARACTER_NO_PERMITIDO.exec(texto);
+    if (!m) return;
+    const punto = puntoDeCodigo(m[0]);
+    const que = /[\ud800-\udfff]/.test(m[0]) ? `una mitad suelta de un par sustituto UTF-16 (${punto})` : `un carácter de control (${punto})`;
+    const donde = deClave ? `El nombre del campo «${campo}»` : `El texto de «${campo}»`;
+    const p: Problema = {
+      codigo: 'TEXTO_CARACTER_NO_PERMITIDO',
+      mensaje: `${donde} tiene ${que} en la posición ${m.index + 1}. De los caracteres de control solo se permiten el tabulador y los saltos de línea.`,
+      campo,
+    };
+    if (campo === 'emisor' || campo.startsWith('emisor.') || campo.startsWith('emisor[')) p.solucion = SOLUCION_EMISOR;
+    problemas.push(p);
+  };
+  // Recorrido iterativo (sin límite de profundidad ni riesgo de desbordar la pila), en el orden de la entrada.
+  const vistos = new WeakSet<object>();
+  const pendientes: Array<{ valor: unknown; campo: string; raiz: boolean }> = [{ valor: entrada, campo: '', raiz: true }];
+  while (pendientes.length) {
+    const { valor, campo, raiz } = pendientes.pop()!;
+    if (typeof valor === 'string') {
+      reportar(valor, campo, false);
+      continue;
+    }
+    if (valor === null || typeof valor !== 'object' || vistos.has(valor)) continue;
+    vistos.add(valor);
+    const hijos: Array<{ valor: unknown; campo: string; raiz: boolean }> = [];
+    if (Array.isArray(valor)) {
+      valor.forEach((v, i) => hijos.push({ valor: v, campo: `${campo}[${i}]`, raiz: false }));
+    } else {
+      for (const [clave, v] of Object.entries(valor)) {
+        if (raiz && clave === 'operador') continue;
+        const ruta = campo ? `${campo}.${claveLegible(clave)}` : claveLegible(clave);
+        reportar(clave, ruta, true);
+        hijos.push({ valor: v, campo: ruta, raiz: false });
+      }
+    }
+    for (let i = hijos.length - 1; i >= 0; i--) pendientes.push(hijos[i]!);
+  }
+  return problemas;
+}
+
+/**
  * Problemas de los datos del emisor: todos son obligatorios (Reglamento Art. 10 num. 1; Arts. 25 y 27 num. 1
  * para las notas). Es la misma comprobación que hace `emitir`; sirve para validar la configuración del negocio
  * al arrancar.
@@ -213,6 +284,7 @@ export function validarEntrada(
   if (problemaTipo) problemas.push(problemaTipo);
   const problemaOperador = problemaDeOperador(entrada.operador);
   if (problemaOperador) problemas.push(problemaOperador);
+  problemas.push(...problemasDeTexto(entrada));
 
   // Autorización
   problemas.push(...validarAutorizacion(autorizacion, { caiEstricto: opciones.caiEstricto ?? false }));
