@@ -78,7 +78,8 @@ permite vender sin documento. Lo que eso significa en la práctica:
 - La contingencia **no justifica retrofechar**. Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy (DEC-022). factura-hn no permite una fecha de emisión distinta de la
   de hoy (`FECHA_EMISION_NO_ES_HOY`).
 - Si una nota de crédito o débito modifica un documento del talonario, el original no está en el almacén: la nota
-  sale con el aviso `AVISO_ORIGINAL_EXTERNO` (DEC-004), y con la API la emite una llave admin (DEC-051).
+  sale con el aviso `AVISO_ORIGINAL_EXTERNO` (DEC-004), y con la API la emite una llave admin
+  (DEC-051 [REVISAR]; es una política de seguridad de la API, no fiscal).
 
 :::caution[Por confirmar con fuente]
 Cómo se reportan las ventas del talonario en el libro de ventas y en la declaración: confírmalo con tu contador.
