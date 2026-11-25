@@ -4,11 +4,13 @@ Archivo para retomar el trabajo en una sesión nueva. Se actualiza en cada commi
 
 ## Estado
 
-- **Rama:** `main` en GitHub; cada lote entra por PR. Nada está publicado en npm.
+- **Rama:** `main` en GitHub; cada lote entra por PR. La 0.2.0 está publicada en npm (24-11-2026, desde la
+  máquina del responsable); la siguiente sale con changesets como 0.3.0.
 - **Fase actual:** plan «terminar factura-hn», en lotes 1 a 6 (24-11-2026).
-  - **Lote 1 (seguridad y 0.2.0):** el código está en el PR `lote1/integracion`. Falta el ALTO: el responsable
-    publica la 0.2.0 y configura Trusted Publisher.
-  - **Después:** Lote 2 (Etapa 1), Lote 3 (sitio Starlight), Lote 4 (API para integradores), Lote 5 (calidad
+  - **Lote 1 (seguridad y 0.2.0):** hecho y publicado. Falta que el responsable confirme Trusted Publisher en los
+    seis paquetes.
+  - **Lote 2 (Etapa 1, los primeros 5 minutos):** en el PR `lote2/integracion`.
+  - **Después:** Lote 3 (sitio Starlight), Lote 4 (API para integradores), Lote 5 (calidad
     medida) y Lote 6 (cierre).
 - **Reglas de trabajo:**
   - **Lotes grandes:** se para solo en los ALTO.
@@ -124,15 +126,35 @@ subagentes que no la escribieron, en dos rondas.
   - el demo emite;
   - la repetición da `Idempotency-Replayed`.
 
+## Hecho (Lote 2)
+
+Rama `lote2/integracion`, que une `lote2/nucleo`, `lote2/api`, `lote2/mcp` y `lote2/ejemplos`. Cada rama la revisó
+un subagente que no la escribió; la rama integrada pasó dos revisiones más (seguridad e integridad fiscal).
+
+- **Núcleo:** `factura-hn/demo`, modo de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» (un punto de
+  emisión es de prueba o real; de demo a real se permite y la demo queda retirada), errores con `solucion` y enlace
+  a `docs/errores.md`, `crearFacturador`, `npx factura-hn demo`/`init`, equivalente en lempiras guardado al emitir
+  en USD. La exportación, el libro y los no utilizados dejan fuera los documentos de prueba.
+- **API:** limitador de intentos nuevo (esquema API v7), 400 en español, `enlaces` al emitir, `GET /v1/sesion`,
+  `factura-hn-api demo llave`, consola unificada, CAI ficticio solo en el tenant demo.
+- **MCP:** `init --demo`, `registrar-cai` (comando y herramienta), validación de `emisor.json`, `repetido`, `cliente`
+  en notas de crédito, base de prueba aparte, versión fija en el bloque `mcpServers`.
+- **Ejemplos y paquetes:** ejemplos repetibles, enlaces absolutos verificados dentro de cada tarball, README de
+  tres caminos de 3 pasos, pruebas de humo de los tarballs (SDK, demo, MCP y API) en la CI.
+- **Primeros 5 minutos**, con agentes sin contexto y los tarballs: Node, API, MCP y Next.js emiten en ≤ 3 pasos
+  tras instalar, sin errores y en menos de 5 minutos (Next.js lo cumplió en la segunda vuelta, tras añadir su
+  camino de prueba sin base de datos).
+- **Decisiones:** DEC-062 a DEC-096. [REVISAR]: DEC-066 (`preciosIncluyenISV` en la fachada), DEC-068
+  (equivalente en USD), DEC-069 (tasa del 18 %), DEC-079 (NC con `cliente` sobre CONSUMIDOR FINAL).
+
 ## Sigue
 
-1. Fusionar el PR del Lote 1 con la CI en verde. Correr `pnpm run ci` completo, sitio incluido.
-2. **ALTO:** el responsable publica la 0.2.0 con los comandos que le da el agente y confirma. Después configura
-   Trusted Publisher en los seis paquetes y confirma.
-3. Lote 2 (Etapa 1): notas en `../.briefs/lote2-notas.md`. Incluye los MEDIOS abiertos de la revisión de la 0.2.0.
+1. Fusionar el PR del Lote 2 con la CI en verde.
+2. El responsable confirma Trusted Publisher en los seis paquetes.
+3. Lote 3 (Etapa 2): sitio en Astro Starlight.
 4. Pendiente menor: `datos::jsonb - 'lineas'` falla con un escape NUL dentro de un documento. Por la API no se llega
    (emitir con NUL ya da 500); conviene rechazar los controles al emitir.
-5. Lotes 3 a 6. Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
+5. Lotes 4 a 6. Pendientes anotados: `GET /v1/libro-ventas` con llave de caja (Lote 4). Al final, el responsable activa `PUBLICAR_NPM` y `PUBLICAR_SITIO` y envía `docs/consulta-sar.md`.
 
 ## Cómo correr
 
