@@ -16,8 +16,9 @@ const raiz = fileURLToPath(new URL('..', import.meta.url));
 
 // Solo lo que necesita contener los términos: la lista de patrones y sus pruebas.
 const EXCLUIDOS = new Set(['scripts/terminos-internos.mjs', 'scripts/terminos-internos.test.mjs']);
-// Binarios: no hay texto que revisar.
-const BINARIO = /\.(png|jpe?g|gif|webp|ico|pdf|woff2?|ttf|otf|zip|gz|tgz|db|sqlite)$/i;
+// Binarios: no hay texto que revisar. Los índices del buscador (pagefind) son binarios comprimidos; el
+// texto que indexan ya se revisa en las páginas HTML.
+const BINARIO = /\.(png|jpe?g|gif|webp|ico|pdf|woff2?|ttf|otf|zip|gz|tgz|db|sqlite|wasm|pf_index|pf_fragment|pf_meta|pagefind)$/i;
 
 const versionados = execFileSync('git', ['ls-files', '-z'], { cwd: raiz, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   .split('\0')
@@ -41,7 +42,10 @@ if (process.argv.includes('--sitio')) {
 
 let fallas = 0;
 for (const f of archivos) {
-  for (const h of buscarTerminos(readFileSync(join(raiz, f), 'utf8'))) {
+  const contenido = readFileSync(join(raiz, f));
+  // Un byte nulo delata un binario sin extensión conocida.
+  if (contenido.includes(0)) continue;
+  for (const h of buscarTerminos(contenido.toString('utf8'))) {
     console.error(`${f}:${h.linea}: ${h.nombre} («${h.texto}»)`);
     fallas++;
   }
