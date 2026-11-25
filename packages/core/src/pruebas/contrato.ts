@@ -384,6 +384,43 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       }
     }), 30_000);
 
+    t.it('un original con notas vigentes no se anula; anuladas las notas, sí; ni con anulación y nota a la vez (Arts. 41 y 4 num. 32)', conAlmacen(async (a) => {
+      await registrarAutorizacion(a, D.autorizacion('CAI-F', 1, 100));
+      await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
+      await registrarAutorizacion(a, D.autorizacion('CAI-ND1', 1, 100, { tipoDocumento: '07', puntoEmision: '002' }));
+      const cliente = { nombre: 'Cliente de Prueba', rtn: '99990000000002' };
+      const nota = (f: DocumentoFiscal, tipoDocumento: '06' | '07') => D.entrada({
+        tipoDocumento, cliente, motivo: 'Ajuste',
+        referencia: { cai: f.cai, numero: f.numero, fecha: f.fechaEmision },
+        lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '10.00' }],
+      });
+      const f = await emitir(D.entrada({ cliente }), { almacen: a, ...base });
+      const nc = await emitir(nota(f, '06'), { almacen: a, ...base });
+      const nd = await emitir(nota(f, '07'), { almacen: a, ...base, puntoEmision: '002' });
+      igual(await codigoDeError(() => anular(f.numero, { almacen: a, motivo: 'Error', reloj: D.reloj })), 'DOCUMENTO_CON_NOTAS', 'con notas');
+      await anular(nc.numero, { almacen: a, motivo: 'Error', reloj: D.reloj });
+      igual(await codigoDeError(() => anular(f.numero, { almacen: a, motivo: 'Error', reloj: D.reloj })), 'DOCUMENTO_CON_NOTAS', 'con la nota de débito');
+      await anular(nd.numero, { almacen: a, motivo: 'Error', reloj: D.reloj });
+      igual((await anular(f.numero, { almacen: a, motivo: 'Error', reloj: D.reloj })).estado, 'ANULADO', 'sin notas vigentes');
+      // Anular el original y emitirle una nota a la vez: pasa una sola de las dos.
+      const g = await emitir(D.entrada({ cliente }), { almacen: a, ...base });
+      const otra = config.otraConexion ? await config.otraConexion(a) : a;
+      try {
+        const intentos = await Promise.allSettled([
+          anular(g.numero, { almacen: a, motivo: 'Error', reloj: D.reloj }),
+          emitir(nota(g, '06'), { almacen: otra, ...base }),
+        ]);
+        igual(intentos.filter((r) => r.status === 'fulfilled').length, 1, 'una sola de las dos');
+        const rechazo = (intentos.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason as ErrorValidacion;
+        const codigos = rechazo.errores?.map((p) => p.codigo) ?? [];
+        if (!codigos.includes('DOCUMENTO_CON_NOTAS') && !codigos.includes('REFERENCIA_ANULADA')) {
+          throw new ErrorContrato(`motivo del rechazo: ${JSON.stringify(codigos)}`);
+        }
+      } finally {
+        if (otra !== a) await config.cerrar?.(otra);
+      }
+    }), 30_000);
+
     const n = config.concurrencia ?? 50;
     t.it(`${n} emisiones concurrentes desde varias cajas: sin huecos ni repetidos`, conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-A', 1, 1000));

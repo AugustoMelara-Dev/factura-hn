@@ -76,7 +76,9 @@ export function validarAutorizacion(aut: AutorizacionCAI, opciones: { caiEstrict
       mensaje: `El CAI "${aut.cai}" solo puede tener letras, dígitos y guiones. Cópialo tal como viene en la resolución del SAR.`,
       campo: 'cai',
     });
-  } else if (opciones.caiEstricto && !esCAIValido(aut.cai)) {
+  } else if (opciones.caiEstricto && !esCAIValido(aut.cai) && !esCAIDemo(aut.cai)) {
+    // El CAI ficticio de la demo (`DEMO00-NO-VALIDO-…`) no tiene la forma hexadecimal a propósito: con caiEstricto
+    // se deja pasar, para que `crearFacturadorDemo({ caiEstricto: true })` funcione. Sigue siendo de prueba.
     problemas.push({
       codigo: 'CAI_FORMATO',
       mensaje: `El CAI "${aut.cai}" no tiene la forma 6-6-6-6-6-2 hexadecimal exigida con caiEstricto.`,
@@ -188,7 +190,11 @@ export function estadoAutorizacion(
   const porcentajeAviso = opciones.porcentajeAviso ?? 90;
 
   const total = aut.rangoFinal - aut.rangoInicial + 1;
-  const siguiente = ultimoCorrelativoEmitido === null ? aut.rangoInicial : ultimoCorrelativoEmitido + 1;
+  // Una serie que viene de un CAI anterior puede tener su último número antes de este rango: entonces sigue en el
+  // primero del rango, sin números usados (y no más restantes que el rango ni un porcentaje negativo).
+  // La condición `=== null` → `false` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): en JS
+  // `null + 1` es 1 y `rangoInicial` es ≥ 1, así que `Math.max` da el mismo `rangoInicial`.
+  const siguiente = ultimoCorrelativoEmitido === null ? aut.rangoInicial : Math.max(aut.rangoInicial, ultimoCorrelativoEmitido + 1);
   const restantes = Math.max(0, aut.rangoFinal - siguiente + 1);
   const usados = total - restantes;
   const porcentajeUsado = Math.round((usados / total) * 10000) / 100;

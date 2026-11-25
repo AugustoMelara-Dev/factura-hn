@@ -60,11 +60,19 @@ import { AlmacenFiscalMemoria, crearFacturador, formatearMonto, renderizarHTML, 
 import { autorizacionDemo } from 'factura-hn/demo';
 
 // 1. Los datos de tu negocio (Reglamento Art. 10 num. 1). Cámbialos en emisor.json; las claves con _ no se leen.
-const datos = JSON.parse(readFileSync(new URL('./emisor.json', import.meta.url), 'utf8'));
+let datos;
+try {
+  datos = JSON.parse(readFileSync(new URL('./emisor.json', import.meta.url), 'utf8'));
+} catch (e) {
+  if (!(e instanceof SyntaxError)) throw e;
+  console.error(\`emisor.json no es JSON válido (\${e.message}). Revisa las comillas dobles, las comas entre campos (sin coma después del último) y las llaves; o bórralo y vuelve a crearlo con: npx factura-hn init --forzar\`);
+  process.exit(1);
+}
 const emisor = Object.fromEntries(Object.entries(datos).filter(([clave]) => !clave.startsWith('_')));
 
-// 2. El almacén fiscal: reserva cada número y guarda los documentos. En memoria para probar;
-//    en producción, AlmacenSQLite (@factura-hn/sqlite) o AlmacenPostgres (@factura-hn/postgres).
+// 2. El almacén fiscal: reserva cada número y guarda los documentos. En memoria para probar: se pierde al terminar,
+//    así que cada vez que corres este archivo la numeración empieza otra vez en 00000001. En producción,
+//    AlmacenSQLite (@factura-hn/sqlite) o AlmacenPostgres (@factura-hn/postgres), que guardan la serie.
 const facturador = crearFacturador({ almacen: new AlmacenFiscalMemoria(), emisor, establecimiento: '000', puntoEmision: '001' });
 
 // 3. La autorización (CAI). Esta es FICTICIA y de prueba: cada documento sale con la leyenda
@@ -83,6 +91,7 @@ for (let n = 2; existsSync(archivo); n++) archivo = \`factura-\${n}.html\`;
 writeFileSync(archivo, renderizarHTML(factura));
 console.log(renderizarTexto(factura));
 console.log(\`\${factura.nombreDocumento} \${factura.numero} por L \${formatearMonto(factura.totales.total)}: abre \${archivo} en el navegador.\`);
+console.log('El almacén es en memoria: cada vez que corres este archivo la numeración empieza otra vez en 00000001.');
 `;
 
 /** `base.html` en `dir`, o `base-2.html`, `base-3.html`… si ya existe: nunca sobrescribe. */

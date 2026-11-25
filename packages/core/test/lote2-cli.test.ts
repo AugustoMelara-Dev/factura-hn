@@ -108,6 +108,16 @@ describe('npx factura-hn', () => {
     expect(segunda.stdout).toContain('abre factura-2.html');
     expect(readFileSync(join(proyecto, 'factura.html'), 'utf8')).toBe('mía');
     expect(readFileSync(join(proyecto, 'factura-2.html'), 'utf8')).toContain(LEYENDA_PRUEBA);
+    // El almacén es en memoria: la segunda corrida repite el número, y lo dice.
+    expect(segunda.stdout).toMatch(/Factura 000-001-01-00000001 por L 230\.00/);
+    expect(segunda.stdout).toContain('cada vez que corres este archivo la numeración empieza otra vez en 00000001');
+    // Un emisor.json que no es JSON: mensaje en español que lo nombra y dice cómo arreglarlo, sin la pila.
+    writeFileSync(join(proyecto, 'emisor.json'), '{"rtn": "99990000000001",}\n');
+    const roto = spawnSync(process.execPath, ['emitir.mjs'], { cwd: proyecto, encoding: 'utf8', timeout: 60_000 });
+    expect(roto.status).toBe(1);
+    expect(roto.stderr).toMatch(/^emisor\.json no es JSON válido \(.+\)\. Revisa las comillas dobles, las comas/);
+    expect(roto.stderr).toContain('npx factura-hn init --forzar');
+    expect(roto.stderr).not.toContain('SyntaxError');
   });
 
   it('init dice «Ya existe» en singular con un solo archivo', () => {
