@@ -4,6 +4,8 @@
  *   dueño de las tablas (la migración lo crea si no existe y le concede el rol de la aplicación).
  * - FHN_MIGRAR_URL: conexión del dueño de las tablas, solo para migrar y preparar el modo local al arrancar.
  *   Sin ella, la API usa DATABASE_URL también para eso y corre como dueño de las tablas (se avisa en el log).
+ * - FHN_MIGRAR_AL_ARRANCAR: `1` (por defecto) migra al arrancar; `0` no (la migración corre aparte con «migrar»). Con `0` y
+ *   sin FHN_MIGRAR_URL, el proceso no tiene credenciales de dueño (no sirve en modo local).
  * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (la demostración pública: solo entornos
  *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*, ver docs/demo.md)
  * - FHN_IP_CLIENTE_CABECERA: cabecera con la dirección del cliente que pone el proxy de confianza (p. ej.
@@ -108,6 +110,19 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const urlMigrar = env.FHN_MIGRAR_URL || null;
   const login = urlMigrar ? usuarioDeUrl(url) : undefined;
+  // FHN_MIGRAR_AL_ARRANCAR=0: la migración corre aparte («migrar» de la consola, con el dueño). Sin FHN_MIGRAR_URL, el
+  // proceso que atiende no tiene ninguna credencial de dueño: solo exige que el esquema esté al día y que DATABASE_URL
+  // no sea dueño, superusuario ni BYPASSRLS.
+  const migrarTexto = env.FHN_MIGRAR_AL_ARRANCAR?.trim() || '1';
+  if (migrarTexto !== '0' && migrarTexto !== '1') throw new Error(`FHN_MIGRAR_AL_ARRANCAR debe ser 0 o 1 (no "${migrarTexto}").`);
+  const migrarAlArrancar = migrarTexto === '1';
+  const sinDueno = !migrarAlArrancar && !urlMigrar;
+  if (sinDueno && modo === 'local') {
+    throw new Error(
+      'FHN_MIGRAR_AL_ARRANCAR=0 sin FHN_MIGRAR_URL no sirve en modo local: al arrancar, el modo local prepara su tenant con el ' +
+        'dueño de las tablas. Define FHN_MIGRAR_URL o quita FHN_MIGRAR_AL_ARRANCAR.',
+    );
+  }
   if (urlMigrar && login === usuarioDeUrlSiHay(urlMigrar)) {
     throw new Error(
       `DATABASE_URL y FHN_MIGRAR_URL usan el mismo usuario («${login}»): la API correría como dueño de las tablas. ` +
@@ -129,7 +144,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
         '(0 si los clientes llegan directo).',
     );
   }
-  if (!urlMigrar) {
+  if (!urlMigrar && !sinDueno) {
     console.warn(
       'AVISO: sin FHN_MIGRAR_URL la API corre como dueño de las tablas (DATABASE_URL). Define FHN_MIGRAR_URL con el dueño y ' +
         'DATABASE_URL con un rol LOGIN propio de la API.',
@@ -138,14 +153,15 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
 
   // Migración y preparación con el dueño de las tablas. Con FHN_MIGRAR_URL, un pool corto que se cierra antes
   // de atender solicitudes: la API no conserva ninguna conexión con permisos de dueño.
-  const poolDueno = crearPool(urlMigrar ?? url, urlMigrar ? 2 : Number(env.FHN_POOL ?? 20));
-  let pool: pg.Pool | null = urlMigrar ? null : poolDueno;
+  // Con FHN_MIGRAR_AL_ARRANCAR=0 y sin FHN_MIGRAR_URL, no hay nada que hacer como dueño.
+  const poolDueno = sinDueno ? null : crearPool(urlMigrar ?? url, urlMigrar ? 2 : Number(env.FHN_POOL ?? 20));
+  let pool: pg.Pool | null = urlMigrar || sinDueno ? null : poolDueno;
   let demo: { llaveAdmin: string; llaveCaja: string } | undefined;
   let localSinLlaveAdmin = false;
   let hayDemo = false;
-  try {
+  if (poolDueno) try {
     await esperarBase(poolDueno);
-    await migrarApi(poolDueno, rol, { login });
+    if (migrarAlArrancar) await migrarApi(poolDueno, rol, { login });
     if (modo === 'demo') {
       const reales = await datosRealesEnBase(poolDueno);
       if (reales.length) throw new Error(errorDatosRealesEnDemo(reales));
@@ -168,12 +184,12 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     const nuevo = crearPool(url, Number(env.FHN_POOL ?? 20));
     try {
       await esperarBase(nuevo);
-      // Con FHN_MIGRAR_URL, la API no arranca con una conexión que salte RLS o tenga permisos de dueño: sería
-      // un despliegue que cree estar protegido y no lo está.
+      // Con FHN_MIGRAR_URL (o sin migrar al arrancar), la API no arranca con una conexión que salte RLS o tenga
+      // permisos de dueño: sería un despliegue que cree estar protegido y no lo está.
       const p = await privilegiosDeConexion(nuevo);
       if (p.length) {
         throw new Error(
-          `DATABASE_URL se conecta como «${p[0]}», que ${p.slice(1).join(', ')}. Con FHN_MIGRAR_URL, DATABASE_URL debe ser un ` +
+          `DATABASE_URL se conecta como «${p[0]}», que ${p.slice(1).join(', ')}. Con FHN_MIGRAR_URL o FHN_MIGRAR_AL_ARRANCAR=0, DATABASE_URL debe ser un ` +
             'rol LOGIN propio de la API, que no sea ni pueda volverse superusuario, BYPASSRLS ni dueño de las tablas (p. ej. ' +
             'postgres://fhn_api:<contraseña>@host/base; ver la nota de actualización de docs/autoalojamiento.md), ' +
             'o, para seguir como antes, deja FHN_MIGRAR_URL vacía (en Compose, FHN_MIGRAR_URL: "" en docker-compose.override.yml).',

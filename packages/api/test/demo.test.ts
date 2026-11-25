@@ -49,7 +49,10 @@ describe('token del MCP remoto', () => {
     expect(t.token).toMatch(/^fhnmcp_test_[0-9a-f]{12}_[A-Za-z0-9_-]{43}$/);
     expect(llaveDeTokenMcp(t.token)).toBe(t.llave);
     expect(leerLlave(t.llave)).toEqual({ prefijo: t.prefijo, modo: 'prueba' });
-    expect(t.llave).not.toContain(t.token.split('_')[3]);
+    // El secreto entero (base64url, puede llevar «_»): la llave no lo contiene.
+    const secreto = /^fhnmcp_test_[0-9a-f]{12}_(.+)$/.exec(t.token)![1]!;
+    expect(secreto).toHaveLength(43);
+    expect(t.llave).not.toContain(secreto);
     expect(llaveDeTokenMcp(t.token.slice(0, -1))).toBeNull();
     expect(llaveDeTokenMcp(t.llave)).toBeNull();
   });
@@ -533,6 +536,21 @@ conBase('arranque en modo demo', () => {
           WHERE relnamespace = $1::regnamespace AND relkind = 'r' ORDER BY relname`, [esquema],
       )).rows;
       expect(tablas.filter((f) => f.anon).map((f) => f.t)).toEqual(['otra_aplicacion']);
+      // Ninguna función de factura-hn se ejecuta por PUBLIC ni por anon; el rol de la aplicación conserva las suyas.
+      const funciones = (await p.query<{ f: string; publico: boolean; anon: boolean; app: boolean }>(
+        `SELECT p.oid::regprocedure::text AS f,
+                EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                         WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE') AS publico,
+                has_function_privilege('anon', p.oid, 'EXECUTE') AS anon,
+                has_function_privilege($2, p.oid, 'EXECUTE') AS app
+           FROM pg_proc p WHERE p.pronamespace = $1::regnamespace AND (p.proname LIKE 'fhn\\_%' OR p.proname LIKE 'api\\_%')`,
+        [esquema, ROL],
+      )).rows;
+      expect(funciones.length).toBeGreaterThan(5);
+      expect(funciones.filter((f) => f.publico || f.anon).map((f) => f.f)).toEqual([]);
+      for (const fn of ['fhn_api_autenticar(text)', 'fhn_api_prefijo_registrado(text)', 'fhn_api_purgar_demo(timestamp with time zone,integer)']) {
+        expect(funciones.find((f) => f.f.endsWith(fn))?.app, fn).toBe(true);
+      }
       expect(tablas.map((f) => f.t)).toEqual(expect.arrayContaining(['api_demo_control', 'fhn_migraciones', 'api_tenants', 'fhn_documentos']));
       expect((await p.query(`SELECT has_sequence_privilege('anon', $1, 'USAGE') AS puede`, [`${esquema}.api_bitacora_id_seq`])).rows[0].puede).toBe(false);
       expect((await p.query(`SELECT has_table_privilege($1, $2, 'SELECT') AS puede`, [ROL, `${esquema}.api_demo_control`])).rows[0].puede).toBe(true);
@@ -648,6 +666,65 @@ conBase('arranque en modo demo', () => {
       await p.end();
       await admin.query(`DROP SCHEMA IF EXISTS ${esquema} CASCADE`);
       // Si FHN_PG_URL no es superusuario, puede no poder borrar los roles que creó el dueño: quedan sin permisos.
+      for (const r of [login, app, dueno]) await admin.query(`DROP OWNED BY ${r}; DROP ROLE IF EXISTS ${r}`).catch(() => undefined);
+    }
+  });
+
+  it('FHN_MIGRAR_AL_ARRANCAR=0: atiende solo con el rol de la API, sin credenciales de dueño; «migrar» revisa la base', async (ctx) => {
+    const admin = await poolPrueba();
+    if (!(await admin.query('SELECT rolsuper FROM pg_roles WHERE rolname = current_user')).rows[0]?.rolsuper) return ctx.skip();
+    const h = randomBytes(4).toString('hex');
+    const [dueno, app, login, esquema] = [`fhn_dueno_sm_${h}`, `fhn_app_sm_${h}`, `fhn_api_sm_${h}`, `prueba_demo_sm_${h}`];
+    await admin.query(`CREATE ROLE ${dueno} LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS`);
+    await admin.query(`CREATE SCHEMA ${esquema} AUTHORIZATION ${dueno}; GRANT USAGE ON SCHEMA ${esquema} TO PUBLIC`);
+    // El rol de la API lo crea quien administra la base (en Supabase, con contraseña), antes de migrar.
+    await admin.query(`CREATE ROLE ${login} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`);
+    const url = (usuario: string) => {
+      const u = new URL(URL_PG!);
+      u.username = usuario;
+      u.searchParams.set('options', `-c search_path=${esquema}`);
+      return u.toString();
+    };
+    // Lo que tiene la máquina que atiende: solo DATABASE_URL con el rol de la API.
+    const env = { ...ENV, FHN_ROL: app, DATABASE_URL: url(login), FHN_MIGRAR_AL_ARRANCAR: '0', FHN_IP_CLIENTE_CABECERA: 'Fly-Client-IP' };
+    const salida = { log: [] as string[], error: [] as string[] };
+    // Lo que corre aparte, con el dueño (el equipo de quien opera o el entorno protegido de GitHub).
+    const migrar = () =>
+      ejecutarConsola(['migrar'], {
+        env: { FHN_MODO: 'demo', FHN_MIGRAR_URL: url(dueno), DATABASE_URL: url(login), FHN_ROL: app },
+        salida: { log: (t) => void salida.log.push(t), error: (t) => void salida.error.push(t) },
+      });
+    const p = new pg.Pool({ connectionString: url(dueno), max: 2 });
+    try {
+      await expect(arrancar({ ...env, FHN_MIGRAR_AL_ARRANCAR: 'no' })).rejects.toThrow(/FHN_MIGRAR_AL_ARRANCAR debe ser 0 o 1/);
+      await expect(arrancar({ ...env, FHN_MODO: 'local' })).rejects.toThrow(/no sirve en modo local/);
+      // Sin migrar todavía: se niega por el esquema, sin intentar migrar.
+      await expect(arrancar(env)).rejects.toThrow(/versión anterior/);
+      expect((await admin.query('SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = $1', [esquema])).rows[0].n).toBe(0);
+
+      expect(await migrar()).toBe(0);
+      expect(salida.log.at(-1)).toMatch(/Esquema al día. La base es solo de la demostración/);
+      const s = await arrancar(env);
+      try {
+        expect(salida.error).toEqual([]);
+        const r = await s.app.request('/v1/demo/entornos', { method: 'POST', headers: { 'fly-client-ip': '203.0.113.11' } });
+        expect(r.status).toBe(201);
+        const e = await json(r);
+        expect((await emitir(e.llave, s.app)).status).toBe(201);
+      } finally {
+        await s.cerrar();
+      }
+      // Con el dueño en DATABASE_URL, tampoco: el proceso que atiende no puede ser dueño.
+      await expect(arrancar({ ...env, DATABASE_URL: url(dueno) })).rejects.toThrow(/dueño de las tablas/);
+
+      // Datos que no son de la demostración: «migrar» se niega a terminar.
+      const { crearTenant } = await import('../src/operador');
+      await crearTenant(p, { tenant: 'negocio-real', nombre: 'Negocio Real' });
+      expect(await migrar()).toBe(1);
+      expect(salida.error.join('\n')).toMatch(/datos reales[^]*«negocio-real» es de producción/);
+    } finally {
+      await p.end();
+      await admin.query(`DROP SCHEMA IF EXISTS ${esquema} CASCADE`);
       for (const r of [login, app, dueno]) await admin.query(`DROP OWNED BY ${r}; DROP ROLE IF EXISTS ${r}`).catch(() => undefined);
     }
   });

@@ -13,6 +13,8 @@ import {
   crearLlaveDemo,
   crearLlaveOperador,
   crearTenant,
+  datosRealesEnBase,
+  errorDatosRealesEnDemo,
   errorTenantEnModoLocal,
   LEYENDA_PRUEBA,
   pausarDemo,
@@ -44,7 +46,9 @@ const COMANDOS: Comando[] = [
   {
     nombre: ['migrar'],
     uso: 'migrar',
-    descripcion: 'Crea o actualiza las tablas de la API. El servidor también migra al arrancar.',
+    descripcion:
+      'Crea o actualiza las tablas de la API. El servidor también migra al arrancar, salvo con FHN_MIGRAR_AL_ARRANCAR=0. Con ' +
+      'FHN_MODO=demo, además se niega si la base tiene datos que no son de la demostración.',
     posicionales: { obligatorios: [] },
     usaBase: true,
   },
@@ -259,7 +263,13 @@ export async function ejecutarConsola(
 
     switch (clave) {
       case 'migrar':
-        salida.log('Esquema al día.');
+        // La demostración pública: la misma revisión que hace la API al arrancar con el dueño. Así, con la API
+        // arrancando sin credenciales de dueño (FHN_MIGRAR_AL_ARRANCAR=0), una base con datos reales no pasa.
+        if (env.FHN_MODO === 'demo') {
+          const reales = await datosRealesEnBase(pool);
+          if (reales.length) throw new Error(errorDatosRealesEnDemo(reales));
+        }
+        salida.log(env.FHN_MODO === 'demo' ? 'Esquema al día. La base es solo de la demostración.' : 'Esquema al día.');
         return 0;
       case 'tenant crear': {
         const r = await crearTenant(pool, {
