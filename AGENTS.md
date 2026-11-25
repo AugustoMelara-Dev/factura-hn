@@ -333,7 +333,16 @@ export async function recibirAviso() {
 }
 ```
 
-Si el agente debe operar la facturación (no integrarla), usa el servidor MCP `@factura-hn/mcp`.
+Para probar la API sin CAI real: `docker compose up -d --build --wait` crea un tenant `demo` con CAI ficticio, y
+`docker compose exec -T api factura-hn-api demo llave --solo-llave` da una llave de caja. La consola del operador
+es `docker compose exec api factura-hn-api …` (`ayuda` lista los comandos). Los documentos de prueba no entran
+en el libro de ventas ni en la exportación: la cabecera `Documentos-Prueba-Excluidos` (y `excluidos` en el libro
+JSON) dice cuántos quedaron fuera; en el tenant `demo`, todos.
+
+Si el agente debe operar la facturación (no integrarla), usa el servidor MCP `@factura-hn/mcp`, con las
+herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `anular_documento`, `estado_cai`,
+`libro_ventas` y `registrar_cai`. Para probar: `npx -y @factura-hn/mcp init --demo`; con datos reales:
+`npx -y @factura-hn/mcp init` y `npx -y @factura-hn/mcp registrar-cai`.
 
 ## Referencia rápida de errores
 

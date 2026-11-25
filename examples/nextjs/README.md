@@ -26,7 +26,7 @@ $env:FHN_LLAVE = 'fhn_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(cryp
 ```
 
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
-crea otra: `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "Caja web" --caja 000-001`.
+crea otra: `docker compose exec api factura-hn-api demo llave`.
 Cada carga del formulario trae una clave nueva y el número sale de la respuesta: puedes emitir, reiniciar y
 volver a emitir sin chocar con lo anterior.
 
