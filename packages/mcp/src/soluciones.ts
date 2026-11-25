@@ -26,6 +26,7 @@ const SOLUCIONES: Record<string, string> = {
   BASE_DEMO:
     'Esta base es de demostración. Para facturar de verdad, crea la base del negocio con `npx -y @factura-hn/mcp init` ' +
     '(sin --demo), registra ahí el CAI real y cambia FHN_SQLITE y FHN_EMISOR en la configuración del cliente MCP.',
+  ULTIMO_EMITIDO_ANTES: 'El último número ya usado con este CAI debe estar dentro del rango (o ser desde − 1 si no se usó ninguno). Verifícalo con el usuario.',
   FECHA_LIMITE: 'Escribe la fecha límite de emisión de la resolución como AAAA-MM-DD.',
   FECHA_AUTORIZACION: 'Escribe la fecha de la resolución como AAAA-MM-DD, o no la indiques.',
   TIPO_DOCUMENTO: 'Usa 01 para facturas, 06 para notas de crédito y 07 para notas de débito, según la resolución.',
@@ -60,7 +61,6 @@ const SOLUCIONES: Record<string, string> = {
   NO_AUTENTICADO: 'La llave de API (FHN_LLAVE) no es válida o fue revocada. Pide una nueva al administrador.',
   SIN_EMISOR: 'La API no tiene los datos del emisor. El administrador los registra con POST /v1/emisores.',
   API_INACCESIBLE: 'No se pudo conectar con la API de factura-hn. Revisa que esté en marcha y que FHN_API_URL sea correcta.',
-  EMISOR_JSON: 'Corrige el archivo del emisor (FHN_EMISOR) y reinicia el servidor MCP desde tu cliente.',
 };
 
 /** Texto de solución del código: el propio o, si no hay, uno general que remite a la guía. */

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buscarDocumento } from 'factura-hn';
+import { buscarDocumento, registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 import { bloqueMcpServers, ejecutarComando, type Contexto } from '../src/comandos';
 import { LEYENDA_PRUEBA } from '../src/demo';
@@ -18,7 +18,7 @@ const HOY = new Date('2026-11-24T15:00:00Z');
 async function correr(args: string[], c: Partial<Contexto> = {}) {
   const out: string[] = [];
   const err: string[] = [];
-  const codigo = await ejecutarComando(args, { cwd: c.cwd ?? process.cwd(), env: c.env ?? {}, hoy: HOY, plataforma: c.plataforma ?? 'linux', salida: { out: (t) => out.push(t), err: (t) => err.push(t) } });
+  const codigo = await ejecutarComando(args, { cwd: c.cwd ?? process.cwd(), env: c.env ?? {}, reloj: () => HOY, plataforma: c.plataforma ?? 'linux', salida: { out: (t) => out.push(t), err: (t) => err.push(t) } });
   return { codigo, out: out.join('\n'), err: err.join('\n') };
 }
 
@@ -92,13 +92,47 @@ describe('init --demo', () => {
     const dir = mkdtempSync(join(tmpdir(), 'fhn-init-'));
     const r = await correr(['init', '--demo'], { cwd: dir, plataforma: 'win32' });
     expect(bloqueDe(r.out).mcpServers['factura-hn']).toMatchObject({ command: 'cmd', args: ['/c', 'npx', '-y', '@factura-hn/mcp'] });
-    expect(r.out).toContain('%APPDATA%\\Claude\\claude_desktop_config.json');
+    expect(r.out).toContain('Claude Desktop: Settings > Developer > Edit Config');
     expect(bloqueMcpServers({}, 'darwin').mcpServers['factura-hn'].command).toBe('npx');
   });
 
   it('opciones mal escritas: error en español y código 1', async () => {
     expect(await correr(['init', '--demoo'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Opción desconocida: --demoo\./) });
     expect(await correr(['init', '--punto', 'abcd'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/--punto debe tener hasta 3 dígitos/) });
+  });
+});
+
+describe('init --demo no toca una base con CAI reales', () => {
+  /** Base factura-demo.db con un CAI real (p. ej. copiada por error), registrado sin pasar por las comprobaciones del MCP. */
+  async function baseConCAIReal() {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-init-'));
+    const base = join(dir, 'factura-demo.db');
+    const db = new DatabaseSync(base);
+    await registrarAutorizacion(new AlmacenSQLite(db), { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', tipoDocumento: '06', establecimiento: '000', puntoEmision: '002', rangoInicial: 1, rangoFinal: 10, fechaLimiteEmision: '2027-10-31' });
+    db.close();
+    return { dir, base };
+  }
+
+  it('--forzar no la borra', async () => {
+    const { dir, base } = await baseConCAIReal();
+    const r = await correr(['init', '--demo', '--forzar'], { cwd: dir });
+    expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/tiene un CAI real \(A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4\): no es una base de prueba\. No se modifica ni se borra\./) });
+    expect(autorizaciones(base)).toBe(1);
+  });
+
+  it('sin --forzar no registra ningún CAI ficticio: todo o nada', async () => {
+    const { dir, base } = await baseConCAIReal();
+    expect((await correr(['init', '--demo'], { cwd: dir })).codigo).toBe(1);
+    expect(autorizaciones(base)).toBe(1);
+  });
+
+  it('un documento con CAI real también cuenta', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-init-'));
+    await correr(['init', '--demo'], { cwd: dir });
+    const db = new DatabaseSync(join(dir, 'factura-demo.db'));
+    db.prepare("INSERT INTO fhn_documentos (numero, identificador, correlativo, fecha_emision, estado, datos) VALUES ('000-003-01-00000001', '000-003-01', 1, '2026-11-24', 'EMITIDO', ?)").run(JSON.stringify({ cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4' }));
+    db.close();
+    expect((await correr(['init', '--demo', '--forzar'], { cwd: dir })).err).toMatch(/tiene un CAI real/);
   });
 });
 
@@ -110,7 +144,8 @@ describe('init sin --demo', () => {
     const base = join(dir, 'factura.db');
     expect(autorizaciones(base)).toBe(0);
     expect(() => leerEmisor(join(dir, 'emisor.json'))).toThrow(/7 errores/);
-    expect(r.out).toContain(`registrar-cai --base "${base}" --cai <CAI> --tipo 01`);
+    expect(r.out).toContain(`registrar-cai --base "${base}" --cai CAI_DE_LA_RESOLUCION --tipo 01`);
+    expect(r.out).toContain('--ultimo-emitido-antes');
     expect(r.out).toContain('registrar_cai');
     expect(r.out).not.toContain(LEYENDA_PRUEBA);
     expect(bloqueDe(r.out).mcpServers['factura-hn'].env.FHN_SQLITE).toBe(base);
@@ -121,8 +156,12 @@ describe('init sin --demo', () => {
     await correr(['init'], { cwd: dir });
     const base = join(dir, 'factura.db');
     expect((await correr(['registrar-cai', '--base', base, ...resolucion])).codigo).toBe(0);
+    writeFileSync(join(dir, 'emisor.json'), '{"rtn": "99990000000001"}');
     const r = await correr(['init', '--forzar'], { cwd: dir });
     expect(r.out).toMatch(/Se conserva la base .*--forzar nunca borra la base real/);
+    // El emisor real se reescribe, pero antes queda una copia.
+    expect(r.out).toContain(`Copia del emisor anterior en ${join(dir, 'emisor.json')}.bak.`);
+    expect(readFileSync(join(dir, 'emisor.json.bak'), 'utf8')).toBe('{"rtn": "99990000000001"}');
     expect(autorizaciones(base)).toBe(1);
   });
 
@@ -188,6 +227,18 @@ describe('registrar-cai', () => {
     expect(existsSync(join(dir, 'factura.db'))).toBe(false);
   });
 
+  it('--ultimo-emitido-antes: la serie sigue después de lo ya emitido; mal escrito, error de uso', async () => {
+    const { base } = await nueva();
+    const r = await correr(['registrar-cai', '--base', base, ...resolucion, '--ultimo-emitido-antes', '120']);
+    expect(r.codigo).toBe(0);
+    const db = new DatabaseSync(base);
+    expect(JSON.parse((db.prepare('SELECT datos FROM fhn_autorizaciones').get() as { datos: string }).datos).ultimoEmitidoAntes).toBe(120);
+    db.close();
+    expect((await correr(['registrar-cai', '--base', base, ...resolucion, '--ultimo-emitido-antes', 'x'])).err).toMatch(/--ultimo-emitido-antes debe ser un número entero/);
+    const { base: otra } = await nueva();
+    expect((await correr(['registrar-cai', '--base', otra, ...resolucion, '--ultimo-emitido-antes', '9000'])).err).toContain('[ULTIMO_EMITIDO_ANTES]');
+  });
+
   it('el CAI ficticio y la base de demostración no se mezclan con CAI reales', async () => {
     const { base } = await nueva();
     const demo = await correr(['registrar-cai', '--base', base, ...resolucion.slice(2), '--cai', 'DEMO00-NO-VALIDO-0000-0000-0000-01']);
@@ -198,6 +249,10 @@ describe('registrar-cai', () => {
     expect(real.codigo).toBe(1);
     expect(real.err).toContain('[BASE_DEMO]');
     expect(real.err).toContain('npx -y @factura-hn/mcp init');
+    // En cualquier serie: otro punto de emisión de la base de prueba tampoco recibe CAI reales.
+    const otroPunto = await correr(['registrar-cai', '--base', join(dir, 'factura-demo.db'), ...resolucion.slice(0, 6), '--punto', '002', ...resolucion.slice(8)]);
+    expect(otroPunto.err).toContain('[BASE_DEMO]');
+    expect(autorizaciones(join(dir, 'factura-demo.db'))).toBe(3);
   });
 
   it('modo API sin llave: lo dice', async () => {

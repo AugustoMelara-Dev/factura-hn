@@ -11,6 +11,9 @@ import { describe, expect, it } from 'vitest';
 import { registrarAutorizacion } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
 
+/** Fecha (YYYY-MM-DD) a `dias` de hoy: el servidor corre en otro proceso, con el reloj del equipo. */
+const aDiasDeHoy = (dias: number) => new Date(Date.now() + dias * 86_400_000).toISOString().slice(0, 10);
+
 const EMISOR = {
   rtn: '99990000000001', razonSocial: 'Pulpería Ejemplo', nombreComercial: 'Pulpería Ejemplo', direccionCasaMatriz: 'Ciudad Ejemplo',
   direccionEstablecimiento: 'Ciudad Ejemplo', telefono: '0000-0001', correo: 'v@ejemplo.example',
@@ -68,7 +71,7 @@ describe('factura-hn-mcp por stdio', () => {
     const base = new DatabaseSync(db);
     await registrarAutorizacion(new AlmacenSQLite(base), {
       cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01', tipoDocumento: '01', establecimiento: '000', puntoEmision: '001',
-      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: '2027-10-31',
+      rangoInicial: 1, rangoFinal: 50, fechaLimiteEmision: aDiasDeHoy(365),
     });
     base.close();
 

@@ -134,23 +134,33 @@ const resumirEstado = (a: AutorizacionCAI, ultimo: number | null, hoy: string): 
 };
 
 /**
- * Registra un CAI real en un almacén local con `registrarAutorizacion` del núcleo (mismas validaciones). Rechaza
- * el CAI ficticio (`CAI_DEMO`) y las bases de demostración (`BASE_DEMO`): sus números ya se usaron en documentos
- * de prueba. La usan la herramienta `registrar_cai` y el comando `registrar-cai`.
+ * CAI de una base SQLite, en autorizaciones y en documentos: `ficticios` (de prueba) y `reales`. Una base con algún
+ * CAI ficticio es de demostración (la crea `init --demo`).
+ */
+export function caisDeBase(db: Pick<BaseSQLite, 'prepare'>): { ficticios: string[]; reales: string[] } {
+  const filas = db
+    .prepare("SELECT cai FROM fhn_autorizaciones UNION SELECT json_extract(datos, '$.cai') AS cai FROM fhn_documentos")
+    .all() as { cai: string | null }[];
+  const cais = filas.map((f) => f.cai).filter((c): c is string => Boolean(c));
+  return { ficticios: cais.filter((c) => esCAIDemo(c)), reales: cais.filter((c) => !esCAIDemo(c)) };
+}
+
+/**
+ * Registra un CAI real en una base SQLite con `registrarAutorizacion` del núcleo (mismas validaciones). Rechaza el
+ * CAI ficticio (`CAI_DEMO`) y toda base de demostración (`BASE_DEMO`), en cualquier serie: sus números ya se usaron
+ * en documentos de prueba. La usan la herramienta `registrar_cai` y el comando `registrar-cai`.
  */
 export async function registrarCAIEnAlmacen(
   almacen: AlmacenFiscal,
+  db: Pick<BaseSQLite, 'prepare'>,
   a: AutorizacionCAI,
   opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
 ): Promise<ResultadoRegistroCAI> {
   exigirCAIReal(a);
   try {
-    const id = (tipoDocumento: '01' | '06' | '07') => identificadorDe({ establecimiento: a.establecimiento, puntoEmision: a.puntoEmision, tipoDocumento });
-    const demo = await almacen.transaccion(async (tx) => {
-      for (const t of ['01', '06', '07'] as const) if ((await tx.autorizaciones(id(t))).some((x) => esCAIDemo(x.cai))) return true;
-      return false;
-    });
-    if (demo) throw errorDe('BASE_DEMO', 'Esta base es de demostración (tiene el CAI ficticio): no recibe CAI reales.', 'cai');
+    if (caisDeBase(db).ficticios.length) {
+      throw errorDe('BASE_DEMO', 'Esta base es de demostración (tiene el CAI ficticio): no recibe CAI reales.', 'cai');
+    }
     const autorizacion = await registrarAutorizacion(almacen, a, opciones);
     return { autorizacion, advertencias: advertenciasDe(autorizacion) };
   } catch (e) {
@@ -263,7 +273,7 @@ export class BackendLocal implements Backend {
     return buscarDocumento(this.almacen, numero);
   }
   registrarCAI(a: AutorizacionCAI): Promise<ResultadoRegistroCAI> {
-    return registrarCAIEnAlmacen(this.almacen, a, { reloj: this.o.reloj, actor: this.o.actor ?? 'mcp', operador: this.o.operador });
+    return registrarCAIEnAlmacen(this.almacen, this.o.db, a, { reloj: this.o.reloj, actor: this.o.actor ?? 'mcp', operador: this.o.operador });
   }
   async anular(numero: string, motivo: string, opciones: { operador?: string } = {}) {
     try {

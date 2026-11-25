@@ -271,8 +271,10 @@ export function crearServidorMCP(backend: Backend): McpServer {
         'Registra una autorización del SAR (CAI, tipo, establecimiento, punto de emisión, rango y fecha límite) para ' +
         'poder emitir (Arts. 59-61). Cada dato debe venir de la resolución del SAR que el usuario te dio o te dictó en esta ' +
         'conversación: NUNCA inventes, completes ni supongas un CAI, un rango o una fecha. Si falta un dato, pregúntalo. ' +
-        'Antes de llamarla, muestra los datos al usuario y pide que los confirme contra la resolución. Una resolución ' +
-        'con varios tipos de documento se registra una vez por tipo.',
+        'Pregunta también al usuario si ya emitió documentos con este CAI (talonario u otro sistema): si sí, el último ' +
+        'número usado va en ultimoEmitidoAntes; si no lo indicas, la serie empieza en rangoInicial y esos números se ' +
+        'repetirían. Antes de llamarla, muestra los datos al usuario y pide que los confirme contra la resolución: un ' +
+        'CAI registrado no se puede quitar. Una resolución con varios tipos de documento se registra una vez por tipo.',
       inputSchema: {
         cai: z.string().min(1).max(60).describe('El CAI tal como aparece en la resolución.'),
         tipoDocumento: z.string().regex(/^\d{2}$/).describe('01 factura, 06 nota de crédito, 07 nota de débito.'),
@@ -282,17 +284,24 @@ export function crearServidorMCP(backend: Backend): McpServer {
         rangoFinal: z.number().int().describe('Último correlativo autorizado («hasta»).'),
         fechaLimiteEmision: Fecha.describe('Fecha límite de emisión de la resolución, YYYY-MM-DD.'),
         fechaAutorizacion: Fecha.optional().describe('Fecha de la resolución, YYYY-MM-DD, si aparece. Permite revisar la vigencia (Art. 62).'),
+        ultimoEmitidoAntes: z
+          .number()
+          .int()
+          .optional()
+          .describe('Solo si el usuario ya emitió documentos con este CAI fuera de este sistema: el último número usado. Pregúntaselo.'),
       },
-      // Escribe en la base, pero no borra ni cambia nada existente.
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      // No borra nada, pero es irreversible y tiene efecto fiscal (fija la numeración): destructiva, para que el
+      // cliente pida confirmación.
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     async (a) => {
       try {
         const { autorizacion: r, advertencias } = await backend.registrarCAI(a as AutorizacionCAI);
         const serie = `${r.establecimiento}-${r.puntoEmision}-${r.tipoDocumento}`;
         const p = backend.punto;
-        const otroPunto = p?.establecimiento && p.puntoEmision && `${String(r.establecimiento).padStart(3, '0')}-${String(r.puntoEmision).padStart(3, '0')}` !== `${p.establecimiento}-${p.puntoEmision}`
-          ? `\nAviso: este servidor emite en ${p.establecimiento}-${p.puntoEmision}; esta autorización es de otro punto de emisión.`
+        const tres = (v: string | number) => String(v).trim().padStart(3, '0');
+        const otroPunto = p?.establecimiento && p.puntoEmision && `${tres(r.establecimiento)}-${tres(r.puntoEmision)}` !== `${tres(p.establecimiento)}-${tres(p.puntoEmision)}`
+          ? `\nAviso: este servidor emite en ${tres(p.establecimiento)}-${tres(p.puntoEmision)}; esta autorización es de otro punto de emisión.`
           : '';
         const avisos = advertencias.length ? `\nAvisos:\n${advertencias.map((x) => `- [${x.codigo}] ${x.mensaje}`).join('\n')}` : '';
         return ok(

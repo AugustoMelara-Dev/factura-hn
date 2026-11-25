@@ -5,13 +5,13 @@
  * - `registrar-cai`: registra el CAI de la resolución del SAR (en la base SQLite o vía la API);
  * - `ayuda`.
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { fechaHonduras, identificadorDe, registrarAutorizacion, type AutorizacionCAI, type Problema } from 'factura-hn';
+import { fechaHonduras, identificadorDe, registrarAutorizacion, validarNuevaAutorizacion, type AutorizacionCAI, type Problema } from 'factura-hn';
 import { AlmacenSQLite } from '@factura-hn/sqlite';
-import { BackendApi, clavesSQLite, ErrorBackend, registrarCAIEnAlmacen, type ResultadoRegistroCAI } from './backend';
+import { BackendApi, caisDeBase, clavesSQLite, ErrorBackend, registrarCAIEnAlmacen, type ResultadoRegistroCAI } from './backend';
 import { autorizacionesDemo, EMISOR_DEMO, esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { plantillaEmisor } from './emisor';
 import { conSolucion } from './soluciones';
@@ -26,8 +26,8 @@ export interface Contexto {
   env: NodeJS.ProcessEnv;
   /** Plataforma para la que se arma el bloque `mcpServers` (por defecto, la de este equipo). */
   plataforma?: NodeJS.Platform;
-  /** Fecha de hoy, para la fecha límite del CAI ficticio. */
-  hoy?: Date;
+  /** Reloj: la fecha de hoy para el CAI ficticio y el instante de la bitácora. Por defecto, la hora del equipo. */
+  reloj?: () => Date;
   salida?: Salida;
 }
 
@@ -70,16 +70,12 @@ export function bloqueMcpServers(env: Record<string, string>, plataforma: NodeJS
   return { mcpServers: { 'factura-hn': { ...comando, env } } };
 }
 
-const DONDE_PEGAR = (plataforma: NodeJS.Platform) =>
+// Se indica el camino del menú: la ruta del archivo cambia según la instalación (p. ej. la de Microsoft Store).
+const DONDE_PEGAR = () =>
   [
     'Dónde pegarlo:',
-    `- Claude Desktop: Configuración > Desarrollador > Editar configuración (${
-      plataforma === 'win32'
-        ? '%APPDATA%\\Claude\\claude_desktop_config.json'
-        : plataforma === 'darwin'
-          ? '~/Library/Application Support/Claude/claude_desktop_config.json'
-          : '~/.config/Claude/claude_desktop_config.json'
-    }). Reinicia Claude Desktop.`,
+    '- Claude Desktop: Settings > Developer > Edit Config (Configuración > Desarrollador > Editar configuración) abre ' +
+      'claude_desktop_config.json. Guarda y reinicia Claude Desktop.',
     '- Claude Code: en .mcp.json, en la raíz del proyecto (o con «claude mcp add-json factura-hn» y el objeto de "factura-hn").',
     '- Cursor: en ~/.cursor/mcp.json (para todos los proyectos) o en .cursor/mcp.json (solo este).',
     '- VS Code: en .vscode/mcp.json, pero la clave se llama "servers" en vez de "mcpServers".',
@@ -98,11 +94,13 @@ Comandos:
                      --dir <carpeta>     Otra carpeta en vez de la actual.
                      --establecimiento   Código de establecimiento (por defecto 000).
                      --punto             Código de punto de emisión (por defecto 001).
-                     --forzar            Reescribe el archivo del emisor. Con --demo, también recrea la base
-                                         de prueba. Nunca borra la base real.
+                     --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real).
+                                         Con --demo, también recrea la base de prueba. Nunca borra la base real.
   registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
                      --cai --tipo (01, 06 o 07) --establecimiento --punto --desde --hasta
                      --fecha-limite AAAA-MM-DD  [--fecha-autorizacion AAAA-MM-DD]
+                     --ultimo-emitido-antes N  Si ya emitiste con este CAI (talonario u otro sistema): el último
+                                         número usado. La serie sigue desde el siguiente.
                      --base <factura.db>  Base SQLite (o FHN_SQLITE; por defecto ./factura.db).
                      --api-url --llave    Vía la API (o FHN_API_URL y FHN_LLAVE); requiere una llave admin.
   ayuda            Esta ayuda.
@@ -124,8 +122,19 @@ function listaProblemas(e: ErrorBackend): string {
     .join('\n');
 }
 
-/** Crea la base (con sus tablas) y, con `demo`, registra los CAI ficticios que falten. */
-async function prepararBase(ruta: string, o: { demo: boolean; establecimiento: string; puntoEmision: string; hoy?: Date }) {
+/** Si la base tiene algún CAI real (en autorizaciones o documentos), no es de prueba: no se toca. */
+function exigirBasePrueba(db: Parameters<typeof caisDeBase>[0], ruta: string) {
+  const { reales } = caisDeBase(db);
+  if (reales.length) {
+    throw new ErrorUso(`${ruta} tiene un CAI real (${reales[0]}): no es una base de prueba. No se modifica ni se borra.`);
+  }
+}
+
+/**
+ * Crea la base (con sus tablas) y, con `demo`, registra los CAI ficticios que falten. Antes de registrar el
+ * primero, comprueba que la base sea de prueba y valida los tres: o entran todos o ninguno.
+ */
+async function prepararBase(ruta: string, o: { demo: boolean; establecimiento: string; puntoEmision: string; reloj?: () => Date }) {
   const db = abrirBase(ruta);
   try {
     const almacen = new AlmacenSQLite(db);
@@ -133,17 +142,22 @@ async function prepararBase(ruta: string, o: { demo: boolean; establecimiento: s
     const registrados: AutorizacionCAI[] = [];
     const vencidos: AutorizacionCAI[] = [];
     if (o.demo) {
-      const hoy = fechaHonduras(o.hoy ?? new Date());
-      for (const a of autorizacionesDemo({ hoy: o.hoy, establecimiento: o.establecimiento, puntoEmision: o.puntoEmision })) {
+      exigirBasePrueba(db, ruta);
+      const ahora = (o.reloj ?? (() => new Date()))();
+      const hoy = fechaHonduras(ahora);
+      const pendientes: AutorizacionCAI[] = [];
+      for (const a of autorizacionesDemo({ hoy: ahora, establecimiento: o.establecimiento, puntoEmision: o.puntoEmision })) {
         const existentes = await almacen.transaccion((tx) => tx.autorizaciones(identificadorDe(a)));
         const previo = existentes.find((x) => esCAIDemo(x.cai));
         if (previo) {
           if (previo.fechaLimiteEmision < hoy) vencidos.push(previo);
           continue;
         }
-        if (existentes.length) throw new ErrorUso(`${ruta} ya tiene un CAI real en ${identificadorDe(a)}: no es una base de prueba.`);
-        registrados.push(await registrarAutorizacion(almacen, a, { actor: 'mcp:init-demo' }));
+        const problemas = validarNuevaAutorizacion(existentes, a);
+        if (problemas.length) throw new ErrorUso(`No se pudo registrar el CAI ficticio en ${identificadorDe(a)}: ${problemas.map((p) => p.mensaje).join(' ')}`);
+        pendientes.push(a);
       }
+      for (const a of pendientes) registrados.push(await registrarAutorizacion(almacen, a, { actor: 'mcp:init-demo', reloj: o.reloj }));
     }
     return { registrados, vencidos };
   } finally {
@@ -177,13 +191,24 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
     const datos = demo
       ? { _aviso: `Emisor FICTICIO de demostración: ${LEYENDA_PRUEBA}.`, ...EMISOR_DEMO }
       : plantillaEmisor();
+    // El emisor real puede tener los datos del negocio: se guarda una copia antes de reescribirlo.
+    if (existiaEmisor && !demo) {
+      copyFileSync(emisor, `${emisor}.bak`);
+      hechos.push(`Copia del emisor anterior en ${emisor}.bak.`);
+    }
     writeFileSync(emisor, `${JSON.stringify(datos, null, 2)}\n`, 'utf8');
     hechos.push(`${existiaEmisor ? 'Reescrito' : 'Creado'} ${emisor}${demo ? ' (emisor ficticio).' : ' (plantilla: llénala con los datos de tu negocio).'}`);
   }
 
   const existiaBase = existsSync(base);
   if (existiaBase && forzar && demo) {
-    // Solo la base de prueba se recrea: tiene documentos sin valor fiscal.
+    // Solo una base de prueba se recrea: antes de borrarla se comprueba que no tenga ningún CAI real.
+    const db = abrirBase(base);
+    try {
+      exigirBasePrueba(db, base);
+    } finally {
+      db.close();
+    }
     try {
       for (const sufijo of ['', '-wal', '-shm']) rmSync(`${base}${sufijo}`, { force: true });
     } catch {
@@ -195,7 +220,7 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
   } else {
     hechos.push(`Creada la base ${base}.`);
   }
-  const { registrados, vencidos } = await prepararBase(base, { demo, establecimiento, puntoEmision, hoy: c.hoy });
+  const { registrados, vencidos } = await prepararBase(base, { demo, establecimiento, puntoEmision, reloj: c.reloj });
   for (const a of registrados) {
     hechos.push(`Registrado el CAI ficticio ${a.cai} (${identificadorDe(a)}, rango ${a.rangoInicial}–${a.rangoFinal}, fecha límite ${a.fechaLimiteEmision}).`);
   }
@@ -213,8 +238,9 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
         'Antes de emitir:',
         `1. Llena ${emisor} con los datos de tu negocio. El servidor los valida al arrancar y dice qué falta.`,
         '2. Registra el CAI de tu resolución del SAR, una vez por tipo de documento, copiando los datos de la resolución:',
-        `   npx -y ${PAQUETE} registrar-cai --base "${base}" --cai <CAI> --tipo 01 --establecimiento ${establecimiento} --punto ${puntoEmision} --desde <inicio> --hasta <fin> --fecha-limite <AAAA-MM-DD>`,
-        '   (o pídele al asistente que lo registre con registrar_cai, dándole los datos de la resolución).',
+        `   npx -y ${PAQUETE} registrar-cai --base "${base}" --cai CAI_DE_LA_RESOLUCION --tipo 01 --establecimiento ${establecimiento} --punto ${puntoEmision} --desde PRIMER_NUMERO --hasta ULTIMO_NUMERO --fecha-limite AAAA-MM-DD`,
+        '   Si ya emitiste documentos con ese CAI (talonario u otro sistema), agrega --ultimo-emitido-antes ULTIMO_NUMERO_USADO.',
+        '   (O pídele al asistente que lo registre con registrar_cai, dándole los datos de la resolución.)',
         '3. Pega este bloque en la configuración de tu cliente MCP:',
       ];
   s.out([
@@ -224,7 +250,7 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
     '',
     JSON.stringify(bloque, null, 2),
     '',
-    DONDE_PEGAR(plataforma),
+    DONDE_PEGAR(),
     '',
     demo ? 'Paso 3. Reinicia el cliente y pídele al asistente: «emite una factura de prueba».' : 'Después, reinicia el cliente y pídele al asistente que emita una factura.',
   ].join('\n'));
@@ -241,6 +267,7 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
     hasta: { type: 'string' },
     'fecha-limite': { type: 'string' },
     'fecha-autorizacion': { type: 'string' },
+    'ultimo-emitido-antes': { type: 'string' },
     base: { type: 'string' },
     'api-url': { type: 'string' },
     llave: { type: 'string' },
@@ -250,8 +277,8 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
   if (faltan.length) {
     throw new ErrorUso(`Faltan datos de la resolución del SAR: ${faltan.map((k) => `--${k}`).join(', ')}. Cópialos de la resolución; no los inventes.`);
   }
-  const entero = (k: 'desde' | 'hasta') => {
-    if (!/^\d+$/.test(v[k]!.trim())) throw new ErrorUso(`--${k} debe ser un número entero (el correlativo ${k === 'desde' ? 'inicial' : 'final'} del rango).`);
+  const entero = (k: 'desde' | 'hasta' | 'ultimo-emitido-antes', que: string) => {
+    if (!/^\d+$/.test(v[k]!.trim())) throw new ErrorUso(`--${k} debe ser un número entero (${que}).`);
     return Number(v[k]);
   };
   const autorizacion: AutorizacionCAI = {
@@ -259,10 +286,11 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
     tipoDocumento: v.tipo!.trim() as AutorizacionCAI['tipoDocumento'],
     establecimiento: v.establecimiento!.trim(),
     puntoEmision: v.punto!.trim(),
-    rangoInicial: entero('desde'),
-    rangoFinal: entero('hasta'),
+    rangoInicial: entero('desde', 'el correlativo inicial del rango'),
+    rangoFinal: entero('hasta', 'el correlativo final del rango'),
     fechaLimiteEmision: v['fecha-limite']!.trim(),
     ...(v['fecha-autorizacion'] ? { fechaAutorizacion: v['fecha-autorizacion'].trim() } : {}),
+    ...(v['ultimo-emitido-antes'] !== undefined ? { ultimoEmitidoAntes: entero('ultimo-emitido-antes', 'el último número ya usado con este CAI') } : {}),
   };
   const operador = c.env.FHN_OPERADOR || undefined;
   const url = v['api-url'] ?? c.env.FHN_API_URL;
@@ -282,7 +310,7 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
       }
       const db = abrirBase(base);
       try {
-        r = await registrarCAIEnAlmacen(new AlmacenSQLite(db), autorizacion, { actor: 'mcp:registrar-cai', operador });
+        r = await registrarCAIEnAlmacen(new AlmacenSQLite(db), db, autorizacion, { actor: 'mcp:registrar-cai', operador, reloj: c.reloj });
       } finally {
         db.close();
       }

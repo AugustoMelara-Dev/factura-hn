@@ -13,6 +13,8 @@ import { crearApp, crearTenant, migrarApi } from '@factura-hn/api';
 import { BackendApi, BackendLocal, crearServidorMCP, type Backend } from '../src';
 
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+/** Reloj fijo: las pruebas no dependen de la fecha en que corren (los CAI de prueba vencen el 2027-10-31). */
+const RELOJ = () => new Date('2026-11-24T15:00:00Z');
 const baseEnArchivo = () => new DatabaseSync(join(mkdtempSync(join(tmpdir(), 'fhn-mcp-')), 'factura.db'));
 
 const EMISOR: Emisor = {
@@ -105,7 +107,7 @@ async function recorrido(backend: Backend) {
 }
 
 async function backendLocal(operador?: string) {
-  const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', operador });
+  const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', operador, reloj: RELOJ });
   await registrarAutorizacion(backend.almacenFiscal, aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
   await registrarAutorizacion(backend.almacenFiscal, aut('06', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06'));
   return backend;
@@ -185,11 +187,13 @@ const linea = [{ descripcion: 'Arroz 5 lb', cantidad: 1, precioUnitario: '89.50'
 
 describe('registrar_cai', () => {
   it('sin CAI no se emite y el error dice qué hacer; con registrar_cai se emite', async () => {
-    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
     const { cliente, llamar } = await conectar(backend);
     const herramienta = (await cliente.listTools()).tools.find((t) => t.name === 'registrar_cai')!;
     // Con efecto, pero no destructiva; la descripción exige los datos de la resolución que dio el usuario.
-    expect(herramienta.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
+    // Irreversible y con efecto fiscal: destructiva, para que el cliente pida confirmación.
+    expect(herramienta.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false });
+    expect(herramienta.description).toMatch(/ya emitió documentos con este CAI[\s\S]*ultimoEmitidoAntes/);
     expect(herramienta.description).toMatch(/resolución del SAR que el usuario te dio[\s\S]*NUNCA inventes/);
 
     expect((await llamar('estado_cai')).texto).toMatch(/No hay autorizaciones registradas: no se puede emitir\. .*registrar_cai/);
@@ -231,11 +235,43 @@ describe('registrar_cai', () => {
   });
 
   it('una base de demostración no recibe CAI reales', async () => {
-    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
-    for (const a of autorizacionesDemo()) await registrarAutorizacion(backend.almacenFiscal, a);
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    for (const a of autorizacionesDemo({ hoy: RELOJ() })) await registrarAutorizacion(backend.almacenFiscal, a);
     const { llamar } = await conectar(backend);
     const r = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'), rangoInicial: 5001, rangoFinal: 6000 });
     expect(r.datos.errores[0]).toMatchObject({ codigo: 'BASE_DEMO', solucion: expect.stringMatching(/init` \(sin --demo\)/) });
+  });
+});
+
+describe('registrar_cai: bases de prueba, numeración previa y punto de emisión', () => {
+  it('BASE_DEMO en toda la base: un CAI real no entra en otra serie de una base de prueba', async () => {
+    const db = baseEnArchivo();
+    const backend = new BackendLocal({ db, emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    for (const a of autorizacionesDemo({ hoy: RELOJ() })) await registrarAutorizacion(backend.almacenFiscal, a);
+    const { llamar } = await conectar(backend);
+    for (const otra of [{ puntoEmision: '002' }, { establecimiento: '005' }]) {
+      const r = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'), ...otra });
+      expect(r.datos.errores[0].codigo).toBe('BASE_DEMO');
+    }
+    expect((db.prepare('SELECT count(*) AS n FROM fhn_autorizaciones').get() as { n: number }).n).toBe(3);
+  });
+
+  it('ultimoEmitidoAntes: la serie sigue después de lo ya emitido fuera del sistema; fuera de rango, el error del núcleo', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    const { llamar } = await conectar(backend);
+    const malo = await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'), ultimoEmitidoAntes: 500 });
+    expect(malo.datos.errores[0]).toMatchObject({ codigo: 'ULTIMO_EMITIDO_ANTES', solucion: expect.stringMatching(/Verifícalo con el usuario/) });
+    expect((await llamar('registrar_cai', { ...aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'), ultimoEmitidoAntes: 40 })).error).toBe(false);
+    const f = await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() });
+    expect(f.datos.documento.numero).toBe('000-001-01-00000041');
+  });
+
+  it('FHN_PUNTO=1 y FHN_ESTABLECIMIENTO=0 son 001 y 000: no hay aviso de otro punto', async () => {
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '0', puntoEmision: '1', reloj: RELOJ });
+    const { llamar } = await conectar(backend);
+    const r = await llamar('registrar_cai', aut('01', 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01'));
+    expect(r.error).toBe(false);
+    expect(r.texto).not.toContain('otro punto de emisión');
   });
 });
 
@@ -271,8 +307,8 @@ describe('cliente en notas de crédito', () => {
 
 describe('modo de prueba', () => {
   it('con el CAI ficticio, emitir y consultar lo advierten en el texto y en structuredContent', async () => {
-    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' });
-    for (const a of autorizacionesDemo()) await registrarAutorizacion(backend.almacenFiscal, a);
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    for (const a of autorizacionesDemo({ hoy: RELOJ() })) await registrarAutorizacion(backend.almacenFiscal, a);
     const { llamar } = await conectar(backend);
     const venta = { lineas: linea, idempotencyKey: randomUUID() };
     const f = await llamar('emitir_factura', venta);
@@ -296,7 +332,7 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
     await migrarApi(pool);
     const tenant = `mcp-${randomUUID().slice(0, 8)}`;
     const { llaveAdmin } = await crearTenant(pool, { tenant, nombre: tenant });
-    const app = crearApp({ pool, modo: 'local' });
+    const app = crearApp({ pool, modo: 'local', reloj: RELOJ });
     const fetchApp = ((e: RequestInfo | URL, init?: RequestInit) => app.fetch(e instanceof Request ? e : new Request(e, init))) as typeof fetch;
     const admin = (ruta: string, cuerpo: unknown) =>
       app.request(ruta, { method: 'POST', headers: { authorization: `Bearer ${llaveAdmin}`, 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
