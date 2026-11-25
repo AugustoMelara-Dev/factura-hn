@@ -35,6 +35,12 @@ kill_timeout = "15s"
   NODE_OPTIONS = "--max-old-space-size=384"
   # Los límites FHN_DEMO_* quedan en sus valores por defecto (docs/demo.md): son estrictos a propósito.
 
+# Certificado de la autoridad de Supabase (secreto SUPABASE_CA, en base64): las URL de la base lo usan con
+# sslmode=verify-full&sslrootcert=/app/supabase-ca.crt. Ver «Secretos» en docs/despliegue-demo.md.
+[[files]]
+  guest_path = "/app/supabase-ca.crt"
+  secret_name = "SUPABASE_CA"
+
 [http_service]
   internal_port = 8787
   force_https = true

@@ -1,0 +1,43 @@
+# Prueba de humo de la demostración pública en línea, cada 6 horas y a mano: crea un entorno de prueba, emite una
+# factura por la API y lista las herramientas por el MCP remoto (scripts/humo-demo.mjs). Falla en rojo si algo no
+# responde. Usa la variable del repositorio FHN_DEMO_API (la URL pública de la API, la misma de «Pruébalo ahora»);
+# sin ella, termina sin probar nada. Cada corrida crea un entorno que vence solo a las 24 horas.
+# Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml.
+name: Demostración en línea
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-en-linea
+  cancel-in-progress: false
+
+jobs:
+  humo:
+    name: Entorno, factura y MCP remoto
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sin FHN_DEMO_API no hay demostración que probar
+        if: ${{ vars.FHN_DEMO_API == '' }}
+        run: echo "::notice::La variable del repositorio FHN_DEMO_API no está definida; no se probó nada."
+      - if: ${{ vars.FHN_DEMO_API != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/humo-demo.mjs
+          sparse-checkout-cone-mode: false
+      - if: ${{ vars.FHN_DEMO_API != '' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Prueba de humo
+        if: ${{ vars.FHN_DEMO_API != '' }}
+        env:
+          FHN_DEMO_API: ${{ vars.FHN_DEMO_API }}
+        run: node scripts/humo-demo.mjs

@@ -1,0 +1,47 @@
+# Despliega la demostración pública en Fly.io (fly.api.toml y fly.mcp.toml). Solo a mano: nunca en cada cambio.
+# Corre en el entorno protegido «demo» (Settings > Environments): cada corrida espera la aprobación de quien lo
+# administra, y el secreto FLY_API_TOKEN vive solo en ese entorno. Guía: docs/despliegue-demo.md.
+# Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml; flyctl, por versión.
+name: Desplegar demostración
+
+on:
+  workflow_dispatch:
+    inputs:
+      que:
+        description: Qué desplegar
+        type: choice
+        options:
+          - api y mcp
+          - api
+          - mcp
+        default: api y mcp
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desplegar-demo
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    name: Desplegar en Fly.io (${{ inputs.que }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: demo
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+        with:
+          version: 0.5.10
+      # La API primero: su release_command migra la base antes de cambiar la máquina que atiende.
+      - name: API
+        if: ${{ inputs.que != 'mcp' }}
+        run: flyctl deploy -c fly.api.toml --remote-only
+      - name: MCP remoto
+        if: ${{ inputs.que != 'api' }}
+        run: flyctl deploy -c fly.mcp.toml --remote-only
