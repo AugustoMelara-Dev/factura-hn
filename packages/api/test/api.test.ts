@@ -388,7 +388,7 @@ conBase('documentación', () => {
 conBase('correcciones de la revisión de seguridad', () => {
   it('intentos con un prefijo conocido y secreto falso: 429 de intentos, sin marcar último uso ni bloquear la llave', async () => {
     const { llaveAdmin, pool, tenant } = await tenantListo();
-    const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 }, limiteIntentos: { porSegundo: 1, rafaga: 2 } });
+    const app = crearApp({ pool, modo: 'local', rol: ROL, limiteSolicitudes: { porSegundo: 1, rafaga: 2 }, limiteIntentos: { porSegundo: 0.01, rafaga: 2 } });
     const falsa = `${llaveAdmin.slice(0, 17)}${'A'.repeat(43)}`;
     const uso = async () => (await pool.query('SELECT ultimo_uso FROM api_llaves WHERE tenant = $1', [tenant])).rows[0].ultimo_uso;
     const antes = await uso();
