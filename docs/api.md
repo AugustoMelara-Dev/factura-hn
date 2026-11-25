@@ -30,7 +30,7 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro pue
    documento y `enlaces` a su PDF, HTML y texto:
 
    ```bash
-   PDF=$(curl -s -X POST http://127.0.0.1:8787/v1/documentos \
+   PDF=$(curl -sf -X POST http://127.0.0.1:8787/v1/documentos \
      -H "authorization: Bearer $LLAVE" -H "idempotency-key: venta-0001" -H "content-type: application/json" \
      --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
    ```
@@ -38,18 +38,20 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro pue
 3. **Descarga el PDF** del enlace:
 
    ```bash
-   curl -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
    ```
 
 Repetir el paso 2 con la misma `idempotency-key` devuelve la misma factura; para otra venta, usa otra clave.
+Con `-f`, curl termina con error si la API responde un error, en vez de seguir con un enlace vacío; para leer el
+cuerpo del error (con su `solucion`), repite el paso sin `-f`.
 
-En PowerShell (Windows), los mismos tres pasos:
+En PowerShell (Windows PowerShell 5.1 o PowerShell 7), los mismos tres pasos:
 
 ```powershell
 $LLAVE = docker compose exec -T api factura-hn-api demo llave --solo-llave
-$r = Invoke-RestMethod -Method Post http://127.0.0.1:8787/v1/documentos -ContentType 'application/json' `
-  -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = 'venta-0001' } -InFile packages/api/ejemplos/factura.json
-Invoke-WebRequest "http://127.0.0.1:8787$($r.enlaces.pdf)" -Headers @{ authorization = "Bearer $LLAVE" } -OutFile factura.pdf
+$r = Invoke-RestMethod -UseBasicParsing -Method Post http://127.0.0.1:8787/v1/documentos -ContentType 'application/json' `
+  -Headers @{ authorization = "Bearer $LLAVE"; 'idempotency-key' = 'venta-0001' } -InFile (Resolve-Path packages/api/ejemplos/factura.json)
+Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8787$($r.enlaces.pdf)" -Headers @{ authorization = "Bearer $LLAVE" } -OutFile factura.pdf
 ```
 
 Escribe tu propio cuerpo siempre en un archivo UTF-8 y envíalo con `--data-binary @archivo.json` (o `-InFile`):

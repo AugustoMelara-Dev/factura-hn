@@ -17,7 +17,11 @@ API REST y cliente: la primera factura en 3 pasos.
   existe (p. ej. revocada) se cobran a esa llave y no a la dirección, y a lo sumo 4 consultas de llaves nuevas
   van a la base a la vez (las demás esperan en cola). Las IPv6 se agrupan por /64. `X-Forwarded-For` solo se
   usa con `FHN_PROXIES_DE_CONFIANZA`, que también acepta la lista de direcciones de los proxies.
-- Consola del operador en español: `factura-hn-api ayuda`, `--help` por comando, errores con código 1 y el nuevo
-  `demo llave`. En Docker se invoca igual: `docker compose exec api factura-hn-api …` (`node cli.cjs` sigue
-  funcionando). Las llaves del demo salen en un bloque destacado con la advertencia de CAI ficticio.
+- Consola del operador en español: `ayuda`, `--help` por comando, errores con código 1 y el nuevo `demo llave`
+  (solo en el tenant de demostración). En Docker: `docker compose exec api factura-hn-api …` (`node cli.cjs`
+  sigue funcionando); fuera, desde la raíz del repositorio compilado: `node packages/api/dist/cli.js …`. Los
+  nombres de tenant `local` y `demo` quedan reservados. Las llaves del demo salen en un bloque destacado con la
+  advertencia de CAI ficticio.
+- En modo alojado, la solución de un 401 no nombra comandos ni tenants del operador.
+- `GET /v1/sesion`: `documentosDelMes` (de todo el tenant) solo con una llave admin; `null` con una de caja.
 - `docker-compose.yml`: el puerto publicado se cambia con `FHN_PUERTO`.
