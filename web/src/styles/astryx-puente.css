@@ -1,0 +1,35 @@
+/*
+ * Puente entre Astryx y los tokens del sitio (tokens.css): los componentes de Astryx (botones, avisos, bloques de
+ * código) toman el acento, los fondos, el texto y las fuentes de factura-hn en vez de los del tema neutral.
+ *
+ * Va fuera de capas (@layer): el tema de Astryx define sus variables dentro de `@layer astryx-theme`, así que estas
+ * ganan sin depender de la especificidad. Solo se carga en las páginas del producto (Sitio.astro), no en la
+ * documentación. Los pares texto/fondo que salen de aquí los comprueba `scripts/contraste.test.mjs`.
+ */
+
+[data-astryx-theme] {
+	--font-family-body: var(--fhn-fuente);
+	--font-family-heading: var(--fhn-fuente);
+	--font-family-code: var(--fhn-fuente-mono);
+
+	--color-accent: var(--fhn-acento);
+	--color-accent-muted: var(--fhn-acento-suave);
+	--color-on-accent: var(--fhn-sobre-acento);
+	--color-icon-accent: var(--fhn-acento-texto);
+
+	--color-background-body: var(--fhn-fondo);
+	--color-background-card: var(--fhn-fondo);
+	--color-background-popover: var(--fhn-fondo);
+	--color-background-surface: var(--fhn-superficie);
+	--color-background-muted: var(--fhn-superficie);
+	--color-syntax-background: var(--fhn-superficie);
+
+	--color-text-primary: var(--fhn-texto);
+	--color-text-secondary: var(--fhn-gris-3);
+	--color-text-accent: var(--fhn-acento-texto);
+	--color-icon-primary: var(--fhn-texto);
+	--color-icon-secondary: var(--fhn-gris-3);
+
+	--color-border: var(--fhn-borde);
+	--color-border-emphasized: var(--fhn-gris-4);
+}

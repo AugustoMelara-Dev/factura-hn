@@ -1,20 +1,27 @@
-// Contraste de la paleta del sitio (WCAG 2.x, luminancia relativa). Lee los colores de src/styles/tema.css: si
-// un cambio baja un par de AA, la prueba falla. Corre con `node --test` (lo hace `pnpm sitio`).
+// Contraste de la paleta del sitio (WCAG 2.x, luminancia relativa). Lee los tokens de src/styles/tokens.css (claro
+// en `:root`, oscuro en `:root[data-theme='dark']`) y las asignaciones de Starlight (tema.css) y de Astryx
+// (astryx-puente.css), que apuntan a esos tokens. Si un cambio baja un par de AA, la prueba falla. Corre con
+// `node --test` (lo hace `pnpm sitio`).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-const css = readFileSync(new URL('../src/styles/tema.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const leerCss = (archivo) => readFileSync(new URL(`../src/styles/${archivo}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
-const bloque = (selector) => {
+const bloque = (css, selector, archivo) => {
   const i = css.indexOf(`${selector} {`);
-  assert.ok(i >= 0, `falta el bloque ${selector} en tema.css`);
+  assert.ok(i >= 0, `falta el bloque ${selector} en ${archivo}`);
   return css.slice(i, css.indexOf('}', i));
 };
 const variables = (texto) => Object.fromEntries([...texto.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 
-const oscuro = variables(bloque(':root'));
-const claro = { ...oscuro, ...variables(bloque(":root[data-theme='light']")) };
+const tokens = leerCss('tokens.css');
+const asignaciones = {
+  ...variables(bloque(leerCss('tema.css'), ':root', 'tema.css')),
+  ...variables(bloque(leerCss('astryx-puente.css'), '[data-astryx-theme]', 'astryx-puente.css')),
+};
+const claro = { ...variables(bloque(tokens, ':root', 'tokens.css')), ...asignaciones };
+const oscuro = { ...claro, ...variables(bloque(tokens, ":root[data-theme='dark']", 'tokens.css')) };
 
 function color(tema, nombre) {
   let v = tema[nombre];
@@ -63,9 +70,19 @@ const PARES = [
   ['--fhn-error', '--fhn-error-fondo', 4.5, 'estado ausente, DELETE'],
   ['--fhn-neutro', '--fhn-neutro-fondo', 4.5, 'estado no aplica'],
   ['--sl-color-gray-4', '--sl-color-bg', 3, 'borde de campos'],
+  // Páginas del producto y componentes de Astryx
+  ['--fhn-sobre-acento', '--fhn-acento', 4.5, 'botón primario del producto'],
+  ['--fhn-acento-fuerte', '--fhn-acento-suave', 4.5, 'etiqueta sobre acento suave'],
+  ['--fhn-gris-3', '--fhn-superficie', 4.5, 'texto suave en tarjetas'],
+  ['--fhn-texto', '--fhn-superficie', 4.5, 'texto en tarjetas y código'],
+  ['--color-on-accent', '--color-accent', 4.5, 'botón primario de Astryx'],
+  ['--color-text-primary', '--color-background-body', 4.5, 'texto de Astryx'],
+  ['--color-text-secondary', '--color-background-body', 4.5, 'texto secundario de Astryx'],
+  ['--color-text-accent', '--color-background-body', 4.5, 'enlaces de Astryx'],
+  ['--color-text-secondary', '--color-background-surface', 4.5, 'texto secundario de Astryx en superficie'],
 ];
 
-for (const [nombreTema, tema] of [['oscuro', oscuro], ['claro', claro]]) {
+for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {
   test(`contraste AA, tema ${nombreTema}`, () => {
     const fallos = [];
     for (const [texto, fondo, minimo, uso] of PARES) {
@@ -78,7 +95,7 @@ for (const [nombreTema, tema] of [['oscuro', oscuro], ['claro', claro]]) {
 
 // `node scripts/contraste.test.mjs --tabla` imprime la tabla de contrastes de cada tema.
 if (process.argv.includes('--tabla')) {
-  for (const [nombreTema, tema] of [['oscuro', oscuro], ['claro', claro]]) {
+  for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {
     console.log(`\n${nombreTema}`);
     for (const [texto, fondo, minimo, uso] of PARES) {
       const [a, b] = [color(tema, texto), color(tema, fondo)];

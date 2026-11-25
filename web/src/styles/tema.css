@@ -1,127 +1,69 @@
 /*
- * Tema de factura-hn sobre Starlight: una referencia técnica sobria.
+ * Tema de factura-hn sobre Starlight. Los colores y las fuentes salen de `tokens.css`: aquí solo se asigna cada
+ * variable de Starlight a un token, para que la documentación y las páginas del producto compartan una sola
+ * paleta. `scripts/contraste.test.mjs` resuelve estas asignaciones y comprueba AA en claro y en oscuro.
  *
- * Las paletas clara y oscura se asignan a las variables de Starlight. Cada par texto/fondo que se usa pasa AA
- * (4,5:1 para texto, 3:1 para bordes de componentes): lo comprueba `scripts/contraste.test.mjs` leyendo este
- * archivo, así que un cambio de color que baje de AA rompe `pnpm sitio`.
- *
- * Starlight define el tema oscuro en `:root` y el claro en `:root[data-theme='light']`. En oscuro, «white» es el
- * texto y «black» el fondo; en claro se invierten.
+ * En la paleta de Starlight, «white» es el color de más contraste con el fondo (el texto) y «black» el fondo.
+ * Las asignaciones van fuera de capas (@layer): así ganan a las de Starlight, que sí van en capas.
  */
 
 :root {
-	--sl-font: 'IBM Plex Sans';
-	--sl-font-mono: 'IBM Plex Mono';
-	--sl-line-height: 1.65;
+	--sl-font: var(--fhn-fuente);
+	--sl-font-mono: var(--fhn-fuente-mono);
+	--sl-line-height: 1.7;
 	--sl-content-width: 48rem;
 
-	/* Oscuro */
-	--sl-color-white: #ecebe7; /* texto */
-	--sl-color-gray-1: #dcdad5;
-	--sl-color-gray-2: #c5c2bb;
-	--sl-color-gray-3: #a3a099; /* suave */
-	--sl-color-gray-4: #6e6b64; /* borde fuerte */
-	--sl-color-gray-5: #2e2d2a; /* borde */
-	--sl-color-gray-6: #1b1b19; /* superficie */
-	--sl-color-black: #111110; /* fondo */
+	--sl-color-white: var(--fhn-texto);
+	--sl-color-gray-1: var(--fhn-gris-1);
+	--sl-color-gray-2: var(--fhn-gris-2);
+	--sl-color-gray-3: var(--fhn-gris-3);
+	--sl-color-gray-4: var(--fhn-gris-4);
+	--sl-color-gray-5: var(--fhn-gris-5);
+	--sl-color-gray-6: var(--fhn-gris-6);
+	--sl-color-gray-7: var(--fhn-gris-7);
+	--sl-color-black: var(--fhn-fondo);
 
-	--sl-color-accent-low: #14293a;
-	--sl-color-accent: #7cc0ec;
-	--sl-color-accent-high: #a6d5f3;
+	--sl-color-accent-low: var(--fhn-acento-suave);
+	--sl-color-accent: var(--fhn-acento);
+	--sl-color-accent-high: var(--fhn-acento-fuerte);
 
-	--sl-color-text: var(--sl-color-white);
-	--sl-color-text-accent: #7cc0ec;
-	--sl-color-text-invert: #111110;
-	--sl-color-bg: var(--sl-color-black);
-	--sl-color-bg-nav: #1b1b19;
-	--sl-color-bg-sidebar: #1b1b19;
-	--sl-color-bg-inline-code: #2e2d2a;
-	--sl-color-bg-accent: #7cc0ec;
-	--sl-color-hairline-light: #2e2d2a;
-	--sl-color-hairline: #2e2d2a;
-	--sl-color-hairline-shade: #111110;
+	--sl-color-text: var(--fhn-texto);
+	--sl-color-text-accent: var(--fhn-acento-texto);
+	--sl-color-text-invert: var(--fhn-texto-invertido);
+	--sl-color-bg: var(--fhn-fondo);
+	--sl-color-bg-nav: var(--fhn-fondo);
+	--sl-color-bg-sidebar: var(--fhn-fondo);
+	--sl-color-bg-inline-code: var(--fhn-superficie);
+	--sl-color-bg-accent: var(--fhn-acento);
+	--sl-color-hairline-light: var(--fhn-borde);
+	--sl-color-hairline: var(--fhn-borde);
+	--sl-color-hairline-shade: var(--fhn-borde);
 
 	/* Avisos (:::note, :::tip, :::caution, :::danger) y badges: «-high» es el texto sobre «-low». */
-	--sl-color-blue-low: #14293a;
-	--sl-color-blue: #7cc0ec;
-	--sl-color-blue-high: #a6d5f3;
-	--sl-color-purple-low: #241f33;
-	--sl-color-purple: #b9a3e3;
-	--sl-color-purple-high: #d4c6f0;
-	--sl-color-green-low: #12291d;
-	--sl-color-green: #6fd39f;
-	--sl-color-green-high: #6fd39f;
-	--sl-color-orange-low: #2e2410;
-	--sl-color-orange: #f0c060;
-	--sl-color-orange-high: #f0c060;
-	--sl-color-red-low: #3a1c19;
-	--sl-color-red: #ff8f85;
-	--sl-color-red-high: #ff8f85;
+	--sl-color-blue-low: var(--fhn-azul-suave);
+	--sl-color-blue: var(--fhn-azul);
+	--sl-color-blue-high: var(--fhn-azul-fuerte);
+	--sl-color-purple-low: var(--fhn-morado-suave);
+	--sl-color-purple: var(--fhn-morado);
+	--sl-color-purple-high: var(--fhn-morado-fuerte);
+	--sl-color-green-low: var(--fhn-verde-suave);
+	--sl-color-green: var(--fhn-verde);
+	--sl-color-green-high: var(--fhn-verde-fuerte);
+	--sl-color-orange-low: var(--fhn-naranja-suave);
+	--sl-color-orange: var(--fhn-naranja);
+	--sl-color-orange-high: var(--fhn-naranja-fuerte);
+	--sl-color-red-low: var(--fhn-rojo-suave);
+	--sl-color-red: var(--fhn-rojo);
+	--sl-color-red-high: var(--fhn-rojo-fuerte);
 
-	/* Propios del sitio */
-	--fhn-superficie: #1b1b19;
-	--fhn-exito: #6fd39f;
-	--fhn-exito-fondo: #12291d;
-	--fhn-aviso: #f0c060;
-	--fhn-aviso-fondo: #2e2410;
-	--fhn-error: #ff8f85;
-	--fhn-error-fondo: #3a1c19;
-	--fhn-neutro: #c5c2bb;
-	--fhn-neutro-fondo: #2e2d2a;
-}
-
-:root[data-theme='light'] {
-	/* Claro */
-	--sl-color-white: #1a1a18; /* texto */
-	--sl-color-gray-1: #262623;
-	--sl-color-gray-2: #3a3934;
-	--sl-color-gray-3: #5b5952; /* suave */
-	--sl-color-gray-4: #86837b; /* borde fuerte */
-	--sl-color-gray-5: #e2e0db; /* borde */
-	--sl-color-gray-6: #f2f1ee; /* superficie */
-	--sl-color-gray-7: #f6f5f3;
-	--sl-color-black: #fafaf9; /* fondo */
-
-	--sl-color-accent-low: #e3eef6;
-	--sl-color-accent: #0b5d8f;
-	--sl-color-accent-high: #084a72;
-
-	--sl-color-text: var(--sl-color-white);
-	--sl-color-text-accent: #0b5d8f;
-	--sl-color-text-invert: #fafaf9;
-	--sl-color-bg-nav: #f6f5f3;
-	--sl-color-bg-sidebar: #fafaf9;
-	--sl-color-bg-inline-code: #f2f1ee;
-	--sl-color-bg-accent: #0b5d8f;
-	--sl-color-hairline-light: #e2e0db;
-	--sl-color-hairline: #e2e0db;
-	--sl-color-hairline-shade: #e2e0db;
-
-	--sl-color-blue-low: #e3eef6;
-	--sl-color-blue: #0b5d8f;
-	--sl-color-blue-high: #084a72;
-	--sl-color-purple-low: #efeaf7;
-	--sl-color-purple: #6a4a9c;
-	--sl-color-purple-high: #533a7c;
-	--sl-color-green-low: #e4f3ea;
-	--sl-color-green: #17663d;
-	--sl-color-green-high: #17663d;
-	--sl-color-orange-low: #fbf0dc;
-	--sl-color-orange: #a86a12;
-	--sl-color-orange-high: #8a5300;
-	--sl-color-red-low: #fce8e6;
-	--sl-color-red: #b42318;
-	--sl-color-red-high: #b42318;
-
-	--fhn-superficie: #f2f1ee;
-	--fhn-exito: #17663d;
-	--fhn-exito-fondo: #e4f3ea;
-	--fhn-aviso: #8a5300;
-	--fhn-aviso-fondo: #fbf0dc;
-	--fhn-error: #b42318;
-	--fhn-error-fondo: #fce8e6;
-	--fhn-neutro: #3a3934;
-	--fhn-neutro-fondo: #e2e0db;
+	/* Estados de la matriz y métodos HTTP */
+	--fhn-exito: var(--fhn-verde);
+	--fhn-exito-fondo: var(--fhn-verde-suave);
+	--fhn-aviso: var(--fhn-naranja-fuerte);
+	--fhn-aviso-fondo: var(--fhn-naranja-suave);
+	--fhn-error: var(--fhn-rojo);
+	--fhn-error-fondo: var(--fhn-rojo-suave);
+	--fhn-neutro-fondo: var(--fhn-neutro-suave);
 }
 
 /* --- Tipografía ------------------------------------------------------------------------------------------ */
@@ -135,8 +77,14 @@ h1#_top {
 	letter-spacing: -0.01em;
 	text-wrap: balance;
 }
+.sl-markdown-content h1,
+.sl-markdown-content h2,
 h1#_top {
-	font-size: 2rem;
+	letter-spacing: -0.02em;
+}
+h1#_top {
+	font-size: clamp(1.875rem, 4vw, 2.25rem);
+	line-height: 1.15;
 }
 .site-title {
 	font-family: var(--__sl-font-mono);
