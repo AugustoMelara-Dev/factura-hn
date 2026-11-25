@@ -219,9 +219,9 @@ Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
 | Cabecera | En | Qué es |
 |---|---|---|
-| `Solicitud-Id` | todas | Id de la solicitud. Si mandas una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), la API usa la tuya; si no, genera un UUID. Va también en `error.solicitud` y en el log del servidor de un 500 |
+| `Solicitud-Id` | todas | Id de la solicitud. Si mandas una cabecera `Solicitud-Id` válida (1 a 128 letras, dígitos, `.`, `_`, `:` o `-`, empezando por letra o dígito), la API usa la tuya; si no, genera un UUID. Va también en `error.solicitud` y en el log del servidor de un 500, que además lleva siempre un id generado por el servidor |
 | `FacturaHN-Version` | todas | Versión de la API que respondió (la de `/salud`) |
-| `RateLimit-Policy`, `RateLimit` | `/v1`, con una llave válida | Límite de la llave (ver «Límites de solicitudes») |
+| `RateLimit-Policy`, `RateLimit` | `/v1`, después de validar la llave (nunca en 401, 413 ni 429 `DEMASIADOS_INTENTOS`) | Límite de la llave (ver «Límites de solicitudes») |
 | `Retry-After` | los 429 | Segundos que conviene esperar antes de reintentar |
 
 ### Reportes de período
@@ -278,7 +278,11 @@ antes a centavos.
 
 - `error.codigo` es estable; `error.mensaje` es para mostrar.
 - `error.solicitud` es el id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Guárdalo con el error: con
-  él se encuentra la línea del log del servidor (un 500 se registra con «solicitud <id>»).
+  él se encuentra la línea del log del servidor. Un 500 se registra con un id que genera el servidor, que es el
+  que va en la respuesta si no mandaste el tuyo: «solicitud <uuid>». Si mandaste tu `Solicitud-Id`, la respuesta
+  repite el tuyo y el log lleva los dos: «solicitud <uuid> (cliente <tu id>)», porque el del cliente no tiene por
+  qué ser único. La API lo envía siempre desde la 0.2.0; en el esquema es opcional, para leer sin fallar el error
+  de un proxy o de un servidor anterior.
 - `solucion` dice qué hacer, y `documentacion` enlaza el código en la guía de errores (`docs/errores.md`). Los
   traen los errores frecuentes: llave (`NO_AUTENTICADO`), rol (`SOLO_ADMIN`), caja (`CAJA_SIN_PUNTO`,
   `CAJA_NO_AUTORIZADA`, `PUNTO_EMISION_REQUERIDO`), límites (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`,
@@ -294,7 +298,8 @@ antes a centavos.
   `Retry-After` (`DEMASIADOS_INTENTOS`, `DEMASIADAS_SOLICITUDES`, `LIMITE_SOLICITUDES` y `LIMITE_MENSUAL`, que
   espera hasta el primer día del mes siguiente a las 00:00 de Honduras) · 500 `ERROR_INTERNO`.
 - Cada operación de `/openapi.json` declara solo los estados que su código puede devolver: todas las de `/v1`,
-  401, 429 y 500; las que reciben cuerpo, 413; el 422 solo las que validan reglas fiscales o el tope de un
+  401, 429 y 500; las que no son `GET`, 413 (el límite de 512 KB mira el cuerpo de cualquier método, aunque la
+  operación no espere cuerpo); el 422 solo las que validan reglas fiscales o el tope de un
   reporte (ningún `GET` salvo `libro-ventas` y `exportacion`).
 
 ### Sesión
