@@ -32,13 +32,35 @@ const servidor = serve({ fetch: app.fetch, port: Number(process.env.PUERTO ?? 0)
   console.log(`LISTO ${info.port}`);
 });
 const enCurso = new Set<string>();
+const pasadas = new Set<Promise<unknown>>();
 const intervalo = setInterval(() => {
-  despacharWebhooks({ pool, rol, cofre, permitirRedInterna: true, enCurso }).catch((e) => console.error('Despacho de webhooks', e));
+  const p = despacharWebhooks({ pool, rol, cofre, permitirRedInterna: true, enCurso })
+    .catch((e) => console.error('Despacho de webhooks', e))
+    .finally(() => pasadas.delete(p));
+  pasadas.add(p);
 }, 5000);
+let cerrando = false;
+/**
+ * Cierre ordenado: deja de aceptar conexiones, espera las solicitudes en curso (p. ej. las de un generador que
+ * abortó) y la pasada de webhooks, y solo entonces cierra el pool. Cerrar el pool antes las haría fallar con
+ * «Cannot use a pool after calling end on the pool» (500 en el log que tapa la causa real). Tope: 30 s.
+ */
 const cerrar = () => {
+  if (cerrando) return;
+  cerrando = true;
   clearInterval(intervalo);
-  servidor.close();
-  void pool.end().then(() => process.exit(0));
+  const tope = setTimeout(() => {
+    console.error('Cierre: solicitudes en curso tras 30 s; se cortan.');
+    (servidor as import('node:http').Server).closeAllConnections();
+  }, 30_000);
+  tope.unref();
+  servidor.close(() => {
+    void Promise.allSettled([...pasadas])
+      .then(() => pool.end())
+      .finally(() => process.exit(0));
+  });
+  // Las conexiones keep-alive sin solicitud en curso no tienen por qué esperar.
+  (servidor as import('node:http').Server).closeIdleConnections();
 };
 process.once('SIGTERM', cerrar);
 process.once('SIGINT', cerrar);
