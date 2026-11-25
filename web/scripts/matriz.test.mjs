@@ -3,17 +3,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { construirMatriz, lineaDelTitulo, referencias } from './lib/matriz.mjs';
 
-const matriz = (filas) => `# Investigación
+const matriz = (filas) => `# Matriz de cumplimiento
 
-## 1. Matriz de cumplimiento
+## Fuentes
 
-### Reglamento
+| Clave | Documento |
+|---|---|
+| C L.n | Texto consolidado |
 
-| # | Requisito | Fuente | factura-hn 0.2 | Prueba | invoicehn | Brecha (0.1) → acción |
-|---|---|---|---|---|---|---|
+## Reglamento
+
+| # | Requisito | Fuente | factura-hn | Prueba |
+|---|---|---|---|---|
 ${filas.join('\n')}
-
-## 2. Brechas
 `;
 
 test('la matriz real del repositorio: cada regla cubierta o parcial tiene su prueba', () => {
@@ -43,12 +45,12 @@ test('lineaDelTitulo: «…» abrevia; solo cuenta un título de prueba', () => 
 test('falla si una regla cubierta pierde su prueba', () => {
   const { problemas } = construirMatriz(
     matriz([
-      '| 1 | Sin prueba | C L.1 | ✅ Cubierto | — | | |',
-      '| 2 | Archivo que no existe | C L.2 | ✅ | `no-existe.test.ts` «x» | | |',
-      '| 3 | Título que no existe | C L.3 | 🟡 Parcial | `matriz.test.ts` «Art. 999 …» | | |',
-      '| 4 | Bien | C L.4 | ✅ | `matriz.test.ts` «Art. 9 …» | | |',
-      '| 5 | No aplica | C L.5 | ➖ | — | | |',
-      '| 6 | Sin estado | C L.6 | cubierto | `matriz.test.ts` | | |',
+      '| 1 | Sin prueba | C L.1 | ✅ Cubierto | — |',
+      '| 2 | Archivo que no existe | C L.2 | ✅ | `no-existe.test.ts` «x» |',
+      '| 3 | Título que no existe | C L.3 | 🟡 Parcial | `matriz.test.ts` «Art. 999 …» |',
+      '| 4 | Bien | C L.4 | ✅ | `matriz.test.ts` «Art. 9 …» |',
+      '| 5 | No aplica | C L.5 | ➖ | — |',
+      '| 6 | Sin estado | C L.6 | cubierto | `matriz.test.ts` |',
     ]),
   );
   assert.deepEqual(problemas, [

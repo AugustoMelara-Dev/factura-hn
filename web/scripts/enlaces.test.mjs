@@ -14,8 +14,8 @@ test('resolverEnlace: documento con página, sin página, carpeta, absolutos y a
   assert.equal(resolverEnlace('docs/guia-sdk.md', 'llms.txt', mapa), '/referencia/sdk/');
   assert.equal(resolverEnlace('persistencia.md', 'docs/guia-sdk.md', mapa), `${REPO}/blob/main/docs/persistencia.md`);
   assert.equal(resolverEnlace('../examples/basico', 'docs/guia-sdk.md', mapa), `${REPO}/tree/main/examples/basico`);
-  assert.equal(resolverEnlace('investigacion.md', 'docs/api.md', mapa), '/referencia/cumplimiento/');
-  assert.equal(resolverEnlace('investigacion.md#3-pasos-ante-el-sar', 'docs/api.md', mapa), `${REPO}/blob/main/docs/investigacion.md#3-pasos-ante-el-sar`);
+  assert.equal(resolverEnlace('cumplimiento.md', 'docs/api.md', mapa), '/referencia/cumplimiento/');
+  assert.equal(resolverEnlace('cumplimiento.md#fuentes-y-cómo-se-citan', 'docs/api.md', mapa), `${REPO}/blob/main/docs/cumplimiento.md#fuentes-y-cómo-se-citan`);
   for (const absoluto of ['https://ejemplo.example/x', '#ancla', '/conceptos/cai/', 'mailto:a@ejemplo.example']) {
     assert.equal(resolverEnlace(absoluto, 'docs/api.md', mapa), absoluto);
   }
@@ -70,7 +70,7 @@ test('conBase y rehype-base: solo los enlaces internos absolutos, una vez', () =
 
 test('reescribirEnlaces: un tramo protegido dentro de otro se restaura entero (sin U+0000)', () => {
   // El comentario se protege primero; luego un código en línea que lo abarca guarda su marca dentro.
-  const md = 'Antes `a <!-- (rama lote4/x) --> b` y [x](api.md).\n\n<!-- (rama lote4/y) -->\n\nUsa `c` y `d`.';
+  const md = 'Antes `a <!-- (rama demo/x) --> b` y [x](api.md).\n\n<!-- (rama demo/y) -->\n\nUsa `c` y `d`.';
   const r = reescribirEnlaces(md, (d) => `!${d}`);
   assert.ok(!r.includes('\u0000'), 'quedó una marca interna');
   assert.equal(r, md.replace('](api.md)', '](!api.md)'));

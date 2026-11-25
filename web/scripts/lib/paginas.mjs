@@ -33,7 +33,7 @@ export const PAGINAS = [
     descripcion: 'Catálogo de códigos de error y de aviso del SDK, la API y el MCP: qué significan, su base y qué hacer.',
   },
   {
-    fuente: 'docs/investigacion.md',
+    fuente: 'docs/cumplimiento.md',
     ruta: 'referencia/cumplimiento',
     titulo: 'Matriz de cumplimiento',
     menu: 'Cumplimiento',
@@ -47,21 +47,6 @@ export const PAGINAS = [
     menu: 'Normativa',
     orden: 6,
     descripcion: 'Qué requisitos del Reglamento cubre la librería, de qué fuentes sale cada regla y qué queda fuera.',
-  },
-  {
-    fuente: 'docs/decisiones.md',
-    ruta: 'referencia/decisiones',
-    menu: 'Decisiones',
-    orden: 7,
-    descripcion: 'Registro de decisiones (DEC) del proyecto, con las interpretaciones aprobadas y las pendientes de revisión.',
-    generar: 'decisiones',
-  },
-  {
-    fuente: 'docs/consulta-sar.md',
-    ruta: 'produccion/consulta-sar',
-    menu: 'Consulta al SAR',
-    orden: 50,
-    descripcion: 'Las preguntas abiertas que factura-hn dirige al SAR, con la lectura provisional que aplica mientras no hay respuesta.',
   },
   {
     fuente: 'docs/autoalojamiento.md',
@@ -83,8 +68,9 @@ export const PAGINAS = [
 /** Ruta del repositorio → URL del sitio (`/ruta/`), para reescribir los enlaces entre documentos. */
 export function mapaDeEnlaces() {
   const mapa = new Map();
-  for (const p of PAGINAS) if (!p.generar || p.generar === 'decisiones') mapa.set(p.fuente, `/${p.ruta}/`);
-  // De investigacion.md solo se publica la matriz: un enlace sin ancla va a la matriz; con ancla, a GitHub.
-  mapa.set('docs/investigacion.md', (ancla) => (ancla ? null : '/referencia/cumplimiento/'));
+  for (const p of PAGINAS) if (!p.generar) mapa.set(p.fuente, `/${p.ruta}/`);
+  // La página de la matriz se genera desde las tablas de docs/cumplimiento.md: un enlace sin ancla va a la página;
+  // con ancla, al archivo en GitHub (las secciones de la página generada no son las del archivo).
+  mapa.set('docs/cumplimiento.md', (ancla) => (ancla ? null : '/referencia/cumplimiento/'));
   return mapa;
 }

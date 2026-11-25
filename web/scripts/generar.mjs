@@ -14,7 +14,6 @@
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import GithubSlugger from 'github-slugger';
 import { BLOQUES, DOCS, RAIZ, WEB } from '../sitio.config.mjs';
 import { reescribirEnlaces, resolverEnlace } from './lib/enlaces-md.mjs';
 import { matrizMarkdown, verificarMatriz } from './lib/matriz.mjs';
@@ -46,58 +45,14 @@ const frontmatter = (campos) =>
     )
     .join('\n')}\n---\n\n`;
 
-/** Texto plano de un encabezado Markdown, como lo ve github-slugger tras renderizarlo. */
+/** Texto plano de un encabezado Markdown. */
 const textoPlano = (s) => s.replace(/`([^`]*)`/g, '$1').replace(/\*\*|__/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim();
-
-/** Encabezados fuera de los bloques de código: [{ nivel, texto }]. */
-function encabezados(md) {
-  const r = [];
-  let valla = null;
-  for (const linea of md.split('\n')) {
-    const v = /^[ \t]*(`{3,}|~{3,})/.exec(linea);
-    if (v) {
-      if (!valla) valla = v[1];
-      else if (v[1][0] === valla[0] && v[1].length >= valla.length) valla = null;
-      continue;
-    }
-    if (valla) continue;
-    const h = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(linea);
-    if (h) r.push({ nivel: h[1].length, texto: h[2] });
-  }
-  return r;
-}
 
 /** Quita el H1 inicial (lo pinta Starlight desde el frontmatter) y lo devuelve como título. */
 function separarTitulo(md) {
   const m = /^\s*# (.+)\n/.exec(md);
   if (!m) return { titulo: null, cuerpo: md };
   return { titulo: textoPlano(m[1]), cuerpo: md.slice(m[0].length).replace(/^\s+/, '') };
-}
-
-/** Índice de las DEC al inicio de /referencia/decisiones/, con su estado y un enlace a su sección. */
-function indiceDecisiones(cuerpo) {
-  const slugger = new GithubSlugger();
-  const filas = [];
-  for (const { nivel, texto } of encabezados(cuerpo)) {
-    const id = slugger.slug(textoPlano(texto));
-    if (nivel !== 3) continue;
-    const m = /^(DEC-\d+)\s*·\s*(.+?)(?:\s*·\s*\[(APROBADA[^\]]*|REVISAR)\])?$/.exec(texto.trim());
-    if (!m) continue;
-    const estado = !m[3] ? '—' : m[3] === 'REVISAR' ? '**[REVISAR]** pendiente de revisión' : m[3].replace('APROBADA', 'Aprobada');
-    filas.push(`| [${m[1]}](#${id}) | ${m[2].replace(/\|/g, '\\|')} | ${estado} |`);
-  }
-  const pendientes = filas.filter((f) => f.includes('[REVISAR]')).length;
-  return `:::caution[Interpretaciones pendientes]
-Las decisiones marcadas **[REVISAR]** (${pendientes} de ${filas.length}) son interpretaciones que el responsable aún no
-aprueba: no son reglas confirmadas. Las que cambian la interpretación fiscal llevan esa marca hasta que se aprueban, y
-entonces pasan a [APROBADA] con la fecha.
-:::
-
-| Decisión | Tema | Estado |
-|---|---|---|
-${filas.join('\n')}
-
-`;
 }
 
 // --- 0. Limpiar lo generado en la corrida anterior ------------------------------------------------------
@@ -122,7 +77,6 @@ for (const p of PAGINAS) {
     const separado = separarTitulo(leer(p.fuente));
     titulo ??= separado.titulo;
     cuerpo = separado.cuerpo;
-    if (p.generar === 'decisiones') cuerpo = indiceDecisiones(cuerpo) + cuerpo;
   }
   if (!titulo) throw new Error(`${p.fuente}: falta el título (un H1 al inicio o \`titulo\` en lib/paginas.mjs)`);
   cuerpo = reescribirEnlaces(cuerpo, (href) => resolverEnlace(href, p.fuente, mapa));
@@ -158,7 +112,7 @@ escribir(
   'referencia/index.md',
   frontmatter({
     title: 'Referencia',
-    description: 'Índice de la referencia de factura-hn: SDK, API REST, errores, cumplimiento, normativa y decisiones.',
+    description: 'Índice de la referencia de factura-hn: SDK, API REST, errores, cumplimiento y normativa.',
     sidebar: { label: 'Índice', order: 0 },
   }) +
     `La referencia sale del repositorio al construir el sitio: las guías de \`docs/\`, la especificación OpenAPI de la API y
