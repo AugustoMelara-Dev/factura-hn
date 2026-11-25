@@ -95,8 +95,11 @@ Así aparece en esta guía, en la [guía de la API](api.md) y en los mensajes de
 5. **Cajas en la red local.** La API escucha en `127.0.0.1`. Para que otras computadoras la alcancen, pon
    delante un proxy con TLS (Caddy, nginx) en la IP del equipo, o cambia el puerto publicado a la IP de la red
    local (`"192.168.1.10:8787:8787"`) solo si la red es de confianza. Nunca la publiques a Internet sin TLS. Con
-   el proxy, define `FHN_PROXIES_DE_CONFIANZA: "1"` en el servicio `api`: así el límite de intentos fallidos
-   distingue cada caja (ver «Límites de solicitudes» en la [guía de la API](api.md)).
+   el proxy, define `FHN_PROXIES_DE_CONFIANZA` en el servicio `api` con la dirección del proxy tal como la ve
+   la API (p. ej. `"172.18.0.5"`): así el límite de intentos distingue cada caja y una solicitud que no pase por
+   el proxy no puede elegir su cubeta. También acepta el número de proxies (`"1"`), pero **solo si a la API se
+   llega únicamente por el proxy**: deja el puerto publicado en `127.0.0.1` (ver «Límites de solicitudes» en la
+   [guía de la API](api.md)).
 
 ## Respaldos
 
@@ -178,6 +181,6 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor |
 | `FHN_DEMO` | — | `1`: crea el tenant de demostración con datos ficticios |
 | `FHN_PUERTO` | `8787` | Puerto publicado en 127.0.0.1 por `docker-compose.yml` (variable de Compose, no de la API) |
-| `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, `1`: el límite de intentos fallidos usa la dirección de cada caja y no la del proxy. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
 
 Referencia completa de la API: [guía de la API](api.md).

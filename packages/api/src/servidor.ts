@@ -12,12 +12,15 @@
  *   terminada (por defecto 30, mínimo efectivo 7)
  * - FHN_DEMO=1: en modo local, carga datos de demostración con CAI ficticio
  * - FHN_PROXIES_DE_CONFIANZA: proxies delante de la API (por defecto 0). Con 0, el límite de intentos fallidos
- *   usa la dirección del socket e ignora X-Forwarded-For; con N, la N-ésima de X-Forwarded-For desde la derecha.
+ *   usa la dirección del socket e ignora X-Forwarded-For. Con N, la N-ésima de X-Forwarded-For desde la
+ *   derecha: solo si a la API se llega únicamente por esos proxies. Con una lista de direcciones separadas por
+ *   comas, X-Forwarded-For se cree solo si la solicitud llega desde una de ellas.
  * - FHN_CONSOLA: cómo se invoca la consola en los mensajes (la imagen de Docker la define)
  */
 import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
+import { leerProxiesDeConfianza } from './errores';
 import { mantenimientoApi, migrarApi, RETENCION_POR_DEFECTO, ROL_POR_DEFECTO } from './esquema';
 import {
   bloqueLlavesDemo,
@@ -78,8 +81,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
   const retencionTexto = env.FHN_RETENCION_DIAS ?? String(RETENCION_POR_DEFECTO);
   if (!/^\d{1,5}$/.test(retencionTexto)) throw new Error(`FHN_RETENCION_DIAS debe ser un número entero de días (no "${retencionTexto}").`);
   const retencion = Number(retencionTexto);
-  const proxiesTexto = env.FHN_PROXIES_DE_CONFIANZA || '0';
-  if (!/^\d{1,2}$/.test(proxiesTexto)) throw new Error(`FHN_PROXIES_DE_CONFIANZA debe ser un número entero de proxies (no "${proxiesTexto}").`);
+  const proxiesDeConfianza = leerProxiesDeConfianza(env.FHN_PROXIES_DE_CONFIANZA);
   const consola = consolaDe(env);
   const cofre = new CofreSecretos(env.FHN_CLAVE_CIFRADO);
   const urlMigrar = env.FHN_MIGRAR_URL || null;
@@ -165,7 +167,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     mantenimientoApi(poolApi, rol, retencion).catch((e) => console.error('Mantenimiento de retención', e));
   await mantener();
 
-  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza: Number(proxiesTexto) });
+  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza });
   const puerto = Number(env.PUERTO ?? 8787);
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);

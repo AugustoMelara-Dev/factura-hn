@@ -100,7 +100,7 @@ Documentación interactiva en `/docs` y especificación en `/openapi.json` (tamb
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
 | `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor. El puerto publicado por Compose es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
-| `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos (ver «Límites de solicitudes») |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
 | `FHN_CONSOLA` | `factura-hn-api` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
 | `FHN_MAX_DOCUMENTOS_REPORTE` | `50000` | Documentos como máximo en un libro de ventas o una exportación (ver «Reportes de período») |
 | `FHN_REPORTES_SIMULTANEOS_PROCESO` | un cuarto del pool (`FHN_POOL`, 20 por defecto) | Reportes de período en curso a la vez en el proceso, de todos los tenants |
@@ -292,17 +292,32 @@ Solo lee datos del tenant de la llave (RLS).
 - **Por llave:** 20 solicitudes por segundo, ráfaga de 40 (opción `limiteSolicitudes`). Solo cuentan las
   solicitudes con el secreto correcto: conocer el prefijo de una llave (sale en listados y en la bitácora) no
   basta para dejarla en 429. Más allá, 429 `DEMASIADAS_SOLICITUDES`.
-- **Intentos fallidos** (llave inexistente, secreto equivocado o revocada): 2 por segundo y ráfaga de 20 por
-  dirección, y 50 por segundo y ráfaga de 200 en total (opción `limiteIntentos`). Agotados, una llave que este
-  proceso aún no validó recibe 429 `DEMASIADOS_INTENTOS` **sin consultar la base**. Una llave que ya autenticó
-  en este proceso sigue entrando, aunque su dirección agote los intentos.
-- **Dirección del cliente:** la del socket. `X-Forwarded-For` se ignora, porque lo escribe el cliente. Detrás de
-  proxies de confianza (Caddy, nginx), define `FHN_PROXIES_DE_CONFIANZA` (opción `proxiesDeConfianza`) con su
-  número: se toma la dirección que anotó el más externo, la N-ésima de `X-Forwarded-For` desde la derecha. Sin
-  eso, todas las cajas detrás del proxy comparten una cubeta de intentos. Las direcciones IPv6 se agrupan por
-  /64.
-- Los límites son en memoria y por réplica. Con varias cajas detrás de la misma dirección (NAT), los
-  intentos fallidos de una pueden demorar el primer acceso de otra llave tras reiniciar el servidor.
+- **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
+  (opción `limiteIntentos`). Cada consulta en curso reserva una ficha: sin fichas libres, 429
+  `DEMASIADOS_INTENTOS` **sin consultar la base**, aunque lleguen muchas a la vez. Una llave que resulta válida
+  no gasta su ficha, y las solicitudes simultáneas con la misma llave hacen una sola consulta. Una llave que ya
+  autenticó en este proceso no pasa por este límite, aunque su dirección lo agote, y un secreto equivocado con
+  su prefijo no la saca de memoria.
+- **Fallos de una llave que existe** (secreto equivocado, llave revocada o tenant inactivo): se cobran a esa
+  llave, con las mismas tasas, y no a la dirección. Así, una caja que sigue usando su llave revocada se frena
+  solo a sí misma y no deja en 429 a las demás cajas de su red. La respuesta es el mismo 401 que la de una llave
+  inexistente.
+- **Consultas a la vez:** a lo sumo 4 consultas de llaves no validadas en todo el proceso
+  (`limiteIntentos.consultasSimultaneas`); las demás esperan su turno en cola. Esto acota la carga sobre
+  Postgres sin dar 429 a nadie.
+- **Dirección del cliente:** la del socket. `X-Forwarded-For` se ignora, porque lo escribe el cliente. Las
+  direcciones IPv6 se agrupan por /64 y la IPv4 mapeada en IPv6 cuenta como IPv4. Detrás de proxies de
+  confianza (Caddy, nginx), `FHN_PROXIES_DE_CONFIANZA` (opción `proxiesDeConfianza`) acepta dos formas:
+  - **La lista de direcciones de los proxies** (p. ej. `172.18.0.5` o `10.0.0.9,10.0.0.10`): la cabecera solo
+    se cree si la solicitud llega desde uno de ellos, y la dirección del cliente es la primera desde la derecha
+    que no es un proxy. Una solicitud directa no elige su cubeta. Es la forma recomendada.
+  - **Un número N:** se toma la N-ésima dirección de `X-Forwarded-For` desde la derecha, venga de donde venga
+    la solicitud. **Actívalo solo si a la API se llega únicamente a través del proxy** (publicada en
+    `127.0.0.1` o en una red interna sin otra entrada): quien llegue directo escribe la cabecera que quiera y
+    elige su cubeta de intentos.
+
+  Sin ninguna de las dos, todas las cajas detrás del proxy comparten una cubeta de intentos.
+- Los límites son en memoria y por réplica.
 
 ## Emisión: una transacción
 
@@ -383,8 +398,8 @@ Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))
   llaves solo admiten cambiar `revocada`.
 - SQL siempre parametrizado; rutas y consultas validadas por formato (Zod) antes de llegar a la base.
 - HTML de los documentos con `Content-Security-Policy: default-src 'none'` y texto escapado.
-- Límite de solicitudes por llave, que cuenta solo el secreto correcto, y de intentos fallidos por dirección y
-  en total, aplicado **antes** de consultar la base (ver «Límites de solicitudes»); límite de documentos por mes
+- Límite de solicitudes por llave, que cuenta solo el secreto correcto, y de intentos con llaves no validadas por dirección
+  (y de fallos por llave), aplicado **antes** de consultar la base (ver «Límites de solicitudes»); límite de documentos por mes
   por tenant, en la base. El último uso de una llave se registra solo con el secreto correcto.
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas), y la conexión va a la misma IP que se validó (sin DNS rebinding) y sin redirecciones.

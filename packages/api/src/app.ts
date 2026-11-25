@@ -51,7 +51,9 @@ import {
   ErrorApi,
   ipDeSolicitud,
   LimitadorSolicitudes,
+  Semaforo,
   soluciones,
+  type ProxiesDeConfianza,
   type CuerpoError,
   type ProblemaApi,
 } from './errores';
@@ -84,16 +86,21 @@ export interface ConfigApi {
   /** Solicitudes por segundo y ráfaga por llave, contadas solo con el secreto correcto. Por defecto 20 y 40. */
   limiteSolicitudes?: { porSegundo: number; rafaga: number };
   /**
-   * Intentos fallidos de autenticación, por dirección (`porSegundo`, `rafaga`; por defecto 2 y 20) y en total
-   * (`globalPorSegundo`, `globalRafaga`; por defecto 50 y 200). Agotados, una llave que este proceso aún no
-   * validó recibe 429 `DEMASIADOS_INTENTOS` sin consultar la base.
+   * Intentos de autenticación con llaves que este proceso aún no validó.
+   * - `porSegundo`, `rafaga` (por defecto 2 y 20): fichas por dirección (IPv6 por su /64). Cada consulta en curso
+   *   reserva una; sin fichas libres, 429 `DEMASIADOS_INTENTOS` sin consultar la base. Un prefijo inexistente
+   *   gasta la ficha; una llave válida no gasta nada.
+   * - Las mismas tasas, por prefijo, para los fallos de un prefijo que existe (secreto equivocado, llave revocada
+   *   o tenant inactivo): una caja que reintenta con su llave revocada se frena solo a sí misma.
+   * - `consultasSimultaneas` (por defecto 4): consultas a la base de llaves no validadas a la vez en el proceso;
+   *   las demás esperan su turno en cola (no reciben 429).
    */
-  limiteIntentos?: { porSegundo?: number; rafaga?: number; globalPorSegundo?: number; globalRafaga?: number };
+  limiteIntentos?: { porSegundo?: number; rafaga?: number; consultasSimultaneas?: number };
   /**
-   * Proxies de confianza delante de la API (por defecto 0). Con 0, la dirección del cliente es la del socket y
-   * `X-Forwarded-For` se ignora; con N, se toma la N-ésima dirección de `X-Forwarded-For` desde la derecha.
+   * Proxies de confianza delante de la API (por defecto 0: la dirección del cliente es la del socket y
+   * `X-Forwarded-For` se ignora). Ver `ProxiesDeConfianza`.
    */
-  proxiesDeConfianza?: number;
+  proxiesDeConfianza?: ProxiesDeConfianza;
   /** Cómo se invoca la consola del operador en este despliegue, para los mensajes. Por defecto `factura-hn-api`. */
   consola?: string;
   /**
@@ -128,6 +135,24 @@ export interface Sesion {
 }
 
 type Env = { Variables: { sesion: Sesion } };
+
+interface LlaveAutenticada {
+  tenant: string;
+  hash: Buffer;
+  rol: RolLlave;
+  establecimiento: string | null;
+  punto_emision: string | null;
+  limite_mensual: number | null;
+  id: string;
+  nombre: string;
+}
+/** La llave activa de un prefijo, si la hay, y si el prefijo existe aunque la llave esté revocada o su tenant inactivo. */
+interface BusquedaLlave {
+  fila?: LlaveAutenticada;
+  registrado: boolean;
+  /** Se resolvió con la llave en memoria, sin consultar la base. */
+  sinConsultar?: boolean;
+}
 
 const IDENTIFICADOR = /^\d{3}-\d{3}-\d{2}$/;
 const NUMERO = /^\d{3}-\d{3}-\d{2}-\d{8}$/;
@@ -199,13 +224,27 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   const limitador = new LimitadorSolicitudes(cfg.limiteSolicitudes?.porSegundo ?? 20, cfg.limiteSolicitudes?.rafaga ?? 40);
   const li = cfg.limiteIntentos ?? {};
   const intentosPorIp = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
-  const intentosGlobal = new LimitadorSolicitudes(li.globalPorSegundo ?? 50, li.globalRafaga ?? 200);
+  const fallosPorPrefijo = new LimitadorSolicitudes(li.porSegundo ?? 2, li.rafaga ?? 20);
+  const consultasNuevas = new Semaforo(li.consultasSimultaneas ?? 4);
+  /** Consultas en curso de llaves no validadas, por dirección: cada una reserva una ficha de su cubeta. */
+  const enVueloPorIp = new Map<string, number>();
+  /** Una sola consulta en curso por prefijo: las solicitudes con el mismo prefijo esperan su resultado. */
+  const enVueloPorPrefijo = new Map<string, Promise<BusquedaLlave>>();
   const proxies = cfg.proxiesDeConfianza ?? 0;
-  if (!Number.isSafeInteger(proxies) || proxies < 0) throw new Error('proxiesDeConfianza debe ser un entero mayor o igual que 0.');
+  if (typeof proxies === 'number' && (!Number.isSafeInteger(proxies) || proxies < 0))
+    throw new Error('proxiesDeConfianza debe ser un entero mayor o igual que 0 o una lista de direcciones.');
   /** Hash de las llaves que este proceso ya validó, por prefijo: quien presenta el secreto correcto no gasta intentos. */
   const verificadas = new Map<string, Buffer>();
   const guia = soluciones(cfg.consola ?? CONSOLA_POR_DEFECTO);
   const conGuia = (p: ProblemaApi): ProblemaApi => conSolucion({ error: { codigo: '_', mensaje: '' }, errores: [p] }, guia).errores![0]!;
+  const buscarLlave = (prefijo: string): Promise<BusquedaLlave> =>
+    base.transaccion(async (t) => {
+      const tx = comoTransaccionPostgres(t);
+      const fila = (await tx.consulta<LlaveAutenticada>('SELECT * FROM fhn_api_autenticar($1)', [prefijo])).rows[0];
+      if (fila) return { fila, registrado: true };
+      const r = await tx.consulta<{ registrado: boolean }>('SELECT fhn_api_prefijo_registrado($1) AS registrado', [prefijo]);
+      return { registrado: r.rows[0]?.registrado === true };
+    });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
   const ultimoUso = new Map<string, number>();
 
@@ -276,30 +315,60 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes con esta llave. Espera y reintenta.', { reintentarEn: espera });
     };
     // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
-    // dejarla en 429. Los intentos fallidos se cuentan aparte, por dirección y en total; agotados, una llave que
-    // este proceso aún no validó recibe 429 sin consultar la base. Una ya validada (mismo hash, en memoria) pasa.
+    // dejarla en 429. Una llave que este proceso ya validó (mismo hash, en memoria) no pasa por el límite de
+    // intentos. Las demás: (1) la dirección necesita una ficha libre además de las reservadas por sus consultas
+    // en curso, o recibe 429 sin consultar la base; (2) una sola consulta por prefijo a la vez y a lo sumo
+    // `consultasSimultaneas` en el proceso (las demás esperan en cola); (3) el fallo de un prefijo que existe se
+    // cobra a ese prefijo y el de un prefijo inexistente, a la dirección. Una llave válida no gasta fichas.
     const hashVisto = verificadas.get(prefijo);
     const conocida = hashVisto !== undefined && coincide(llave, hashVisto);
     const ip = ipDeSolicitud(c, proxies);
-    if (conocida) limitarLlave();
-    else {
-      const espera = Math.max(intentosPorIp.espera(ip), intentosGlobal.espera('*'));
-      if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+    // Un prefijo que ya se sabe registrado no gasta fichas de la dirección.
+    const registradoConocido = fallosPorPrefijo.tiene(prefijo);
+    let reservada = false;
+    let busqueda: BusquedaLlave;
+    try {
+      if (conocida) {
+        limitarLlave();
+        busqueda = await buscarLlave(prefijo);
+      } else if (hashVisto !== undefined) {
+        // Prefijo ya validado con otro secreto: el hash de un prefijo no cambia, así que este secreto es
+        // equivocado y no hace falta consultar la base.
+        busqueda = { registrado: true, sinConsultar: true };
+      } else {
+        // Quien llega mientras ya se consulta su prefijo espera ese resultado: no consulta la base ni reserva.
+        let enCurso = enVueloPorPrefijo.get(prefijo);
+        if (!enCurso) {
+          if (!registradoConocido) {
+            const espera = intentosPorIp.espera(ip, enVueloPorIp.get(ip) ?? 0);
+            if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+            enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
+            reservada = true;
+          }
+          enCurso = consultasNuevas.con(() => buscarLlave(prefijo)).finally(() => enVueloPorPrefijo.delete(prefijo));
+          enVueloPorPrefijo.set(prefijo, enCurso);
+        }
+
+        busqueda = await enCurso;
+      }
+      const { fila: hallada, registrado } = busqueda;
+      if (!hallada || !coincide(llave, hallada.hash)) {
+        // La llave en memoria se descarta solo si ya no está activa o cambió: un secreto equivocado no la saca.
+        if (hashVisto !== undefined && !busqueda.sinConsultar && (!hallada || !hallada.hash.equals(hashVisto))) verificadas.delete(prefijo);
+        if (hallada || registrado) {
+          const espera = fallosPorPrefijo.tomar(prefijo);
+          if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
+        } else intentosPorIp.tomar(ip);
+        throw noValida;
+      }
+    } finally {
+      if (reservada) {
+        const n = (enVueloPorIp.get(ip) ?? 1) - 1;
+        if (n > 0) enVueloPorIp.set(ip, n);
+        else enVueloPorIp.delete(ip);
+      }
     }
-    const fila = await base.transaccion(async (t) => {
-      const r = await comoTransaccionPostgres(t).consulta<{
-        tenant: string; hash: Buffer; rol: RolLlave; establecimiento: string | null; punto_emision: string | null; limite_mensual: number | null;
-        id: string; nombre: string;
-      }>('SELECT * FROM fhn_api_autenticar($1)', [prefijo]);
-      return r.rows[0];
-    });
-    if (!fila || !coincide(llave, fila.hash)) {
-      // Un intento fallido gasta una ficha; una llave revocada deja de saltarse el límite de intentos.
-      intentosPorIp.tomar(ip);
-      intentosGlobal.tomar('*');
-      verificadas.delete(prefijo);
-      throw noValida;
-    }
+    const fila = busqueda.fila!;
     if (!conocida) {
       verificadas.set(prefijo, fila.hash);
       if (verificadas.size > 10_000) verificadas.delete(verificadas.keys().next().value!);

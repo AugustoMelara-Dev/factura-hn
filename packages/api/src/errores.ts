@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { Problema } from 'factura-hn';
 
 /** Error con estado HTTP y código estable. El mensaje se muestra al cliente: nunca lleva datos internos. */
@@ -92,8 +93,8 @@ export function conSolucion(cuerpo: CuerpoError, tabla: Record<string, string>):
 }
 
 /**
- * Token bucket en memoria. Con varias réplicas el límite es por réplica (DEC-030); el límite mensual de
- * documentos sí es global (en la base).
+ * Token bucket en memoria. Con varias réplicas el límite es por réplica; el límite mensual de documentos sí es
+ * global (en la base).
  */
 export class LimitadorSolicitudes {
   private readonly cubetas = new Map<string, { fichas: number; t: number }>();
@@ -116,12 +117,42 @@ export class LimitadorSolicitudes {
     }
     return Math.max(1, Math.ceil((1 - c.fichas) / this.porSegundo));
   }
-  /** Como `tomar`, sin gastar ficha: 0 si queda al menos una, o los segundos a esperar. */
-  espera(clave: string): number {
+  /**
+   * Como `tomar`, sin gastar ficha: 0 si queda al menos una además de las `reservadas` (intentos en curso que
+   * aún pueden gastar la suya), o los segundos a esperar.
+   */
+  espera(clave: string, reservadas = 0): number {
     const c = this.cubetas.get(clave);
-    if (!c) return 0;
-    const fichas = Math.min(this.rafaga, c.fichas + ((this.ahora() - c.t) / 1000) * this.porSegundo);
+    const fichas = (c ? Math.min(this.rafaga, c.fichas + ((this.ahora() - c.t) / 1000) * this.porSegundo) : this.rafaga) - reservadas;
     return fichas >= 1 ? 0 : Math.max(1, Math.ceil((1 - fichas) / this.porSegundo));
+  }
+  /** Si la clave tiene cubeta (gastó alguna ficha y no se descartó). */
+  tiene(clave: string): boolean {
+    return this.cubetas.has(clave);
+  }
+}
+
+/** Semáforo con cola: a lo sumo `maximo` tareas a la vez; las demás esperan su turno en orden. */
+export class Semaforo {
+  private activas = 0;
+  private readonly cola: Array<() => void> = [];
+  constructor(private readonly maximo: number) {
+    if (!Number.isSafeInteger(maximo) || maximo < 1) throw new Error('El semáforo necesita al menos un lugar.');
+  }
+  async con<T>(tarea: () => Promise<T>): Promise<T> {
+    if (this.activas >= this.maximo) await new Promise<void>((r) => this.cola.push(r));
+    else this.activas++;
+    try {
+      return await tarea();
+    } finally {
+      const siguiente = this.cola.shift();
+      if (siguiente) siguiente();
+      else this.activas--;
+    }
+  }
+  /** Tareas corriendo y en cola. */
+  get ocupacion(): { activas: number; enCola: number } {
+    return { activas: this.activas, enCola: this.cola.length };
   }
 }
 
@@ -130,33 +161,94 @@ interface SolicitudConDireccion {
   req: { header: (nombre: string) => string | undefined };
 }
 
-/** Agrupa una dirección para el límite: IPv4 tal cual (también la mapeada en IPv6) e IPv6 por su /64. */
-function agrupar(ip: string): string {
-  const v = ip.trim().toLowerCase();
-  const mapeada = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(v);
-  if (mapeada) return mapeada[1]!;
-  if (!v.includes(':')) return v;
-  const [izq, der] = v.split('::') as [string, string | undefined];
-  const a = izq ? izq.split(':') : [];
-  const b = der ? der.split(':') : [];
-  const grupos = der === undefined ? a : [...a, ...Array<string>(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b];
-  return `${grupos.slice(0, 4).map((g) => g || '0').join(':')}::/64`;
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+/** Los 8 grupos de una IPv6 (con la IPv4 final, si la trae, en los dos últimos), o null si no es válida. */
+function gruposIpv6(v: string): number[] | null {
+  let texto = v;
+  const v4 = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(texto);
+  if (v4) {
+    const o = IPV4.exec(v4[1]!)!.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return null;
+    texto = `${texto.slice(0, -v4[1]!.length)}${((o[0]! << 8) | o[1]!).toString(16)}:${((o[2]! << 8) | o[3]!).toString(16)}`;
+  }
+  const partes = texto.split('::');
+  if (partes.length > 2) return null;
+  const leer = (s: string) => (s ? s.split(':') : []);
+  const izq = leer(partes[0]!);
+  const der = partes.length === 2 ? leer(partes[1]!) : [];
+  const faltan = 8 - izq.length - der.length;
+  if (partes.length === 2 ? faltan < 1 : faltan !== 0) return null;
+  const hex = [...izq, ...Array<string>(partes.length === 2 ? faltan : 0).fill('0'), ...der];
+  if (!hex.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return hex.map((g) => parseInt(g, 16));
+}
+
+/**
+ * Forma única de una dirección: IPv4 en decimal (también la mapeada en IPv6, en cualquier notación) e IPv6 con
+ * sus 8 grupos expandidos, en minúsculas y sin ceros a la izquierda. Lo que no es una dirección queda tal cual.
+ */
+export function normalizarIp(ip: string): string {
+  const v = ip.trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = IPV4.exec(v);
+  if (v4) return v4.slice(1).map(Number).some((n) => n > 255) ? v : v4.slice(1).map(Number).join('.');
+  const g = gruposIpv6(v);
+  if (!g) return v;
+  if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) return [g[6]! >> 8, g[6]! & 255, g[7]! >> 8, g[7]! & 255].join('.');
+  return g.map((n) => n.toString(16)).join(':');
+}
+
+/** Cubeta de una dirección: la IPv4 tal cual y la IPv6 por su /64 (quien tiene una /64 tiene todas sus direcciones). */
+export function agrupar(ip: string): string {
+  const n = normalizarIp(ip);
+  const g = n.split(':');
+  return g.length === 8 ? `${g.slice(0, 4).join(':')}::/64` : n;
+}
+
+/**
+ * Proxies de confianza delante de la API: un número de saltos, o la lista de sus direcciones.
+ * - Número N > 0: se toma la dirección que anotó el proxy más externo, la N-ésima de `X-Forwarded-For` desde la
+ *   derecha. Solo es seguro si a la API se llega únicamente por esos proxies: una solicitud directa escribe la
+ *   cabecera que quiera y elige su cubeta.
+ * - Lista: la cabecera solo se cree si el socket es uno de esos proxies; se recorre desde la derecha saltando
+ *   las direcciones de la lista y la primera que no está es la del cliente. Una solicitud directa no la elige.
+ */
+export type ProxiesDeConfianza = number | readonly string[];
+
+/** Lee `FHN_PROXIES_DE_CONFIANZA`: vacío es 0; un número de saltos; o direcciones separadas por comas. */
+export function leerProxiesDeConfianza(texto: string | undefined): ProxiesDeConfianza {
+  const t = (texto ?? '').trim();
+  if (!t) return 0;
+  if (/^\d{1,2}$/.test(t)) return Number(t);
+  const lista = t.split(',').map((s) => s.trim()).filter(Boolean);
+  const malas = lista.filter((s) => isIP(s.replace(/^\[|\]$/g, '')) === 0);
+  if (!lista.length || malas.length)
+    throw new Error(`FHN_PROXIES_DE_CONFIANZA debe ser un número de proxies o una lista de direcciones IP separadas por comas (no "${t}").`);
+  return lista;
 }
 
 /**
  * Dirección del cliente para el límite de intentos. Por defecto, la del socket: `X-Forwarded-For` lo escribe
- * el cliente y no se cree. Con `proxies` > 0 (la API detrás de ese número de proxies de confianza), se toma la
- * dirección que anotó el proxy más externo: la `proxies`-ésima desde la derecha. Sin socket (p. ej. una prueba
- * con `app.request`), todas las solicitudes comparten una cubeta.
+ * el cliente y no se cree. Sin socket (p. ej. una prueba con `app.request`), todas las solicitudes comparten
+ * una cubeta.
  */
-export function ipDeSolicitud(c: SolicitudConDireccion, proxies: number): string {
+export function ipDeSolicitud(c: SolicitudConDireccion, proxies: ProxiesDeConfianza): string {
   type Enlace = { incoming?: { socket?: { remoteAddress?: string } } };
   const env = c.env as (Enlace & { server?: Enlace }) | undefined;
   const socket = env?.incoming?.socket?.remoteAddress ?? env?.server?.incoming?.socket?.remoteAddress;
-  if (proxies > 0) {
-    const saltos = (c.req.header('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    const ip = saltos.length >= proxies ? saltos[saltos.length - proxies] : undefined;
-    if (ip) return agrupar(ip);
+  const saltos = () => (c.req.header('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (typeof proxies === 'number') {
+    if (proxies > 0) {
+      const s = saltos();
+      const ip = s.length >= proxies ? s[s.length - proxies] : undefined;
+      if (ip) return agrupar(ip);
+    }
+  } else if (socket && proxies.length) {
+    const confiables = new Set(proxies.map(normalizarIp));
+    if (confiables.has(normalizarIp(socket))) {
+      const s = saltos();
+      for (let i = s.length - 1; i >= 0; i--) if (!confiables.has(normalizarIp(s[i]!))) return agrupar(s[i]!);
+    }
   }
   return socket ? agrupar(socket) : 'desconocida';
 }
