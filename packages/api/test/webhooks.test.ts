@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CofreSecretos,
+  ERROR_SECRETO_ILEGIBLE,
   esIPPrivada,
   despacharWebhooks,
   ESPERA_MAXIMA_MS,
@@ -772,5 +773,42 @@ describe.skipIf(!URL_PG)('revisión: rotación doble, tope de pruebas y cursores
       expect((await r.json()).error.codigo).toBe('CURSOR_INVALIDO');
     }
     expect((await admin('GET', `/v1/bitacora?origen=api&cursor=${cursor('9223372036854775807')}`)).status).toBe(200);
+  });
+});
+
+describe.skipIf(!URL_PG)('un secreto que no se descifra', () => {
+  it('falla solo su entrega (FALLIDA con el motivo) y no frena ni reenvía las demás del lote', async () => {
+    const { admin, tenant, pool } = await tenantListo();
+    const alta = async (n: string) =>
+      ((await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:9/${n}-${tenant}`, eventos: ['documento.emitido'] })).json()) as { webhook: { id: string } }).webhook.id;
+    const malo = await alta('malo');
+    const bueno = await alta('bueno');
+    // Cifrado con otra FHN_CLAVE_CIFRADO que la del proceso que despacha.
+    const otra = new CofreSecretos(Buffer.alloc(32, 3).toString('base64'));
+    await pool.query('UPDATE api_webhooks SET secreto = $2 WHERE id = $1', [malo, otra.guardar('whsec_otro')]);
+    expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
+
+    const enviadas: string[] = [];
+    const correr = () =>
+      despacharWebhooks({
+        pool, rol: ROL, cofre: new CofreSecretos(Buffer.alloc(32, 9).toString('base64')), permitirRedInterna: true, soloTenants: [tenant],
+        reintentos: { espera: () => 0 },
+        fetch: (async (url: string) => {
+          enviadas.push(String(url));
+          return new Response(null, { status: 200 });
+        }) as unknown as typeof fetch,
+      });
+    await correr();
+    const estado = async () =>
+      (await pool.query('SELECT webhook_id::text AS webhook, estado, intentos, ultimo_error FROM api_entregas WHERE tenant = $1 ORDER BY id', [tenant])).rows;
+    expect((await estado()).sort((a, b) => (a.webhook === malo ? -1 : b.webhook === malo ? 1 : 0))).toEqual([
+      { webhook: malo, estado: 'FALLIDA', intentos: 1, ultimo_error: ERROR_SECRETO_ILEGIBLE },
+      { webhook: bueno, estado: 'ENTREGADA', intentos: 1, ultimo_error: null },
+    ]);
+    expect(enviadas).toEqual([`http://127.0.0.1:9/bueno-${tenant}`]);
+    // Otra pasada, aun con el arriendo vencido: nada se vuelve a enviar.
+    await pool.query("UPDATE api_entregas SET proximo = now() - interval '1 minute' WHERE tenant = $1", [tenant]);
+    await correr();
+    expect(enviadas).toHaveLength(1);
   });
 });

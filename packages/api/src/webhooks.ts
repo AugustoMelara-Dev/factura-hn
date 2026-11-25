@@ -429,11 +429,21 @@ async function despacharLote(
     const arriendos = new Map(a.rows.map((f) => [String(f.id), f.arriendo]));
     return r.rows.map((e) => ({ ...e, arriendo: arriendos.get(String(e.id))! }));
   });
-  const resultados: { e: Reclamada; ok: boolean; codigo: number | null; error: string | null }[] = [];
+  const resultados: ({ e: Reclamada } & Resultado)[] = [];
   const cola = [...reclamadas];
+  // Cada entrega por su cuenta: un error inesperado con una (p. ej. un secreto que no se descifra) la marca a ella
+  // y no tumba el lote. Si tumbara el lote, las que ya salieron se volverían a enviar al vencer el arriendo.
   await Promise.all(
     Array.from({ length: Math.min(o.paralelas ?? 4, cola.length) }, async () => {
-      for (let e = cola.shift(); e; e = cola.shift()) resultados.push({ e, ...(await entregar(o, e)) });
+      for (let e = cola.shift(); e; e = cola.shift()) {
+        let r: Resultado;
+        try {
+          r = await entregar(o, e);
+        } catch (err) {
+          r = { ok: false, codigo: null, error: `Error interno al entregar: ${(err as Error).message}` };
+        }
+        resultados.push({ e, ...r });
+      }
     }),
   );
   if (resultados.length) {
@@ -442,10 +452,10 @@ async function despacharLote(
     const espera = o.reintentos?.espera ?? ((n: number) => esperaReintento(n));
     await almacen.transaccion(async (t) => {
       const tx = comoTransaccionPostgres(t);
-      for (const { e, ok, codigo, error } of resultados) {
+      for (const { e, ok, codigo, error, definitiva } of resultados) {
         const intentos = e.intentos + 1;
         const tope = e.evento === 'webhook.prueba' ? maxIntentosPrueba : maxIntentos;
-        const estado = ok ? 'ENTREGADA' : intentos >= tope ? 'FALLIDA' : 'PENDIENTE';
+        const estado = ok ? 'ENTREGADA' : definitiva || intentos >= tope ? 'FALLIDA' : 'PENDIENTE';
         // Si el arrendamiento venció y otra pasada ya reclamó (o entregó) la entrega, este resultado se descarta:
         // nunca devuelve a PENDIENTE una entrega ENTREGADA ni pisa el conteo de intentos de la otra pasada.
         await tx.consulta(
@@ -459,11 +469,26 @@ async function despacharLote(
   return resultados.length;
 }
 
-async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolean; codigo: number | null; error: string | null }> {
+/** Resultado de una entrega. `definitiva`: el fallo no se arregla reintentando y la entrega pasa a FALLIDA ya. */
+type Resultado = { ok: boolean; codigo: number | null; error: string | null; definitiva?: boolean };
+
+/** Motivo de FALLIDA cuando el secreto guardado del webhook no se puede descifrar con la clave de este proceso. */
+export const ERROR_SECRETO_ILEGIBLE =
+  'No se pudo descifrar el secreto del webhook: FHN_CLAVE_CIFRADO falta o no es la que lo cifró. Arranca con la clave ' +
+  'original, o rota el secreto sin gracia (POST /v1/webhooks/{id}/rotar-secreto con {"graciaHoras": 0}) y reenvía la entrega.';
+
+async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<Resultado> {
   const problema = problemaDeURL(e.url, o.permitirRedInterna);
   if (problema) return { ok: false, codigo: null, error: problema };
   const cuerpo = JSON.stringify({ id: e.entrega, ...(e.cuerpo as object) });
   const t = Math.floor((o.ahora ?? (() => new Date()))().getTime() / 1000);
+  let secretos: string[];
+  try {
+    secretos = e.anterior ? [o.cofre.leer(e.anterior), o.cofre.leer(e.secreto)] : [o.cofre.leer(e.secreto)];
+  } catch {
+    // Reintentar con la misma clave daría lo mismo: falla ya, con el motivo, y no frena al resto del lote.
+    return { ok: false, codigo: null, error: ERROR_SECRETO_ILEGIBLE, definitiva: true };
+  }
   const cabeceras = {
     'content-type': 'application/json',
     'user-agent': 'factura-hn-webhooks/0.2',
@@ -471,7 +496,7 @@ async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolea
     'x-facturahn-entrega': e.entrega,
     // Durante la gracia de una rotación, dos `v1`: primero el del secreto anterior y después el del nuevo. Así un
     // receptor con el verificador viejo (que se quedaba con el último `v1`) y el secreto nuevo sigue verificando.
-    'x-facturahn-firma': firmar(e.anterior ? [o.cofre.leer(e.anterior), o.cofre.leer(e.secreto)] : [o.cofre.leer(e.secreto)], cuerpo, t),
+    'x-facturahn-firma': firmar(secretos, cuerpo, t),
   };
   const tiempo = o.tiempoMaximo ?? 10_000;
   try {
