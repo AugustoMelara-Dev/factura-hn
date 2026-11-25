@@ -17,7 +17,7 @@ ticket de 80 mm o texto para impresoras térmicas. Sin dependencias.
 
 ## La primera factura en 3 pasos
 
-Elige un camino. Los tres empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor
+Elige un camino: SDK, API REST, MCP o Next.js. Los cuatro empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor
 ficticio. Todo impreso dice **«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Para facturar de verdad, ver
 [Pasar a producción](#pasar-a-producción).
 
@@ -80,11 +80,16 @@ con `FHN_PUERTO=8788 docker compose up -d --build --wait` y usa `API=http://127.
    Si dice «No se emitió», la respuesta trae el error con su `solucion`. Lo más común: `LLAVE` vacía (el paso 1
    falló) o el comando no se corrió desde la raíz del repositorio (no encuentra `packages/api/ejemplos/factura.json`).
 
+   La venta de `factura.json` es de 2 × L 57.50 con los precios con ISV: total L 115.00. No es la misma venta del
+   SDK ni de Next.js.
+
 3. Descarga el PDF:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API${PDF:?el paso 2 no emitió: revisa su salida}"
    ```
+
+   Si el paso 2 no emitió, este paso se detiene con «el paso 2 no emitió» y no deja un `factura.pdf` vacío.
 
 El resto de la API (llaves de caja, CAI real, reportes, webhooks) está en la
 [guía de la API](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md).

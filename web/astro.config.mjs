@@ -30,7 +30,7 @@ export default defineConfig({
     starlight({
       title: 'factura-hn',
       description:
-        'Facturación conforme al Acuerdo 481-2017 de Honduras: SDK, API REST y servidor MCP de código abierto. Proyecto independiente, no afiliado al SAR.',
+        'Facturación según el Acuerdo 481-2017 de Honduras: SDK, API REST y servidor MCP de código abierto. Proyecto independiente, no afiliado al SAR.',
       defaultLocale: 'root',
       locales: { root: { label: 'Español', lang: 'es' } },
       favicon: '/favicon.svg',
