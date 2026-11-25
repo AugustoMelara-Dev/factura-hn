@@ -2748,3 +2748,12 @@ Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
   arriendo). Queda como propuesta: con emisión sostenida por encima de unos 100 documentos/s, los avisos llegan
   con retraso, pero no se pierden.
 
+### DEC-205 · El PostgreSQL desechable de la resiliencia escucha en el puerto 25440
+- **Contexto:** `pnpm resiliencia` falló en el CI de GitHub porque `pg_ctl start` no pudo usar 127.0.0.1:55440
+  («Address already in use»). Ese puerto está dentro de los puertos efímeros de Linux (32768-60999) y de Windows
+  (49152-65535): una conexión saliente de una prueba anterior lo puede tener tomado.
+- **Elegida:** el puerto por defecto es 25440, fuera de ambos rangos. `FHN_PG_TEMPORAL_PUERTO` lo sigue cambiando.
+  Reemplaza el puerto citado en la decisión del Lote 5 sobre el PostgreSQL desechable.
+- **Alternativa:** pedir un puerto libre al sistema antes de arrancar; se descartó porque el clúster se reinicia
+  varias veces en la misma prueba y el puerto podría quedar tomado entre un arranque y el siguiente.
+

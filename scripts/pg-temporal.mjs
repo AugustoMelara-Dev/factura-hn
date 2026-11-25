@@ -14,7 +14,9 @@ const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const CARPETA = process.env.FHN_PG_TEMPORAL_DIR ?? join(RAIZ, '.pg-temporal');
 export const DATOS = join(CARPETA, 'datos');
 export const REGISTRO = join(CARPETA, 'postgres.log');
-export const PUERTO = Number(process.env.FHN_PG_TEMPORAL_PUERTO ?? 55440);
+// 25440: fuera de los puertos efímeros de Linux (32768-60999) y de Windows (49152-65535). Con 55440, una conexión
+// saliente de otra prueba podía ocuparlo y `pg_ctl start` fallaba con «Address already in use».
+export const PUERTO = Number(process.env.FHN_PG_TEMPORAL_PUERTO ?? 25440);
 export const BASE = 'factura_hn_resiliencia';
 export const URL = `postgres://postgres@127.0.0.1:${PUERTO}/${BASE}`;
 
