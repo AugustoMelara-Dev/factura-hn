@@ -10,7 +10,7 @@
       "llave": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Llave de API `fhn_<prefijo>_<secreto>`. Rol `caja`: emite y consulta. Rol `admin`: todo."
+        "description": "Llave de API `fhn_live_<prefijo>_<secreto>` (tenant de producción) o `fhn_test_<prefijo>_<secreto>` (tenant de prueba). Las llaves anteriores, `fhn_<prefijo>_<secreto>`, siguen valiendo en su tenant. Rol `caja`: emite y consulta. Rol `admin`: todo."
       }
     },
     "schemas": {
@@ -356,12 +356,21 @@
           "tenant": {
             "type": "string"
           },
+          "modoTenant": {
+            "type": "string",
+            "enum": [
+              "prueba",
+              "produccion"
+            ],
+            "description": "Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o `produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada."
+          },
           "modo": {
             "type": "string",
             "enum": [
               "local",
               "alojado"
-            ]
+            ],
+            "description": "Modo del servidor: `local` (un negocio en su establecimiento, Art. 47) o `alojado`."
           },
           "demo": {
             "type": "boolean",
@@ -566,6 +575,7 @@
         },
         "required": [
           "tenant",
+          "modoTenant",
           "modo",
           "demo",
           "llave",
@@ -1151,7 +1161,7 @@
           },
           "secreto": {
             "type": "string",
-            "description": "La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez."
+            "description": "La llave completa para `Authorization: Bearer`: `fhn_live_<prefijo>_<secreto>` en un tenant de producción o `fhn_test_<prefijo>_<secreto>` en uno de prueba. Solo se muestra esta vez."
           }
         },
         "required": [
@@ -1786,6 +1796,7 @@
           }
         ],
         "summary": "Registra una autorización del SAR (CAI, rango y fecha límite)",
+        "description": "Un tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de producción no los acepta (`CAI_DE_PRUEBA`).",
         "requestBody": {
           "required": true,
           "content": {
@@ -2874,6 +2885,7 @@
           }
         ],
         "summary": "Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)",
+        "description": "Con una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de emisión recibe 403 `CAJA_SIN_PUNTO`.",
         "parameters": [
           {
             "schema": {

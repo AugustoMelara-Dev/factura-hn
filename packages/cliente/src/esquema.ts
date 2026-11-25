@@ -461,7 +461,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Registra una autorización del SAR (CAI, rango y fecha límite) */
+        /**
+         * Registra una autorización del SAR (CAI, rango y fecha límite)
+         * @description Un tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de producción no los acepta (`CAI_DE_PRUEBA`).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1282,7 +1285,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Libro de ventas de un período (las NC restan, las ND suman; anulados en cero) */
+        /**
+         * Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)
+         * @description Con una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de emisión recibe 403 `CAJA_SIN_PUNTO`.
+         */
         get: {
             parameters: {
                 query: {
@@ -2176,7 +2182,15 @@ export interface components {
         };
         Sesion: {
             tenant: string;
-            /** @enum {string} */
+            /**
+             * @description Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o `produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada.
+             * @enum {string}
+             */
+            modoTenant: "prueba" | "produccion";
+            /**
+             * @description Modo del servidor: `local` (un negocio en su establecimiento, Art. 47) o `alojado`.
+             * @enum {string}
+             */
             modo: "local" | "alojado";
             /** @description true en el tenant de demostración (CAI ficticio, sin validez fiscal). */
             demo: boolean;
@@ -2403,7 +2417,7 @@ export interface components {
         };
         RespuestaLlaveNueva: {
             llave: components["schemas"]["Llave"];
-            /** @description La llave completa (`fhn_<prefijo>_<secreto>`) para `Authorization: Bearer`. Solo se muestra esta vez. */
+            /** @description La llave completa para `Authorization: Bearer`: `fhn_live_<prefijo>_<secreto>` en un tenant de producción o `fhn_test_<prefijo>_<secreto>` en uno de prueba. Solo se muestra esta vez. */
             secreto: string;
         };
         Llave: {

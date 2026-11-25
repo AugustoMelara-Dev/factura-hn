@@ -194,7 +194,7 @@ Contra la API de factura-hn (local con Docker, o alojada). En Windows, usa `"com
   emite una nota de crédito sobre un documento que no está en el sistema (403 `SOLO_ADMIN`). Usa una llave admin
   solo si quieres que pueda hacerlo.
 - `registrar-cai` también funciona contra la API (`POST /v1/autorizaciones`), con una llave admin:
-  `npx -y @factura-hn/mcp registrar-cai --api-url http://127.0.0.1:8787 --llave fhn_… --cai CAI_DE_LA_RESOLUCION …`
+  `npx -y @factura-hn/mcp registrar-cai --api-url http://127.0.0.1:8787 --llave fhn_live_… --cai CAI_DE_LA_RESOLUCION …`
   (o `FHN_API_URL` y `FHN_LLAVE`).
 - Si la API no responde, el error es `API_INACCESIBLE`.
 

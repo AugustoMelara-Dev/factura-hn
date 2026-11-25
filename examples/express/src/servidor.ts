@@ -1,5 +1,5 @@
 /**
- * FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=fhn_… FHN_SECRETO_WEBHOOK=… pnpm start
+ * FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=fhn_test_… FHN_SECRETO_WEBHOOK=… pnpm start
  * Con `docker compose up` usa la llave de caja demo del log.
  */
 import { crearCliente } from '@factura-hn/cliente';

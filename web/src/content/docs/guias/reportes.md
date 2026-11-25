@@ -152,7 +152,7 @@ partes con ellas, pasa antes los documentos por `separarDocumentosDePrueba` (DEC
 
 | Ruta | Rol | Contenido |
 |---|---|---|
-| `GET /v1/libro-ventas?desde&hasta&formato=json` (o `csv`) | caja | Libro de ventas |
+| `GET /v1/libro-ventas?desde&hasta&formato=json` (o `csv`) | caja | Libro de ventas (con llave de caja, solo de su punto de emisión) |
 | `GET /v1/exportacion?desde&hasta&formato=jsonl` (o `csv`, `txt`) | admin | Art. 53 num. 5 |
 | `GET /v1/series/{identificador}/no-utilizados` | admin | Art. 42 |
 

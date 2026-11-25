@@ -15,14 +15,14 @@ Desde la raíz del repositorio, en tres comandos:
 ```bash
 pnpm install
 docker compose up -d --build                      # API en 127.0.0.1:8787 (Docker Compose v2)
-FHN_LLAVE=fhn_… FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") \
+FHN_LLAVE=fhn_test_… FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") \
   pnpm --filter @factura-hn/ejemplo-nextjs dev     # compila el cliente y abre http://localhost:3002
 ```
 
 En PowerShell, el tercer comando es:
 
 ```powershell
-$env:FHN_LLAVE = 'fhn_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
+$env:FHN_LLAVE = 'fhn_test_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
 ```
 
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,

@@ -111,8 +111,9 @@ curl -f -X POST http://127.0.0.1:8787/v1/autorizaciones \
   --data-binary @autorizacion.json
 ```
 
-Las validaciones son las del núcleo. Un CAI ficticio (`DEMO00-…`) en un negocio real necesita `"prueba": true`
-explícito (`AUTORIZACION_DEMO_SIN_PRUEBA`, DEC-093). Ver [API REST](/referencia/api/).
+Las validaciones son las del núcleo. Un tenant de producción (llaves `fhn_live_…`) no acepta un CAI ficticio
+(`DEMO00-…`), ni con `"prueba": true` (`CAI_DE_PRUEBA`): para probar está el tenant de prueba. Ver
+[API REST](/referencia/api/).
 
 ### Con el MCP
 
@@ -172,7 +173,7 @@ Si aun así registras el CAI real en el almacén donde probaste, estas son las r
 - Lo contrario se rechaza: una autorización de prueba en un punto que tiene o tuvo una real da
   `AUTORIZACION_MODO_MEZCLADO`.
 
-En la API, el tenant `demo` no acepta un CAI real (`AUTORIZACION_REAL_EN_DEMO`); en el MCP, la base de prueba
+En la API, un tenant de prueba como el `demo` no acepta un CAI real (`AUTORIZACION_REAL_EN_DEMO`); en el MCP, la base de prueba
 tampoco (`BASE_DEMO`). En los dos casos se configura el negocio aparte: el tenant `local` con `FHN_DEMO=0`, o una
 base SQLite nueva con `npx -y @factura-hn/mcp init`.
 
