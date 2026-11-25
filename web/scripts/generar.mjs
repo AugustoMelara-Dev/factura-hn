@@ -21,8 +21,16 @@ import { referenciaApi } from './lib/openapi.mjs';
 import { mapaDeEnlaces, PAGINAS } from './lib/paginas.mjs';
 
 const MANIFIESTO = join(WEB, '.generado.json');
+const PLAYGROUND = join(RAIZ, 'examples', 'playground', 'public');
 const leer = (r) => readFileSync(join(RAIZ, r), 'utf8');
 const generados = [];
+
+// Lo que falta se revisa antes de escribir nada: una corrida que se corta a la mitad dejaría páginas generadas
+// sin listar, y la siguiente las tomaría por escritas a mano.
+if (!existsSync(join(PLAYGROUND, 'playground.global.js'))) {
+  console.error('Falta el playground compilado: corre `pnpm playground` (o `pnpm sitio`, que lo hace). No se generó nada.');
+  process.exit(1);
+}
 
 function escribir(rutaDocs, contenido) {
   const archivo = join(DOCS, rutaDocs);
@@ -33,6 +41,8 @@ function escribir(rutaDocs, contenido) {
   mkdirSync(dirname(archivo), { recursive: true });
   writeFileSync(archivo, contenido);
   generados.push(relative(WEB, archivo).replaceAll('\\', '/'));
+  // El manifiesto se actualiza con cada archivo: si algo falla después, la siguiente corrida igual los borra.
+  writeFileSync(MANIFIESTO, `${JSON.stringify(generados, null, 2)}\n`);
 }
 
 const frontmatter = (campos) =>
@@ -55,9 +65,21 @@ function separarTitulo(md) {
   return { titulo: textoPlano(m[1]), cuerpo: md.slice(m[0].length).replace(/^\s+/, '') };
 }
 
+/**
+ * Cambios por versión: los cambios incompatibles de la versión más reciente van primero, en un aviso, para que
+ * quien actualiza los vea sin leer toda la página. Salen de su sección «### Cambios incompatibles…».
+ */
+function incompatiblesArriba(md) {
+  const version = /^## (\S+)[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(md);
+  const seccion = version && /^### Cambios incompatibles[^\n]*\n+([\s\S]*?)(?=^#{2,3} |(?![\s\S]))/m.exec(version[2]);
+  if (!seccion) return md;
+  return `:::caution[Cambios incompatibles en la ${version[1]}]\n${seccion[1].trim()}\n\nEl detalle de cada paquete está más abajo.\n:::\n\n${md}`;
+}
+
 // --- 0. Limpiar lo generado en la corrida anterior ------------------------------------------------------
 if (existsSync(MANIFIESTO)) {
   for (const r of JSON.parse(readFileSync(MANIFIESTO, 'utf8'))) rmSync(join(WEB, r), { force: true });
+  rmSync(MANIFIESTO);
 }
 // La caché de contenido de Astro guarda el HTML ya renderizado: con otra base (FHN_SITIO_BASE) o un cambio en
 // los plugins quedaría viejo. Se construye siempre desde cero; son pocos segundos.
@@ -77,6 +99,7 @@ for (const p of PAGINAS) {
     const separado = separarTitulo(leer(p.fuente));
     titulo ??= separado.titulo;
     cuerpo = separado.cuerpo;
+    if (p.fuente === 'CHANGELOG.md') cuerpo = incompatiblesArriba(cuerpo);
   }
   if (!titulo) throw new Error(`${p.fuente}: falta el título (un H1 al inicio o \`titulo\` en lib/paginas.mjs)`);
   cuerpo = reescribirEnlaces(cuerpo, (href) => resolverEnlace(href, p.fuente, mapa));
@@ -141,11 +164,6 @@ documentación generada desde el repositorio y el [registro de cambios](/ayuda/c
 }
 
 // --- 4. Playground ----------------------------------------------------------------------------------------
-const PLAYGROUND = join(RAIZ, 'examples', 'playground', 'public');
-if (!existsSync(join(PLAYGROUND, 'playground.global.js'))) {
-  console.error('Falta el playground compilado: corre `pnpm playground` (o `pnpm sitio`, que lo hace).');
-  process.exit(1);
-}
 const destinoPlayground = join(WEB, 'public', 'playground');
 rmSync(destinoPlayground, { recursive: true, force: true });
 cpSync(PLAYGROUND, destinoPlayground, { recursive: true });
