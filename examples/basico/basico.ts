@@ -1,30 +1,17 @@
 /**
- * Ejemplo: emitir una factura en un POS y guardarla como HTML y texto térmico.
+ * Ejemplo: emitir una factura de prueba en un POS y guardarla como HTML y texto térmico.
  * Ejecuta: pnpm example (desde la raíz)
+ *
+ * Usa una autorización de prueba (CAI ficticio `DEMO00-NO-VALIDO-…`): cada impreso lleva la leyenda
+ * «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». Para facturar de verdad, registra el CAI de tu resolución del SAR
+ * (ver «Pasar a producción» en el README) en un almacén persistente.
  */
 import { writeFileSync } from 'node:fs';
-import {
-  AlmacenFiscalMemoria,
-  emitir,
-  estadoAutorizacion,
-  fechaHonduras,
-  registrarAutorizacion,
-  renderizarHTML,
-  renderizarTexto,
-  type AutorizacionCAI,
-} from 'factura-hn';
+import { AlmacenFiscalMemoria, emitir, estadoAutorizacion, registrarAutorizacion, renderizarHTML, renderizarTexto } from 'factura-hn';
+import { autorizacionDemo, LEYENDA_PRUEBA } from 'factura-hn/demo';
 
-// Datos de la resolución del SAR (estos son de ejemplo, NO son un CAI real).
-const autorizacion: AutorizacionCAI = {
-  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
-  tipoDocumento: '01',
-  establecimiento: '000',
-  puntoEmision: '001',
-  rangoInicial: 1,
-  rangoFinal: 5000,
-  // La fecha límite de la resolución. En este ejemplo, dentro de seis meses (hora de Honduras).
-  fechaLimiteEmision: fechaHonduras(new Date(Date.now() + 180 * 86_400_000)),
-};
+// Autorización de prueba: CAI ficticio, rango 1–5000 y fecha límite a 180 días de hoy en Honduras.
+const autorizacion = autorizacionDemo({ tipoDocumento: '01', establecimiento: '000', puntoEmision: '001', rangoFinal: 5000 });
 
 // En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
 const almacen = new AlmacenFiscalMemoria();
@@ -54,9 +41,11 @@ const doc = await emitir(
   { almacen, establecimiento: '000', puntoEmision: '001' },
 );
 
-console.log(doc.numero, doc.totales);
+console.log(LEYENDA_PRUEBA);
+console.log(doc.numero, doc.modo, doc.totales);
 console.log(estadoAutorizacion(autorizacion, doc.correlativo));
 
 writeFileSync('factura-ejemplo.html', renderizarHTML(doc));
 writeFileSync('ticket-ejemplo.html', renderizarHTML(doc, { formato: 'ticket' }));
 writeFileSync('ticket-ejemplo.txt', renderizarTexto(doc, { ancho: 42 }));
+console.log('Guardados: factura-ejemplo.html, ticket-ejemplo.html y ticket-ejemplo.txt, con la leyenda de prueba.');
