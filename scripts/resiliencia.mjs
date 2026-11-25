@@ -10,7 +10,8 @@
 // 3. Detiene el clúster y borra la carpeta, también si algo falla.
 // Nunca toca la base de Docker Compose ni la de `pnpm test:pg`.
 import { spawnSync } from 'node:child_process';
-import { borrar, crear } from './pg-temporal.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import { arrancar, borrar, crear, enMarcha, REGISTRO } from './pg-temporal.mjs';
 
 const larga = process.argv.includes('--larga');
 let codigo = 1;
@@ -22,6 +23,12 @@ try {
     spawnSync('pnpm', ['--filter', filtro, 'exec', 'vitest', 'run', ...archivos], { stdio: 'inherit', env, shell: process.platform === 'win32' }).status;
   // Los webhooks caídos no necesitan reiniciar la base: la versión corta ya corre en `pnpm test:pg`.
   const api = correr('@factura-hn/api', larga ? 'test/resiliencia' : 'test/resiliencia/reinicio-pg.test.ts');
+  // Cada archivo deja la base en marcha; si una prueba falló a medias, se arranca para que la siguiente no herede la caída.
+  if (!enMarcha()) {
+    console.warn('El PostgreSQL desechable quedó detenido después de las pruebas de la API: se arranca de nuevo.');
+    if (existsSync(REGISTRO)) console.warn(readFileSync(REGISTRO, 'utf8').split('\n').slice(-20).join('\n'));
+    arrancar();
+  }
   const cliente = correr('@factura-hn/cliente', 'test/resiliencia.test.ts');
   codigo = api === 0 && cliente === 0 ? 0 : 1;
 } catch (e) {

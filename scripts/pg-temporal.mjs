@@ -62,6 +62,11 @@ export function arrancar(bin = binarios()) {
   correr(bin, 'pg_ctl', ['start', '-w', '-t', '60', '-D', DATOS, '-l', REGISTRO, '-o', opcionesServidor()], { sinSalida: true });
 }
 
+/** true si el servidor del clúster está en marcha (`pg_ctl status`). */
+export function enMarcha(bin = binarios()) {
+  return correr(bin, 'pg_ctl', ['status', '-D', DATOS], { tolerar: true }).status === 0;
+}
+
 /** `fast`: cierra las sesiones con 57P01 y hace checkpoint. `immediate`: como una caída (recuperación al arrancar). */
 export function detener(modo = 'fast', bin = binarios()) {
   correr(bin, 'pg_ctl', ['stop', '-w', '-t', '60', '-m', modo, '-D', DATOS], { tolerar: modo === 'immediate' });

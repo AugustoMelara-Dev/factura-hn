@@ -22,6 +22,9 @@ import { LARGA } from './pg-temporal';
 
 afterAll(cerrarPool);
 
+/** Estas pruebas emiten cientos de ventas seguidas con una llave: el límite por llave (20/s) no es lo que se prueba. */
+const SIN_LIMITE = { limiteSolicitudes: { porSegundo: 10_000, rafaga: 10_000 } };
+
 type Modo = 'caido' | 'corta' | 'cuelga' | 'error500' | 'ok';
 
 /** Un receptor local que cambia de comportamiento. Registra cada id de entrega que recibió completo. */
@@ -79,7 +82,7 @@ describe.skipIf(!URL_PG)('webhooks con el receptor caído', () => {
   it('caído, cortando, colgado y con 500: cada intento sigue el calendario; al volver, todo se entrega una vez por id', async () => {
     const receptor = new Receptor();
     await receptor.abrir();
-    const { admin, tenant, pool } = await tenantListo();
+    const { admin, tenant, pool } = await tenantListo(SIN_LIMITE);
     try {
       const r = await admin('POST', '/v1/webhooks', { url: receptor.url, eventos: ['documento.emitido'] });
       expect(r.status).toBe(201);
@@ -142,9 +145,9 @@ describe.skipIf(!URL_PG)('webhooks con el receptor caído', () => {
     receptor.modo = 'cuelga';
     // Un pool chico, como el de un despliegue modesto: si el despacho retuviera conexiones, la emisión esperaría.
     const pool = crearPool(URL_PG!, 4, () => undefined);
-    const base = await tenantListo();
+    const base = await tenantListo(SIN_LIMITE);
     try {
-      const app = crearApp({ pool, modo: 'local', rol: ROL, registrar: () => undefined });
+      const app = crearApp({ pool, modo: 'local', rol: ROL, registrar: () => undefined, ...SIN_LIMITE });
       const admin = cliente(app, base.llaveAdmin);
       const medir = async (k: number) => {
         const tiempos: number[] = [];
@@ -194,7 +197,7 @@ describe.skipIf(!URL_PG)('webhooks con el receptor caído', () => {
   it('lo acumulado durante el corte se vacía en una pasada, no de a 20 entregas cada 5 s', async () => {
     const receptor = new Receptor();
     await receptor.abrir();
-    const { admin, tenant, pool } = await tenantListo();
+    const { admin, tenant, pool } = await tenantListo(SIN_LIMITE);
     try {
       await admin('POST', '/v1/webhooks', { url: receptor.url, eventos: ['documento.emitido'] });
       const n = LARGA ? 500 : 70;

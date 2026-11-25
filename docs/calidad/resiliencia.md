@@ -44,3 +44,9 @@ La numeración no necesitó cambios: en ningún escenario se perdió ni se repit
   `pnpm test:pg`, los webhooks caídos en su versión corta.
 - **Nocturno** (`nocturno.yml`): `pnpm resiliencia --larga`: 5 reinicios y 5 caídas de 4 s con tráfico, 120
   avisos con tres rondas de cada falla, 500 avisos acumulados.
+
+Una corrida de la versión larga en local (Windows, PostgreSQL 18 nativo) tardó 2 min 46 s: reinicio `fast`, 770
+documentos y 1143 respuestas 503 en 5 caídas; caída `immediate`, 784 documentos y 1157 respuestas 503 en 5 caídas;
+0 huecos y 0 repetidos; 500 avisos acumulados vaciados en una pasada de 1,6 s; p95 de emisión de 21,6 ms sin
+webhook y 21,0 ms con el receptor colgado. Si una prueba de la API deja la base detenida, `scripts/resiliencia.mjs`
+la arranca (y muestra el final de su registro) antes de las del cliente.
