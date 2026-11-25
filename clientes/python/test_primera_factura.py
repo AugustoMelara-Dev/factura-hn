@@ -34,10 +34,12 @@ def cliente():
         yield c
 
 
-def emitir(cliente, clave):
+def emitir(cliente, clave, repetida=False):
+    """Emite factura.json con la clave dada. `repetida`: la clave ya se usó y la API devuelve la respuesta guardada."""
     r = emitir_documento.sync_detailed(client=cliente, body=SolicitudEmision.from_dict(FACTURA), idempotency_key=clave)
     assert r.status_code == 201, r.content.decode("utf-8", "replace")
     assert isinstance(r.parsed, RespuestaEmision)
+    assert (r.headers.get("idempotency-replayed") == "true") == repetida, dict(r.headers)
     return r.parsed
 
 
@@ -71,7 +73,7 @@ def test_emite_una_factura_de_prueba(cliente):
     assert doc.tipo_documento == "01"
 
     # La misma clave devuelve la misma factura, sin consumir otro número.
-    repetida = emitir(cliente, clave)
+    repetida = emitir(cliente, clave, repetida=True)
     assert repetida.documento.numero == doc.numero
 
     # Otra venta (otra clave) toma el correlativo siguiente, sin huecos.
@@ -80,6 +82,15 @@ def test_emite_una_factura_de_prueba(cliente):
 
     # Total: 2 × 57.50 con ISV incluido.
     assert centavos(doc.totales.total) == centavos(total_esperado())
+
+    # Desglose del ISV a la tasa del 15 %: con el precio con ISV incluido, el gravado es total / 1.15 y el
+    # ISV, la diferencia. Aquí 115.00 = 100.00 gravado al 15 % + 15.00 de ISV, en centavos.
+    gravado15 = centavos(doc.totales.additional_properties["importeGravado15"])
+    isv15 = centavos(doc.totales.isv15)
+    assert gravado15 == centavos(total_esperado() * 100 / 115) == 10000
+    assert isv15 == centavos(total_esperado()) - gravado15 == 1500
+    assert centavos(doc.totales.isv18) == 0
+    assert gravado15 + isv15 == centavos(doc.totales.total)
 
     # Leyenda de prueba: el documento es de prueba y su representación impresa lo dice.
     assert doc.modo == DocumentoFiscalModo.PRUEBA
