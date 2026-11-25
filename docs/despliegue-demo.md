@@ -189,8 +189,8 @@ fly logs -a factura-hn-demo-mcp
 fly status -a factura-hn-demo-api
 ```
 
-Ni la API ni el MCP escriben llaves, tokens ni direcciones de visitantes en el log. El proxy de Fly no registra las
-rutas de las solicitudes en los logs de la aplicación.
+Ni la API ni el MCP escriben llaves, tokens ni direcciones de visitantes en el log. La URL del MCP lleva el token
+en la ruta: no actives registros de solicitudes que guarden rutas completas.
 
 ### Limpieza a las 24 horas: el reinicio automático de los datos
 
@@ -214,7 +214,9 @@ Desde tu equipo, `fly deploy -c fly.api.toml` y luego `fly deploy -c fly.mcp.tom
    espera tu aprobación.
 2. En ese entorno, el secreto `FLY_API_TOKEN`: un token de despliegue por aplicación
    (`fly tokens create deploy -a factura-hn-demo-api` y lo mismo con `-a factura-hn-demo-mcp`), los dos en el mismo
-   valor separados por una coma. Así el token no sirve para otras aplicaciones ni para la organización.
+   valor separados por una coma (flyctl acepta varios tokens así). Así el token no sirve para otras aplicaciones ni
+   para la organización. Si flyctl no lo aceptara, un token de la organización (`fly tokens create org`) también
+   sirve, con más alcance.
 
 ## 7. Vigilancia (UptimeRobot) y página de estado
 
