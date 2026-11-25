@@ -9,7 +9,7 @@ El modo de prueba deja emitir, imprimir, anular y hacer notas de crédito sin un
 él dice que no tiene valor fiscal, y queda fuera de los reportes.
 
 La leyenda y estas reglas son una marca del producto, no una regla fiscal: ningún artículo del Reglamento las
-exige ni las regula. Sirven para que un documento de demostración nunca pase por uno real (DEC-063).
+exige ni las regula. Sirven para que un documento de demostración nunca pase por uno real ([DEC-063](/referencia/decisiones/#dec-063--modo-de-prueba-visible)).
 
 ## El CAI ficticio
 
@@ -72,7 +72,7 @@ Un documento real se imprime igual que siempre, sin leyenda.
 ## Un punto de emisión es de prueba o real
 
 Un punto de emisión (establecimiento y punto, en todos sus tipos de documento) es de prueba o es real. Pasa de
-prueba a real, nunca al revés (DEC-091):
+prueba a real, nunca al revés ([DEC-091](/referencia/decisiones/#dec-091--un-punto-de-emisión-pasa-de-prueba-a-real-nunca-al-revés)):
 
 - **De prueba a real:** registrar el CAI de tu resolución en un punto que solo tiene autorizaciones de prueba se
   acepta. Desde ese momento, las de prueba quedan retiradas en todos los tipos de ese punto: no se vuelven a
@@ -119,7 +119,7 @@ Los documentos de prueba no son ventas. Quedan fuera de:
 - **la exportación a texto:** `exportarTexto` (CSV, TXT y JSONL) no los incluye. Para saber cuántos quedaron
   fuera, usa `separarDocumentosDePrueba(docs).excluidos`;
 - **los documentos no utilizados:** `documentosNoUtilizados` omite las autorizaciones de prueba. Un CAI ficticio
-  no es una autorización que haya que reportar (DEC-094).
+  no es una autorización que haya que reportar ([DEC-094](/referencia/decisiones/#dec-094--no-utilizados-sin-las-autorizaciones-de-prueba)).
 
 `filaLibroVentas` y `lineaExportacion` trabajan documento por documento y no filtran: si armas el archivo por
 partes, pasa antes los documentos por `separarDocumentosDePrueba`.
