@@ -445,11 +445,12 @@ describe.skipIf(!URL_PG)('webhooks de punta a punta: reintento, reenvío y rotac
       const { secreto: viejo, webhook } = (await alta.json()) as { secreto: string; webhook: { id: string; graciaHasta: string | null } };
       expect(webhook.graciaHasta).toBeNull();
       expect((await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() })).status).toBe(201);
-      // Entrega real por HTTP, con un calendario de pruebas: 3 intentos y sin espera (no 3 días de verdad).
+      // Entrega real por HTTP, con un calendario de pruebas: 3 intentos y el próximo 1 s en el pasado (no 3 días de
+      // verdad): `proximo` sale del reloj de Node y se compara con `now()` de PostgreSQL, que puede ir unos ms atrás.
       const despachar = () =>
         despacharWebhooks({
           pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant],
-          reintentos: { maxIntentos: 3, espera: () => 0 },
+          reintentos: { maxIntentos: 3, espera: () => -1000 },
         });
       const entregas = async (q = '') => ((await (await admin('GET', `/v1/webhooks/${webhook.id}/entregas${q}`)).json()) as { entregas: Entrega[] }).entregas;
 
@@ -673,7 +674,7 @@ describe.skipIf(!URL_PG)('rutas de entregas, prueba y rotación: permisos, RLS y
 
 describe.skipIf(!URL_PG)('revisión: rotación doble, tope de pruebas y cursores falsos', () => {
   const correr = (pool: import('pg').Pool, tenant: string, fetchFalso: typeof fetch) =>
-    despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant], fetch: fetchFalso, reintentos: { espera: () => 0 } });
+    despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, soloTenants: [tenant], fetch: fetchFalso, reintentos: { espera: () => -1000 } });
 
   it('rotar dos veces durante la gracia conserva el secreto más viejo hasta que la gracia termina', async () => {
     const { admin, tenant, pool } = await tenantListo();
@@ -792,7 +793,7 @@ describe.skipIf(!URL_PG)('un secreto que no se descifra', () => {
     const correr = () =>
       despacharWebhooks({
         pool, rol: ROL, cofre: new CofreSecretos(Buffer.alloc(32, 9).toString('base64')), permitirRedInterna: true, soloTenants: [tenant],
-        reintentos: { espera: () => 0 },
+        reintentos: { espera: () => -1000 },
         fetch: (async (url: string) => {
           enviadas.push(String(url));
           return new Response(null, { status: 200 });
