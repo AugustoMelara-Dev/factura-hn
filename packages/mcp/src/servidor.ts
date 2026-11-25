@@ -5,9 +5,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { renderizarTexto, type AutorizacionCAI, type DocumentoFiscal, type Problema } from 'factura-hn';
+import { esDocumentoDePrueba, renderizarTexto, type AutorizacionCAI, type DocumentoFiscal, type Problema } from 'factura-hn';
 import { ErrorBackend, type Backend, type EntradaSinEmisor, type ResultadoEmision } from './backend';
-import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
+import { LEYENDA_PRUEBA } from './demo';
 import { conSolucion } from './soluciones';
 
 const Monto = z.union([z.string(), z.number()]).describe('Decimal; mejor como texto, p. ej. "57.50".');
@@ -111,12 +111,12 @@ function fallo(e: unknown): CallToolResult {
   throw e;
 }
 
-/** Aviso de modo de prueba: el documento lleva el CAI ficticio y no tiene valor fiscal. */
+/** Aviso de modo de prueba: el documento es de prueba (CAI ficticio o `modo: 'prueba'`) y no tiene valor fiscal. */
 const avisoPrueba = (d: DocumentoFiscal) =>
-  esCAIDemo(d.cai) ? `\n${LEYENDA_PRUEBA}: se emitió con el CAI ficticio de la demostración. No lo entregues como factura real.` : '';
+  esDocumentoDePrueba(d) ? `\n${LEYENDA_PRUEBA}: se emitió con el CAI ficticio de la demostración. No lo entregues como factura real.` : '';
 
 /** Campos de `structuredContent` del modo de prueba. */
-const datosPrueba = (d: DocumentoFiscal) => (esCAIDemo(d.cai) ? { prueba: true, leyenda: LEYENDA_PRUEBA } : { prueba: false });
+const datosPrueba = (d: DocumentoFiscal) => (esDocumentoDePrueba(d) ? { prueba: true, leyenda: LEYENDA_PRUEBA } : { prueba: false });
 
 /** Texto y datos de una emisión, nueva o repetida por un reintento con la misma clave. */
 function resultadoEmision({ documento, repetido }: ResultadoEmision, extra = ''): CallToolResult {
@@ -128,7 +128,7 @@ function resultadoEmision({ documento, repetido }: ResultadoEmision, extra = '')
 }
 
 const resumen = (d: DocumentoFiscal) =>
-  sinEtiquetas(`${d.nombreDocumento} ${d.numero} (${d.estado}) · CAI ${d.cai}${esCAIDemo(d.cai) ? ` (${LEYENDA_PRUEBA})` : ''} · ${d.fechaEmision} · total L ${d.totales.total.toFixed(2)}` +
+  sinEtiquetas(`${d.nombreDocumento} ${d.numero} (${d.estado}) · CAI ${d.cai}${esDocumentoDePrueba(d) ? ` (${LEYENDA_PRUEBA})` : ''} · ${d.fechaEmision} · total L ${d.totales.total.toFixed(2)}` +
   (d.advertencias.length ? `\nAvisos:\n${d.advertencias.map((a) => `- [${a.codigo}] ${a.mensaje}`).join('\n')}` : ''));
 
 export function crearServidorMCP(backend: Backend): McpServer {
@@ -344,7 +344,7 @@ export function crearServidorMCP(backend: Backend): McpServer {
     'libro_ventas',
     {
       title: 'Libro de ventas',
-      description: 'Ventas de un período con totales por tarifa e ISV. Las notas de crédito restan; los anulados van en cero.',
+      description: 'Ventas de un período con totales por tarifa e ISV. Las notas de crédito restan; los anulados van en cero. Los documentos de prueba no entran.',
       inputSchema: { desde: Fecha, hasta: Fecha },
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
@@ -355,7 +355,10 @@ export function crearServidorMCP(backend: Backend): McpServer {
       } catch (e) {
         return fallo(e);
       }
-      return okConDatos(`Libro de ventas ${desde} a ${hasta}: ${libro.filas.length} documentos.\nResumen: ${JSON.stringify(libro.resumen)}`, libro as Record<string, unknown>);
+      // Los documentos de prueba no entran en el libro (no tienen valor fiscal): se dice cuántos quedaron fuera.
+      const excluidos = libro.excluidos ?? 0;
+      const fuera = excluidos ? `\n${excluidos} documento${excluidos === 1 ? '' : 's'} de prueba no entra${excluidos === 1 ? '' : 'n'} en el libro (${LEYENDA_PRUEBA}).` : '';
+      return okConDatos(`Libro de ventas ${desde} a ${hasta}: ${libro.filas.length} documentos.${fuera}\nResumen:${JSON.stringify(libro.resumen)}`, libro as Record<string, unknown>);
     },
   );
 

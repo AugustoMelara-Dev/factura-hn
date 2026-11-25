@@ -321,6 +321,23 @@ describe('modo de prueba', () => {
     const c = await llamar('consultar_documento', { numero: '000-001-01-00000001' });
     expect([c.datos.prueba, c.texto.includes(LEYENDA_PRUEBA)]).toEqual([true, true]);
   });
+
+  it('los CAI ficticios llevan prueba: true y el libro de ventas deja fuera los documentos de prueba', async () => {
+    const demos = autorizacionesDemo({ hoy: RELOJ() });
+    expect(demos.map((a) => [a.cai, a.prueba, a.rangoFinal])).toEqual(
+      ['01', '06', '07'].map((t) => [`DEMO00-NO-VALIDO-0000-0000-0000-${t}`, true, 5000]),
+    );
+    const backend = new BackendLocal({ db: baseEnArchivo(), emisor: EMISOR, establecimiento: '000', puntoEmision: '001', reloj: RELOJ });
+    for (const a of demos) await registrarAutorizacion(backend.almacenFiscal, a);
+    const { llamar } = await conectar(backend);
+    const f = await llamar('emitir_factura', { lineas: linea, idempotencyKey: randomUUID() });
+    expect(f.datos.documento.modo).toBe('prueba');
+    const hoy = f.datos.documento.fechaEmision;
+    const libro = await llamar('libro_ventas', { desde: hoy, hasta: hoy });
+    expect(libro.datos).toMatchObject({ filas: [], excluidos: 1 });
+    expect(libro.texto).toContain(`0 documentos.
+1 documento de prueba no entra en el libro (${LEYENDA_PRUEBA}).`);
+  });
 });
 
 const URL_PG = process.env.FHN_PG_URL;

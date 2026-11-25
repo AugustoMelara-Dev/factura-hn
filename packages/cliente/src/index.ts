@@ -24,9 +24,10 @@ export type SolicitudEmision = Esquemas['SolicitudEmision'];
 export type Autorizacion = Esquemas['Autorizacion'];
 export type EstadoAutorizacion = Esquemas['EstadoAutorizacion'];
 export type Emisor = Esquemas['Emisor'];
-export type Problema = Esquemas['Problema'];
 /** Un problema con `solucion` y `documentacion` (enlace a la guía de errores), si se conocen. */
-export type ProblemaConGuia = Esquemas['ProblemaConGuia'];
+export type Problema = Esquemas['Problema'];
+/** Alias de `Problema` (antes un esquema aparte). */
+export type ProblemaConGuia = Problema;
 export type Sesion = Esquemas['Sesion'];
 /** Rutas de la representación impresa de un documento emitido (`emitir(...).enlaces`). */
 export type Enlaces = Esquemas['Enlaces'];
@@ -183,6 +184,9 @@ export function crearCliente(o: OpcionesCliente) {
       return exigir(await api.GET('/v1/libro-ventas', { params: { query: { desde, hasta, formato: 'json' } } })) as {
         filas: Record<string, unknown>[];
         resumen: Record<string, unknown>;
+        /** Documentos de prueba del período, que no entran en el libro. */
+        excluidos: number;
+        aviso?: string;
       };
     },
     async libroVentasCSV(desde: string, hasta: string): Promise<string> {

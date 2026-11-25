@@ -10,11 +10,10 @@ import {
   ErrorValidacion,
   estadoAutorizacion,
   fechaHonduras,
-  filaLibroVentas,
+  libroVentas as libroVentasNucleo,
   identificadorDe,
   renderizarTexto,
   registrarAutorizacion,
-  resumenVentas,
   validarAutorizacion,
   type AlmacenFiscal,
   type AutorizacionCAI,
@@ -89,7 +88,8 @@ export interface Backend {
   consultar(numero: string): Promise<DocumentoFiscal | null>;
   anular(numero: string, motivo: string, opciones?: { operador?: string }): Promise<DocumentoFiscal>;
   estadoCAI(): Promise<EstadoCAI[]>;
-  libroVentas(desde: string, hasta: string): Promise<{ filas: unknown[]; resumen: unknown }>;
+  /** Libro de ventas sin los documentos de prueba; `excluidos` dice cuántos quedaron fuera. */
+  libroVentas(desde: string, hasta: string): Promise<{ filas: unknown[]; resumen: unknown; excluidos: number }>;
 }
 
 /** Error con la lista de problemas fiscales, para mostrarla tal cual al usuario. */
@@ -300,8 +300,7 @@ export class BackendLocal implements Backend {
   }
   async libroVentas(desde: string, hasta: string) {
     const docs = await this.almacen.transaccion((tx) => tx.documentos({ desde, hasta }));
-    const filas = docs.map(filaLibroVentas);
-    return { filas, resumen: resumenVentas(filas) };
+    return libroVentasNucleo(docs);
   }
 }
 

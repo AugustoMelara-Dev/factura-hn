@@ -20,6 +20,8 @@ import {
   documentosPorPaginas,
   elegirAutorizacion,
   emitir,
+  esDocumentoDePrueba,
+  LEYENDA_PRUEBA,
   ErrorValidacion,
   problemaDeOperador,
   estadoAutorizacion,
@@ -995,6 +997,27 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       duracionMaxMs: cfg.duracionMaxReporteMs,
     });
   };
+  /**
+   * Documentos del período, reales y de prueba, en la instantánea del reporte. Los de prueba (`modo: 'prueba'` o
+   * CAI ficticio, como `esDocumentoDePrueba`) no entran en el libro ni en la exportación: no tienen valor fiscal.
+   * El tope y el encabezado de `txt` cuentan solo los reales.
+   */
+  const contarPeriodo = async (tx: TransaccionFiscal, filtro: { desde: string; hasta: string }) => {
+    const total = await contarDocumentos(tx, filtro);
+    const excluidos = total === 0 ? 0 : (await comoTransaccionPostgres(tx).consulta<{ n: number }>(
+      `SELECT count(*)::int AS n FROM fhn_documentos
+        WHERE tenant = $1 AND fecha_emision >= $2 AND fecha_emision <= $3
+          AND (datos->>'modo' = 'prueba' OR starts_with(upper(btrim(datos->>'cai')), 'DEMO00-NO-VALIDO-'))`,
+      [comoTransaccionPostgres(tx).tenant, filtro.desde, filtro.hasta],
+    )).rows[0]!.n;
+    const reales = total - excluidos;
+    exigirPeriodoAcotado(reales, maxDocumentos);
+    return { reales, excluidos };
+  };
+  /** Cabecera con los documentos de prueba que no entraron en el reporte. */
+  const cabeceraExcluidos = (excluidos: number): Record<string, string> => ({ 'Documentos-Prueba-Excluidos': String(excluidos) });
+  const avisoExcluidos = (excluidos: number) =>
+    `${excluidos === 1 ? 'Un documento de prueba quedó fuera' : `${excluidos} documentos de prueba quedaron fuera`} (${LEYENDA_PRUEBA}).`;
   app.use('/v1/libro-ventas', limiteReportes);
   app.use('/v1/exportacion', limiteReportes);
   app.use('/v1/series/:identificador/no-utilizados', limiteReportes);
@@ -1038,13 +1061,30 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   );
 
   // --- Reportes --------------------------------------------------------------------------------------------
+  const cabecerasExcluidos = z.object({
+    'Documentos-Prueba-Excluidos': z.string().openapi({ description: 'Documentos de prueba del período que no entran en el reporte (no tienen valor fiscal).', example: '0' }),
+  });
   app.openapi(
     createRoute({
       method: 'get', path: '/v1/libro-ventas', tags: ['Reportes'], security: seguridad,
       summary: 'Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)',
       request: { query: S.periodo({ formato: z.enum(['json', 'csv']).optional() }) },
       responses: {
-        200: { description: 'Libro', content: { 'application/json': { schema: z.object({ filas: z.array(z.looseObject({})), resumen: z.looseObject({}) }) }, 'text/csv': { schema: z.string() } } },
+        200: {
+          description: 'Libro. Sin los documentos de prueba: `excluidos` (y la cabecera `Documentos-Prueba-Excluidos`) dice cuántos quedaron fuera.',
+          headers: cabecerasExcluidos,
+          content: {
+            'application/json': {
+              schema: z.object({
+                filas: z.array(z.looseObject({})),
+                resumen: z.looseObject({}),
+                excluidos: z.number().int().openapi({ description: 'Documentos de prueba del período que no entran en el libro.' }),
+                aviso: z.string().optional(),
+              }),
+            },
+            'text/csv': { schema: z.string() },
+          },
+        },
         ...respuestasError,
       },
     }),
@@ -1053,29 +1093,36 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const filtro = { desde: q.desde, hasta: q.hasta };
       const csv = q.formato === 'csv';
       // Fila por fila, sin las líneas de cada documento (el libro solo usa encabezado y totales). Mismos bytes
-      // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen })`, sin tener todas las filas a la vez.
-      const { cuerpo } = await reporteTransmitido(
+      // que `libroVentasCSV(filas)` o que `JSON.stringify({ filas, resumen, excluidos })` con `libroVentas(docs)`,
+      // sin tener todas las filas a la vez. Los documentos de prueba no entran: se cuentan en `excluidos`.
+      const { preparado, cuerpo } = await reporteTransmitido(
         c,
-        async (tx) => exigirPeriodoAcotado(await contarDocumentos(tx, filtro), maxDocumentos),
-        async (tx, _, escribir) => {
+        (tx) => contarPeriodo(tx, filtro),
+        async (tx, { reales, excluidos }, escribir) => {
           const resumen = acumuladorResumenVentas();
           if (!(await escribir(csv ? inicioLibroVentasCSV() : '{"filas":['))) return;
           let primera = true;
-          for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
-            for (const d of pagina) {
-              const fila = filaLibroVentas(d);
-              resumen.agregar(fila);
-              const texto = csv ? lineaLibroVentasCSV(fila) : (primera ? '' : ',') + JSON.stringify(fila);
-              primera = false;
-              if (!(await escribir(texto))) return;
+          if (reales > 0) {
+            for await (const pagina of documentosPorPaginas(tx, filtro, { sinLineas: true })) {
+              for (const d of pagina) {
+                if (esDocumentoDePrueba(d)) continue;
+                const fila = filaLibroVentas(d);
+                resumen.agregar(fila);
+                const texto = csv ? lineaLibroVentasCSV(fila) : (primera ? '' : ',') + JSON.stringify(fila);
+                primera = false;
+                if (!(await escribir(texto))) return;
+              }
             }
           }
-          if (!csv) await escribir(`],"resumen":${JSON.stringify(resumen.resumen())}}`);
+          if (!csv) await escribir(`],"resumen":${JSON.stringify(resumen.resumen())},"excluidos":${excluidos}${excluidos ? `,"aviso":${JSON.stringify(avisoExcluidos(excluidos))}` : ''}}`);
         },
       );
-      return c.body(cuerpo, 200, csv
-        ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
-        : { 'Content-Type': 'application/json' }) as never;
+      return c.body(cuerpo, 200, {
+        ...cabeceraExcluidos(preparado.excluidos),
+        ...(csv
+          ? { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="libro-ventas_${q.desde}_${q.hasta}.csv"` }
+          : { 'Content-Type': 'application/json' }),
+      }) as never;
     },
   );
 
@@ -1084,7 +1131,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'get', path: '/v1/exportacion', tags: ['Reportes'], security: seguridad,
       summary: 'Archivo de texto de un período para el SAR (Art. 53 num. 5)',
       request: { query: S.periodo({ formato: z.enum(['jsonl', 'csv', 'txt']).optional() }) },
-      responses: { 200: { description: 'Archivo', content: { 'text/plain': { schema: z.string() } } }, ...respuestasError },
+      responses: {
+        200: { description: 'Archivo, sin los documentos de prueba (ver la cabecera `Documentos-Prueba-Excluidos`).', headers: cabecerasExcluidos, content: { 'text/plain': { schema: z.string() } } },
+        ...respuestasError,
+      },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1092,33 +1142,34 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       const formato = q.formato ?? 'jsonl';
       const filtro = { desde: q.desde, hasta: q.hasta };
       const tipos = { jsonl: 'application/x-ndjson', csv: 'text/csv', txt: 'text/plain' } as const;
-      // Mismo contenido que `exportarTexto`, transmitido documento por documento. El tope, el encabezado de `txt`
-      // y la bitácora usan el mismo conteo, de la misma instantánea que las páginas. La bitácora se escribe al
-      // cerrar la transacción de solo lectura (no se pide otra conexión con ella abierta) y antes de la última
-      // parte: la exportación no llega completa sin su registro; una cortada queda con `completo: false`.
-      const { cuerpo } = await reporteTransmitido(
+      // Mismo contenido que `exportarTexto` (sin los documentos de prueba), transmitido documento por documento.
+      // El tope, el encabezado de `txt` y la bitácora usan el mismo conteo de reales, de la misma instantánea
+      // que las páginas. La bitácora se escribe al cerrar la transacción de solo lectura (no se pide otra conexión
+      // con ella abierta) y antes de la última parte: la exportación no llega completa sin su registro; una
+      // cortada queda con `completo: false`.
+      const { preparado, cuerpo } = await reporteTransmitido(
         c,
-        async (tx) => {
-          const total = await contarDocumentos(tx, filtro);
-          exigirPeriodoAcotado(total, maxDocumentos);
-          return total;
-        },
-        async (tx, total, escribir) => {
-          if (!(await escribir(inicioExportacion(formato, total)))) return;
+        (tx) => contarPeriodo(tx, filtro),
+        async (tx, { reales }, escribir) => {
+          if (!(await escribir(inicioExportacion(formato, reales)))) return;
+          if (reales === 0) return;
           // `jsonl` lleva el documento completo; `csv` y `txt`, solo encabezado y totales.
-          if (formato === 'jsonl') {
-            for await (const p of documentosPorPaginas(tx, filtro)) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
-          } else {
-            for await (const p of documentosPorPaginas(tx, filtro, { sinLineas: true })) for (const d of p) if (!(await escribir(lineaExportacion(d, formato)))) return;
+          const paginas = formato === 'jsonl' ? documentosPorPaginas(tx, filtro) : documentosPorPaginas(tx, filtro, { sinLineas: true });
+          for await (const p of paginas) {
+            for (const d of p) {
+              if (esDocumentoDePrueba(d)) continue;
+              if (!(await escribir(lineaExportacion(d as DocumentoFiscal, formato)))) return;
+            }
           }
         },
-        async (total, completo) => {
+        async ({ reales, excluidos }, completo) => {
           await enTenant(c, (t) => bitacora(t, actor(c), 'exportacion', {
-            desde: q.desde, hasta: q.hasta, formato, documentos: total, ...(completo ? {} : { completo: false }),
+            desde: q.desde, hasta: q.hasta, formato, documentos: reales, ...(excluidos ? { pruebaExcluidos: excluidos } : {}), ...(completo ? {} : { completo: false }),
           }));
         },
       );
       return c.body(cuerpo, 200, {
+        ...cabeceraExcluidos(preparado.excluidos),
         'Content-Type': `${tipos[formato]}; charset=utf-8`,
         'Content-Disposition': `attachment; filename="factura-hn_${q.desde}_${q.hasta}.${formato}"`,
       }) as never;

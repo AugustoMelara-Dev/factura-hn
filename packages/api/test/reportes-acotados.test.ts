@@ -128,13 +128,13 @@ describe.skipIf(!URL_PG)('reportes acotados en memoria', () => {
     const filas = docs.map(filaLibroVentas);
     const libro = await admin('GET', `/v1/libro-ventas?${PERIODO}`);
     expect(libro.headers.get('content-type')).toBe('application/json');
-    expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas) }));
+    expect(await libro.text()).toBe(JSON.stringify({ filas, resumen: resumenVentasAnterior(filas), excluidos: 0 }));
     const csv = await admin('GET', `/v1/libro-ventas?${PERIODO}&formato=csv`);
     expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8');
     expect(Buffer.from(await csv.arrayBuffer()).equals(Buffer.from(libroVentasCSVAnterior(filas), 'utf8'))).toBe(true);
     // Sin documentos también.
     const vacio = `desde=${diasAntes(HOY, 60)}&hasta=${diasAntes(HOY, 31)}`;
-    expect(await (await admin('GET', `/v1/libro-ventas?${vacio}`)).text()).toBe(JSON.stringify({ filas: [], resumen: resumenVentasAnterior([]) }));
+    expect(await (await admin('GET', `/v1/libro-ventas?${vacio}`)).text()).toBe(JSON.stringify({ filas: [], resumen: resumenVentasAnterior([]), excluidos: 0 }));
     const csvVacio = Buffer.from(await (await admin('GET', `/v1/libro-ventas?${vacio}&formato=csv`)).arrayBuffer());
     expect(csvVacio.equals(Buffer.from(libroVentasCSVAnterior([]), 'utf8'))).toBe(true);
   }, 120_000);
