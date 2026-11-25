@@ -50,6 +50,8 @@ jobs:
         run: pnpm test:ejemplos
       - name: Verificación de lo que se publica (paquetes, ESM/CJS, emisión desde dist)
         run: node scripts/verificar-dist.mjs
+      - name: Humo desde los tarballs (SDK, npx factura-hn demo/init, MCP por stdio)
+        run: node scripts/humo.mjs sdk demo mcp
       - name: OpenAPI y tipos del cliente al día
         run: |
           pnpm --filter @factura-hn/api openapi
@@ -96,6 +98,8 @@ jobs:
       - run: pnpm build
       - name: Pruebas con Postgres (RLS, concurrencia, idempotencia, bitácora)
         run: pnpm test:pg
+      - name: Humo de la API desde dist (llave del demo, emisión y PDF)
+        run: node scripts/humo.mjs api
 
   docker:
     name: Imagen de la API
