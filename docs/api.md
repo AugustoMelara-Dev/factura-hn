@@ -301,7 +301,7 @@ Solo lee datos del tenant de la llave (RLS).
   número: se toma la dirección que anotó el más externo, la N-ésima de `X-Forwarded-For` desde la derecha. Sin
   eso, todas las cajas detrás del proxy comparten una cubeta de intentos. Las direcciones IPv6 se agrupan por
   /64.
-- Los límites son en memoria y por réplica (DEC-030). Con varias cajas detrás de la misma dirección (NAT), los
+- Los límites son en memoria y por réplica. Con varias cajas detrás de la misma dirección (NAT), los
   intentos fallidos de una pueden demorar el primer acceso de otra llave tras reiniciar el servidor.
 
 ## Emisión: una transacción
