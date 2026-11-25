@@ -1,6 +1,6 @@
 ---
 title: Ficha del sistema (Art. 53)
-description: Qué exige el Art. 53 del Reglamento a un sistema de facturación, cómo lo cubre factura-hn numeral por numeral y qué datos debe completar el negocio para su Declaración Jurada.
+description: Qué exige el Art. 53 del Reglamento a un sistema de facturación, qué implementa factura-hn en cada numeral y qué datos debe completar el negocio para su Declaración Jurada.
 sidebar:
   order: 3
 ---
@@ -11,6 +11,8 @@ por ella. El Art. 53 admite sistemas «desarrollados o adquiridos» (C L.2164).
 
 Esta ficha reúne lo que el negocio necesita saber de factura-hn para declarar con fundamento. No es la Declaración
 Jurada ni un formulario del SAR: es la información técnica que el desarrollador le entrega al dueño y al contador.
+Describe lo que el software implementa y prueba; no afirma que una instalación concreta cumpla el Art. 53. Eso
+depende también de la configuración y la operación del negocio, y lo evalúa él con su contador.
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene el formulario de la Declaración Jurada ni sus anexos técnicos: qué campos pide, por qué
@@ -22,10 +24,10 @@ regula el Registro Fiscal de Imprentas (Arts. 66-70), que no aplica a un softwar
 
 ## Lo que pide el Art. 53, numeral por numeral
 
-Fuente: Art. 53, C L.2161-2188. La columna «Prueba» remite a la [matriz de cumplimiento](/referencia/cumplimiento/),
-donde cada fila tiene el archivo y el título de la prueba automatizada.
+Fuente: Art. 53, C L.2161-2188. La [matriz de cumplimiento](/referencia/cumplimiento/) tiene, en la fila 53, el
+archivo y el título de la prueba automatizada de cada numeral.
 
-| Num. | Exigencia | Cómo lo cubre factura-hn 0.2.0 | Lo que pone el negocio |
+| Num. | Exigencia | Qué implementa factura-hn 0.2.0 | Lo que pone el negocio |
 |---|---|---|---|
 | 1 | Integración con al menos un sistema contable o de inventarios | Interfaz `LibroContable` (opción `libroContable`) y gancho `alEmitir`, que corren **dentro** de la transacción de la emisión: si el asiento falla, no hay documento (DEC-012 [REVISAR]) | El sistema contable o de inventario al que se conecta, y la conexión misma |
 | 2 | Seguridad y controles de auditoría | Bitácora de solo inserción (`eventosAuditoria`): autorizaciones, emisiones, anulaciones y correcciones de fecha, con actor y operador. Disparadores en SQLite y Postgres que impiden borrar documentos y autorizaciones, cambiar un documento salvo de EMITIDO a ANULADO y retroceder la serie. En la API: llaves con roles (`caja`, `admin`), bitácora de la API con el actor y aislamiento por tenant con RLS | Quién tiene acceso al equipo, a la base y a las llaves; contraseñas y TLS |
@@ -45,7 +47,7 @@ encuentra el servidor** y los **puntos de emisión**.
 | Licencia | MIT (código abierto) | |
 | Paquetes en uso | `factura-hn` y el almacén elegido; opcionales `@factura-hn/pdf`, `@factura-hn/api`, `@factura-hn/mcp` | Cuáles usa su instalación |
 | Establecimiento donde está el servidor | | La dirección del equipo donde corre la base o la API |
-| Puntos de emisión | | Los que registra ante el SAR (uno por caja o por estructura, Art. 48) |
+| Puntos de emisión | | Los que registra ante el SAR (Art. 45 num. 5). En red, una o varias numeraciones según el Art. 48 |
 | Desarrollador o proveedor de la integración | | Quien integró factura-hn en su sistema, si es otro |
 
 :::caution[Por confirmar con fuente]
@@ -55,10 +57,10 @@ Sistema» por cliente (Art. 61). Es la pregunta P-02 (F-05). Mientras no haya re
 instalación local, en un equipo del negocio y en su establecimiento.
 :::
 
-## Lo que el sistema también cumple y conviene declarar
+## Otros requisitos del Reglamento que el sistema implementa, con su prueba
 
-Requisitos del Reglamento que no son del Art. 53, pero que el contador suele revisar. Cada uno tiene su prueba en la
-[matriz de cumplimiento](/referencia/cumplimiento/).
+Requisitos del Reglamento que no son del Art. 53, pero que el contador suele revisar. Cada uno tiene su prueba
+automatizada en la [matriz de cumplimiento](/referencia/cumplimiento/).
 
 - Numeración `NNN-NNN-NN-NNNNNNNN` con una serie por establecimiento, punto de emisión y tipo, sin huecos ni
   repetidos (Art. 10 num. 7).
