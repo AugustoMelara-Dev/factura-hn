@@ -29,7 +29,8 @@ Uso: npx factura-hn <comando>
 
 Comandos:
   demo              Emite al instante una factura de prueba (CAI ficticio, en memoria), imprime el
-                    ticket y escribe factura-demo.html en este directorio.
+                    ticket y escribe factura-demo.html en este directorio (si ya existe,
+                    factura-demo-2.html, y así: nunca sobrescribe).
   init, iniciar     Crea emitir.mjs (un ejemplo que emite y guarda factura.html) y emisor.json (datos
                     ficticios del negocio) en este directorio. No sobrescribe nada salvo con --forzar.
   ayuda, --help     Muestra esta ayuda.
@@ -54,7 +55,7 @@ const EMISOR_PLANTILLA = {
 
 const EMITIR_MJS = `// Emite una factura DE PRUEBA con factura-hn y la guarda en factura.html.
 // Ejecuta: node emitir.mjs
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { AlmacenFiscalMemoria, crearFacturador, formatearMonto, renderizarHTML, renderizarTexto } from 'factura-hn';
 import { autorizacionDemo } from 'factura-hn/demo';
 
@@ -76,10 +77,20 @@ const factura = await facturador.emitir({
   lineas: [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
 });
 
-writeFileSync('factura.html', renderizarHTML(factura));
+// No sobrescribe: si factura.html ya existe, usa factura-2.html, factura-3.html…
+let archivo = 'factura.html';
+for (let n = 2; existsSync(archivo); n++) archivo = \`factura-\${n}.html\`;
+writeFileSync(archivo, renderizarHTML(factura));
 console.log(renderizarTexto(factura));
-console.log(\`\${factura.nombreDocumento} \${factura.numero} por L \${formatearMonto(factura.totales.total)}: abre factura.html en el navegador.\`);
+console.log(\`\${factura.nombreDocumento} \${factura.numero} por L \${formatearMonto(factura.totales.total)}: abre \${archivo} en el navegador.\`);
 `;
+
+/** `base.html` en `dir`, o `base-2.html`, `base-3.html`… si ya existe: nunca sobrescribe. */
+function rutaLibre(dir: string, base: string): string {
+  let ruta = join(dir, `${base}.html`);
+  for (let n = 2; existsSync(ruta); n++) ruta = join(dir, `${base}-${n}.html`);
+  return ruta;
+}
 
 async function demo(dir: string): Promise<void> {
   const facturador = await crearFacturadorDemo();
@@ -90,7 +101,7 @@ async function demo(dir: string): Promise<void> {
       { descripcion: 'Pan dulce', cantidad: '3', precioUnitario: '23.00' },
     ],
   });
-  const ruta = join(dir, 'factura-demo.html');
+  const ruta = rutaLibre(dir, 'factura-demo');
   writeFileSync(ruta, renderizarHTML(factura));
   console.log(renderizarTexto(factura));
   console.log(`Emitida la ${factura.nombreDocumento} de prueba ${factura.numero} por L ${formatearMonto(factura.totales.total)}.`);
@@ -110,7 +121,7 @@ function init(dir: string, forzar: boolean): number {
   ];
   const existentes = archivos.filter(([nombre]) => existsSync(join(dir, nombre))).map(([nombre]) => nombre);
   if (existentes.length && !forzar) {
-    console.error(`Ya existe ${existentes.join(' y ')} en ${dir}: no se tocó nada. Para reemplazarlos, usa: npx factura-hn init --forzar`);
+    console.error(`Ya ${existentes.length > 1 ? 'existen' : 'existe'} ${existentes.join(' y ')} en ${dir}: no se tocó nada. Para reemplazarlos, usa: npx factura-hn init --forzar`);
     return 1;
   }
   for (const [nombre, contenido] of archivos) writeFileSync(join(dir, nombre), contenido);
@@ -124,9 +135,23 @@ Siguientes pasos:
   return 0;
 }
 
+const COMANDOS = new Set(['demo', 'init', 'iniciar', 'ayuda', '--help', '-h', 'help', 'version', '--version', '-v']);
+
 export async function principal(args: string[], dir = process.cwd()): Promise<number> {
   const [comando = 'ayuda', ...resto] = args;
   const opciones = new Set(resto);
+  // Solo init acepta una opción (--forzar). Cualquier otra, o una errata, es un error: no se adivina.
+  const validas = comando === 'init' || comando === 'iniciar' ? ['--forzar'] : [];
+  const desconocida = resto.find((o) => !validas.includes(o));
+  if (desconocida !== undefined && COMANDOS.has(comando)) {
+    const pista = desconocida === '--force' ? ' ¿Quisiste decir --forzar?' : '';
+    console.error(
+      `Opción desconocida para ${comando}: «${desconocida}».${pista} ` +
+        (validas.length ? `La única opción es ${validas.join(', ')}.` : 'Este comando no lleva opciones.') + '\n',
+    );
+    console.error(AYUDA);
+    return 1;
+  }
   switch (comando) {
     case 'demo':
       await demo(dir);

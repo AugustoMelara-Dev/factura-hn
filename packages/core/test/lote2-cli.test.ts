@@ -1,9 +1,10 @@
 /**
  * El bin `factura-hn`, ejecutado desde `dist` como lo haría `npx factura-hn`, en un directorio temporal. Si
- * `dist` no existe, se compila una vez (en la CI ya está compilado).
+ * `dist` no existe o es más viejo que algún archivo de `src` (o que `package.json`), se compila antes: la prueba
+ * nunca corre contra un `dist` viejo.
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -19,8 +20,27 @@ function correr(args: string[], cwd = dir) {
   return { codigo: r.status, salida: r.stdout, error: r.stderr };
 }
 
+/** Fecha de modificación más reciente de los archivos de `dir` (recursivo). */
+function masReciente(dir: string): number {
+  let max = 0;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const ruta = join(dir, e.name);
+    max = Math.max(max, e.isDirectory() ? masReciente(ruta) : statSync(ruta).mtimeMs);
+  }
+  return max;
+}
+
+/** true si falta algún archivo de `dist` que usa la prueba, o si alguno es anterior a la fuente. */
+function distViejo(): boolean {
+  const salidas = [CLI, join(NUCLEO, 'dist', 'demo.js'), join(NUCLEO, 'dist', 'index.js')];
+  if (!salidas.every((f) => existsSync(f))) return true;
+  const fuente = Math.max(masReciente(join(NUCLEO, 'src')), statSync(join(NUCLEO, 'package.json')).mtimeMs);
+  return Math.min(...salidas.map((f) => statSync(f).mtimeMs)) < fuente;
+}
+
 beforeAll(() => {
-  if (!existsSync(CLI) || !existsSync(join(NUCLEO, 'dist', 'demo.js'))) execSync('pnpm run build', { cwd: NUCLEO, stdio: 'pipe' });
+  if (distViejo()) execSync('pnpm run build', { cwd: NUCLEO, stdio: 'pipe' });
+  expect(distViejo()).toBe(false);
   dir = mkdtempSync(join(tmpdir(), 'fhn-cli-'));
 }, 180_000);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -41,6 +61,13 @@ describe('npx factura-hn', () => {
     expect(r.salida).toContain('npx factura-hn init');
     const html = readFileSync(join(dir, 'factura-demo.html'), 'utf8');
     expect(html.split(`>${LEYENDA_PRUEBA}</div>`)).toHaveLength(3);
+    // Otra vez: no sobrescribe, escribe factura-demo-2.html y lo dice.
+    writeFileSync(join(dir, 'factura-demo.html'), 'mía');
+    const otra = correr(['demo']);
+    expect(otra.codigo).toBe(0);
+    expect(otra.salida).toContain('factura-demo-2.html');
+    expect(readFileSync(join(dir, 'factura-demo.html'), 'utf8')).toBe('mía');
+    expect(readFileSync(join(dir, 'factura-demo-2.html'), 'utf8')).toContain(LEYENDA_PRUEBA);
   });
 
   it('init (y su alias iniciar): crea emitir.mjs y emisor.json sin sobrescribir; npm install → init → node emitir.mjs emite', () => {
@@ -61,6 +88,7 @@ describe('npx factura-hn', () => {
     writeFileSync(join(proyecto, 'emisor.json'), '{"mio":true}\n');
     const otra = correr(['iniciar'], proyecto);
     expect(otra.codigo).toBe(1);
+    expect(otra.error).toContain('Ya existen emitir.mjs y emisor.json');
     expect(otra.error).toContain('--forzar');
     expect(readFileSync(join(proyecto, 'emisor.json'), 'utf8')).toBe('{"mio":true}\n');
     expect(correr(['iniciar', '--forzar'], proyecto).codigo).toBe(0);
@@ -73,6 +101,38 @@ describe('npx factura-hn', () => {
     expect(emitir.stdout).toMatch(/Factura 000-001-01-00000001 por L 230\.00/);
     expect(emitir.stdout).not.toContain('_instrucciones');
     expect(readFileSync(join(proyecto, 'factura.html'), 'utf8')).toContain(LEYENDA_PRUEBA);
+    // Otra vez: factura.html no se sobrescribe; la nueva va a factura-2.html.
+    writeFileSync(join(proyecto, 'factura.html'), 'mía');
+    const segunda = spawnSync(process.execPath, ['emitir.mjs'], { cwd: proyecto, encoding: 'utf8', timeout: 60_000 });
+    expect(segunda.status).toBe(0);
+    expect(segunda.stdout).toContain('abre factura-2.html');
+    expect(readFileSync(join(proyecto, 'factura.html'), 'utf8')).toBe('mía');
+    expect(readFileSync(join(proyecto, 'factura-2.html'), 'utf8')).toContain(LEYENDA_PRUEBA);
+  });
+
+  it('init dice «Ya existe» en singular con un solo archivo', () => {
+    const p = join(dir, 'singular');
+    mkdirSync(p);
+    writeFileSync(join(p, 'emitir.mjs'), '// mío\n');
+    const r = correr(['init'], p);
+    expect(r.codigo).toBe(1);
+    expect(r.error).toContain('Ya existe emitir.mjs en');
+    expect(existsSync(join(p, 'emisor.json'))).toBe(false);
+  });
+
+  it('una opción desconocida (o una errata) da error y código 1, sin escribir nada', () => {
+    const p = join(dir, 'opciones');
+    mkdirSync(p);
+    const force = correr(['init', '--force'], p);
+    expect(force.codigo).toBe(1);
+    expect(force.error).toContain('Opción desconocida para init: «--force». ¿Quisiste decir --forzar?');
+    expect(readdirSync(p)).toEqual([]);
+    for (const args of [['demo', '--forzar'], ['init', '--frozar'], ['version', '-x']]) {
+      const r = correr(args, p);
+      expect(r.codigo, args.join(' ')).toBe(1);
+      expect(r.error, args.join(' ')).toContain('Opción desconocida');
+    }
+    expect(readdirSync(p)).toEqual([]);
   });
 
   it('ayuda y versión', () => {
