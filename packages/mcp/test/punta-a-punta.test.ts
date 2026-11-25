@@ -27,7 +27,7 @@ describe('punta a punta: init --demo → bloque mcpServers → «emite una factu
       mcpServers: { 'factura-hn': { command: string; args: string[]; env: Record<string, string> } };
     };
     const servidor = bloque.mcpServers['factura-hn'];
-    expect(servidor.args.slice(-2)).toEqual(['-y', '@factura-hn/mcp']);
+    expect(servidor.args.slice(-2)).toEqual(['-y', expect.stringMatching(/^@factura-hn\/mcp@\d+\.\d+\.\d+/)]);
     expect(servidor.env.FHN_SQLITE).toBe(join(dir, 'factura-demo.db'));
 
     // Paso 2: el mismo env del bloque; el comando es el código fuente (npx bajaría el paquete publicado).

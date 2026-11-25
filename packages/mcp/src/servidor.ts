@@ -9,6 +9,7 @@ import { esDocumentoDePrueba, renderizarTexto, type AutorizacionCAI, type Docume
 import { ErrorBackend, type Backend, type EntradaSinEmisor, type ResultadoEmision } from './backend';
 import { LEYENDA_PRUEBA } from './demo';
 import { conSolucion } from './soluciones';
+import { versionPaquete } from './version';
 
 const Monto = z.union([z.string(), z.number()]).describe('Decimal; mejor como texto, p. ej. "57.50".');
 const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('YYYY-MM-DD');
@@ -133,7 +134,7 @@ const resumen = (d: DocumentoFiscal) =>
 
 export function crearServidorMCP(backend: Backend): McpServer {
   const s = new McpServer(
-    { name: 'factura-hn', version: '0.2.0' },
+    { name: 'factura-hn', version: versionPaquete() ?? '0.0.0' },
     {
       instructions:
         'Facturación SAR Honduras (Acuerdo 481-2017). No inventes reglas fiscales: si una herramienta devuelve errores, ' +

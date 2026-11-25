@@ -46,15 +46,22 @@ subtotal es L 200.00, el ISV 15 % L 30.00 y el total L 230.00.
 cambies y sigas desde ahí.
 ### API REST (Docker)
 
-Desde una copia del repositorio, con Docker y Compose v2:
+Con Docker y Compose v2. Los comandos son de bash (Linux, macOS o Git Bash en Windows); los mismos pasos en
+PowerShell están en la [guía de la API](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md).
 
 ```bash
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git && cd factura-hn
 docker compose up -d --build --wait     # API en http://127.0.0.1:8787
 ```
 
-1. La llave de caja del tenant `demo`:
+Los pasos siguientes se corren desde la raíz del repositorio (la carpeta `factura-hn`). Para otro puerto, arranca
+con `FHN_PUERTO=8788 docker compose up -d --build --wait` y usa `API=http://127.0.0.1:8788` en el paso 1.
+
+1. La dirección de la API y la llave de caja del tenant `demo`. La consola escribe además un aviso en la salida
+   de errores («Llave caja del demo… Se muestra solo esta vez»): es normal.
 
    ```bash
+   API=http://127.0.0.1:8787
    LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)
    ```
 
@@ -62,27 +69,38 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787
 
    ```bash
    VENTA="venta-$(date +%s)"
-   PDF=$(curl -sf -X POST http://127.0.0.1:8787/v1/documentos \
+   RESPUESTA=$(curl -s -X POST "$API/v1/documentos" \
      -H "authorization: Bearer $LLAVE" -H "idempotency-key: $VENTA" -H "content-type: application/json" \
-     --data-binary @packages/api/ejemplos/factura.json | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
+     --data-binary @packages/api/ejemplos/factura.json)
+   PDF=$(printf '%s' "$RESPUESTA" | sed -n 's/.*"pdf":"\([^"]*\)".*/\1/p')
+   if [ -n "$PDF" ]; then echo "Emitida: $(printf '%s' "$RESPUESTA" | sed -n 's/.*"numero":"\([^"]*\)".*/\1/p')"
+   else echo "No se emitió: $RESPUESTA"; fi
    ```
+
+   Si dice «No se emitió», la respuesta trae el error con su `solucion`. Lo más común: `LLAVE` vacía (el paso 1
+   falló) o el comando no se corrió desde la raíz del repositorio (no encuentra `packages/api/ejemplos/factura.json`).
 
 3. Descarga el PDF:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "http://127.0.0.1:8787$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
    ```
 
-Los mismos pasos en PowerShell, y el resto de la API, en la
+El resto de la API (llaves de caja, CAI real, reportes, webhooks) está en la
 [guía de la API](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md).
 
 ### MCP (Claude Desktop, Claude Code, Cursor)
 
 Con Node 22.13 o más reciente, en una carpeta vacía:
 
-1. `npx -y @factura-hn/mcp init --demo`: crea una base SQLite de prueba e imprime el bloque `mcpServers`.
+1. `npx -y @factura-hn/mcp init --demo`: crea la base de prueba `factura-demo.db` y el emisor ficticio
+   `emisor-demo.json`, e imprime el bloque `mcpServers` (ya trae la variante de Windows, con `cmd /c`, si lo
+   corres en Windows). `npx` descarga el paquete la primera vez: hace falta conexión a internet.
 2. Pega el bloque en la configuración de tu cliente MCP y reinícialo.
 3. Pídele al asistente: «emite una factura de prueba».
+
+Para ver la factura como sale impresa, pídele que la muestre impresa: `consultar_documento` con formato `texto`
+da el ticket en texto. El MCP no genera PDF ni HTML.
 
 Dónde va el bloque en cada cliente: [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md).
 
@@ -413,6 +431,8 @@ herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `an
 { "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
 ```
+
+En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp"]`.
 
 ## Ejemplos
 

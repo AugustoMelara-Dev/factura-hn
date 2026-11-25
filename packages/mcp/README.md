@@ -14,7 +14,8 @@ npx -y @factura-hn/mcp init --demo
 ```
 
 Crea `factura-demo.db` (base SQLite) y `emisor-demo.json` (emisor ficticio), registra un CAI ficticio de prueba
-e imprime el bloque `mcpServers` con las rutas absolutas.
+e imprime el bloque `mcpServers` con las rutas absolutas. `npx` descarga el paquete la primera vez: hace falta
+conexión a internet.
 
 **2.** Pega el bloque en la configuración de tu cliente MCP y reinícialo:
 
@@ -25,10 +26,19 @@ e imprime el bloque `mcpServers` con las rutas absolutas.
 | Cursor | `~/.cursor/mcp.json` (todos los proyectos) o `.cursor/mcp.json` (uno) |
 | VS Code | `.vscode/mcp.json`, con la clave `"servers"` en vez de `"mcpServers"` |
 
-En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp"]`, porque `npx` es
-un `.cmd`; en macOS y Linux, `"command": "npx"`.
+En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@<versión>"]`, porque
+`npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió: el cliente
+arranca siempre esa, no la última publicada. Para actualizar, vuelve a correr `init` con la versión nueva o
+cambia el número en el bloque.
+
+La primera vez que el cliente arranca el servidor, `npx` lo descarga si no está en la caché de npm: hace falta
+conexión a internet y puede tardar unos segundos. Si el cliente dice que el servidor no respondió a tiempo,
+reinícialo una vez.
 
 **3.** Pídele al asistente: «emite una factura de prueba».
+
+Para ver el documento como sale impreso, pídele que lo muestre impreso: usa `consultar_documento` con formato
+`texto`, que da el ticket en texto. El MCP no genera PDF ni HTML; para eso, el SDK (`renderizarHTML`) o la API.
 
 El resultado dice **DOCUMENTO DE PRUEBA — SIN VALOR FISCAL**: el CAI es ficticio (`DEMO00-NO-VALIDO-…`) y vence
 a los 180 días. Repetir `init --demo` no cambia nada; `init --demo --forzar` recrea la base de prueba, salvo que

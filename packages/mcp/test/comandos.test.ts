@@ -50,7 +50,7 @@ describe('init --demo', () => {
     expect(autorizaciones(base)).toBe(3);
     expect(r.out).toContain(LEYENDA_PRUEBA);
     const b = bloqueDe(r.out).mcpServers['factura-hn'];
-    expect(b).toEqual({ command: 'npx', args: ['-y', '@factura-hn/mcp'], env: { FHN_SQLITE: base, FHN_EMISOR: emisor, FHN_ESTABLECIMIENTO: '000', FHN_PUNTO: '001' } });
+    expect(b).toEqual({ command: 'npx', args: ['-y', expect.stringMatching(/^@factura-hn\/mcp@\d+\.\d+\.\d+/)], env: { FHN_SQLITE: base, FHN_EMISOR: emisor, FHN_ESTABLECIMIENTO: '000', FHN_PUNTO: '001' } });
     expect(r.out).toMatch(/Claude Desktop[\s\S]*Claude Code[\s\S]*Cursor[\s\S]*VS Code/);
     expect(r.out).toContain('«emite una factura de prueba»');
   });
@@ -91,9 +91,11 @@ describe('init --demo', () => {
   it('en Windows el bloque lanza npx con cmd /c', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'fhn-init-'));
     const r = await correr(['init', '--demo'], { cwd: dir, plataforma: 'win32' });
-    expect(bloqueDe(r.out).mcpServers['factura-hn']).toMatchObject({ command: 'cmd', args: ['/c', 'npx', '-y', '@factura-hn/mcp'] });
+    const version = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version as string;
+    // Con la versión fija: el cliente MCP arranca siempre la que imprimió el bloque.
+    expect(bloqueDe(r.out).mcpServers['factura-hn']).toMatchObject({ command: 'cmd', args: ['/c', 'npx', '-y', `@factura-hn/mcp@${version}`] });
     expect(r.out).toContain('Claude Desktop: Settings > Developer > Edit Config');
-    expect(bloqueMcpServers({}, 'darwin').mcpServers['factura-hn'].command).toBe('npx');
+    expect(bloqueMcpServers({}, 'darwin').mcpServers['factura-hn']).toMatchObject({ command: 'npx', args: ['-y', `@factura-hn/mcp@${version}`] });
   });
 
   it('opciones mal escritas: error en español y código 1', async () => {

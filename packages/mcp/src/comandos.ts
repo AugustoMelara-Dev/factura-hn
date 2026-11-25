@@ -15,6 +15,7 @@ import { BackendApi, caisDeBase, clavesSQLite, ErrorBackend, registrarCAIEnAlmac
 import { autorizacionesDemo, EMISOR_DEMO, esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { plantillaEmisor } from './emisor';
 import { conSolucion } from './soluciones';
+import { versionPaquete } from './version';
 
 export interface Salida {
   out(texto: string): void;
@@ -35,6 +36,7 @@ const consola: Salida = { out: (t) => console.log(t), err: (t) => console.error(
 
 /** El paquete que se ejecuta con npx. */
 const PAQUETE = '@factura-hn/mcp';
+
 
 /** Abre (o crea) una base SQLite en archivo. node:sqlite se carga solo aquí, como en el servidor. */
 export function abrirBase(ruta: string) {
@@ -64,9 +66,13 @@ const codigo3 = (v: string, nombre: string) => {
   return v.padStart(3, '0');
 };
 
-/** Bloque `mcpServers` para pegar en el cliente MCP. En Windows, npx es un .cmd y se lanza con `cmd /c`. */
-export function bloqueMcpServers(env: Record<string, string>, plataforma: NodeJS.Platform = process.platform) {
-  const comando = plataforma === 'win32' ? { command: 'cmd', args: ['/c', 'npx', '-y', PAQUETE] } : { command: 'npx', args: ['-y', PAQUETE] };
+/**
+ * Bloque `mcpServers` para pegar en el cliente MCP. En Windows, npx es un .cmd y se lanza con `cmd /c`. El paquete
+ * va con la versión fija de quien lo imprime: el cliente MCP arranca siempre la misma, no la última publicada.
+ */
+export function bloqueMcpServers(env: Record<string, string>, plataforma: NodeJS.Platform = process.platform, version = versionPaquete()) {
+  const paquete = version ? `${PAQUETE}@${version}` : PAQUETE;
+  const comando = plataforma === 'win32' ? { command: 'cmd', args: ['/c', 'npx', '-y', paquete] } : { command: 'npx', args: ['-y', paquete] };
   return { mcpServers: { 'factura-hn': { ...comando, env } } };
 }
 
