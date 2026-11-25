@@ -1,5 +1,5 @@
 # MCP remoto de la demostración pública en Fly.io (`factura-hn-mcp http`). Guía paso a paso: docs/despliegue-demo.md.
-#   fly deploy -c fly.mcp.toml        (desde la raíz del repositorio, después de la API)
+#   fly deploy -c fly.mcp.toml --ha=false        (desde la raíz del repositorio, después de la API; una sola máquina)
 # No tiene secretos ni credenciales de la base: llama a la API con la llave de cada conexión.
 app = "factura-hn-demo-mcp"
 primary_region = "iad"

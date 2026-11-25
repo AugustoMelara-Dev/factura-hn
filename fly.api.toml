@@ -1,8 +1,9 @@
 # API de la demostración pública en Fly.io (FHN_MODO=demo). Guía paso a paso: docs/despliegue-demo.md.
-#   fly deploy -c fly.api.toml        (desde la raíz del repositorio)
-# Los secretos (DATABASE_URL, FHN_MIGRAR_URL, FHN_DEMO_SECRETO, FHN_PROXIES_DE_CONFIANZA) van con `fly secrets set`,
-# nunca aquí. Cambia el nombre de la aplicación si ya está tomado y, con él, las URL de [env] y FHN_API_URL de
-# fly.mcp.toml.
+#   fly deploy -c fly.api.toml --ha=false        (desde la raíz del repositorio; una sola máquina)
+# Los secretos (DATABASE_URL, FHN_DEMO_SECRETO, SUPABASE_CA, FHN_PROXIES_DE_CONFIANZA) van con `fly secrets import`,
+# nunca aquí. La credencial del dueño de la base (FHN_MIGRAR_URL) NO va a Fly: la migración corre aparte, antes de
+# desplegar, con `node packages/api/dist/cli.js migrar` (ver docs/despliegue-demo.md). Cambia el nombre de la
+# aplicación si ya está tomado y, con él, las URL de [env] y FHN_API_URL de fly.mcp.toml.
 app = "factura-hn-demo-api"
 primary_region = "iad"
 kill_signal = "SIGTERM"
@@ -11,14 +12,11 @@ kill_timeout = "15s"
 [build]
   dockerfile = "Dockerfile.api"
 
-[deploy]
-  # Migra con el dueño de las tablas (FHN_MIGRAR_URL) en una máquina aparte, antes de cambiar la que atiende: si la
-  # migración falla, el despliegue se detiene y sigue la versión anterior. También prepara el rol LOGIN de
-  # DATABASE_URL (le concede el rol de la aplicación). El servidor vuelve a comprobarlo al arrancar.
-  release_command = "factura-hn-api migrar"
-
 [env]
   FHN_MODO = "demo"
+  # Atiende solo con el rol de la API (DATABASE_URL = fhn_api): no migra ni tiene credenciales de dueño. Al arrancar
+  # exige que el esquema esté al día y que DATABASE_URL no sea dueño, superusuario ni BYPASSRLS.
+  FHN_MIGRAR_AL_ARRANCAR = "0"
   PUERTO = "8787"
   # «::» escucha en IPv6 y en IPv4: la red privada de Fly (<app>.internal, por donde llama el MCP remoto) es
   # solo IPv6, y el proxy público llega por IPv4.
@@ -29,8 +27,8 @@ kill_timeout = "15s"
   # URL públicas para los ejemplos de cada entorno nuevo. Con un dominio propio, cámbialas aquí.
   FHN_DEMO_URL_API = "https://factura-hn-demo-api.fly.dev"
   FHN_DEMO_URL_MCP = "https://factura-hn-demo-mcp.fly.dev/mcp"
-  # Cómo se ve la consola en los mensajes de la API: dentro de `fly ssh console`.
-  FHN_CONSOLA = "factura-hn-api"
+  # Cómo se ve la consola en los mensajes de la API: se corre desde un clon del repositorio, con el dueño.
+  FHN_CONSOLA = "node packages/api/dist/cli.js"
   # Por debajo de los 512 MB de la máquina: Node libera memoria antes de que el sistema mate el proceso.
   NODE_OPTIONS = "--max-old-space-size=384"
   # Los límites FHN_DEMO_* quedan en sus valores por defecto (docs/demo.md): son estrictos a propósito.

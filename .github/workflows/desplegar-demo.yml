@@ -1,6 +1,8 @@
 # Despliega la demostración pública en Fly.io (fly.api.toml y fly.mcp.toml). Solo a mano: nunca en cada cambio.
-# Corre en el entorno protegido «demo» (Settings > Environments): cada corrida espera la aprobación de quien lo
-# administra, y el secreto FLY_API_TOKEN vive solo en ese entorno. Guía: docs/despliegue-demo.md.
+# Corre en el entorno protegido «demo» (Settings > Environments, solo desde main): cada corrida espera la aprobación
+# de quien lo administra, y los secretos viven solo en ese entorno. Guía: docs/despliegue-demo.md.
+# Primero migra la base con el dueño (FHN_MIGRAR_URL, que nunca llega a Fly); luego despliega. La API atiende solo
+# con su propio rol (FHN_MIGRAR_AL_ARRANCAR=0).
 # Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml; flyctl, por versión.
 name: Desplegar demostración
 
@@ -24,13 +26,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  migrar:
+    name: Migrar la base (dueño de las tablas)
+    if: ${{ inputs.que != 'mcp' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: demo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter '@factura-hn/api...'
+      - run: pnpm --filter '@factura-hn/api...' build
+      # El certificado de Supabase, donde lo busca FHN_MIGRAR_URL (sslrootcert=prod-ca-2021.crt, relativo a la raíz).
+      - name: Certificado de Supabase
+        env:
+          SUPABASE_CA: ${{ secrets.SUPABASE_CA }}
+        run: printf '%s' "$SUPABASE_CA" | base64 -d > prod-ca-2021.crt
+      # Migra, le concede el rol de la aplicación a fhn_api y se niega si la base tiene datos que no son de la
+      # demostración. De DATABASE_URL solo se lee el nombre del rol de la API: no lleva contraseña ni se conecta.
+      - name: factura-hn-api migrar
+        env:
+          FHN_MODO: demo
+          FHN_MIGRAR_URL: ${{ secrets.FHN_MIGRAR_URL }}
+          DATABASE_URL: postgresql://fhn_api@solo-el-nombre-del-rol/postgres
+        run: node packages/api/dist/cli.js migrar
+      - if: ${{ always() }}
+        run: rm -f prod-ca-2021.crt
+
   desplegar:
     name: Desplegar en Fly.io (${{ inputs.que }})
+    needs: migrar
+    # Solo el MCP: no hace falta migrar. Si la migración falló, no se despliega.
+    if: ${{ !cancelled() && (needs.migrar.result == 'success' || needs.migrar.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: demo
-    env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,10 +74,26 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
         with:
           version: 0.5.10
-      # La API primero: su release_command migra la base antes de cambiar la máquina que atiende.
+      # --ha=false: una sola máquina por aplicación. Las sesiones del MCP y los límites viven en memoria.
       - name: API
         if: ${{ inputs.que != 'mcp' }}
-        run: flyctl deploy -c fly.api.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy -c fly.api.toml --remote-only --ha=false
       - name: MCP remoto
         if: ${{ inputs.que != 'api' }}
-        run: flyctl deploy -c fly.mcp.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy -c fly.mcp.toml --remote-only --ha=false
+      - name: Una sola máquina por aplicación
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          for app in factura-hn-demo-api factura-hn-demo-mcp; do
+            n=$(flyctl machines list -a "$app" --json | jq 'length')
+            echo "$app: $n máquina(s)"
+            if [ "$n" != "1" ]; then
+              echo "::error::$app tiene $n máquinas y debe tener una: fly scale count 1 -a $app --yes"
+              exit 1
+            fi
+          done
