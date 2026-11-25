@@ -13,11 +13,17 @@ import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, politicasRLS } from '@factura-hn/postgres';
 import { EMISOR_DEMO } from 'factura-hn/demo';
 
-export const VERSION_ESQUEMA_API = 8;
+export const VERSION_ESQUEMA_API = 9;
 export const ROL_POR_DEFECTO = 'fhn_app';
 
 export const TABLAS_API_FORZADAS = ['api_tenants', 'api_emisores', 'api_idempotencia', 'api_webhooks', 'api_uso', 'api_bitacora'] as const;
 export const TABLAS_API_SIN_FORZAR = ['api_llaves', 'api_entregas'] as const;
+
+/**
+ * Marca de la v9: el comentario de `fhn_api_tenants_con_pendientes()`, que desde la v9 omite los tenants inactivos.
+ * La función ya existía; su cuerpo nuevo no se nota en los privilegios, así que `exigirEsquemaApi` busca la marca.
+ */
+export const MARCA_PENDIENTES_V9 = 'factura-hn api v9: solo tenants activos';
 
 export const ESQUEMA_API = `
 CREATE TABLE IF NOT EXISTS api_tenants (
@@ -219,11 +225,26 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp
   UPDATE api_llaves SET ultimo_uso = now() WHERE prefijo = p_prefijo AND hash = p_hash AND revocada IS NULL
 $$$f$, current_schema());
 
+-- v9: solo tenants activos. Las entregas de un tenant desactivado se quedan PENDIENTE (no se borran ni fallan): si
+-- se reactiva, salen. Como fhn_api_autenticar: api_tenants fuerza RLS también al dueño, así que se fija cada tenant
+-- solo para leer su fila y al final se devuelve el valor anterior.
 EXECUTE format($f$
 CREATE OR REPLACE FUNCTION fhn_api_tenants_con_pendientes()
 RETURNS SETOF text
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
-  SELECT DISTINCT tenant FROM api_entregas WHERE estado = 'PENDIENTE' AND proximo <= now()
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, %I, pg_temp AS $$
+DECLARE
+  v_previo text := current_setting('factura_hn.tenant', true);
+  v_tenant text;
+  v_activo boolean;
+BEGIN
+  FOR v_tenant IN SELECT DISTINCT e.tenant FROM api_entregas e WHERE e.estado = 'PENDIENTE' AND e.proximo <= now() LOOP
+    PERFORM set_config('factura_hn.tenant', v_tenant, true);
+    SELECT t.activo INTO v_activo FROM api_tenants t WHERE t.tenant = v_tenant;
+    IF v_activo IS TRUE THEN RETURN NEXT v_tenant; END IF;
+  END LOOP;
+  PERFORM set_config('factura_hn.tenant', coalesce(v_previo, ''), true);
+  RETURN;
+END
 $$$f$, current_schema());
 
 -- v5: retención. (a) La copia guardada de la respuesta de una clave de idempotencia vieja se reduce al número
@@ -313,6 +334,7 @@ REVOKE ALL ON FUNCTION fhn_api_mantenimiento(integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_autenticar(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_prefijo_registrado(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION fhn_api_tenants_con_pendientes() FROM PUBLIC;
+COMMENT ON FUNCTION fhn_api_tenants_con_pendientes() IS '${MARCA_PENDIENTES_V9}';
 REVOKE ALL ON FUNCTION fhn_api_marcar_uso(text, bytea) FROM PUBLIC;
 `;
 
@@ -409,13 +431,15 @@ export async function exigirEsquemaApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, con
     `SELECT coalesce(has_function_privilege($2, to_regprocedure($1), 'EXECUTE'), false)
         AND CASE WHEN EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass($3) AND attname = $4 AND NOT attisdropped)
                  THEN has_column_privilege($2, to_regclass($3), $4, 'UPDATE') ELSE false END
-        AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_tenants') AND attname = 'modo' AND NOT attisdropped) AS ok`,
-    [MARCA_ESQUEMA_API, rol, MARCA_COLUMNA_API.tabla, MARCA_COLUMNA_API.columna],
+        AND EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('api_tenants') AND attname = 'modo' AND NOT attisdropped)
+        AND coalesce(obj_description(to_regprocedure('fhn_api_tenants_con_pendientes()'), 'pg_proc'), '') = $5 AS ok`,
+    [MARCA_ESQUEMA_API, rol, MARCA_COLUMNA_API.tabla, MARCA_COLUMNA_API.columna, MARCA_PENDIENTES_V9],
   );
   if (r.rows[0]?.ok) return;
   throw new Error(
     `La base tiene el esquema de la API en una versión anterior a la ${VERSION_ESQUEMA_API} que necesita este código ` +
-      `(falta ${MARCA_ESQUEMA_API}, ${MARCA_COLUMNA_API.tabla}.${MARCA_COLUMNA_API.columna} o ${MARCA_MODO_API}, o el rol de ` +
+      `(falta ${MARCA_ESQUEMA_API}, ${MARCA_COLUMNA_API.tabla}.${MARCA_COLUMNA_API.columna}, ${MARCA_MODO_API} o la v9 de ` +
+      `fhn_api_tenants_con_pendientes(), o el rol de ` +
       'la API no puede usarlas). Migra antes de arrancar: arranca con ' +
       `FHN_MIGRAR_URL (conexión del dueño de las tablas; la API migra al arrancar) o corre «${consola} migrar» ` +
       'con FHN_MIGRAR_URL o DATABASE_URL del dueño. Ver docs/autoalojamiento.md.',

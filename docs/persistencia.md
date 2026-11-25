@@ -63,8 +63,19 @@ interface TransaccionFiscal {
   documentos(filtro?: FiltroDocumentos): Promise<DocumentoFiscal[]>;
   registrarEvento(evento: EventoAuditoria): Promise<void>;     // bitácora: solo inserción
   eventos(filtro?: FiltroEventos): Promise<EventoAuditoria[]>;  // en orden de registro
+
+  // Opcionales: optimizaciones para períodos grandes.
+  paginaDocumentos?(filtro: FiltroDocumentos, pagina: PaginaDocumentos): Promise<ResumenDocumento[]>;
+  contarDocumentos?(filtro: FiltroDocumentos): Promise<number>;
+  correlativos?(identificador: string): Promise<number[]>;
 }
 ```
+
+Las tres últimas son opcionales. `paginaDocumentos` lee los documentos por páginas (los reportes de período la
+usan para no cargar todo el período en memoria), `contarDocumentos` los cuenta y `correlativos` da los números de
+una serie. Sin ellas, el core usa `documentos(filtro)` y filtra o cuenta en memoria: el resultado es el mismo,
+con más memoria en períodos grandes. Si implementas `paginaDocumentos`, devuelve los documentos en orden de número
+y empieza después de `despuesDe`: una página que no avanza es un error.
 
 `EstadoSerie.ultimaFecha` es la fecha más reciente entre los documentos **EMITIDOS** de la serie; al anular,
 recalcúlala (así un documento anulado por fecha errónea deja de trabar la serie).

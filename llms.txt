@@ -40,8 +40,9 @@ Prompt de una línea (API): Conecta este proyecto a la API REST de factura-hn (U
 
 ## Tipos clave
 
-- AutorizacionCAI { cai, tipoDocumento, establecimiento, puntoEmision, rangoInicial, rangoFinal, fechaLimiteEmision }
-- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones? }
+- AutorizacionCAI { cai, tipoDocumento, establecimiento, puntoEmision, rangoInicial, rangoFinal, fechaLimiteEmision, ultimoEmitidoAntes?, fechaAutorizacion?, prueba? }
+- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, fechaEmision? (solo la de hoy), horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones?, operador? (se imprime como «Atendido por») }
+- OpcionesEmision { almacen, establecimiento, puntoEmision, opciones?: { umbralIdentificacionConsumidorFinal?, caiEstricto?, reloj? }, saltoMaximoDias?, confirmarSaltoDeFecha?, actor?, operador? (solo en la bitácora), alEmitir?, libroContable? }
 - Emisor { rtn, razonSocial, nombreComercial, direccionCasaMatriz, direccionEstablecimiento, telefono, correo } (todos obligatorios)
 - LineaEntrada { codigo?, descripcion, cantidad, precioUnitario, isv?: 'ISV15'|'ISV18'|'GRAVADO0'|'EXENTO', descuento?, unidad? }
 - DocumentoFiscal { numero, correlativo, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, estado: 'EMITIDO'|'ANULADO', anulacion?, ... }

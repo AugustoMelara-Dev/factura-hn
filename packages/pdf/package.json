@@ -1,6 +1,6 @@
 {
   "name": "@factura-hn/pdf",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "PDF de documentos fiscales de factura-hn (carta y ticket 80 mm), sin navegador. Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
@@ -24,16 +24,18 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "peerDependencies": {
     "factura-hn": "workspace:^"

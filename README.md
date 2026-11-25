@@ -17,11 +17,11 @@ ticket de 80 mm o texto para impresoras térmicas. Sin dependencias.
 
 ## La primera factura en 3 pasos
 
-Elige un camino. Los tres empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor
+Elige un camino: SDK, API REST, MCP o Next.js. Los cuatro empiezan en **modo de prueba**: CAI ficticio (`DEMO00-NO-VALIDO-…`) y emisor
 ficticio. Todo impreso dice **«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Para facturar de verdad, ver
 [Pasar a producción](#pasar-a-producción).
 
-### SDK (Node 18 o más reciente)
+### SDK (Node 20 o más reciente)
 
 En la carpeta de tu proyecto, o en una nueva:
 
@@ -80,11 +80,16 @@ con `FHN_PUERTO=8788 docker compose up -d --build --wait` y usa `API=http://127.
    Si dice «No se emitió», la respuesta trae el error con su `solucion`. Lo más común: `LLAVE` vacía (el paso 1
    falló) o el comando no se corrió desde la raíz del repositorio (no encuentra `packages/api/ejemplos/factura.json`).
 
+   La venta de `factura.json` es de 2 × L 57.50 con los precios con ISV: total L 115.00. No es la misma venta del
+   SDK ni de Next.js.
+
 3. Descarga el PDF:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API${PDF:?el paso 2 no emitió: revisa su salida}"
    ```
+
+   Si el paso 2 no emitió, este paso se detiene con «el paso 2 no emitió» y no deja un `factura.pdf` vacío.
 
 El resto de la API (llaves de caja, CAI real, reportes, webhooks) está en la
 [guía de la API](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md).
@@ -279,6 +284,7 @@ mixta.totales.baseCreditoFiscal; // 100
 | `AVISO_AJUSTE_CENTAVO` | Con precios con ISV incluido, el total bajó 1 centavo para cumplir el Art. 9 de la Ley del ISV |
 | `AVISO_ORIGINAL_EXTERNO` | Nota de crédito o débito sobre un documento que no está en este sistema |
 | `AVISO_ORIGINAL_SIN_RTN` | Nota sobre un documento emitido sin RTN del adquirente |
+| `AVISO_EXONERADO_RTN` | Venta exonerada a un adquirente sin RTN |
 
 **Cliente exonerado con una OCE que no cubre todo:** la exoneración aplica al documento completo. Emite dos
 facturas, una con `exoneracion` y los artículos cubiertos por la Orden de Compra Exenta y otra normal con el
@@ -435,11 +441,11 @@ herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `an
 - Vía la API: el bloque `mcpServers` con `FHN_API_URL` y `FHN_LLAVE` (una llave de caja).
 
 ```json
-{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.2.0"],
+{ "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.3.0"],
   "env": { "FHN_API_URL": "http://127.0.0.1:8787", "FHN_LLAVE": "fhn_…" } } } }
 ```
 
-En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.2.0"]`.
+En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@0.3.0"]`.
 
 ## Ejemplos
 
@@ -449,7 +455,7 @@ En Windows, `npx` es un `.cmd`: usa `"command": "cmd", "args": ["/c", "npx", "-y
 | [`pos-offline`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/pos-offline) | Mini POS fuera de línea: SDK + SQLite, sin duplicados y con cola de sincronización |
 | [`express`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/express) | Express 5 con la API: factura por pedido y receptor de webhooks |
 | [`nextjs`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/nextjs) | Next.js 16: server action y webhooks en un route handler |
-| [`playground`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/playground) | El SDK en el navegador, sin backend |
+| [`playground`](https://github.com/AugustoMelara-Dev/factura-hn/tree/main/examples/playground) | El SDK en el navegador, sin servidor |
 
 ## Reglas que tu sistema debe respetar
 

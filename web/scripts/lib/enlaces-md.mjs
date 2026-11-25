@@ -39,7 +39,11 @@ function fueraDeCodigo(texto, cambiar) {
   const protegidos = [];
   const marca = (m) => `\u0000${protegidos.push(m) - 1}\u0000`;
   const t = texto.replace(/<!--[\s\S]*?-->/g, marca).replace(/(`+)(?!`)[\s\S]*?[^`]\1(?!`)/g, marca);
-  return cambiar(t).replace(/\u0000(\d+)\u0000/g, (_, i) => protegidos[Number(i)]);
+  // Un tramo protegido puede llevar dentro la marca de otro (un comentario con código en línea, por ejemplo):
+  // se restaura en bucle hasta que no quede ninguna marca.
+  let salida = cambiar(t);
+  while (/\u0000\d+\u0000/.test(salida)) salida = salida.replace(/\u0000(\d+)\u0000/g, (_, i) => protegidos[Number(i)]);
+  return salida;
 }
 
 /**

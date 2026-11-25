@@ -15,14 +15,21 @@
  *   antes de cada uno.
  *
  * Uso:
- *   node scripts/publicar.mjs --dry-run   ensayo: empaqueta y simula la subida, sin autenticarse
- *   node scripts/publicar.mjs             publica (en la máquina del responsable, tras `npm login`; o en la CI)
+ *   node scripts/publicar.mjs --dry-run      ensayo: empaqueta y simula la subida, sin autenticarse
+ *   node scripts/publicar.mjs --pendientes   solo dice qué versiones faltan en npm (sin empaquetar ni
+ *                                            autenticarse); en GitHub Actions escribe `pendientes=true|false`
+ *                                            en $GITHUB_OUTPUT
+ *   node scripts/publicar.mjs                publica (en la máquina del responsable, tras `npm login`; o en la CI)
  *
- * Por cada paquete publicado crea la etiqueta de git `nombre@versión` e imprime «New tag: nombre@versión»
- * (changesets/action la usa para las releases de GitHub).
+ * En la CI la procedencia es explícita: release.yml pone NPM_CONFIG_PROVENANCE=true en el paso de publicación
+ * (no va en publishConfig, que rompería la publicación manual: fuera de la CI no hay OIDC que la firme).
+ *
+ * Por cada paquete publicado crea la etiqueta de git `nombre@versión` e imprime «New tag: nombre@versión». Si
+ * existe CHANGESETS_OUTPUT (lo pone changesets/action v2), escribe ahí un evento `git-tag` por paquete: con eso
+ * la acción crea la etiqueta en GitHub y la release con el CHANGELOG del paquete.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,11 +39,12 @@ const raiz = fileURLToPath(new URL('..', import.meta.url));
 const windows = process.platform === 'win32';
 const args = process.argv.slice(2);
 const ensayo = args.includes('--dry-run');
+const soloPendientes = args.includes('--pendientes');
 const enCI = process.env.GITHUB_ACTIONS === 'true';
 if (args.some((a) => a.startsWith('--otp'))) {
   salir('--otp ya no se usa: npm pide la confirmación en el navegador, con tu llave de seguridad.');
 }
-const desconocidos = args.filter((a) => a !== '--dry-run');
+const desconocidos = args.filter((a) => a !== '--dry-run' && a !== '--pendientes');
 if (desconocidos.length) salir(`argumentos desconocidos: ${desconocidos.join(' ')}`);
 
 function salir(mensaje) {
@@ -50,11 +58,11 @@ const ejecutar = (cmd, argumentos, opciones = {}) =>
 // npm >= 11.5.1 es el mínimo de la publicación de confianza.
 const versionNpm = ejecutar('npm', ['--version']);
 const [ma, mi, pa] = versionNpm.split('.').map(Number);
-if (enCI && !ensayo && (ma < 11 || (ma === 11 && (mi < 5 || (mi === 5 && pa < 1))))) {
+if (enCI && !ensayo && !soloPendientes && (ma < 11 || (ma === 11 && (mi < 5 || (mi === 5 && pa < 1))))) {
   salir(`la publicación de confianza requiere npm >= 11.5.1 (hay ${versionNpm})`);
 }
 
-if (!ensayo && ejecutar('git', ['status', '--porcelain', '--untracked-files=no'])) {
+if (!ensayo && !soloPendientes && ejecutar('git', ['status', '--porcelain', '--untracked-files=no'])) {
   salir('hay cambios sin confirmar: se publica solo desde un commit limpio');
 }
 
@@ -86,6 +94,12 @@ const pendientes = [];
 for (const p of paquetes) {
   if (publicada(p)) console.log(`ya está en npm: ${p.nombre}@${p.version}`);
   else pendientes.push(p);
+}
+if (soloPendientes) {
+  console.log(pendientes.length ? `Pendientes: ${pendientes.map((p) => `${p.nombre}@${p.version}`).join(', ')}` : 'Nada pendiente.');
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `pendientes=${pendientes.length > 0}
+`);
+  process.exit(0);
 }
 if (!pendientes.length) {
   console.log('Nada que publicar.');
@@ -152,6 +166,10 @@ try {
       // La etiqueta ya existía (p. ej. una publicación anterior a medias).
     }
     console.log(`New tag: ${etiqueta}`);
+    if (process.env.CHANGESETS_OUTPUT) {
+      appendFileSync(process.env.CHANGESETS_OUTPUT, `${JSON.stringify({ type: 'git-tag', tag: etiqueta, packageName: p.nombre })}
+`);
+    }
   }
 } finally {
   rmSync(temporal, { recursive: true, force: true });

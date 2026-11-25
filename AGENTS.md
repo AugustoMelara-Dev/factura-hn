@@ -275,8 +275,8 @@ await emitir({ ...entrada, operador: sesion.nombre /* solo si se imprime */ }, {
 - Banner en el POS con `estadoAutorizacion(aut, ultimo).alertas` (vencimiento cercano o rango casi agotado).
 - Botón de reimpresión (desde el documento guardado) en carta y ticket.
 - Anulación con motivo obligatorio (`anular`).
-- Exportación mensual: `libroVentasCSV(docs.map((d) => filaLibroVentas(d)))`. Los anulados salen con su
-  número y montos en cero.
+- Exportación mensual: `const { filas } = libroVentas(docs); libroVentasCSV(filas)`. `libroVentas` deja fuera los
+  documentos de prueba (`filaLibroVentas` sola no los filtra). Los anulados salen con su número y montos en cero.
 
 ## Pruebas que debes agregar en el proyecto
 

@@ -6,7 +6,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 function secreto(): string {
   const s = process.env.FHN_SECRETO_ENLACES;
-  if (!s || s.length < 32) throw new Error('Falta FHN_SECRETO_ENLACES (al menos 32 caracteres aleatorios).');
+  if (!s || s.length < 32) {
+    throw new Error(
+      'Falta FHN_SECRETO_ENLACES (al menos 32 caracteres aleatorios). Genera uno: ' +
+        'FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()+crypto.randomUUID())") en bash, o ' +
+        '$env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())" en PowerShell.',
+    );
+  }
   return s;
 }
 

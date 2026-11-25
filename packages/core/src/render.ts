@@ -214,7 +214,7 @@ ${exo}${ref}
   <thead><tr><th class="num">Cant.</th><th>Descripción</th><th class="num">P. unit.</th><th class="num">Importe</th></tr></thead>
   <tbody>${lineas}</tbody>
 </table>
-${doc.preciosIncluyenISV ? '<div class="desc">Precios incluyen ISV. G = gravado 15%, G18 = gravado 18%, E = exento.</div>' : '<div class="desc">G = gravado 15%, G18 = gravado 18%, E = exento.</div>'}
+<div class="desc">${doc.preciosIncluyenISV ? 'Precios incluyen ISV. ' : ''}G = gravado 15%, G18 = gravado 18%, ${doc.lineas.some((l) => l.isv === 'GRAVADO0') ? 'G0 = gravado 0%, ' : ''}E = exento.</div>
 
 <table class="totales"><tbody>${totales}</tbody></table>
 <div class="letras">${esc(doc.totales.totalEnLetras)}</div>

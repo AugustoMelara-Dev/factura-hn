@@ -131,6 +131,15 @@ try {
   const estados = new Map<number, number>();
   let repeticiones = 0;
 
+  // Cada llave se valida una vez, de a 4 a la vez (las `consultasSimultaneas` de la API): son llaves que el proceso
+  // nunca vio y llegan todas desde la misma dirección. Con 32 a la vez, el límite de intentos por dirección
+  // respondería 429 DEMASIADOS_INTENTOS a las que pasan de la ráfaga, aunque sean válidas (es la protección contra
+  // fuerza bruta: ver «Límites» en docs/api.md). Ya validadas, no pasan por ese límite.
+  const porValidar = [...llaves];
+  await Promise.all(Array.from({ length: Math.min(4, porValidar.length) }, async () => {
+    for (let l = porValidar.shift(); l; l = porValidar.shift()) await exigir(pedir(l.llave, 'GET', '/v1/sesion'), 200);
+  }));
+
   // Calentamiento: unas emisiones por caja (abre conexiones, compila consultas). No se mide.
   await Promise.all(llaves.map(async ({ llave }, i) => {
     for (let k = 0; k < 5; k++) {

@@ -3,8 +3,14 @@
 PDF de un documento de [factura-hn](https://www.npmjs.com/package/factura-hn), en tamaño carta o ticket de 80 mm. Usa `pdf-lib`: no necesita
 navegador ni dependencias nativas, así que funciona en Node, en funciones serverless y en el navegador.
 
+<!-- declaraciones:
+import type { DocumentoFiscal } from 'factura-hn';
+declare const documento: DocumentoFiscal;
+-->
 ```ts
 import { renderizarPDF } from '@factura-hn/pdf';
+
+// `documento` es el DocumentoFiscal que devolvió `emitir` (o `buscarDocumento`).
 
 const bytes = await renderizarPDF(documento);                         // carta
 const ticket = await renderizarPDF(documento, { formato: 'ticket' }); // 80 mm, alto según el contenido

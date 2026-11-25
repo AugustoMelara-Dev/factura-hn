@@ -26,7 +26,8 @@ conBase('autenticación y roles', () => {
       error: {
         codigo: 'NO_AUTENTICADO',
         mensaje: 'Falta la llave de API o no es válida.',
-        solucion: expect.stringContaining('Authorization: Bearer fhn_live_<prefijo>_<secreto>'),
+        // Sin «<…>»: Windows PowerShell 5.1 lo borra de ErrorDetails.Message.
+        solucion: expect.stringMatching(/^[^<>]*Authorization: Bearer` seguida de la llave completa \(`fhn_live_…[^<>]*$/),
         documentacion: 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#no_autenticado',
         solicitud: r.headers.get('solicitud-id'),
       },

@@ -11,6 +11,7 @@ import {
   MAX_DOCUMENTOS_REPORTE,
   maxDocumentosReporte,
   ReportesEnCurso,
+  REPORTES_SIMULTANEOS,
   reportesSimultaneosProceso,
   TAMANO_PARTE,
   transmitir,
@@ -110,7 +111,7 @@ describe('tope y cupos: configuración', () => {
 
 describe('cupos en las rutas', () => {
   /** App mínima: cupos y una ruta que transmite hasta que se le pide terminar; el tenant va en `?t=`. */
-  function appDePrueba(limites: { porTenant: number; proceso: number }) {
+  function appDePrueba(limites: { porTenant: number; proceso: number; porLlave?: number }) {
     const reportes = new ReportesEnCurso(limites);
     const app = new Hono();
     const fin: Array<() => void> = [];
@@ -121,7 +122,9 @@ describe('cupos en las rutas', () => {
       }
       return c.json({ error: { codigo: 'ERROR_INTERNO' } }, 500);
     });
-    const mw = reportes.middleware((c) => c.req.query('t') ?? 'a');
+    // La llave va en `?k=`; sin ella, cada solicitud es de una llave distinta (como antes del cupo por llave).
+    let otra = 0;
+    const mw = reportes.middleware((c) => c.req.query('t') ?? 'a', (c) => c.req.query('k') ?? `k${otra++}`);
     app.use('/r', mw);
     app.use('/falla', mw);
     app.use('/corto', mw);
@@ -173,6 +176,31 @@ describe('cupos en las rutas', () => {
     expect(await hasta(() => reportes.porTenant.enUso('a') === 1)).toBe(true);
     expect((await app.request('/r')).status).toBe(200);
     fin.forEach((f) => f());
+  });
+
+  it('cupo por llave: una caja que lee despacio no deja sin cupo al admin del mismo tenant', async () => {
+    const { app, fin, reportes } = appDePrueba({ porTenant: 2, proceso: 3, porLlave: 1 });
+    const lento = await app.request('/r?k=caja');
+    expect(lento.status).toBe(200);
+    // La misma llave pide otro: 429, y no toma ni devuelve cupos del tenant ni del proceso.
+    const segundo = await app.request('/r?k=caja');
+    expect(segundo.status).toBe(429);
+    expect(segundo.headers.get('retry-after')).toBe('1');
+    expect(((await segundo.json()) as { error: { codigo: string } }).error.codigo).toBe('LIMITE_SOLICITUDES');
+    expect([reportes.porTenant.enUso('a'), reportes.proceso.enUso('')]).toEqual([1, 1]);
+    // El admin del mismo tenant sí entra.
+    const admin = await app.request('/r?k=admin');
+    expect(admin.status).toBe(200);
+    fin.forEach((f) => f());
+    await Promise.all([lento.text(), admin.text()]);
+    expect(await hasta(() => reportes.porLlave.enUso('a:caja') === 0 && reportes.porTenant.enUso('a') === 0)).toBe(true);
+    expect((await app.request('/r?k=caja')).status).toBe(200);
+    fin.forEach((f) => f());
+  });
+
+  it('con el pool por omisión (10), el cupo del proceso (3) es mayor que el de un tenant (2)', () => {
+    expect(reportesSimultaneosProceso(undefined, 10, {})).toBe(3);
+    expect(reportesSimultaneosProceso(undefined, 10, {})).toBeGreaterThan(REPORTES_SIMULTANEOS);
   });
 
   it('el límite del proceso vale para todos los tenants juntos', async () => {

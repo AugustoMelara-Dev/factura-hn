@@ -131,18 +131,17 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### AUTORIZACION_DEMO_SIN_PRUEBA
 
-- **Ya no lo devuelve la API.** Lo devolvía `POST /v1/autorizaciones` con un CAI ficticio sin `"prueba": true` en
-  un tenant que no era el de demostración. Desde los modos de tenant, un tenant de producción no acepta ningún
-  CAI ficticio: ver [`CAI_DE_PRUEBA`](#cai_de_prueba).
+- **Ya no lo devuelve la API.** Se deja esta nota para los enlaces viejos.
+- **Qué hacer:** ver [`CAI_DE_PRUEBA`](#cai_de_prueba).
 
 ### AUTORIZACION_REAL_EN_DEMO
 
 - **Qué significa (API, 422):** se intentó registrar un CAI que no es ficticio en un tenant de prueba: el `demo`
   de la demostración o uno creado con `tenant crear --modo prueba` (sus llaves empiezan con `fhn_test_`).
-- **Causa:** se usó la llave admin del sandbox para registrar el CAI del negocio.
+- **Causa:** se usó la llave admin del tenant de prueba para registrar el CAI del negocio.
 - **Solución:** registra tu CAI en el tenant de producción de tu negocio, con su llave admin (`fhn_live_…`). Un
   tenant de prueba solo emite documentos de prueba con la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
-- **Base:** ninguna fiscal: separa la prueba de la facturación real (un CAI real en el sandbox emitiría documentos
+- **Base:** ninguna fiscal: separa la prueba de la facturación real (un CAI real en el tenant de prueba emitiría documentos
   con apariencia válida fuera de la serie real).
 
 ### CAI_DE_PRUEBA
@@ -309,6 +308,7 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 ### EMISOR_NOMBRE
 
 - **Qué significa:** falta la razón social o el nombre del emisor.
+- **Solución:** indica la razón social o el nombre del emisor tal como está en el RTN.
 - **Base:** Reglamento, Art. 10 num. 1 b.
 
 ### EMISOR_NOMBRE_COMERCIAL
@@ -320,16 +320,19 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 ### EMISOR_DIRECCION
 
 - **Qué significa:** falta la dirección de la casa matriz.
+- **Solución:** indica la dirección de la casa matriz.
 - **Base:** Reglamento, Art. 10 num. 1 d.
 
 ### EMISOR_DIRECCION_ESTABLECIMIENTO
 
 - **Qué significa:** falta la dirección del establecimiento del punto de emisión (puede ser la de casa matriz).
+- **Solución:** indica la dirección del establecimiento del punto de emisión (puede ser la de casa matriz).
 - **Base:** Reglamento, Art. 10 num. 1 d.
 
 ### EMISOR_TELEFONO
 
 - **Qué significa:** falta el teléfono del emisor.
+- **Solución:** indica el teléfono del emisor.
 - **Base:** Reglamento, Art. 10 num. 1 e.
 
 ### EMISOR_CORREO
@@ -379,6 +382,7 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 ### LINEA_DESCRIPCION
 
 - **Qué significa:** una línea no tiene descripción.
+- **Solución:** escribe la descripción del producto o servicio de esa línea.
 - **Base:** Reglamento, Art. 11 num. 1 d (descripción de los bienes o servicios).
 
 ### LINEA_CANTIDAD
@@ -450,6 +454,7 @@ moneda: la mayoría de estos errores desaparecen.
 ### REFERENCIA_CAI
 
 - **Qué significa:** falta el CAI del documento original.
+- **Solución:** copia el CAI, el número y la fecha tal como están impresos en el documento original.
 - **Base:** Reglamento, Arts. 26 y 28 num. 3.
 
 ### REFERENCIA_NUMERO
@@ -461,6 +466,7 @@ moneda: la mayoría de estos errores desaparecen.
 ### REFERENCIA_FECHA
 
 - **Qué significa:** la fecha del documento original no tiene la forma `AAAA-MM-DD`.
+- **Solución:** usa la fecha de emisión del documento original como AAAA-MM-DD.
 - **Base:** Reglamento, Arts. 26 y 28 num. 3 c.
 
 ### REFERENCIA_FECHA_POSTERIOR
@@ -472,16 +478,19 @@ moneda: la mayoría de estos errores desaparecen.
 ### REFERENCIA_TIPO
 
 - **Qué significa:** una nota de crédito refiere a un documento que no es un comprobante fiscal.
+- **Solución:** una nota de crédito se aplica a un comprobante fiscal, como una factura. Revisa el número de la referencia.
 - **Base:** Reglamento, Art. 4 num. 32 y Art. 6.
 
 ### REFERENCIA_MONEDA
 
 - **Qué significa:** la moneda del documento original no es `HNL` ni `USD`.
+- **Solución:** usa `'HNL'` o `'USD'` como moneda del documento original.
 
 ### REFERENCIA_TIPO_CAMBIO
 
 - **Qué significa:** el original está en moneda extranjera y falta su tipo de cambio para convertir la nota a
   lempiras.
+- **Solución:** indica en `referencia.tipoCambio` el tipo de cambio del documento original.
 - **Base:** Reglamento, Arts. 26 num. 9 y 28 num. 8 (las notas se emiten en lempiras).
 
 ### REFERENCIA_NO_EXISTE
@@ -507,16 +516,19 @@ moneda: la mayoría de estos errores desaparecen.
 ### REFERENCIA_CAI_NO_COINCIDE
 
 - **Qué significa:** el CAI de la referencia no es el del original guardado.
+- **Solución:** copia el CAI, el número y la fecha tal como están impresos en el documento original. Con `crearFacturador`, `notaCredito` los toma del original.
 - **Base:** Reglamento, Arts. 26 y 28 num. 3.
 
 ### REFERENCIA_FECHA_NO_COINCIDE
 
 - **Qué significa:** la fecha de la referencia no es la del original guardado.
+- **Solución:** copia el CAI, el número y la fecha tal como están impresos en el documento original. Con `crearFacturador`, `notaCredito` los toma del original.
 - **Base:** Reglamento, Arts. 26 y 28 num. 3.
 
 ### REFERENCIA_RTN_NO_COINCIDE
 
 - **Qué significa:** el RTN del adquirente de la nota no es el del original.
+- **Solución:** usa el RTN del adquirente del documento original: la nota es para el mismo cliente.
 - **Base:** Reglamento, Arts. 26 y 28 num. 1-2.
 
 ### REFERENCIA_MONEDA_NO_COINCIDE
@@ -550,17 +562,20 @@ moneda: la mayoría de estos errores desaparecen.
 
 ### NOTA_SUPERA_ORIGINAL
 
-- **Qué significa:** la nota de crédito, sumada a las notas vigentes sobre el mismo documento, supera su total. El
-  mensaje da el saldo disponible.
-- **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente; interpretación del
-  proyecto pendiente de confirmar con el SAR).
+- **Qué significa:** la nota de crédito, sumada a las notas vigentes sobre el mismo documento, supera su total o,
+  a una tasa (15 % o 18 %), su importe gravado o su ISV. Todo se compara en lempiras; un original en moneda
+  extranjera se convierte por el mismo camino que la nota (sus líneas, al tipo de cambio). El mensaje da el saldo
+  disponible (por tasa, si es el tope de una tasa).
+- **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
+  línea la misma tasa que en el original.
+- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente). El tope es una
+  interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### NOTA_TASA_DISTINTA
 
 - **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
 - **Solución:** usa en cada línea el mismo tratamiento de ISV que en el original.
-- **Base:** Reglamento, Art. 4 num. 32 (interpretación del proyecto pendiente de confirmar con el SAR).
+- **Base:** Reglamento, Art. 4 num. 32. Interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ## SDK: anulación y consulta
 
@@ -575,6 +590,16 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** el documento ya estaba anulado.
 - **Solución:** no hay que hacer nada. Si la venta era real, emite un documento nuevo.
 - **Base:** Reglamento, Art. 41.
+
+### DOCUMENTO_CON_NOTAS
+
+- **Qué significa:** se pidió anular un documento (por ejemplo, una factura) que tiene notas de crédito o débito
+  vigentes. El mensaje dice cuáles. Anularlo dejaría en el libro de ventas una nota sin venta (importes negativos).
+- **Solución:** anula primero las notas de crédito y débito vigentes que indica el mensaje (con su propio motivo) y
+  después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.
+- **Base:** Reglamento, Art. 41 (anulación) y Art. 4 num. 32 (la nota respalda un ajuste sobre el comprobante
+  correspondiente). Es la regla inversa de [`REFERENCIA_ANULADA`](#referencia_anulada). Ningún artículo la dice
+  así: es una interpretación del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### DOCUMENTO_NO_ENCONTRADO
 
@@ -630,8 +655,21 @@ moneda: la mayoría de estos errores desaparecen.
 
 ### AVISO_ORIGINAL_SIN_RTN
 
-- **Qué significa:** el original se emitió sin RTN del adquirente.
+- **Qué significa:** el original se emitió sin RTN del adquirente (por ejemplo, a CONSUMIDOR FINAL). La nota se
+  emite con el RTN que indiques, que el original no tenía.
 - **Qué hacer:** confirma que la nota corresponde al mismo cliente.
+- **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente). Aceptar un RTN que el original no tiene
+  es una lectura del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
+
+### AVISO_NOTA_EXONERACION_DISTINTA
+
+- **Qué significa:** la nota de crédito no es exonerada y su original sí (o al revés). Se emite, pero en el libro de
+  ventas el crédito queda en otra columna que la venta: por ejemplo, `importeExento` −100 frente a
+  `importeExonerado` +100.
+- **Qué hacer:** si el original es exonerado, copia su `exoneracion` en la nota; si no lo es, quita `exoneracion`
+  de la nota. El aviso trae esa `solucion`.
+- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente) y Art. 11 num. 4 (datos del
+  adquirente exonerado). Es un aviso del proyecto, en [consulta al SAR](https://augustomelara-dev.github.io/factura-hn/produccion/consulta-sar/).
 
 ### AVISO_VENCIMIENTO
 
@@ -666,8 +704,9 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### SOLICITUD_INVALIDA
 
-- **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla.
-- **Solución:** compara la solicitud con `GET /openapi.json`.
+- **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla. También
+  lo usa el servidor MCP cuando un argumento de una herramienta no tiene la forma esperada (en español, con el campo).
+- **Solución:** compara la solicitud con `GET /openapi.json`. En el MCP, corrige ese argumento y vuelve a llamar.
 
 ### JSON_INVALIDO
 
@@ -692,6 +731,13 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
   de fecha, una nota de crédito sobre un original externo, llaves, webhooks y exportación).
 - **Solución:** usa la llave admin del negocio.
 
+### TENANT_FUERA_DEL_MODO_LOCAL
+
+- **Qué significa (403):** la API corre en modo local (un solo negocio) y la llave es de otro tenant que no es
+  `local` ni `demo` (p. ej. uno creado por fuera de la consola). Lo devuelve cualquier operación de `/v1`.
+- **Solución:** usa una llave del tenant `local` (tu negocio) o del `demo`. Si el servidor sirve a varios negocios,
+  el operador debe arrancarlo con `FHN_MODO=alojado` (y `FHN_CLAVE_CIFRADO`).
+
 ### CAJA_SIN_PUNTO
 
 - **Qué significa (403):** la llave de caja no está atada a un establecimiento y punto de emisión. Lo devuelven
@@ -715,8 +761,10 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### IDEMPOTENCY_KEY
 
-- **Qué significa (400):** falta la cabecera `Idempotency-Key` o no es válida (1 a 255 caracteres visibles).
-- **Solución:** envía una clave estable por venta: el mismo valor en cada reintento.
+- **Qué significa (400):** la cabecera `Idempotency-Key` falta, está vacía o es demasiado larga (de 1 a 255
+  caracteres visibles).
+- **Solución:** envía la cabecera `Idempotency-Key` con un valor único por venta (p. ej. el id del pedido o de la venta) y, si
+  reintentas esa misma venta, reutiliza el mismo valor: así nunca se emite dos veces.
 
 ### IDEMPOTENCIA_CONFLICTO
 
@@ -866,5 +914,50 @@ El servidor MCP devuelve `{ codigo, errores }` en `structuredContent`. Usa estos
 - `OPERADOR_REQUERIDO`: ver [OPERADOR_REQUERIDO](#operador_requerido).
 - `IDEMPOTENCIA_CONFLICTO`: ver [IDEMPOTENCIA_CONFLICTO](#idempotencia_conflicto).
 - `NO_ENCONTRADO`: ver [NO_ENCONTRADO](#no_encontrado).
+- `API_INACCESIBLE`: ver [API_INACCESIBLE](#api_inaccesible).
+- `BASE_DEMO`: ver [BASE_DEMO](#base_demo).
+- `CAI_DEMO`: ver [CAI_DEMO](#cai_demo).
+- `SOLICITUD_INVALIDA`: un argumento no tiene la forma esperada; ver [SOLICITUD_INVALIDA](#solicitud_invalida).
+- `CONFIRMACION_NO_DISPONIBLE`: ver [CONFIRMACION_NO_DISPONIBLE](#confirmacion_no_disponible).
+- `CONFIRMACION_RECHAZADA`: ver [CONFIRMACION_RECHAZADA](#confirmacion_rechazada).
+
+### CONFIRMACION_NO_DISPONIBLE
+
+- **Qué significa:** `anular_documento` o `registrar_cai` necesitan la confirmación del usuario por elicitación MCP
+  y el cliente MCP no la ofrece. No se hizo nada. (Anular un documento de prueba y registrar el CAI ficticio del
+  demo no la necesitan.)
+- **Solución:** registra el CAI tú con `npx -y @factura-hn/mcp registrar-cai`, usa un cliente con elicitación o, si
+  aceptas que el asistente anule y registre CAI sin esa confirmación, agrega `FHN_MCP_PERMITIR_DESTRUCTIVAS=1` al
+  `env` del servidor MCP y reinícialo.
+
+### CONFIRMACION_RECHAZADA
+
+- **Qué significa:** el servidor MCP pidió confirmación para anular o registrar un CAI y el usuario la rechazó, la
+  canceló o no marcó la casilla. No se hizo nada.
+- **Solución:** no la reintentes automáticamente: revisa los datos con el usuario y vuelve a llamar solo si lo pide.
 
 En modo API, el servidor MCP pasa tal cual los códigos de la [API REST](#api-rest).
+
+### API_INACCESIBLE
+
+- **Qué significa:** en modo API, el servidor MCP no pudo conectar con la API de factura-hn (está apagada o la URL
+  está mal escrita).
+- **Solución:** revisa que la API esté en marcha y que `FHN_API_URL` sea correcta.
+- **Base:** ninguna fiscal: es un error de conexión.
+
+### BASE_DEMO
+
+- **Qué significa:** se quiso registrar un CAI real en una base de demostración (la que tiene el CAI ficticio).
+  Esa base no recibe CAI reales.
+- **Solución:** para facturar de verdad, crea la base del negocio con `npx -y @factura-hn/mcp init` (sin `--demo`),
+  registra ahí el CAI real y cambia `FHN_SQLITE` y `FHN_EMISOR` en la configuración del cliente MCP.
+- **Base:** ninguna fiscal: separa la prueba de la facturación real (los números de una base de demostración ya se
+  usaron en documentos de prueba).
+
+### CAI_DEMO
+
+- **Qué significa:** `registrar_cai` (o `registrar-cai`) recibió el CAI ficticio de prueba (`DEMO00-NO-VALIDO-…`),
+  no uno de una resolución del SAR.
+- **Solución:** el CAI ficticio solo se usa en la base de demostración que crea `npx -y @factura-hn/mcp init --demo`.
+  Para facturar de verdad, registra el CAI de la resolución del SAR.
+- **Base:** ninguna fiscal: un CAI ficticio no autoriza documentos reales.

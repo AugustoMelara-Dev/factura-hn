@@ -163,7 +163,7 @@ describe('4. la exportación y el libro dejan fuera los documentos de prueba', (
     for (const formato of ['csv', 'txt', 'jsonl'] as const) {
       expect(exportarTexto(docs, { formato }), formato).toBe(exportarTexto([deReal], { formato }));
     }
-    expect(exportarTexto(docs, { formato: 'txt' }).split('\n')[0]).toBe('#factura-hn|v1|1');
+    expect(exportarTexto(docs, { formato: 'txt' }).split('\n')[0]).toBe('#factura-hn|v2|1');
     const libro = libroVentas(docs);
     expect(libro.excluidos).toBe(2);
     expect(libro.filas.map((f) => f.numero)).toEqual([deReal.numero]);

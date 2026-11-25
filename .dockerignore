@@ -9,3 +9,7 @@ clientes/python/generado
 **/.pytest_cache
 **/__pycache__
 colecciones/bruno/.env
+# Secretos locales y ajustes de cada instalación: nunca en la imagen. .env.example es una plantilla sin secretos.
+**/.env*
+!**/.env.example
+docker-compose.override.yml

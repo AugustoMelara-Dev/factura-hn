@@ -39,7 +39,7 @@ FISCAL» (`LEYENDA_PRUEBA`) en el HTML, el texto y el PDF. Para facturar de verd
 ## 1. Instala
 
 ```bash
-npm install factura-hn @factura-hn/sqlite      # una caja, fuera de línea (Node 18+ con better-sqlite3; 22.13+ con node:sqlite)
+npm install factura-hn @factura-hn/sqlite      # una caja, fuera de línea (Node 20+ con better-sqlite3; 22.13+ con node:sqlite)
 npm install factura-hn @factura-hn/postgres pg # un servidor con varias cajas
 npm install @factura-hn/pdf                    # opcional: PDF carta y ticket
 ```
@@ -166,6 +166,8 @@ Un documento emitido no se borra ni se edita. Hay dos caminos, según el caso:
 - **La venta fue correcta y luego hay una devolución o un descuento**: se emite una Nota de Crédito sobre el
   documento, que debe estar vigente (no anulado) y tener el RTN del cliente (Art. 26 num. 1-2).
 
+Un documento con notas de crédito o débito vigentes no se anula (`DOCUMENTO_CON_NOTAS`): anula primero las notas.
+
 <!-- declaraciones:
 import type { AlmacenFiscal } from 'factura-hn';
 declare const almacen: AlmacenFiscal;
@@ -212,9 +214,11 @@ const nota = await emitir(
 console.log(nota.numero, nota.advertencias); // 000-001-06-00000001 []
 ```
 
-La suma de las notas de crédito sobre un documento no puede superar su total: si lo hace, `emitir` lanza
-`ErrorValidacion` con `NOTA_SUPERA_ORIGINAL` y el saldo disponible en el mensaje. Tampoco puede llevar ISV a una
-tasa que el original no tenía (`NOTA_TASA_DISTINTA`). En ambos casos no se consume número.
+La suma de las notas de crédito sobre un documento no puede superar su total, ni a cada tasa (15 % y 18 %) su
+importe gravado y su ISV: si lo hace, `emitir` lanza `ErrorValidacion` con `NOTA_SUPERA_ORIGINAL` y el saldo
+disponible en el mensaje. Tampoco puede llevar ISV a una tasa que el original no tenía (`NOTA_TASA_DISTINTA`). En
+ambos casos no se consume número. Si el original es exonerado y la nota no (o al revés), la nota se emite con el
+aviso `AVISO_NOTA_EXONERACION_DISTINTA`.
 
 ## 7. Libro de ventas
 
@@ -223,11 +227,22 @@ import type { AlmacenFiscal } from 'factura-hn';
 declare const almacen: AlmacenFiscal;
 -->
 ```ts
-import { filaLibroVentas, libroVentasCSV } from 'factura-hn';
+import { libroVentas, libroVentasCSV } from 'factura-hn';
 
 const docs = await almacen.transaccion((tx) => tx.documentos({ desde: '2026-11-01', hasta: '2026-11-30' }));
-const csv = libroVentasCSV(docs.map(filaLibroVentas)); // en lempiras; los anulados salen con su número y montos en cero
+// libroVentas deja fuera los documentos de prueba; filaLibroVentas sola no los filtra.
+const { filas } = libroVentas(docs);
+const csv = libroVentasCSV(filas); // en lempiras; los anulados salen con su número y montos en cero
 ```
+
+Para los archivos de texto del Art. 53 num. 5 está `exportarTexto(docs, { formato })`: `jsonl` (un documento
+completo por línea; se lee con `leerExportacionJSONL`), `csv` y `txt` (separador `|`, encabezado
+`#factura-hn|v2|N`, con N documentos). El CSV y el TXT llevan una fila por documento con estas columnas: `numero,
+tipo, fecha, hora, cai, estado, emisorRTN, clienteRTN, clienteNombre, moneda, exonerado, exento, gravado0,
+gravado15, gravado18, isv15, isv18, descuentos, total, referencia, motivoAnulacion, tipoCambio, fechaAnulacion`.
+Los importes van en la moneda del documento; `tipoCambio` va vacío en lempiras y `fechaAnulacion`, si no está
+anulado. La versión 2 (`VERSION_EXPORTACION`) agregó esas dos al final: las 21 primeras son las de la versión 1,
+en el mismo orden, así que un lector de la 1 sigue funcionando si lee por nombre o se queda con las 21 primeras.
 
 ## 8. Con `crearFacturador`: la configuración una sola vez
 
@@ -244,13 +259,19 @@ declare const emisor: Emisor;
 ```ts
 import { crearFacturador } from 'factura-hn';
 
-// Una vez, al arrancar el servidor o la caja.
+// Una vez, al arrancar el servidor o la caja. Este almacén es otro que el de los pasos 2 a 7 (allí ya se
+// registró el CAI de la serie 000-001-01 y la numeración siguió).
 const caja = crearFacturador({ almacen, emisor, establecimiento: '000', puntoEmision: '001', preciosIncluyenISV: true });
 
 // Una vez por resolución del SAR: establecimiento y punto de emisión los pone el facturador.
 await caja.registrarAutorizacion({
   cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', tipoDocumento: '01',
   rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2027-06-30',
+});
+// La nota de crédito de abajo necesita el CAI de su tipo (06).
+await caja.registrarAutorizacion({
+  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-06', tipoDocumento: '06',
+  rangoInicial: 1, rangoFinal: 500, fechaLimiteEmision: '2027-06-30',
 });
 
 // En cada venta.
@@ -298,7 +319,8 @@ se imprime igual que siempre.
   todos sus tipos) y los documentos de prueba ya emitidos no cambian. Sus números no se repiten: si ya emitiste
   documentos de prueba y tu rango empieza en 1, registra el CAI en un almacén nuevo (`RANGO_USADO_EN_PRUEBA`).
 - Prueba en **otro almacén** (otra base de datos, o `AlmacenFiscalMemoria`), no en otro punto del almacén real.
-- `exportarTexto` y `libroVentas` dejan fuera los documentos de prueba. `separarDocumentosDePrueba(docs)` dice
+- `exportarTexto` y `libroVentas` dejan fuera los documentos de prueba (`filaLibroVentas` y `lineaExportacion`
+  no filtran). `separarDocumentosDePrueba(docs)` dice
   cuántos quedaron fuera; úsala también si armas el archivo por partes con `lineaExportacion` o `filaLibroVentas`.
 
 ## Con un agente de IA

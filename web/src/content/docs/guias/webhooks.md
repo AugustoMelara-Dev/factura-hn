@@ -155,7 +155,7 @@ descarta.
 | Código | Causa habitual |
 |---|---|
 | [`LIMITE_WEBHOOKS`](/referencia/errores/#limite_webhooks) | Ya hay 20 webhooks activos |
-| [`WEBHOOK_URL`](/referencia/errores/#webhook_url) | URL ilegible, con usuario o contraseña, hacia una dirección interna o, en modo alojado, sin HTTPS |
+| [`WEBHOOK_URL`](/referencia/errores/#webhook_url) | URL ilegible o con usuario o contraseña; en modo alojado, también sin HTTPS o hacia una dirección interna |
 | [`SOLO_ADMIN`](/referencia/errores/#solo_admin) | Los webhooks se administran con la llave admin |
 | [`WEBHOOK_INACTIVO`](/referencia/errores/#webhook_inactivo) | Reenviar, probar o rotar un webhook desactivado |
 | [`ENTREGA_VENCIDA`](/referencia/errores/#entrega_vencida) | Reenviar un aviso de autorización cuyo cuerpo ya se vació por retención |

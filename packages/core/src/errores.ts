@@ -125,6 +125,8 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
 
   // Anulación y consulta
   ANULACION_MOTIVO: 'Indica por qué se anula (p. ej. «Cantidad equivocada»): queda en el documento y en la bitácora.',
+  DOCUMENTO_CON_NOTAS:
+    'Anula primero las notas de crédito y débito vigentes que indica el mensaje (con su propio motivo) y después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.',
   YA_ANULADO: 'El documento ya está anulado: no hay que hacer nada. Si la venta era real, emite un documento nuevo.',
   DOCUMENTO_NO_ENCONTRADO: "Revisa el número: debe tener 16 dígitos con guiones (p. ej. '000-001-01-00000001') y estar en este almacén.",
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "factura-hn API",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -45,7 +45,7 @@
               },
               "solicitud": {
                 "type": "string",
-                "description": "Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.",
+                "description": "Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.3.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.",
                 "example": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
               }
             },
@@ -1499,7 +1499,7 @@
         }
       },
       "FacturaHN-Modo": {
-        "description": "Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `DEMASIADOS_REPORTES`).",
+        "description": "Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413, un 403 `TENANT_FUERA_DEL_MODO_LOCAL` ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `LIMITE_SOLICITUDES`).",
         "schema": {
           "type": "string",
           "example": "prueba"
@@ -2006,6 +2006,33 @@
               }
             }
           },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -2189,6 +2216,33 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
           },
@@ -2994,6 +3048,33 @@
               }
             }
           },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -3181,6 +3262,33 @@
               }
             }
           },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "404": {
             "description": "No existe",
             "content": {
@@ -3357,6 +3465,33 @@
               }
             }
           },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -3464,10 +3599,10 @@
           {
             "schema": {
               "type": "string",
-              "description": "Clave única por venta (p. ej. un UUID generado por el POS)."
+              "description": "Obligatoria. Clave única por venta (p. ej. el id del pedido o un UUID generado por el POS), la misma en cada reintento de esa venta."
             },
             "required": true,
-            "description": "Clave única por venta (p. ej. un UUID generado por el POS).",
+            "description": "Obligatoria. Clave única por venta (p. ej. el id del pedido o un UUID generado por el POS), la misma en cada reintento de esa venta.",
             "name": "idempotency-key",
             "in": "header"
           }
@@ -3943,6 +4078,33 @@
               }
             }
           },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
+              }
+            }
+          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
@@ -4165,6 +4327,33 @@
               },
               "FacturaHN-Version": {
                 "$ref": "#/components/headers/FacturaHN-Version"
+              }
+            }
+          },
+          "403": {
+            "description": "La llave no tiene permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Solicitud-Id": {
+                "$ref": "#/components/headers/Solicitud-Id"
+              },
+              "FacturaHN-Version": {
+                "$ref": "#/components/headers/FacturaHN-Version"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "FacturaHN-Modo": {
+                "$ref": "#/components/headers/FacturaHN-Modo"
               }
             }
           },

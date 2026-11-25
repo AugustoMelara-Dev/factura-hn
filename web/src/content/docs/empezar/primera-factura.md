@@ -17,7 +17,7 @@ resolución: ver [Modo de prueba](/empezar/modo-de-prueba/#pasar-al-cai-real).
 ¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Para verlo sin instalar nada, abre el
 [playground](/empezar/playground/).
 
-## SDK (Node 18 o más reciente)
+## SDK (Node 20 o más reciente)
 
 En la carpeta de tu proyecto, o en una nueva:
 
@@ -107,15 +107,19 @@ Los pasos siguientes se corren desde la raíz del repositorio. Para otro puerto,
 3. Descarga el PDF:
 
    ```bash
-   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API$PDF"
+   curl -f -H "authorization: Bearer $LLAVE" -o factura.pdf "$API${PDF:?el paso 2 no emitió: revisa su salida}"
    ```
 
 **Qué verás:** el paso 2 escribe `Emitida:` y el número que asignó la API, con la forma
 `000-001-01-0000000N`. El número sale de la respuesta; no lo escribas a mano. El `factura.pdf` lleva la leyenda
 de prueba y una marca de agua «PRUEBA».
 
+La venta de `packages/api/ejemplos/factura.json` es de 2 × L 57.50 con los precios con ISV: total L 115.00. No
+es la misma venta del SDK ni de Next.js.
+
 Si el paso 2 dice «No se emitió», la respuesta trae el error con su `solucion`. Lo más común: `LLAVE` vacía (el
-paso 1 falló) o el comando no se corrió desde la raíz del repositorio.
+paso 1 falló) o el comando no se corrió desde la raíz del repositorio. En ese caso el paso 3 se detiene con «el
+paso 2 no emitió» y no deja un `factura.pdf` vacío.
 
 ## MCP (Claude Desktop, Claude Code, Cursor)
 

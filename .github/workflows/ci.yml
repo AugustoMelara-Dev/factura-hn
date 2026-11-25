@@ -23,7 +23,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        # Node 20: el piso de `engines` de factura-hn, sqlite (con better-sqlite3), postgres, pdf y cliente. Corre
+        # build, tipos, las pruebas de esos paquetes y de la API, y el humo del SDK; lo que pide Node 22 o más
+        # (node:sqlite en sqlite, MCP y POS; Astro; la verificación de dist, que carga el MCP) queda para 22 y 24.
+        node: [20, 22, 24]
     env:
       TZ: UTC # las fechas fiscales salen de America/Tegucigalpa, no de la zona del equipo
       NEXT_TELEMETRY_DISABLED: '1'
@@ -46,25 +49,35 @@ jobs:
       - name: Tipos
         run: pnpm typecheck
       - name: Pruebas (incluye los fragmentos de README, AGENTS.md, llms.txt y la skill)
+        if: matrix.node != 20
         run: pnpm test
+      - name: Pruebas en Node 20 (sin sqlite ni MCP, que usan node:sqlite)
+        if: matrix.node == 20
+        run: pnpm -r --filter "./packages/*" --filter "!@factura-hn/sqlite" --filter "!@factura-hn/mcp" test
       - name: Pruebas de los ejemplos
+        if: matrix.node != 20
         run: pnpm test:ejemplos
       - name: Verificación de lo que se publica (paquetes, ESM/CJS, emisión desde dist)
+        if: matrix.node != 20
         run: node scripts/verificar-dist.mjs
       - name: Humo desde los tarballs (SDK, npx factura-hn demo/init, MCP por stdio)
-        run: node scripts/humo.mjs sdk demo mcp
+        run: node scripts/humo.mjs sdk demo ${{ matrix.node != 20 && 'mcp' || '' }}
       - name: OpenAPI y tipos del cliente al día
+        if: matrix.node != 20
         run: |
           pnpm --filter @factura-hn/api openapi
           pnpm --filter @factura-hn/cliente generar
           git diff --exit-code -- packages/api/openapi.json packages/cliente/src/esquema.ts
       - name: Linter de OpenAPI (Redocly; operationId en todas las operaciones)
+        if: matrix.node != 20
         run: pnpm lint:openapi
       - name: Build de Next.js y del playground
+        if: matrix.node != 20
         run: |
           pnpm --filter @factura-hn/ejemplo-nextjs build
           pnpm playground
       - name: Sitio de documentación (matriz con prueba por fila, enlaces y anclas, buscador, recursos para IA)
+        if: matrix.node != 20
         run: pnpm sitio
 
   postgres:

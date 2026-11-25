@@ -137,13 +137,22 @@ describe('catálogo docs/errores.md', () => {
     expect(Object.keys(SOLUCIONES).filter((c) => !encabezados.has(c))).toEqual([]);
   });
 
+  it('cada «### CODIGO» dice qué hacer: «Solución» o, en un aviso o un código retirado, «Qué hacer»', () => {
+    // Con un «##» al final, la última sección del archivo también se revisa.
+    const sinSolucion = [...`${catalogo}\n## fin\n`.matchAll(/^### ([A-Z][A-Z0-9_]+)\s*\n([\s\S]*?)(?=^##)/gm)]
+      .filter((m) => !/^- \*\*(Solución|Qué hacer)[^*]*:\*\*/m.test(m[2]!))
+      .map((m) => m[1]);
+    expect(encabezados.size).toBeGreaterThan(100);
+    expect(sinSolucion).toEqual([]);
+  });
+
   it('también los códigos de la API REST y del servidor MCP', () => {
     const faltan: string[] = [];
     for (const paquete of ['api', 'mcp']) {
       const dir = join(RAIZ, 'packages', paquete, 'src');
       for (const archivo of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
         const texto = readFileSync(join(dir, archivo), 'utf8');
-        for (const m of texto.matchAll(/(?:ErrorApi\(\s*\d+,\s*|ErrorBackend\(\s*|codigo:\s*)'([A-Z][A-Z0-9_]+)'/g)) {
+        for (const m of texto.matchAll(/(?:ErrorApi\(\s*\d+,\s*|ErrorBackend\(\s*|errorDe\(\s*|codigo:\s*)'([A-Z][A-Z0-9_]+)'/g)) {
           if (!encabezados.has(m[1]!)) faltan.push(`${paquete}/${archivo}: ${m[1]}`);
         }
       }

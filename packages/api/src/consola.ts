@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
-import { bloqueLlavesDemo, consolaDe, crearLlaveDemo, crearLlaveOperador, crearTenant, LEYENDA_PRUEBA } from './operador';
+import { bloqueLlavesDemo, consolaDe, crearLlaveDemo, crearLlaveOperador, crearTenant, errorTenantEnModoLocal, LEYENDA_PRUEBA, TENANTS_RESERVADOS } from './operador';
 import { crearPool, urlDueno, usuarioDeUrl } from './pool';
 
 export interface SalidaConsola {
@@ -40,7 +40,7 @@ const COMANDOS: Comando[] = [
     nombre: ['tenant', 'crear'],
     uso: 'tenant crear <tenant> [--nombre "Mi Negocio"] [--limite 1000] [--modo produccion|prueba]',
     descripcion:
-      'Crea un tenant (modo alojado) y su primera llave admin. <tenant>: minúsculas, dígitos, «-» o «_». --modo (por defecto ' +
+      'Crea un tenant y su primera llave admin. Solo en modo alojado (FHN_MODO=alojado): en modo local se niega. <tenant>: minúsculas, dígitos, «-» o «_». --modo (por defecto ' +
       'produccion) no cambia después: un tenant de prueba solo acepta CAI ficticios y sus llaves empiezan con fhn_test_; ' +
       'uno de producción no acepta CAI ficticios y sus llaves empiezan con fhn_live_.',
     posicionales: { obligatorios: ['tenant'] },
@@ -191,6 +191,12 @@ export async function ejecutarConsola(
     }
     if (clave === 'demo llave' && opciones.rol !== undefined && opciones.rol !== 'admin' && opciones.rol !== 'caja') {
       throw new ErrorUso('--rol debe ser admin o caja.', comando);
+    }
+
+    // El modo local es de un solo negocio: otro tenant tendría webhooks sin el filtro de la red interna hasta el
+    // próximo arranque, que se negaría a seguir. Los nombres reservados siguen al error de `crearTenant`.
+    if (clave === 'tenant crear' && (env.FHN_MODO ?? 'local') !== 'alojado' && !TENANTS_RESERVADOS.includes(posicionales[0]!)) {
+      throw new Error(errorTenantEnModoLocal(posicionales[0]!));
     }
 
     let url: string;

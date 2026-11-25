@@ -1,7 +1,7 @@
 // Verificación de lo que se publica. Correr después de `pnpm build` (`pnpm verificar:dist` hace ambas cosas).
 //
 // 1. Cada paquete publicable se empaqueta como lo haría `pnpm publish` (corre `prepack`) y se revisa el tarball:
-//    están los archivos que nombran main/module/types/exports/bin, README y LICENSE; no van fuentes ni pruebas;
+//    están los archivos que nombran main/module/types/exports/bin, README, LICENSE y CHANGELOG; no van fuentes ni pruebas;
 //    de `docs/` solo van los de DOCS_PUBLICOS; `workspace:` se reemplazó por versiones; repository.url es
 //    exactamente el repositorio de GitHub y repository.directory apunta al paquete (los exige la publicación de
 //    confianza de npm). Ningún .md ni llms.txt del tarball enlaza con ruta relativa a algo que no viaja en él.
@@ -80,7 +80,7 @@ try {
     const tgz = join(destino, readdirSync(destino).find((f) => f.endsWith('.tgz')));
     const contenido = leerTgz(tgz);
     const archivos = [...contenido.keys()].map((f) => f.replace(/^package\//, ''));
-    const faltan = [...prometidas(j), 'README.md', 'LICENSE'].filter((f) => !archivos.includes(f));
+    const faltan = [...prometidas(j), 'README.md', 'LICENSE', 'CHANGELOG.md', 'package.json'].filter((f) => !archivos.includes(f));
     if (faltan.length) fallo(`${j.name}: faltan en el paquete ${faltan.join(', ')}`);
     const sobran = archivos.filter((f) => /^(src|test)\//.test(f) || /\.test\.|tsconfig|vitest\.config/.test(f));
     if (sobran.length) fallo(`${j.name}: no deberían publicarse ${sobran.slice(0, 5).join(', ')}`);
@@ -111,10 +111,23 @@ try {
     if (j.repository?.url !== REPOSITORIO) fallo(`${j.name}: repository.url debe ser ${REPOSITORIO}`);
     if (j.repository?.directory !== `packages/${p}` || j.publishConfig?.access !== 'public') fallo(`${j.name}: falta repository.directory o publishConfig.access public`);
     if (j.private) fallo(`${j.name}: está marcado private`);
+    if (j.exports?.['./package.json'] !== './package.json') fallo(`${j.name}: falta exports["./package.json"]`);
+    if (!/^>=\d/.test(j.engines?.node ?? '') || Number(j.engines.node.match(/\d+/)[0]) < 20) fallo(`${j.name}: engines.node debe pedir Node 20 o más (hay ${j.engines?.node})`);
     if (!fallas) console.log(`ok  ${j.name}@${j.version}: ${archivos.length} archivos en el paquete`);
   }
 } finally {
   rmSync(temporal, { recursive: true, force: true });
+}
+
+// Una sola versión: los seis publicables (grupo `fixed` de changesets), la API (VERSION_API sale de su package.json)
+// y su especificación. `pnpm run version` las sube juntas (scripts/fijar-versiones.mjs).
+{
+  const versiones = PUBLICABLES.map((p) => JSON.parse(readFileSync(join(raiz, 'packages', p, 'package.json'), 'utf8')).version);
+  const api = JSON.parse(readFileSync(join(raiz, 'packages/api/package.json'), 'utf8')).version;
+  const especificacion = JSON.parse(readFileSync(join(raiz, 'packages/api/openapi.json'), 'utf8')).info.version;
+  const todas = new Set([...versiones, api, especificacion]);
+  if (todas.size !== 1) fallo(`versiones distintas: publicables ${versiones.join(', ')}; API ${api}; openapi.json ${especificacion} (corre node scripts/fijar-versiones.mjs)`);
+  else console.log(`ok  una sola versión (${api}) en los seis paquetes, la API y openapi.json`);
 }
 
 const entradas = { core: ['index', 'pruebas', 'demo'], sqlite: ['index'], postgres: ['index'], pdf: ['index'], cliente: ['index'], mcp: ['index'] };

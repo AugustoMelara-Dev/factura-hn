@@ -8,7 +8,7 @@ import { VERSION_EXPORTACION, type DocumentoFiscal, type FormatoExportacion } fr
 const COLUMNAS = [
   'numero', 'tipo', 'fecha', 'hora', 'cai', 'estado', 'emisorRTN', 'clienteRTN', 'clienteNombre', 'moneda',
   'exonerado', 'exento', 'gravado0', 'gravado15', 'gravado18', 'isv15', 'isv18', 'descuentos', 'total',
-  'referencia', 'motivoAnulacion',
+  'referencia', 'motivoAnulacion', 'tipoCambio', 'fechaAnulacion',
 ] as const;
 
 const monto = (v: number) => centavosATexto(redondearDecimal(v, 2));
@@ -37,6 +37,8 @@ function fila(d: DocumentoFiscal): Record<(typeof COLUMNAS)[number], string> {
     total: monto(t.total),
     referencia: d.referencia?.numero ?? '',
     motivoAnulacion: d.anulacion?.motivo ?? '',
+    tipoCambio: d.tipoCambio !== undefined ? String(d.tipoCambio) : '',
+    fechaAnulacion: d.anulacion?.fecha ?? '',
   };
 }
 

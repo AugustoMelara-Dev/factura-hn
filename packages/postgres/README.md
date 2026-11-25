@@ -3,6 +3,10 @@
 `AlmacenFiscal` de [factura-hn](https://www.npmjs.com/package/factura-hn) sobre PostgreSQL 13 o superior con `pg`. Es el almacén de la API
 y de instalaciones con varias cajas.
 
+<!-- declaraciones:
+import type { DocumentoEntrada } from 'factura-hn';
+declare const entrada: DocumentoEntrada;
+-->
 ```ts
 import pg from 'pg';
 import { emitir } from 'factura-hn';
@@ -10,6 +14,8 @@ import { AlmacenPostgres } from '@factura-hn/postgres';
 
 const almacen = new AlmacenPostgres(new pg.Pool({ connectionString: process.env.DATABASE_URL }));
 await almacen.migrar(); // idempotente; seguro en cada arranque y entre réplicas
+// `entrada` es la venta (un DocumentoEntrada: emisor, cliente y líneas). El CAI ya está registrado en la base
+// (registrarAutorizacion, una sola vez).
 const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmision: '001' });
 ```
 
@@ -22,7 +28,7 @@ const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmisio
   documento emitido salvo para anularlo (Art. 41) y hacer retroceder la serie.
 - **Multi-tenant listo.** Cada fila lleva `tenant` (por defecto `''`, un solo negocio). Cada transacción
   fija `factura_hn.tenant` con `set_config(…, true)`, que dura solo esa transacción. Las políticas RLS de la
-  API alojada se apoyan en ese valor (Fase 2). `almacen.paraTenant(id)` da el almacén de otro inquilino sobre
+  API alojada se apoyan en ese valor. `almacen.paraTenant(id)` da el almacén de otro tenant sobre
   el mismo pool.
 
 El documento se guarda como `json`, no `jsonb`, para que se lea exactamente como se emitió.

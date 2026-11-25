@@ -420,7 +420,7 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
   y `totalMonedaOriginal`, y el CSV, las columnas «Moneda», «Tipo de cambio» y «Total en moneda original». Por
   convertir cada campo por separado, la suma de las partes puede diferir del total en 1 centavo.
 - **Alternativa:** convertir solo la base y recalcular el ISV en lempiras (otro redondeo), o un libro por
-  moneda. Va en la consulta al SAR junto con P-14.
+  moneda. Va en la consulta al SAR: P-17 (y P-14).
 
 ### DEC-051 · Una nota de crédito no supera su original ni cambia la tasa; en la API, original externo solo con admin · [REVISAR]
 - **Contexto:** la revisión de la 0.2.0 emitió, sin aviso, una NC de L 1,150.00 sobre una factura de L 115.00 y una
@@ -443,7 +443,7 @@ Decisiones de producto, sin efecto en la interpretación fiscal. Ver `docs/plan-
   403 `SOLO_ADMIN` sin consumir número.
 - **Antes (2026-11-19):** eran avisos y no sumaban las notas anteriores.
 - **Alternativa:** dejar que las notas de débito amplíen el saldo, o permitir notas de crédito por encima del
-  original con confirmación. Va en la consulta al SAR.
+  original con confirmación. Va en la consulta al SAR: P-16.
 
 ### DEC-052 · Correcciones de la auditoría de seguridad del 24-11-2026
 - **Contexto:** una auditoría de seguridad (solo código y pruebas locales en sandbox) confirmó cuatro fallas.
@@ -746,7 +746,7 @@ integración (DEC-086 a DEC-089).
   reimprime con los mismos bytes que en main (Art. 38; huellas en la prueba). Los importes siguen en su moneda; un
   documento en lempiras no cambia.
 - **Alternativa:** convertir todo el documento a lempiras. Cambiaría importes y totales ya emitidos y la
-  interpretación de qué moneda manda. Confirmar con el SAR si el equivalente es exigible y con qué redondeo.
+  interpretación de qué moneda manda. Confirmar con el SAR si el equivalente es exigible y con qué redondeo (P-18).
 
 ### DEC-069 · Tasa del 18 %: sin fuente primaria en el repo · [REVISAR]
 - **Contexto:** `TASAS_ISV.ISV18` (`packages/core/src/calculo.ts`) cita el Decreto 278-2013, Art. 16 (La Gaceta
@@ -946,6 +946,7 @@ integración (DEC-086 a DEC-089).
   interpretación de los Arts. 26 y 28 que debe decidir el responsable (y, en su caso, aplicarse en el núcleo).
 - **Alternativa:** que el MCP rechace `cliente.rtn` cuando el original no tiene RTN. Sería una regla fiscal nueva
   fuera del núcleo, y dejaría sin camino la devolución de una venta a consumidor final.
+- **Consulta al SAR:** P-19.
 
 ### DEC-080 · Errores del MCP con `solucion` y `guia`
 - **Contexto:** el error `[SIN_AUTORIZACION] … (Arts. 59-61)` decía qué faltaba, pero no cómo resolverlo desde el
@@ -1960,8 +1961,8 @@ Los informes con los números están en `docs/calidad.md`.
   y montos en letras, cada una con su artículo cuando es fiscal y sin inventar reglas.
 - **Elegida:**
   - `packages/core/test/propiedades/*.prop.test.ts` (dinero, cálculo, numeración, validación, letras, fuzz). El
-    nombre de cada `describe`/`it` fiscal cita su artículo (Ley del ISV Arts. 3 y 9 y Art. 12 de
-    su Reglamento; Acuerdo 189-2014 Arts. 10, 11, 14, 43 y 62).
+    nombre de cada `describe`/`it` fiscal cita su artículo (Ley del ISV Arts. 3 y 9; Reglamento,
+    Acuerdo 481-2017, Arts. 10, 11, 12, 14, 43 y 62).
   - Donde el código hace algo que el reglamento no dice (el tope de montos, los billones, el aviso del Art. 62
     exactamente en el día 366), la propiedad prueba solo lo que la norma sí dice (p. ej. ningún aviso hasta 365 días
     y siempre a partir de 367) y lo demás queda como hallazgo en este archivo.
@@ -2088,7 +2089,7 @@ Los informes con los números están en `docs/calidad.md`.
 ### DEC-152 · ISV por grupo de tasa: la propiedad prueba la lectura ya documentada [REVISAR]
 - **Contexto:** la propiedad de «fusión» (calcular dos documentos juntos o por separado) muestra que el ISV puede
   diferir en ±1 centavo por tasa, porque el núcleo redondea el ISV una vez por grupo de tasa (los subtotales por
-  tarifa del Acuerdo 189-2014 Art. 11 num. 1 g-i), no por línea. El Art. 9 de la Ley del ISV habla del redondeo
+  tarifa del Reglamento, Acuerdo 481-2017, Art. 11 num. 1 g-i), no por línea. El Art. 9 de la Ley del ISV habla del redondeo
   «sobre el precio del artículo vendido», lo que también puede leerse por artículo.
 - **Elegida:** la propiedad fija esa cota (±1 centavo por tasa) y el ISV impreso = tasa × base impresa redondeado
   por el Art. 9. No agrega una regla ni abre una consulta nueva: la pregunta ya está en `docs/consulta-sar.md`
@@ -2309,3 +2310,428 @@ Los informes con los números están en `docs/calidad.md`.
   - `docs/calidad.md` reúne los cuatro informes y lo enlaza el README.
 - **Alternativa:** unir las ramas sin revisión y corregir después; se descartó porque cada revisión encontró al
   menos un error real (500 con NUL, 503 que escondía errores de código, mutantes mal declarados equivalentes).
+
+## Lote 6: revisión final y 0.3.0
+
+Cinco revisiones independientes de `main` (fiscal, seguridad, paquetes, documentación y primeros 5
+minutos) y cuatro ramas de correcciones, cada una de quien no hizo la revisión.
+
+<!-- API y MCP (rama lote6/api) -->
+
+### DEC-169 · JSON siempre con `charset=utf-8`
+- **Contexto:** hallazgo 1. Windows PowerShell 5.1 (soportado en `docs/api.md`) decodifica como Latin-1 un
+  `application/json` sin charset: «Café» llega como «CafÃ©».
+- **Elegida:** el middleware `*` que ya pone `nosniff` y `no-store` reescribe, después de la ruta, todo
+  `Content-Type: application/json` exacto a `application/json; charset=utf-8` (`TIPO_JSON`). Cubre errores, el 404,
+  `/salud`, `/openapi.json` y el libro de ventas transmitido. Va en ese middleware y no en uno nuevo para no cambiar la
+  lista de middlewares que vigila API9. El validador del contrato (`test/openapi-validador.ts`) rechaza ahora un JSON
+  sin charset, así que toda respuesta que pasa por las pruebas lo comprueba.
+- **Alternativa:** poner el tipo en cada `c.json`: se olvida en la ruta siguiente.
+
+### DEC-170 · Confirmación por elicitación en `anular_documento` y `registrar_cai`
+- **Contexto:** hallazgo 2. En modo API con llave admin, texto escrito por un cajero dentro de un documento podía
+  llevar al modelo a anular o registrar un CAI.
+- **Elegida:**
+  - Antes de llamar al backend, el servidor pide `elicitation/create` (formulario con una casilla `confirmar`) con
+    los datos exactos: número y motivo, o CAI, tipo, establecimiento, punto, rango, fechas y `ultimoEmitidoAntes`.
+    Cada dato va en una línea, sin caracteres de control (un salto de línea en el motivo no agrega renglones falsos).
+    Solo sigue con `accept` **y** la casilla marcada; `decline`, `cancel`, sin marcar o un error/tiempo agotado dan
+    `CONFIRMACION_RECHAZADA` (con «No reintentes por tu cuenta»).
+  - Anular consulta antes el documento: si no existe, `NO_ENCONTRADO` sin preguntar ni llamar a `anular`.
+  - Cliente sin elicitación (`capabilities.elicitation.form` ausente): `CONFIRMACION_NO_DISPONIBLE` con su
+    solución, salvo `FHN_MCP_PERMITIR_DESTRUCTIVAS=1` (opción `permitirDestructivas` de `crearServidorMCP`).
+  - **Demo:** sin elicitación, anular un documento de prueba (`esDocumentoDePrueba`) y registrar un CAI ficticio
+    (`esCAIDemo`) siguen sin la variable: no tienen valor fiscal y el «emite y anula una de prueba» del demo funciona
+    en cualquier cliente. Con elicitación, el demo también pregunta (la ventana muestra «DOCUMENTO DE PRUEBA»): así
+    el usuario ve en el demo lo mismo que verá con datos reales. Un CAI real nunca se registra sin confirmación ni
+    variable, aunque la base sea de demo.
+- **Alternativa:** confiar en la confirmación del cliente (`destructiveHint`): depende de cómo lo configure el
+  usuario y el texto de un documento puede pedir que la apruebe.
+- **Pendiente:** si los clientes populares no ofrecen elicitación, quien use datos reales necesitará la variable.
+
+### DEC-171 · Errores de argumentos del MCP en español
+- **Contexto:** hallazgo 3. Si el esquema Zod fallaba, el SDK respondía en inglés y sin `solucion`.
+- **Elegida:** `crearServidorMCP` reemplaza `validateToolInput` **de su instancia** de `McpServer` (método privado
+  del SDK 1.32.2, fijado exacto en `package.json`): valida con el mismo esquema (que la lista de herramientas sigue
+  mostrando) y, si falla, devuelve un marcador que la herramienta convierte en `SOLICITUD_INVALIDA` con el formato
+  de la casa (mensaje en español con la traducción de Zod que ya usa la API, «Qué hacer», «Guía»). Hay soluciones
+  por campo (`idempotencyKey`, `numero`, `numeroOriginal`) en `soluciones.ts`. Si el SDK cambia el nombre del
+  método, `crearServidorMCP` lanza al crear el servidor y las pruebas lo detectan.
+- **Alternativa:** esquemas que acepten todo y validar en cada herramienta: la lista de herramientas perdería el
+  esquema que el modelo necesita. Reemplazar el manejador de `tools/call` del `Server`: más superficie privada.
+
+### DEC-172 · Node 22.13 en los caminos con SQLite del MCP
+- **Contexto:** hallazgo 4. En Node < 22.13 `require('node:sqlite')` fallaba con el mensaje de Node.
+- **Elegida:** `src/requisitos.ts`: al inicio de `cli.ts`, si el camino usa SQLite (servidor sin `FHN_API_URL`,
+  `init`/`iniciar`, `registrar-cai` sin `--api-url` ni `FHN_API_URL`) y Node es anterior a 22.13, «Necesitas Node
+  22.13 o más reciente (tienes X)…» y código 1. `ayuda` y el modo API no se frenan.
+
+### DEC-173 · El modo local no crea ni atiende tenants de otros negocios
+- **Contexto:** hallazgo 5. `tenant crear` no miraba `FHN_MODO`; un tenant creado así tenía webhooks del modo local
+  (sin filtro de red interna) hasta el siguiente arranque, que se negaba.
+- **Elegida:**
+  - `tenant crear` con `FHN_MODO` `local` o sin definir se niega, antes de conectarse, para todo nombre que no sea
+    reservado (los reservados, `local` y `demo`, siguen con su error de `crearTenant`). El mensaje,
+    `errorTenantEnModoLocal`, sigue a `errorTenantsAjenos`: el modo local es de un solo negocio, arranca con
+    `FHN_MODO=alojado` (y `FHN_CLAVE_CIFRADO`), y para el negocio propio `llave crear local --rol admin`.
+  - Red de seguridad: `ConfigApi.soloTenantsLocales`. Con `modo: 'local'`, una llave de un tenant que no es `local`
+    ni `demo` recibe 403 `TENANT_FUERA_DEL_MODO_LOCAL` (después de validar el secreto, sin cabeceras de modo).
+    `arrancar` (servidor de `factura-hn-api` e imagen de Docker) lo activa; por defecto es `false` en `crearApp`,
+    porque quien monta la app con sus propios tenants en modo local (las pruebas, unas 45 apps; el servidor de carga)
+    no debe romperse. Toda operación de `/v1` declara ahora 403 en la especificación (compatible: solo agrega un
+    estado); API5 se ajustó a eso.
+- **Alternativa:** activarlo siempre en modo local: obligaba a cambiar la configuración de todas las pruebas y de
+  quien embebe la app.
+
+### DEC-174 · Un secreto de webhook ilegible falla solo su entrega
+- **Contexto:** hallazgo 6. `o.cofre.leer(...)` fuera del `try`: un `gcm:` que no se descifra tumbaba el lote; las
+  entregas que ya habían salido se repetían a los 5 minutos y la mala nunca llegaba a FALLIDA.
+- **Elegida:** el secreto se descifra dentro de `entregar`; si falla, la entrega queda FALLIDA **en el acto**
+  (`definitiva`, sin agotar los 22 intentos: reintentar con la misma clave da lo mismo) con
+  `ERROR_SECRETO_ILEGIBLE` en `ultimo_error`. Además cada entrega del lote se atiende en su propio `try`: cualquier
+  error inesperado la marca a ella («Error interno al entregar: …») y no al resto.
+
+### DEC-175 · Webhooks de un tenant inactivo (esquema v9)
+- **Contexto:** hallazgo 7. `fhn_api_tenants_con_pendientes()` ignoraba `api_tenants.activo`.
+- **Elegida:** v9 del esquema de la API. La función pasa a plpgsql y, como `fhn_api_autenticar`, fija cada tenant
+  solo para leer su fila de `api_tenants` (que fuerza RLS al dueño) y devuelve el valor anterior. Las entregas de un
+  tenant inactivo se quedan PENDIENTE (no se borran ni fallan) y salen si se reactiva. Marca de la v9: el comentario
+  de la función (`MARCA_PENDIENTES_V9`); `exigirEsquemaApi` la exige, porque el cuerpo nuevo no se nota en los
+  privilegios.
+
+### DEC-176 · Cupo de reportes por llave y cupo del proceso
+- **Contexto:** hallazgo 8. Una llave de caja que leía despacio `libro-ventas` podía ocupar los dos cupos del tenant
+  y dejar en 429 la exportación del admin. Con el pool por omisión de `pg` (10), el cupo del proceso (2) era igual al
+  de un tenant.
+- **Elegida:** `REPORTES_POR_LLAVE = 1` (`ConfigApi.reportesPorLlave`); la llave se toma primero y un 429 de la llave
+  no toca los cupos del tenant ni del proceso. El cupo del proceso por omisión pasa de `floor(pool/4)` a
+  `ceil(pool/4)`: con 10 son 3 (> 2 del tenant); con 20 (`FHN_POOL` por defecto) siguen siendo 5.
+- **Alternativa:** bajar el cupo del tenant a 1 con pools chicos: el admin quedaba igual de bloqueado.
+
+### DEC-177 · `IDEMPOTENCY_KEY` cuando falta la cabecera
+- **Contexto:** hallazgos 9 y 14. Con `z.string()` en el esquema, sin la cabecera Zod respondía 400
+  `SOLICITUD_INVALIDA` y no el `IDEMPOTENCY_KEY` documentado.
+- **Elegida:** la cabecera es `z.string().optional()` en Zod para que el código responda `IDEMPOTENCY_KEY`, pero con
+  `param: { required: true }` la especificación (y los tipos del cliente) la siguen declarando obligatoria: nada
+  cambia para los clientes generados. La solución dice «Envía la cabecera `Idempotency-Key` con un valor único por
+  venta (p. ej. el id del pedido…) y, si reintentas esa misma venta, reutiliza el mismo valor».
+- **Sin `<…>` en las soluciones:** probado con la imagen de Docker, Windows PowerShell 5.1 borra de
+  `ErrorDetails.Message` lo que parece una etiqueta: `Idempotency-Key: <un valor único por venta>` llegaba como
+  `Idempotency-Key: ` y `Bearer fhn_live_<prefijo>_<secreto>` (en `NO_AUTENTICADO`, que ya existía) perdía la forma
+  de la llave. Las dos soluciones se reescribieron sin `<…>` y las pruebas lo exigen. La descripción del esquema de
+  seguridad en `/openapi.json` conserva `fhn_live_<prefijo>_<secreto>`: no es un mensaje de error.
+
+### DEC-178 · La guía del 422 fuera de la emisión
+- **Contexto:** hallazgo 17. `corregir-fecha` sin nada que corregir respondía con la solución genérica de
+  `VALIDACION`, que dice «reintenta con la misma Idempotency-Key»; esa ruta no lleva la cabecera.
+- **Elegida:** solo `POST /v1/documentos` usa esa solución; los demás 422 usan «Revisa `errores`… Corrige y
+  reintenta.». El código y la forma no cambian.
+
+### DEC-179 · Mensajes propios para los enteros con rango
+- **Contexto:** hallazgo 18. «Demasiado grande: se esperaba que número fuera <=168».
+- **Elegida:** `Entero(min, max?, { texto })` en `esquemas.ts`: «Debe ser un número entero de 0 a 168» (o «mayor o
+  igual que N») para tipo, decimal y rango; un campo que falta conserva el mensaje de obligatorio. Se usa en
+  `graciaHoras`, `limite`, `ancho`, `rangoInicial`, `rangoFinal` y `ultimoEmitidoAntes`. La especificación no cambia.
+
+### DEC-180 · `trust` en el `docker-compose.yml`
+- **Contexto:** hallazgo 10. `POSTGRES_HOST_AUTH_METHOD: trust` y `FHN_MIGRAR_URL` en el entorno de la API.
+- **Elegida:** se mantiene `trust` y se documenta por qué (comentario del compose y «Producción» en `docs/api.md`):
+  la base no publica puertos y solo la alcanzan los contenedores del proyecto; quien llega a ellos ya puede correr
+  `docker compose exec` en el equipo, con o sin contraseña. Así «La primera factura» funciona sin crear nada. Con
+  `trust`, sacar `FHN_MIGRAR_URL` del proceso no le quita el acceso como dueño, así que se queda; lo que protege es
+  que la API atiende como `fhn_api` y cierra la conexión del dueño al terminar de migrar. Para equipos compartidos,
+  el camino con contraseñas (`docker-compose.override.yml` + `.env`) ya está en `docs/autoalojamiento.md`.
+  `.dockerignore` excluye `**/.env*` (salvo `.env.example`) y `docker-compose.override.yml`.
+- **Alternativa:** contraseña por defecto en el compose: no protege más (está en el repositorio). Contraseña desde un
+  `.env` obligatorio: rompe el `up --wait` sin pasos previos. Un servicio aparte para migrar: el arranque también
+  prepara el modo local e imprime las llaves del demo con el dueño; era un cambio grande para nada con `trust`.
+- **Propuesta:** si algún día el compose pasa a contraseñas por defecto, generar la del dueño en el primer arranque
+  (un volumen con un archivo de secreto) y mover la migración a un servicio de una sola vez.
+
+### DEC-181 · Carga nocturna: validar las llaves antes y cerrar sin cortar
+- **Contexto:** hallazgo 13. El perfil nocturno (16 cajas × 2 llaves) mandaba 32 llaves nunca validadas a la vez
+  desde una IP; pasada la ráfaga, 429 `DEMASIADOS_INTENTOS` (es la protección contra fuerza bruta). Después la API
+  cerraba el pool con solicitudes en vuelo: «Cannot use a pool after calling end on the pool».
+- **Elegida:**
+  - `carga/emitir.ts` valida cada llave una vez con `GET /v1/sesion`, de a 4 (las `consultasSimultaneas`), antes del
+    calentamiento. Medido: `pnpm carga nocturno duracionS=15 rafagas=20` cumple los umbrales.
+  - `carga/servidor.ts` cierra en orden: deja de aceptar, cierra las conexiones ociosas, espera las solicitudes en
+    curso y la pasada de webhooks, y solo entonces `pool.end()` (tope de 30 s, luego corta las conexiones).
+  - **Producción: se mantiene el comportamiento** y se documenta en «Límites de solicitudes» de `docs/api.md`. Tras
+    reiniciar, más de unas 20 cajas detrás de una NAT con la cola llena reciben un 429 corto con `Retry-After` y
+    entran al reintentar; desde ahí no pasan por el límite. Relajarlo para prefijos registrados exigiría consultar la
+    base antes de decidir, que es justo lo que el límite evita (API2 / API4). `pnpm calidad:owasp` no cambia.
+
+<!-- Núcleo: notas, anulación y exportación (rama lote6/nucleo) -->
+
+### DEC-182 · Un documento con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`) · [REVISAR]
+- **Contexto:** la revisión final emitió una factura de L 100 + ISV 15, una nota de crédito total y luego anuló la
+  factura: `anular` lo aceptó y `libroVentas` dio `total: -115` (la nota quedó viva sobre un original anulado). La
+  regla inversa ya existe: no se emite una nota sobre un original anulado (`REFERENCIA_ANULADA`, DEC-004).
+- **Elegida:** `anular` (y `corregirFechaAdelantada`, que pasa por el mismo camino) rechaza con **error**
+  `DOCUMENTO_CON_NOTAS` un documento que no es nota (06/07) si tiene notas 06 o 07 no anuladas que lo refieren. El
+  mensaje las enumera; la `solucion` dice que se anulen primero las notas. `YA_ANULADO` y `ANULACION_MOTIVO` se
+  reportan antes. Base: Reglamento Art. 41 (anulación) y Art. 4 num. 32 (la nota respalda un ajuste sobre el
+  «correspondiente» comprobante). **Regla derivada:** ningún artículo la dice palabra por palabra. Va en la consulta
+  al SAR como **P-20**.
+- **Concurrencia:** la búsqueda usa `tx.documentos({ desde, referencia })` dentro de la transacción de `anular`, con
+  la serie del original bloqueada. Para que una nota simultánea no se cuele, `emitir` bloquea ahora la serie del
+  original **antes de leerlo** al emitir una 06/07 (antes solo la 06, y después de leerlo). Orden de bloqueo: la
+  serie de la nota y luego la del original, que nunca es una nota (`REFERENCIA_TIPO`): sin ciclos. Si el original
+  no está en el almacén no se bloquea nada (no se crea una serie vacía para un original externo). La batería
+  `ejecutarContratoAlmacen` tiene una prueba nueva (anulación con 06 y 07 vigentes, y anulación y nota a la vez:
+  pasa una sola) que corre en memoria, SQLite y PostgreSQL. Los dos adaptadores ya filtraban por `referencia` con
+  índice; el núcleo vuelve a filtrar.
+- **Efecto en `corregirFechaAdelantada`:** si un documento adelantado tiene notas vigentes, la corrección falla con
+  `DOCUMENTO_CON_NOTAS` y no anula nada (es una sola transacción): hay que anular antes las notas.
+- **Alternativa:** anular en cascada las notas con el original (cambia documentos que el usuario no pidió anular), o
+  permitirlo con un aviso (deja el libro en negativo).
+
+### DEC-183 · DEC-051 ampliada: tope por tasa, original en USD por el camino de la nota y aviso de exoneración · [REVISAR]
+Amplía DEC-051 (sigue [REVISAR]; va en la consulta al SAR como **P-16**).
+- **Tope por tasa.** Una NC de L 180 al 15 % sobre un original de L 100 exento + L 100 al 15 % pasaba (L 207 ≤
+  L 215) y acreditaba L 27 de ISV sobre L 15 cobrados. Ahora, además del total, la suma de las NC vigentes (del
+  mismo modo), más la nueva, no puede superar a cada tasa (15 % y 18 %) el importe gravado **ni** el ISV del
+  original. Mismo código `NOTA_SUPERA_ORIGINAL` (la solución no cambia), con un mensaje por tasa: lo del original
+  y el saldo de gravado e ISV. Se informa un solo `NOTA_SUPERA_ORIGINAL`: el del total si se pasa el total; si no, el
+  de la primera tasa que se pasa. Si ya hay `NOTA_TASA_DISTINTA` no se agrega el de la tasa (sería el mismo
+  problema dos veces). Exento, gravado 0 % y exonerado no tienen tope propio: solo el total (ver el aviso abajo).
+- **Redondeo:** el tope del ISV es estricto. Notas parciales cuyo ISV redondea hacia arriba pueden sumar un centavo
+  más que el ISV del original (p. ej. original 0.06 al 18 %, ISV 0.01; dos notas de 0.03, ISV 0.01 cada una); la
+  segunda se rechaza y su mensaje da el saldo (ISV L 0.00). El tope del total ya se comportaba así.
+- **Original en USD.** El saldo se calculaba como total del original × tipo de cambio, pero la nota convierte cada
+  precio a lempiras y recalcula: con tc 24.5 y 7 × USD 0.07 (USD 0.56 = L 13.72), la nota idéntica da L 13.81 y la
+  devolución total se rechazaba. Ahora los totales del original en lempiras salen de pasar **sus propias líneas** por
+  `notaEnLempiras` + `calcularCentavos`, con sus `preciosIncluyenISV` y su exoneración: una nota idéntica da
+  exactamente los totales del original. En lempiras se usan los totales guardados (es lo mismo).
+- **Aviso de exoneración.** Una NC sin `exoneracion` con líneas EXENTO sobre un original exonerado pasaba sin aviso, y
+  el libro daba `importeExento -100` frente a `importeExonerado +100`. Ahora es el aviso (no error)
+  `AVISO_NOTA_EXONERACION_DISTINTA`, con `solucion` propia en el problema (copiar la `exoneracion` del original, o
+  quitarla de la nota), cuando el original es exonerado y la nota no, o al revés. Se decide por `exoneracion` del
+  original y de la entrada. Base: Art. 4 num. 32 y Art. 11 num. 4; aviso del proyecto.
+- **Alternativa:** tope solo del total (antes); o tope también por exento, gravado 0 % y exonerado (rechazaría el
+  caso del aviso, que el encargo pide como aviso).
+
+### DEC-184 · Preguntas al SAR que faltaban (P-16 a P-20)
+- **Contexto:** DEC-050 y DEC-051 decían «va en la consulta al SAR» y no había pregunta; tampoco para DEC-068 ni
+  DEC-079. La carta decía «las 14 consultas» con 15.
+- **Elegida:** `docs/consulta-sar.md` agrega P-16 (tope de la NC y su tasa, incluye exoneración, USD y notas de
+  débito), P-17 (libro de ventas en lempiras, DEC-050), P-18 (equivalente en lempiras, DEC-068), P-19 (nota con un
+  RTN que el original no tiene, DEC-079) y P-20 (anulación con notas vigentes). La carta dice «las 20 consultas».
+  `docs/normativa.md` y `docs/errores.md` citan la P-xx donde decían «en revisión» o «pendiente de confirmar».
+- **Pendiente para el orquestador:** `docs/decisiones.md` (que esta rama no toca) puede enlazar DEC-050 → P-17,
+  DEC-051 → P-16, DEC-068 → P-18 y DEC-079 → P-19.
+
+### DEC-185 · Exportación versión 2: `tipoCambio` y `fechaAnulacion` al final
+- **Contexto:** el CSV y el TXT de `exportarTexto` no llevaban el tipo de cambio ni la fecha de anulación.
+- **Elegida:** dos columnas nuevas **al final** (`tipoCambio`, vacío en lempiras, como lo guarda el documento;
+  `fechaAnulacion`, `YYYY-MM-DD` o vacío) y `VERSION_EXPORTACION = 2` (encabezado TXT `#factura-hn|v2|N`). Las 21
+  columnas de la versión 1 no cambian de nombre ni de orden, así que un lector por nombre de columna, o que toma las
+  21 primeras, sigue funcionando. `leerExportacionJSONL` no cambia (el JSONL lleva el documento completo). En el
+  repositorio no hay lectores de CSV/TXT. Documentado en `docs/guia-sdk.md` §7 y en el JSDoc de `exportacion.ts`.
+- **Fuera de esta rama:** `packages/api/test/reportes-acotados.test.ts` (líneas 207 y 275) espera
+  `#factura-hn|v1|3`; `docs/api.md:357` y `web/src/content/docs/guias/reportes.md:91` mencionan la v1. Hay que
+  cambiarlos a v2 donde se integre.
+
+### DEC-186 · Menores del núcleo
+- `estadoAutorizacion`: con `ultimo < rangoInicial` (serie que viene de un CAI anterior) el siguiente es
+  `max(rangoInicial, ultimo + 1)`: no da más restantes que el rango ni un porcentaje usado negativo.
+- `validarAutorizacion` con `caiEstricto`: no exige la forma 6-6-6-6-6-2 a un CAI ficticio (`esCAIDemo`), para que
+  `crearFacturadorDemo({ caiEstricto: true })` funcione. Sigue siendo de prueba; un CAI real mal formado sigue
+  siendo `CAI_FORMATO`.
+- HTML: «G0 = gravado 0%» en la leyenda solo con líneas `GRAVADO0`, como el ticket. Un documento sin esas líneas se
+  imprime con los mismos bytes; uno con ellas, guardado antes, se reimprime con la leyenda nueva.
+- `npx factura-hn init`: `emitir.mjs` dice (en un comentario y en la salida) que cada corrida empieza en 00000001
+  porque el almacén es en memoria; un `emisor.json` que no es JSON da un mensaje en español que lo nombra y dice
+  cómo arreglarlo (comillas, comas, llaves, o `init --forzar`), con código 1.
+- `docs/errores.md`: cada `### CODIGO` tiene «Solución» o «Qué hacer» (prueba nueva en `lote2-errores.test.ts`);
+  `AUTORIZACION_DEMO_SIN_PRUEBA` queda como nota para los enlaces viejos; entradas del MCP `API_INACCESIBLE`,
+  `BASE_DEMO` y `CAI_DEMO` (la prueba de códigos del MCP ahora también reconoce `errorDe('…')`).
+
+<!-- Paquetes, versión y CI (rama lote6/paquetes) -->
+
+### DEC-187 · Una sola versión: VERSION_API sale de packages/api/package.json y `pnpm run version` la sube
+- **Contexto:** `VERSION_API` estaba escrita a mano (`'0.2.0'`) y `@factura-hn/api` está en el `ignore` de
+  changesets: la API, `openapi.json` y el sitio se quedaban en 0.2.0 después de cada versión.
+- **Decisión:** `app.ts` importa `version` de `../package.json` (tsup la incrusta; solo ese campo llega al bundle,
+  también al de Docker). El script `version` de la raíz corre `changeset version` y luego
+  `scripts/fijar-versiones.mjs` (antes `fijar-version-mcp.mjs`), que comprueba que los seis publicables comparten
+  versión y la copia a `packages/api/package.json`, a `info.version` de `packages/api/openapi.json`, a los bloques
+  `@factura-hn/mcp@X.Y.Z` del README, de `packages/mcp/README.md` y de `web/src/content/docs/ia/mcp.md`.
+  `verificar-dist` falla si la API o `openapi.json` no tienen la versión de los paquetes. La prueba de
+  `packages/mcp/test/comandos.test.ts` que compara los README con `package.json` cubre también la página del sitio.
+- **Por qué no quitar la API del `ignore`:** changesets la subiría como dependiente (parche, 0.2.1) o habría que
+  meterla en el grupo `fixed`, que es de paquetes de npm. La API es privada; basta con copiar la versión.
+
+### DEC-188 · CHANGELOG por paquete en npm y sección enlazada en el de la raíz
+- **Decisión:** los seis paquetes publican `CHANGELOG.md` (en `files`; `verificar-dist` lo exige). Cada uno ya
+  existe en el repositorio con el título y una sección final «0.2.0 y anteriores» que enlaza (URL absoluta) al
+  `CHANGELOG.md` de la raíz; `changeset version` escribe cada versión nueva arriba de esa sección. El `CHANGELOG.md`
+  de la raíz conserva la historia hasta la 0.2.0 y, desde la 0.3.0, `fijar-versiones.mjs` le agrega una sección
+  `## X.Y.Z — fecha` (hoy en Honduras, o `--fecha`) con un enlace al CHANGELOG de cada paquete; si ya existe, no la
+  toca.
+- **Por qué enlazar y no copiar:** los seis changelogs repiten las entradas compartidas y las «Updated
+  dependencies»; copiarlos daría seis veces el mismo texto.
+- **Comprobado:** `pnpm run version` en la rama da 0.3.0 en los seis, la API y `openapi.json`, la sección de la
+  raíz y los changelogs por paquete; `verificar-dist` pasó con ese estado. Después se descartó (`git checkout .`).
+
+### DEC-189 · «Cambios incompatibles» en negrita dentro del changeset, no como título
+- **Contexto:** changesets pone cada changeset como un elemento de lista bajo `### Minor Changes`; un
+  `## Cambios incompatibles` dentro quedaba como título de nivel 2 adentro de una lista de nivel 3.
+- **Decisión:** `**Cambios incompatibles:**` y `**Nota de migración desde la 0.2.0:**` en negrita. Lo explica
+  `.changeset/README.md`, junto con la regla de que cada changeset describe el cambio neto desde la última versión
+  publicada.
+
+### DEC-190 · Changesets corregidos
+- `lote2-integracion` se separa en `lote2-integracion-nucleo` (factura-hn), `lote2-integracion-api` (cliente; la
+  API no se publica y sus cambios van con el cliente, como en los demás) y `lote2-integracion-mcp`. Ya no nombra
+  `AUTORIZACION_DEMO_SIN_PRUEBA` ni el 422 fuera de `demo`: remite a `lote4-llaves-modos` para qué CAI acepta cada
+  tenant.
+- Se borra `lote5-mutacion-letras` (es el primer punto de `lote5-propiedades-nucleo`).
+- `lote4-pendientes-nucleo`: la revisión del emisor pasa a «Cambios incompatibles».
+- `lote4-contrato-api` sube a `minor` y declara como incompatible que los tipos de los `GET` ya no traen el 422.
+  `lote2-integracion-api` declara `EstadoAutorizacion.retirada` obligatorio (nuevo desde la 0.2.0).
+- `mcp-init-demo-registrar-cai`: `Backend.libroVentas` debe devolver `excluidos`.
+- `nucleo-cinco-minutos` decía que un punto «no mezcla CAI de prueba y reales»; ahora dice lo que hace el código:
+  pasa de prueba a real, nunca al revés.
+- Nuevos: `lote6-exportaciones-nucleo` (ver abajo), `lote6-node-20` y `lote6-paquetes`.
+
+### DEC-191 · Exportaciones nuevas del núcleo: todas públicas, `autorizacionesActivas` marcada de bajo nivel
+- **Decisión:** el changeset nombra `esDocumentoDePrueba` y `esAutorizacionDePrueba` (las usan el README, `llms.txt`
+  y el sitio, y `verificar-dist` las promete), `SOLUCIONES`, `conSolucion`, `enlaceError` y `URL_ERRORES` (las
+  importa `@factura-hn/mcp`, que se publica: no pueden ser internas) y `autorizacionesActivas`, que solo usa la API
+  privada: el changeset dice que es de bajo nivel y puede cambiar en 0.x.
+- **Propuesta (fuera de esta rama, `packages/core/src`):** marcar `autorizacionesActivas` con `@internal` o
+  sacarla del índice hacia un submódulo interno. `enlaceError` y `SOLUCIONES` no aparecen en la documentación
+  pública: si se quieren públicas, `docs/guia-sdk.md` debería nombrarlas.
+
+### DEC-192 · Node 20 como piso y en la CI
+- **Decisión:** `engines.node` `>=20` en factura-hn, sqlite, postgres, pdf y la raíz (cliente ya pedía `>=20` y
+  mcp `>=22.13`). Changeset `lote6-node-20` en «Cambios incompatibles». README y sitio dicen Node 20 (también
+  `docs/guia-sdk.md`, que viaja en el paquete). `verificar-dist` falla si un publicable pide menos de Node 20.
+- **CI:** la matriz del trabajo «Tipos, pruebas, build, dist y documentación» es `[20, 22, 24]`. En Node 20 corren
+  la instalación, la auditoría, el build, los tipos, `pnpm test` sin `@factura-hn/sqlite` ni `@factura-hn/mcp` (sus
+  pruebas cargan `node:sqlite`) y el humo `sdk demo`. Quedan solo en 22 y 24: los ejemplos (POS con
+  `node:sqlite`), `verificar-dist` (carga el MCP), el humo del MCP, OpenAPI/Redocly, Next.js y el playground, y el
+  sitio (Astro pide Node 22). `docs/lanzamiento.md` agrega el check «(Node 20)» a la protección de `main`.
+- **Sin comprobar aquí:** no hay Node 20 en este equipo y no se instaló. Revisé a mano que `packages/{core,sqlite,
+  postgres,pdf,cliente}/src` no usan APIs posteriores a Node 20. La primera corrida de la CI lo confirma.
+- **Pendiente:** `@factura-hn/sqlite` con `better-sqlite3` en Node 20 no tiene prueba (no es dependencia de
+  desarrollo). Una prueba con `better-sqlite3` en Node 20 pediría agregarla.
+
+### DEC-193 · release.yml en tres trabajos; changesets/action v2 con sus entradas nuevas
+- **Hallazgo:** changesets/action v2.1.2 renombró `version`, `publish`, `title` y `commit` (a `version-script`,
+  `publish-script`, `pr-title`, `commit-message`) y falla si recibe las viejas: el flujo de antes no habría
+  abierto el PR. Además ya no lee «New tag:» de la salida: espera eventos `git-tag` en el archivo
+  `CHANGESETS_OUTPUT`; sin ellos no crea etiquetas ni releases.
+- **Decisión:** `publicar.mjs` escribe esos eventos y gana `--pendientes` (dice si alguna versión falta en npm y lo
+  deja en `$GITHUB_OUTPUT`). `release.yml` tiene tres trabajos, todos solo en `main` con `PUBLICAR_NPM`:
+  `verificar` (solo lectura: instala, compila, prueba, guarda `packages/*/dist` y calcula los pendientes),
+  `version` (contents y pull-requests de escritura; changesets/action sin publish-script) y `publicar` (entorno
+  `npm`, `id-token` y `contents: write`; corre solo sin changesets y con algo pendiente; no instala dependencias:
+  baja los `dist/` y empaqueta con `pnpm pack`, comprobado sin `node_modules`). Checkout sin credenciales en los
+  tres: changesets/action v2 sube el commit y las etiquetas con la API de GitHub.
+- **Procedencia:** `NPM_CONFIG_PROVENANCE: 'true'` en el paso que publica, no en `publishConfig`.
+- **npm:** en lugar de `npm install -g npm@11.6.2`, el trabajo `publicar` fija Node `24.22.3`, cuyo npm (11.19.1,
+  según nodejs.org/dist/index.json) viene en la misma descarga y supera el mínimo 11.5.1. El `npm install -g`
+  de antes de hecho bajaba npm (Node 24 ya trae 11.19).
+- **Aprobación:** antes, `environment: npm` estaba en el único trabajo: cada push a `main` esperaba la aprobación,
+  también los que solo actualizaban el PR. Ahora solo el trabajo `publicar`.
+- **PR de versión sin CI:** GitHub no dispara flujos por eventos del `GITHUB_TOKEN`. `docs/lanzamiento.md` dice
+  cómo correr el CI sobre `changeset-release/main` (`gh workflow run ci.yml --ref …`).
+- **Sin comprobar:** el flujo no corrió (no hay push). La sintaxis YAML se validó; actionlint no está instalado.
+
+### DEC-194 · Dependencias de @factura-hn/mcp
+- **`workspace:^` en lugar de `workspace:*`:** con el grupo `fixed` los seis salen siempre juntos, pero `*` publica
+  una versión exacta (`0.3.0`): quien tenga `factura-hn@0.3.1` y el MCP 0.3.0 instalaría dos núcleos. `^0.3.0`
+  acepta los parches de la misma menor (en 0.x, `^` no cruza de menor), que changesets sube juntos.
+- **`devDependencies` con `@factura-hn/api` (privada) en cliente y mcp:** el manifiesto publicado lleva
+  `"@factura-hn/api": "0.3.0"`. npm y pnpm no instalan las `devDependencies` de un paquete instalado, y el scope
+  `@factura-hn` es de la organización (nadie más publica ahí): no afecta a quien instala. Se deja.
+- **`@types/node`:** el `.d.ts` del MCP usa `NodeJS.ProcessEnv` y `NodeJS.Platform`. Se declara
+  `@types/node >=22` como dependencia par opcional. Lo limpio es que `packages/mcp/src/comandos.ts` use tipos
+  propios (`Record<string, string | undefined>` y `string`): queda propuesto para quien tiene `packages/mcp/src`.
+
+### DEC-195 · `dist/cli.js` del núcleo importa `./index.js` y `./demo.js`
+- **Decisión:** `packages/core/tsup.cli.config.ts` compila `src/cli.ts` con un plugin de esbuild que reescribe sus
+  imports relativos a `./demo.js` (los de `./demo`) y `./index.js` (los demás), externos. Sin tocar `src`. De
+  108 KB a 8 KB; `npx factura-hn --help`, `demo` e `init` probados desde el tarball. Si `cli.ts` importa algo que
+  el índice no exporta, la verificación de dist y el humo fallan al arrancar.
+
+### DEC-196 · `typesVersions` y `./package.json`
+- `factura-hn` declara `typesVersions` para `demo` y `pruebas`: con `moduleResolution: node10` daban TS2307
+  (reproducido y corregido en un consumidor de prueba; node16 y bundler siguen bien).
+- Los seis exportan `./package.json`.
+
+<!-- Documentación y sitio (rama lote6/docs) -->
+
+### DEC-197 · Los tramos protegidos de la reescritura de enlaces se restauran en bucle
+- **Contexto:** `fueraDeCodigo` (`web/scripts/lib/enlaces-md.mjs`) cambia los comentarios HTML y el código en
+  línea por marcas `\u0000N\u0000` y las restauraba en una sola pasada. Cuando un código en línea abarcaba un
+  comentario ya marcado, la marca interna quedaba en el sitio: 18 NUL en `llms-full.txt` y
+  `referencia/decisiones.md`, y la marca `\uFFFD1\uFFFD` (U+FFFD, carácter de reemplazo) en la página de decisiones (los comentarios `<!-- … (rama loteN/…) -->` de
+  `docs/decisiones.md`).
+- **Elegida:** restaurar hasta que no quede ninguna marca (cada pasada solo puede sacar marcas de índice menor,
+  así que el bucle termina). Prueba en `web/scripts/enlaces.test.mjs`, que falla sin el arreglo.
+- **Verificación:** `web/scripts/verificar.mjs` falla si un `.md`, `.html` o `llms*.txt` generado contiene U+0000
+  o U+FFFD.
+
+### DEC-198 · Primera factura con la API: el paso 3 se detiene si el paso 2 no emitió
+- **Contexto:** sin `PDF`, `curl -o factura.pdf "$API$PDF"` pide la raíz de la API y deja un `factura.pdf` vacío
+  sin error.
+- **Elegida:** `"$API${PDF:?el paso 2 no emitió: revisa su salida}"` en README, portada y
+  `empezar/primera-factura.md`; la portada copia además el `if … Emitida/No se emitió` del paso 2 del README.
+  `verificar.mjs` ya exige que cada comando de la portada esté en el README.
+
+### DEC-199 · Cuatro caminos, y la venta del ejemplo de la API se dice tal cual
+- **Elegida:** README y portada dicen «Los cuatro» (SDK, API, MCP, Next.js); la portada gana la pestaña Next.js
+  con los pasos resumidos y el enlace al código en `/empezar/primera-factura/#nextjs`. «conforme al Acuerdo»
+  pasa a «según el Acuerdo» en la portada (descripción y lema) y en la descripción del sitio
+  (`astro.config.mjs`).
+- **Venta de la API:** `packages/api/ejemplos/factura.json` vende 2 × L 57.50 (total L 115.00), no 2 × L 115.00.
+  No es de esta rama: los textos dicen la verdad del JSON. Propuesta: cambiar el JSON a `"115.00"` para que los
+  cuatro caminos emitan la misma venta, y entonces quitar la nota.
+
+### DEC-200 · Ejemplo Next.js: la llave sale de `demo llave --solo-llave`
+- **Elegida:** README del ejemplo con `docker compose up -d --build --wait` y
+  `FHN_LLAVE=$(docker compose exec -T api factura-hn-api demo llave --solo-llave)` (y la variante de PowerShell).
+  Los errores de `lib/fhn.ts` y `lib/enlaces.ts` dicen el comando que crea cada variable. Prueba nueva en
+  `examples/nextjs/test/nextjs.test.ts`.
+
+### DEC-201 · Los README de `sqlite`, `postgres`, `pdf` y `cliente` entran en la prueba de fragmentos
+- **Elegida:** `packages/core/test/readme.test.ts` compila también los bloques ```ts de esos README. Las variables
+  del integrador (`entrada`, `cai`, `documento`) van en el comentario `<!-- declaraciones: … -->` (invisible en
+  npm) y un comentario en el código dice qué son. El README de SQLite usa `node:sqlite` en el código y deja
+  `better-sqlite3` en el comentario: no hay tipos de `better-sqlite3` en el repositorio.
+
+### DEC-202 · Los DEC citados en la prosa del sitio enlazan su ancla
+- **Elegida:** `[DEC-0NN](/referencia/decisiones/#dec-0nn--título…)`, con el id que genera el sitio (incluye el
+  título y el estado). Si cambia el título de una decisión, el ancla cambia y `pnpm sitio` falla: es lo buscado.
+
+### DEC-203 · Integración del Lote 6 y versión 0.3.0
+- **Contexto:** las cuatro ramas de correcciones tocan archivos distintos; `nucleo` cambió dos comportamientos que
+  pruebas de otros paquetes daban por hechos.
+- **Elegida:**
+  - Las pruebas del MCP anulan primero la nota de crédito y comprueban que el original con nota vigente da
+    `DOCUMENTO_CON_NOTAS`. Las de reportes de la API esperan el encabezado `#factura-hn|v2|N`.
+  - `docs/errores.md` une las entradas de `nucleo` y de `api` (una sola `IDEMPOTENCY_KEY`, la sección del MCP con
+    todos sus códigos).
+  - DEC-050, DEC-051, DEC-068 y DEC-079 citan sus preguntas P-16 a P-19; DEC-140 y DEC-152 citan el Reglamento
+    (Acuerdo 481-2017), no otro acuerdo.
+  - La versión 0.3.0 sale de `pnpm run version` (changesets y `scripts/fijar-versiones.mjs`).
+  - `scripts/auditar-datos.mjs` no toma por RTN un importe con decimales (`8695652173913.00` en las pruebas del
+    tope técnico): el patrón de 13 o 14 dígitos excluye los que siguen con `.` y un dígito.
+  - Tras la revisión independiente de la rama integrada:
+    - `docs/errores.md` y `docs/normativa.md` viajan en el paquete `factura-hn`. Citan la consulta al SAR por la URL
+      del sitio, sin número de pregunta ni de decisión.
+    - `packages/api/CHANGELOG.md` existe y `fijar-versiones.mjs` le agrega cada versión, porque changesets/action
+      lee el CHANGELOG de todo paquete cuya versión cambió.
+    - Los CHANGELOG de `cliente` y `mcp` y el de la raíz (que el sitio muestra en «Cambios») resumen los cambios
+      incompatibles de la API y del MCP. Se quitaron los hashes de commits de la rama, que no existirán en `main`
+      tras el squash.
+    - La batería `ejecutarContratoAlmacen` prueba el tope por tasa con notas previas guardadas (SQLite y
+      PostgreSQL).
+    - Las pruebas de webhooks programan el reintento 1 s en el pasado: el reloj de Node y el de PostgreSQL pueden
+      diferir unos milisegundos.
+- **Alternativa:** dejar las pruebas viejas con la regla nueva desactivada en el MCP; se descartó porque el MCP usa
+  el mismo núcleo y debe comportarse igual.

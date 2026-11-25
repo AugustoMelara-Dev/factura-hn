@@ -39,7 +39,7 @@ Quien emite es el responsable ante el SAR. La Declaración Jurada del sistema la
 
 ## La consulta al SAR no se ha enviado
 
-El proyecto redactó una consulta formal con 15 preguntas (P-01 a P-15) sobre los puntos que el Reglamento no
+El proyecto redactó una consulta formal con 20 preguntas (P-01 a P-20) sobre los puntos que el Reglamento no
 resuelve de forma literal. **Aún no se ha enviado** y ninguna pregunta tiene respuesta del SAR. Mientras tanto,
 factura-hn aplica la lectura provisional que se indica en cada una. El texto está en
 [Consulta al SAR](/produccion/consulta-sar/).

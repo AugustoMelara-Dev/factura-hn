@@ -6,7 +6,8 @@
  *   FHN_SQLITE=./factura.db FHN_EMISOR=./emisor.json FHN_ESTABLECIMIENTO=000 FHN_PUNTO=001 factura-hn-mcp
  * Vía la API:
  *   FHN_API_URL=http://127.0.0.1:8787 FHN_LLAVE=fhn_… factura-hn-mcp
- * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora.
+ * Opcional en ambos modos: FHN_OPERADOR=«nombre», la persona que opera, para la bitácora, y
+ * FHN_MCP_PERMITIR_DESTRUCTIVAS=1 para anular y registrar CAI con un cliente que no ofrece elicitación.
  *
  * Con comando: `init` (o `iniciar`), `registrar-cai` y `ayuda` (ver `comandos.ts`).
  */
@@ -15,6 +16,7 @@ import { BackendApi, BackendLocal, type Backend } from './backend';
 import { abrirBase, ejecutarComando } from './comandos';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { leerEmisor } from './emisor';
+import { problemaDeNode } from './requisitos';
 import { crearServidorMCP } from './servidor';
 
 function backendDesdeEntorno(env: NodeJS.ProcessEnv): { backend: Backend; descripcion: string } {
@@ -62,11 +64,21 @@ async function orientar(backend: Backend, descripcion: string) {
   console.error(lineas.join('\n'));
 }
 
+// Antes que nada: en Node < 22.13, los caminos con SQLite fallarían con el mensaje de Node, en inglés.
+const node = problemaDeNode(process.argv.slice(2), process.env, process.versions.node);
+if (node) {
+  console.error(node);
+  process.exit(1);
+}
+
 try {
   const r = await ejecutarComando(process.argv.slice(2), { cwd: process.cwd(), env: process.env });
   if (r === 'servidor') {
     const { backend, descripcion } = backendDesdeEntorno(process.env);
-    await crearServidorMCP(backend).connect(new StdioServerTransport());
+    // Anular y registrar CAI piden confirmación al usuario por elicitación; sin ella en el cliente, se niegan salvo
+    // con FHN_MCP_PERMITIR_DESTRUCTIVAS=1 (ver el README).
+    const permitirDestructivas = process.env.FHN_MCP_PERMITIR_DESTRUCTIVAS === '1';
+    await crearServidorMCP(backend, { permitirDestructivas }).connect(new StdioServerTransport());
     await orientar(backend, descripcion);
   } else {
     process.exitCode = r;

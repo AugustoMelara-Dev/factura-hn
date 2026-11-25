@@ -1,6 +1,6 @@
 {
   "name": "@factura-hn/postgres",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Adaptador PostgreSQL de AlmacenFiscal para factura-hn (API, varias cajas, multi-tenant). Proyecto independiente, no afiliado al SAR.",
   "keywords": [
     "honduras",
@@ -26,16 +26,18 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "peerDependencies": {
     "factura-hn": "workspace:^"

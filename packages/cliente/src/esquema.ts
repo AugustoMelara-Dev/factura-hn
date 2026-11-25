@@ -438,7 +438,7 @@ export interface components {
                  */
                 documentacion?: string;
                 /**
-                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.2.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
+                 * @description Id de la solicitud, el mismo de la cabecera `Solicitud-Id`. Cítalo al reportar un problema. Desde la 0.3.0 la API lo envía siempre; es opcional para leer sin fallar el error de un proxy o de un servidor anterior.
                  * @example 0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42
                  */
                 solicitud?: string;
@@ -851,7 +851,7 @@ export interface components {
         "Solicitud-Id": string;
         /** @description Versión de la API que respondió (la misma de `/salud` y de `info.version`). */
         "FacturaHN-Version": string;
-        /** @description Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `DEMASIADOS_REPORTES`). */
+        /** @description Modo del tenant de la llave: `prueba` (llaves `fhn_test_`, solo CAI ficticios) o `produccion` (llaves `fhn_live_`). Solo después de validar la llave: nunca en un 401, un 413, un 403 `TENANT_FUERA_DEL_MODO_LOCAL` ni un 429 `DEMASIADOS_INTENTOS` o `DEMASIADAS_SOLICITUDES`; sí en los 429 que llegan con la llave ya validada (`LIMITE_MENSUAL`, `LIMITE_SOLICITUDES`). */
         "FacturaHN-Modo": string;
         /** @description Política del límite de la llave (borrador IETF draft-ietf-httpapi-ratelimit-headers): `q` solicitudes de ráfaga que se recuperan enteras en `w` segundos. Solo después de validar la llave: nunca en un 401, un 413 ni un 429 `DEMASIADOS_INTENTOS`. */
         "RateLimit-Policy": string;
@@ -947,6 +947,20 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1208,6 +1222,20 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1481,6 +1509,20 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Límite de solicitudes (con `Retry-After`) */
             429: {
                 headers: {
@@ -1728,6 +1770,20 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description No existe */
             404: {
                 headers: {
@@ -1816,6 +1872,20 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1930,6 +2000,20 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Límite de solicitudes (con `Retry-After`) */
             429: {
                 headers: {
@@ -1980,7 +2064,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Clave única por venta (p. ej. un UUID generado por el POS). */
+                /** @description Obligatoria. Clave única por venta (p. ej. el id del pedido o un UUID generado por el POS), la misma en cada reintento de esa venta. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -2196,6 +2280,20 @@ export interface operations {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
                     [name: string]: unknown;
                 };
                 content: {
