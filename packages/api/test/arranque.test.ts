@@ -236,6 +236,23 @@ describe.skipIf(!URL_PG)('arranque', () => {
     await expect(arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(/otro-negocio/);
   });
 
+  it('en modo local, la llave de un tenant creado con la API en marcha recibe 403 TENANT_FUERA_DEL_MODO_LOCAL', async () => {
+    const url = await esquemaNuevo();
+    const pool = nuevoPool(url());
+    const s = await arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' });
+    try {
+      // Creado por fuera de la consola (que se niega en modo local), con la API ya en marcha.
+      const { llaveAdmin } = await crearTenant(pool, { tenant: 'otro-negocio', nombre: 'Otro negocio' });
+      const r = await cliente(s.app, llaveAdmin)('GET', '/v1/sesion');
+      expect(r.status).toBe(403);
+      expect(((await r.json()) as { error: { codigo: string } }).error.codigo).toBe('TENANT_FUERA_DEL_MODO_LOCAL');
+      const local = await crearLlaveOperador(pool, { tenant: TENANT_LOCAL, rol: 'admin', nombre: 'Administración' });
+      expect((await cliente(s.app, local)('GET', '/v1/sesion')).status).toBe(200);
+    } finally {
+      await s.cerrar();
+    }
+  });
+
   it('la consola no crea llaves para un tenant que no existe', async () => {
     const p = await poolPrueba();
     await expect(crearLlaveOperador(p, { tenant: `no-existe-${hex()}`, rol: 'admin', nombre: 'x' })).rejects.toThrow(/no existe: arranca la API una vez.*tenant crear/);
