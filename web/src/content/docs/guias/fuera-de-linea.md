@@ -62,8 +62,10 @@ import { AlmacenSQLite } from '@factura-hn/sqlite';
 
 const db = new DatabaseSync('./caja-003.db');
 const almacen = new AlmacenSQLite(db); // crea las tablas fhn_* si no existen
-// Una vez: en producción, el CAI de la resolución de esta caja.
-await registrarAutorizacion(almacen, autorizacionDemo({ puntoEmision: '003' }));
+// Una sola vez por base: registrar el mismo CAI otra vez da AUTORIZACION_DUPLICADA, así que solo si la caja aún
+// no tiene ninguno. En producción, el CAI de la resolución de esta caja.
+const autorizaciones = await almacen.transaccion((tx) => tx.autorizaciones('000-003-01'));
+if (autorizaciones.length === 0) await registrarAutorizacion(almacen, autorizacionDemo({ puntoEmision: '003' }));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS ventas (clave TEXT PRIMARY KEY, numero TEXT NOT NULL);
