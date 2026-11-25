@@ -122,5 +122,5 @@ local: la API en un servidor del propio negocio. Ver la [consulta al SAR](/produ
 ## Fuentes
 
 - Reglamento, Arts. 10 num. 7, 47, 48 y 59: matriz de [cumplimiento](/referencia/cumplimiento/).
-- [Almacén fiscal](/conceptos/almacen-fiscal/), «Sistemas en red», y la [referencia de la API](/referencia/api/), «Autenticación y
+- [Almacén fiscal](/conceptos/almacen/), «Sistemas en red», y la [referencia de la API](/referencia/api/), «Autenticación y
   roles».

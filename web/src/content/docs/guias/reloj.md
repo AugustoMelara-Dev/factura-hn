@@ -136,5 +136,5 @@ Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y 
 - Investigación normativa, «Reloj del dispositivo y orden cronológico (Art. 43)»; matriz de
   [cumplimiento](/referencia/cumplimiento/), filas 14, 41 y 43.
 - `corregirFechaAdelantada` y `eventosAuditoria` en el núcleo; sección «Reloj del dispositivo» de
-  [AGENTS.md](/ia/agents-md/).
+  `AGENTS.md`.
 - DEC-002, DEC-003 y DEC-022 en [decisiones](/referencia/decisiones/).

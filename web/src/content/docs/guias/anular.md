@@ -130,5 +130,5 @@ Consulta los dos casos con tu contador.
 
 - Reglamento, Arts. 4 num. 31-32, 14, 26, 41 y 43: matriz de [cumplimiento](/referencia/cumplimiento/), filas
   4.31-32, 26 y 41.
-- `anular` y `corregirFechaAdelantada` en el núcleo; [Documentos inmutables](/conceptos/documentos-inmutables/).
+- `anular` y `corregirFechaAdelantada` en el núcleo; [Documentos inmutables](/conceptos/inmutables/).
 - DEC-001, DEC-051 y DEC-079 en [decisiones](/referencia/decisiones/).
