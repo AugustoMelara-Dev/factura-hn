@@ -342,19 +342,68 @@ export function agrupar(ip: string): string {
  *   cabecera que quiera y elige su cubeta.
  * - Lista: la cabecera solo se cree si el socket es uno de esos proxies; se recorre desde la derecha saltando
  *   las direcciones de la lista y la primera que no está es la del cliente. Una solicitud directa no la elige.
+ *   Cada elemento es una dirección o un rango en notación CIDR (`fdaa:0:1a2b::/48`, `10.0.0.0/8`): un rango
+ *   sirve cuando la dirección del proxy cambia, p. ej. la red privada de una organización en Fly.io.
  */
 export type ProxiesDeConfianza = number | readonly string[];
 
-/** Lee `FHN_PROXIES_DE_CONFIANZA`: vacío es 0; un número de saltos; o direcciones separadas por comas. */
+/** Valor numérico de una dirección (IPv4 de 32 bits, IPv6 de 128), o null si no es una dirección. */
+function valorIp(ip: string): { bits: 32 | 128; valor: bigint } | null {
+  const n = normalizarIp(ip);
+  const v4 = IPV4.exec(n);
+  if (v4) {
+    const o = v4.slice(1).map(Number);
+    return o.some((x) => x > 255) ? null : { bits: 32, valor: o.reduce((a, x) => (a << 8n) | BigInt(x), 0n) };
+  }
+  const g = gruposIpv6(n);
+  return g ? { bits: 128, valor: g.reduce((a, x) => (a << 16n) | BigInt(x), 0n) } : null;
+}
+
+/** Un rango CIDR (`dirección/prefijo`) válido, o null. Un prefijo 0 (todas las direcciones) no se admite. */
+function leerRango(texto: string): { bits: 32 | 128; red: bigint; prefijo: number } | null {
+  const m = /^\[?([^\]/]+)\]?\/(\d{1,3})$/.exec(texto.trim());
+  if (!m || isIP(m[1]!) === 0) return null;
+  const ip = valorIp(m[1]!);
+  const prefijo = Number(m[2]);
+  if (!ip || prefijo < 1 || prefijo > ip.bits) return null;
+  const mascara = ((1n << BigInt(prefijo)) - 1n) << BigInt(ip.bits - prefijo);
+  return { bits: ip.bits, red: ip.valor & mascara, prefijo };
+}
+
+const esRango = (s: string) => s.includes('/');
+
+/** Lee `FHN_PROXIES_DE_CONFIANZA`: vacío es 0; un número de saltos; o direcciones y rangos CIDR separados por comas. */
 export function leerProxiesDeConfianza(texto: string | undefined): ProxiesDeConfianza {
   const t = (texto ?? '').trim();
   if (!t) return 0;
   if (/^\d{1,2}$/.test(t)) return Number(t);
   const lista = t.split(',').map((s) => s.trim()).filter(Boolean);
-  const malas = lista.filter((s) => isIP(s.replace(/^\[|\]$/g, '')) === 0);
+  const malas = lista.filter((s) => (esRango(s) ? leerRango(s) === null : isIP(s.replace(/^\[|\]$/g, '')) === 0));
   if (!lista.length || malas.length)
-    throw new Error(`FHN_PROXIES_DE_CONFIANZA debe ser un número de proxies o una lista de direcciones IP separadas por comas (no "${t}").`);
+    throw new Error(
+      'FHN_PROXIES_DE_CONFIANZA debe ser un número de proxies o una lista de direcciones IP o rangos CIDR (p. ej. ' +
+        `fdaa:0:1a2b::/48, con prefijo de 1 o más) separados por comas (no "${t}").`,
+    );
   return lista;
+}
+
+const comprobadores = new WeakMap<readonly string[], (ip: string) => boolean>();
+
+/** ¿La dirección es una de la lista o cae en uno de sus rangos? Se prepara una vez por lista. */
+export function esDeConfianza(lista: readonly string[], ip: string): boolean {
+  let f = comprobadores.get(lista);
+  if (!f) {
+    const exactas = new Set(lista.filter((s) => !esRango(s)).map(normalizarIp));
+    const rangos = lista.filter(esRango).map(leerRango).filter((r) => r !== null);
+    f = (dir: string) => {
+      if (exactas.has(normalizarIp(dir))) return true;
+      if (!rangos.length) return false;
+      const v = valorIp(dir);
+      return !!v && rangos.some((r) => r.bits === v.bits && v.valor >> BigInt(r.bits - r.prefijo) === r.red >> BigInt(r.bits - r.prefijo));
+    };
+    comprobadores.set(lista, f);
+  }
+  return f(ip);
 }
 
 /**
@@ -391,10 +440,9 @@ export function ipDeSolicitud(c: SolicitudConDireccion, proxies: ProxiesDeConfia
       if (ip) return agrupar(ip);
     }
   } else if (socket && proxies.length) {
-    const confiables = new Set(proxies.map(normalizarIp));
-    if (confiables.has(normalizarIp(socket))) {
+    if (esDeConfianza(proxies, socket)) {
       const s = saltos();
-      for (let i = s.length - 1; i >= 0; i--) if (!confiables.has(normalizarIp(s[i]!))) return agrupar(s[i]!);
+      for (let i = s.length - 1; i >= 0; i--) if (!esDeConfianza(proxies, s[i]!)) return agrupar(s[i]!);
     }
   }
   return socket ? agrupar(socket) : 'desconocida';

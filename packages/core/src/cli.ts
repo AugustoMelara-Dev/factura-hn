@@ -117,9 +117,10 @@ async function demo(dir: string): Promise<void> {
   console.log(`Se escribió ${ruta}: ábrelo en el navegador para verla o imprimirla.`);
   console.log(`
 Siguientes pasos:
-  1. npx factura-hn init     crea emitir.mjs y emisor.json en este directorio
-  2. node emitir.mjs         emite con tus datos (en emisor.json) y escribe factura.html
-  3. Para emitir de verdad: registra el CAI de tu resolución del SAR y usa un almacén que guarde
+  1. npm install factura-hn  instala el SDK en este proyecto (emitir.mjs lo importa)
+  2. npx factura-hn init     crea emitir.mjs y emisor.json en este directorio
+  3. node emitir.mjs         emite con tus datos (en emisor.json) y escribe factura.html
+  4. Para emitir de verdad: registra el CAI de tu resolución del SAR y usa un almacén que guarde
      (@factura-hn/sqlite o @factura-hn/postgres). Guía: ${GUIA}`);
 }
 

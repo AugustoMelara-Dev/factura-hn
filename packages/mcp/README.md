@@ -227,19 +227,29 @@ para imprimir «Atendido por» en el documento.
 
 ## MCP remoto (Streamable HTTP)
 
-`npx -y @factura-hn/mcp http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por
-HTTP, para agregarlo como conector personalizado en Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo
-con el MCP Inspector. Corre aparte de la API y la llama por HTTP con la llave de cada conexión; no guarda datos ni
+El comando `http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por HTTP, para
+agregarlo como conector personalizado en Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo con el MCP
+Inspector. Corre aparte de la API y la llama por HTTP con la llave de cada conexión; no guarda datos ni
 credenciales.
 
+Está en el paquete desde la versión siguiente a la 0.3.0 (`npx -y @factura-hn/mcp ayuda` dice si tu versión lo
+tiene). Mientras tanto, desde un clon del repositorio, después de `pnpm install` y `pnpm build`:
+
 ```bash
-FHN_API_URL=http://127.0.0.1:8787 npx -y @factura-hn/mcp http     # escucha en el puerto 8788
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 node packages/mcp/dist/cli.js http   # puerto 8788
+# con una versión que ya lo trae:
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http
 ```
 
+Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor); en tu equipo, `127.0.0.1`.
+El puerto se cambia con `FHN_MCP_PUERTO` (o `PORT`).
+
 - `/mcp/<token>`: la URL personal (`fhnmcp_…`) que da `POST /v1/demo/entornos` en la demostración pública. Es la
-  que se pega en Claude o ChatGPT.
+  que se pega en Claude o ChatGPT, y la que se prueba sin cabeceras:
+  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp/<token> --transport http --method tools/list`.
 - `/mcp` con `Authorization: Bearer <llave fhn_…>`: para clientes que mandan cabeceras, p. ej.
-  `npx @modelcontextprotocol/inspector --server-url http://127.0.0.1:8788/mcp --transport http`.
+  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer <llave>" --method tools/list`.
+  Sin esa cabecera, `/mcp` responde 401.
 
 Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Hay límites por dirección, por llave y de
 sesiones, y un resultado de más de 64 KB se recorta con un aviso. Las variables (`FHN_MCP_*`), el despliegue y

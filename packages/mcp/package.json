@@ -37,6 +37,7 @@
     "build": "tsup src/index.ts src/cli.ts --format esm --dts --clean --target node22",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "build:docker": "tsup --config tsup.docker.config.ts",
     "prepack": "node ../../scripts/copiar-docs.mjs packages/mcp LICENSE"
   },
   "dependencies": {

@@ -59,6 +59,9 @@ describe('npx factura-hn', () => {
     expect(r.salida).toContain('N° 000-001-01-00000001');
     expect(r.salida).toContain('Siguientes pasos');
     expect(r.salida).toContain('npx factura-hn init');
+    // El primer paso instala el SDK: emitir.mjs lo importa.
+    expect(r.salida.indexOf('1. npm install factura-hn')).toBeGreaterThan(r.salida.indexOf('Siguientes pasos'));
+    expect(r.salida.indexOf('1. npm install factura-hn')).toBeLessThan(r.salida.indexOf('npx factura-hn init'));
     const html = readFileSync(join(dir, 'factura-demo.html'), 'utf8');
     expect(html.split(`>${LEYENDA_PRUEBA}</div>`)).toHaveLength(3);
     // Otra vez: no sobrescribe, escribe factura-demo-2.html y lo dice.

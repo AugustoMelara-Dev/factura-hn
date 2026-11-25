@@ -1,0 +1,48 @@
+# MCP remoto de la demostración pública en Fly.io (`factura-hn-mcp http`). Guía paso a paso: docs/despliegue-demo.md.
+#   fly deploy -c fly.mcp.toml --ha=false        (desde la raíz del repositorio, después de la API; una sola máquina)
+# No tiene secretos ni credenciales de la base: llama a la API con la llave de cada conexión.
+app = "factura-hn-demo-mcp"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "15s"
+
+[build]
+  dockerfile = "Dockerfile.mcp"
+
+[env]
+  # La API por la red privada de la organización (IPv6, sin pasar por internet ni por el proxy público). Así la API
+  # ve la dirección privada de esta máquina y, si está en su FHN_PROXIES_DE_CONFIANZA, cree el X-Forwarded-For con
+  # la dirección de cada visitante. Si cambias el nombre de la aplicación de la API, cámbialo aquí.
+  FHN_API_URL = "http://factura-hn-demo-api.internal:8787"
+  FHN_MCP_PUERTO = "8788"
+  FHN_MCP_HOST = "0.0.0.0"
+  # Delante solo está el proxy de Fly: la dirección del visitante es la de esta cabecera.
+  FHN_IP_CLIENTE_CABECERA = "Fly-Client-IP"
+  FHN_PROXIES_DE_CONFIANZA = "0"
+  NODE_OPTIONS = "--max-old-space-size=384"
+  # Los límites FHN_MCP_* quedan en sus valores por defecto (docs/demo.md), pensados para 512 MB.
+
+[http_service]
+  internal_port = 8788
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # Cada sesión puede tener abierto un flujo SSE largo, que cuenta como una solicitud en curso: el tope queda por
+  # encima de FHN_MCP_MAX_SESIONES (100), y el MCP responde 503 con Retry-After antes de llegar a él.
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 150
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "15s"
+    timeout = "5s"
+    method = "GET"
+    path = "/salud"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

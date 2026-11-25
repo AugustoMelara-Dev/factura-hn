@@ -43,6 +43,10 @@ docker compose exec api factura-hn-api <comando> --help
 
 Así aparece en esta guía, en la [guía de la API](api.md) y en los mensajes del servidor.
 
+Sin Docker (la API arrancada con `node packages/api/dist/servidor.js`, ver «Sin Docker» en la
+[guía de la API](api.md#sin-docker)), la misma consola es `node packages/api/dist/cli.js <comando>`, con las mismas
+variables `DATABASE_URL` y `FHN_MIGRAR_URL`.
+
 ## Poner en marcha un negocio
 
 1. **Sin demostración.** En `docker-compose.yml`, `FHN_DEMO: "0"`, o bórralo. El tenant `local` es el de tu
@@ -175,14 +179,15 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 |---|---|---|
 | `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres 13 o más reciente). En Compose, el rol `fhn_api`, que no es dueño de las tablas |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas, para migrar al arrancar y para la consola. Sin ella, la API corre como dueño de las tablas y lo avisa en el log |
+| `FHN_MIGRAR_AL_ARRANCAR` | `1` | `0`: la API no migra al arrancar ni necesita al dueño de las tablas; exige el esquema al día y que `DATABASE_URL` no sea dueño, superusuario ni `BYPASSRLS`. La migración corre aparte (`factura-hn-api migrar`). No sirve en modo local |
 | `FHN_MODO` | `local` | `local` (un negocio), `alojado` (varios tenants) o `demo` (la demostración pública: solo entornos de prueba que se borran a las 24 h, ver [demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo 7). La clave en sí no caduca |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de los webhooks. Obligatoria en `alojado` |
-| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Dentro del contenedor |
+| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz del proceso (dentro del contenedor). Sin Docker, `FHN_HOST=127.0.0.1` en tu equipo: ver «Sin Docker» en la [guía de la API](api.md#sin-docker) |
 | `FHN_DEMO` | — | `1`: crea el tenant de demostración con datos ficticios |
 | `FHN_PUERTO` | `8787` | Puerto publicado en 127.0.0.1 por `docker-compose.yml` (variable de Compose, no de la API) |
-| `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, o rangos CIDR como `10.0.0.0/8`, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
 | `FHN_IP_CLIENTE_CABECERA` | — | Cabecera con la dirección del cliente que pone tu proxy de confianza, p. ej. `Fly-Client-IP` en Fly.io. Tiene prioridad sobre `X-Forwarded-For`. Defínela solo si a la API se llega únicamente por ese proxy: cualquiera puede mandar la cabecera |
 
 Las demás variables están en la [guía de la API](api.md#variables-de-entorno).

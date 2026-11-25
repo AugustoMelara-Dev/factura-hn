@@ -109,6 +109,12 @@ da el ticket en texto. El MCP no genera PDF ni HTML.
 
 Dónde va el bloque en cada cliente: [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md).
 
+**Sin instalar nada (Claude web y móvil, ChatGPT):** la demostración pública crea un entorno de prueba de 24 horas
+con su propia URL de MCP remoto, que se pega como conector personalizado. Cómo, en
+[MCP remoto](https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/) (la página «Pruébalo ahora» del sitio
+lo crea con un botón). Para operar una demostración propia, o probar el modo demo en tu equipo:
+[docs/demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md).
+
 ### Next.js
 
 Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app` (con el alias `@/`). Si tu
@@ -203,9 +209,11 @@ import { AlmacenFiscalMemoria, emitir, fechaHonduras, registrarAutorizacion, ren
 // En producción: AlmacenPostgres (@factura-hn/postgres) o AlmacenSQLite (@factura-hn/sqlite).
 const almacen = new AlmacenFiscalMemoria();
 
-// Una vez por resolución del SAR: el CAI, su rango y su fecha límite.
+// Una vez por resolución del SAR: el CAI, su rango y su fecha límite. Este es ficticio y de prueba: todo lo
+// que emite dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». Con el CAI de tu resolución, quita `prueba`.
 await registrarAutorizacion(almacen, {
-  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', // de tu resolución del SAR
+  cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01',    // el de tu resolución del SAR
+  prueba: true,
   tipoDocumento: '01',                          // 01 = Factura
   establecimiento: '000',
   puntoEmision: '001',
@@ -241,6 +249,7 @@ factura.numero;                 // "000-001-01-00000001"
 factura.totales.total;          // 371
 factura.totales.totalEnLetras;  // "TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100"
 factura.advertencias;           // []
+factura.modo;                   // "prueba": el HTML y el ticket llevan la leyenda
 renderizarHTML(factura);        // HTML listo para imprimir o convertir a PDF
 ```
 
@@ -439,6 +448,8 @@ herramientas `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `an
 - Con tus datos: `npx -y @factura-hn/mcp init` (base `factura.db` y plantilla `emisor.json`), y luego
   `npx -y @factura-hn/mcp registrar-cai` con los datos de tu resolución.
 - Vía la API: el bloque `mcpServers` con `FHN_API_URL` y `FHN_LLAVE` (una llave de caja).
+- Remoto, por HTTP (conector de Claude o ChatGPT): `factura-hn-mcp http`, ver el
+  [README del MCP](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/mcp/README.md#mcp-remoto-streamable-http).
 
 ```json
 { "mcpServers": { "factura-hn": { "command": "npx", "args": ["-y", "@factura-hn/mcp@0.3.0"],

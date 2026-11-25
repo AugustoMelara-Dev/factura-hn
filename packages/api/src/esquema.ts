@@ -499,6 +499,58 @@ BEGIN
 END $do$;
 `;
 
+/**
+ * En Supabase, los privilegios por defecto del esquema `public` dan todas las tablas y secuencias nuevas a los roles de
+ * su API de datos (`anon`, `authenticated`, `service_role`), y esa API las publica por HTTP con una llave que es
+ * pública por diseño. Las tablas sin RLS (`api_demo_control`, `fhn_migraciones`) quedarían a la vista y modificables
+ * desde internet. Se quitan esos privilegios en cada migración, solo en las tablas, secuencias y funciones de factura-hn
+ * (`fhn_*`, `api_*`) del esquema: lo demás que haya en el esquema no se toca. Las funciones pierden también el EXECUTE
+ * de PUBLIC. No se cambian los privilegios por defecto del esquema: en Postgres, un REVOKE por esquema no quita el
+ * EXECUTE global de PUBLIC, y quitarles a los roles de Supabase los suyos afectaría a otros objetos del esquema.
+ */
+function sinRolesApiDeDatos(rol: string, login?: string): string {
+  if (!ROL.test(rol) || (login !== undefined && !ROL.test(login))) throw new Error('Nombre de rol inválido');
+  const conservan = [rol, ...(login ? [login] : [])].map((r) => `'${r}'`).join(', ');
+  return `DO $do$
+DECLARE
+  v_rol text;
+  v_obj record;
+  v_quien text;
+  v_pueden text[];
+BEGIN
+  FOREACH v_rol IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+      FOR v_obj IN
+        SELECT c.relname, c.relkind FROM pg_class c
+         WHERE c.relnamespace = current_schema()::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+           AND (c.relname LIKE 'fhn\\_%' OR c.relname LIKE 'api\\_%')
+      LOOP
+        EXECUTE format('REVOKE ALL ON %s %I FROM %I', CASE WHEN v_obj.relkind = 'S' THEN 'SEQUENCE' ELSE 'TABLE' END, v_obj.relname, v_rol);
+      END LOOP;
+    END IF;
+  END LOOP;
+  -- Funciones: nadie las ejecuta por PUBLIC ni por los roles de la API de datos. El rol de la aplicación (y el LOGIN
+  -- de la API) conservan exactamente las que ya podían ejecutar, ahora con un permiso propio.
+  FOR v_obj IN
+    SELECT p.oid::regprocedure AS firma FROM pg_proc p
+     WHERE p.pronamespace = current_schema()::regnamespace AND p.prokind IN ('f', 'p')
+       AND (p.proname LIKE 'fhn\\_%' OR p.proname LIKE 'api\\_%')
+  LOOP
+    v_pueden := ARRAY(SELECT r FROM unnest(ARRAY[${conservan}]) AS r
+                       WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) AND has_function_privilege(r, v_obj.firma, 'EXECUTE'));
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', v_obj.firma);
+    FOREACH v_rol IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = v_rol) THEN
+        EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM %I', v_obj.firma, v_rol);
+      END IF;
+    END LOOP;
+    FOREACH v_quien IN ARRAY v_pueden LOOP
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I', v_obj.firma, v_quien);
+    END LOOP;
+  END LOOP;
+END $do$;`;
+}
+
 const ROL = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** Permisos mínimos del rol de la aplicación: sin DELETE; columnas acotadas donde se actualiza. */
@@ -567,6 +619,8 @@ export async function migrarApi(pool: pg.Pool, rol = ROL_POR_DEFECTO, opciones: 
     }
     // Fuera de la clave de versión: el rol LOGIN puede cambiar sin que cambie el esquema.
     if (sqlLogin) await c.query(sqlLogin);
+    // También fuera: los privilegios por defecto de un Postgres administrado pueden haber dado las tablas a otros roles.
+    await c.query(sinRolesApiDeDatos(rol, opciones.login));
     await c.query('COMMIT');
   } catch (e) {
     await c.query('ROLLBACK').catch(() => undefined);

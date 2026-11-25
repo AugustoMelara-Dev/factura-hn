@@ -125,12 +125,17 @@ export function configDemo(cambios: Partial<ConfigDemo> = {}): ConfigDemo {
  */
 export const huellaOrigen = (secreto: Buffer, ip: string): string => createHmac('sha256', secreto).update(ip).digest('hex').slice(0, 32);
 
-/** Ejemplos listos para copiar, con la llave, el punto de emisión y las URL del entorno. */
+/**
+ * Ejemplos listos para copiar, con la llave, el punto de emisión y las URL del entorno. La venta es la misma del
+ * inicio rápido con Docker (packages/api/ejemplos/factura.json): 2 × L 57.50 con el ISV incluido, total L 115.00.
+ * El cuerpo de curl va en ASCII: Git Bash en Windows manda los acentos de la línea de comandos en otra codificación
+ * que UTF-8, y la API lo rechazaría con CUERPO_NO_UTF8.
+ */
 export function ejemplosDemo(o: { urlApi: string; llave: string; urlMcp: string | null }): { curl: string; sdk: string; mcp: string } {
   const cuerpo = JSON.stringify({
     establecimiento: '000',
     puntoEmision: '001',
-    documento: { tipoDocumento: '01', lineas: [{ descripcion: 'Café molido 400 g', cantidad: 2, precioUnitario: '57.50' }] },
+    documento: { tipoDocumento: '01', preciosIncluyenISV: true, lineas: [{ descripcion: 'Cafe molido 400 g', cantidad: 2, precioUnitario: '57.50' }] },
   });
   const curl = [
     `curl -sS -X POST ${o.urlApi}/v1/documentos \\`,
@@ -144,10 +149,10 @@ export function ejemplosDemo(o: { urlApi: string; llave: string; urlMcp: string 
     '',
     `const api = crearCliente({ url: '${o.urlApi}', llave: '${o.llave}' });`,
     'const { documento } = await api.emitir(',
-    "  { establecimiento: '000', puntoEmision: '001', documento: { tipoDocumento: '01', lineas: [{ descripcion: 'Café molido 400 g', cantidad: 2, precioUnitario: '57.50' }] } },",
+    "  { establecimiento: '000', puntoEmision: '001', documento: { tipoDocumento: '01', preciosIncluyenISV: true, lineas: [{ descripcion: 'Café molido 400 g', cantidad: 2, precioUnitario: '57.50' }] } },",
     "  { idempotencyKey: 'venta-0001' },",
     ');',
-    'console.log(documento.numero, documento.totales.total);',
+    'console.log(documento.numero, documento.totales.total); // total: 115 (los precios ya traen el ISV)',
   ].join('\n');
   const mcp = o.urlMcp
     ? [
@@ -155,7 +160,7 @@ export function ejemplosDemo(o: { urlApi: string; llave: string; urlMcp: string 
         '',
         'Claude (web o escritorio): Customize > Connectors > + > Add custom connector; pega la URL y deja la',
         'autenticación vacía. El conector queda también en la app móvil. ChatGPT: agrega un servidor MCP personalizado',
-        'con la URL y sin autenticación. Después pide: «Emite una factura de prueba por 2 cafés de L 57.50».',
+        'con la URL y sin autenticación. Después pide: «Emite una factura de prueba por 2 cafés de L 57.50, con el ISV incluido».',
         'Guía completa: https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/',
       ].join('\n')
     : 'Este servidor no tiene MCP remoto configurado. Con el MCP local: FHN_API_URL=' + o.urlApi + ' FHN_LLAVE=' + o.llave + ' npx -y @factura-hn/mcp';
