@@ -1,0 +1,18 @@
+meta {
+  name: Revoca una llave
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/v1/llaves/:prefijo
+  auth: inherit
+}
+
+params:path {
+  prefijo: 
+}
+
+docs {
+  Revoca una llave
+}

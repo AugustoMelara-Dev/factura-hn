@@ -1,0 +1,26 @@
+meta {
+  name: Anula un documento (Art. 41): conserva número y contenido, cambia el estado
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/documentos/:numero/anular
+  body: json
+  auth: inherit
+}
+
+params:path {
+  numero: 000-001-01-00000001
+}
+
+body:json {
+  {
+    "motivo": "Error en el precio de una línea",
+    "operador": "María López"
+  }
+}
+
+docs {
+  Anula un documento (Art. 41): conserva número y contenido, cambia el estado
+}

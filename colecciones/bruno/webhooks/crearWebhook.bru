@@ -1,0 +1,27 @@
+meta {
+  name: Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/webhooks
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "url": "https://pos.ejemplo.example/webhooks/factura-hn",
+    "eventos": [
+      "documento.emitido",
+      "documento.anulado"
+    ]
+  }
+}
+
+docs {
+  Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)
+
+  Hasta 20 webhooks activos por tenant: con 20 activos, crear otro es 409 `LIMITE_WEBHOOKS`.
+}

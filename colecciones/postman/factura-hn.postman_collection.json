@@ -1,0 +1,1059 @@
+{
+  "info": {
+    "name": "factura-hn",
+    "description": "Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.\n\nMontos: en la entrada, texto decimal (`\"57.50\"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.\n\nRespuestas: cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).\n\nReglas para integrar (también en AGENTS.md, sección «Con la API REST»):\n1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.\n2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.\n3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.\n4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.\n5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, \"<t>.<cuerpo crudo>\"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.\n\nColección generada de `packages/api/openapi.json` con `pnpm colecciones`: no la edites a mano.\nEntorno `demo`: `baseUrl` es la API local y `llave` (secreta) la llave de caja que da `factura-hn-api demo llave`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{llave}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Una Idempotency-Key nueva en cada solicitud: cada envío de «Emitir» es otra venta y emite otra factura.",
+          "// En tu sistema la clave es estable por venta (el id del pedido): un reintento con ella devuelve la misma factura.",
+          "const { v4: uuidv4 } = require(\"uuid\");",
+          "pm.variables.set(\"idempotencyKey\", uuidv4());"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "numero",
+      "value": ""
+    },
+    {
+      "key": "enlacePdf",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Primera factura",
+      "description": "Los tres pasos de la primera factura, en el tenant `demo` (CAI ficticio, sin validez fiscal): qué puede hacer la llave, emitir y descargar el PDF. Cada envío de «Emitir» lleva una Idempotency-Key nueva y emite otra factura de prueba.",
+      "item": [
+        {
+          "name": "Sesión: qué falta para emitir",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/sesion",
+            "description": "Con qué llave hablas y si ya puedes emitir. Si `puedeEmitir` es `false`, `pendientes` dice qué falta."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"la API responde 200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"la llave ya puede emitir\", function () {",
+                  "  const sesion = pm.response.json().sesion;",
+                  "  pm.expect(sesion.puedeEmitir, JSON.stringify(sesion.pendientes)).to.equal(true);",
+                  "});",
+                  "",
+                  "pm.test(\"el tenant es de prueba\", function () {",
+                  "  pm.expect(pm.response.json().sesion.modoTenant).to.equal(\"prueba\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Emitir la factura",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/v1/documentos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documento\": {\n    \"preciosIncluyenISV\": true,\n    \"lineas\": [\n      {\n        \"descripcion\": \"Café\",\n        \"cantidad\": \"2\",\n        \"precioUnitario\": \"57.50\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Emite la factura de `packages/api/ejemplos/factura.json`. La Idempotency-Key la pone el script previo de la colección (una nueva por envío). En tu sistema, la clave es el id de la venta: un reintento con la misma clave devuelve la misma factura."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const r = pm.response.json();",
+                  "  pm.collectionVariables.set(\"numero\", r.documento.numero);",
+                  "  pm.collectionVariables.set(\"enlacePdf\", r.enlaces.pdf);",
+                  "}",
+                  "",
+                  "pm.test(\"emite la factura (201)\", function () {",
+                  "  pm.expect(pm.response.code, pm.response.text()).to.equal(201);",
+                  "});",
+                  "",
+                  "pm.test(\"el documento es de prueba\", function () {",
+                  "  pm.expect(pm.response.json().documento.modo).to.equal(\"prueba\");",
+                  "});",
+                  "",
+                  "pm.test(\"trae número y enlace al PDF\", function () {",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.documento.numero).to.match(/^\\d{3}-\\d{3}-01-\\d{8}$/);",
+                  "  pm.expect(r.enlaces.pdf).to.match(/\\.pdf$/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Descargar el PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{enlacePdf}}",
+            "description": "El PDF de la factura que acabas de emitir, del enlace `enlaces.pdf` de la respuesta (con la misma llave)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"descarga el PDF\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/pdf\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Sistema",
+      "item": [
+        {
+          "name": "Estado del servicio",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/salud",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "salud"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Estado del servicio"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Emisor",
+      "item": [
+        {
+          "name": "El emisor del tenant (lista de 0 o 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/emisores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "emisores"
+              ]
+            },
+            "description": "El emisor del tenant (lista de 0 o 1)"
+          }
+        },
+        {
+          "name": "Registra los datos del obligado tributario (uno por tenant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/emisores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "emisores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rtn\": \"99999999999999\",\n  \"razonSocial\": \"NEGOCIO DE EJEMPLO S. DE R.L.\",\n  \"nombreComercial\": \"Negocio de Ejemplo\",\n  \"direccionCasaMatriz\": \"Barrio El Centro, Tegucigalpa\",\n  \"direccionEstablecimiento\": \"Barrio El Centro, Tegucigalpa\",\n  \"telefono\": \"2200-0000\",\n  \"correo\": \"facturas@ejemplo.example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Registra los datos del obligado tributario (uno por tenant)"
+          }
+        },
+        {
+          "name": "Datos del emisor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/emisores/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "emisores",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Datos del emisor"
+          }
+        },
+        {
+          "name": "Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/emisores/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "emisores",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"2200-0001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Actualiza el emisor (solo afecta a los documentos futuros; el RTN no cambia)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Autorizaciones",
+      "item": [
+        {
+          "name": "Autorizaciones registradas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/autorizaciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "autorizaciones"
+              ]
+            },
+            "description": "Autorizaciones registradas"
+          }
+        },
+        {
+          "name": "Registra una autorización del SAR (CAI, rango y fecha límite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/autorizaciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "autorizaciones"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cai\": \"DEMO00-NO-VALIDO-0000-0000-0000-01\",\n  \"tipoDocumento\": \"01\",\n  \"establecimiento\": \"000\",\n  \"puntoEmision\": \"002\",\n  \"rangoInicial\": 1,\n  \"rangoFinal\": 5000,\n  \"fechaLimiteEmision\": \"2027-06-30\",\n  \"prueba\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Registra una autorización del SAR (CAI, rango y fecha límite)\n\nUn tenant de prueba solo acepta CAI ficticios (`DEMO00-NO-VALIDO-…`; si no, `AUTORIZACION_REAL_EN_DEMO`). Uno de producción no los acepta (`CAI_DE_PRUEBA`)."
+          }
+        },
+        {
+          "name": "Vigencia y rango restante de una autorización (Arts. 59 y 62)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/autorizaciones/:cai/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "autorizaciones",
+                ":cai",
+                "estado"
+              ],
+              "variable": [
+                {
+                  "key": "cai",
+                  "value": "DEMO00-NO-VALIDO-0000-0000-0000-01"
+                }
+              ]
+            },
+            "description": "Vigencia y rango restante de una autorización (Arts. 59 y 62)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sesión",
+      "item": [
+        {
+          "name": "Con qué llave hablas y qué falta para emitir",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sesion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sesion"
+              ]
+            },
+            "description": "Con qué llave hablas y qué falta para emitir\n\nTenant, rol, nombre y caja de la llave, modo del servidor, autorizaciones vigentes por punto de emisión y tipo, y si ya se puede emitir una factura. Si no, `pendientes` dice qué falta, con `solucion` y `documentacion`. Cualquier rol puede llamarla; no devuelve secretos. Una llave de caja ve solo su punto de emisión; una admin, todos los que tienen autorizaciones."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documentos",
+      "item": [
+        {
+          "name": "Documentos de un período, por fecha de emisión y número (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/documentos?desde=2026-11-18&hasta=2026-11-18",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "documentos"
+              ],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "identificador",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limite",
+                  "value": "1",
+                  "description": "Elementos por página (1-500). Por defecto 100.",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "El valor `siguiente` de la página anterior.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Documentos de un período, por fecha de emisión y número (paginado)"
+          }
+        },
+        {
+          "name": "Emite una factura, nota de crédito o nota de débito",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/documentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "documentos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documento\": {\n    \"preciosIncluyenISV\": true,\n    \"lineas\": [\n      {\n        \"descripcion\": \"Café\",\n        \"cantidad\": \"2\",\n        \"precioUnitario\": \"57.50\"\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Emite una factura, nota de crédito o nota de débito\n\nReserva el correlativo, guarda el documento y registra la auditoría en una sola transacción. La cabecera `Idempotency-Key` es obligatoria: repetir la solicitud con la misma clave devuelve el mismo documento (cabecera `Idempotency-Replayed: true`) sin consumir otro número; la misma clave con otro cuerpo es 422. La clave no caduca; pasada la retención, la respuesta repetida trae el documento con su estado actual. `enlaces` trae las rutas de la representación impresa (PDF, HTML y texto), con la misma llave."
+          }
+        },
+        {
+          "name": "Un documento: JSON, o la representación impresa con .pdf, .html o .txt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/documentos/:archivo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "documentos",
+                ":archivo"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "carta",
+                  "disabled": true
+                },
+                {
+                  "key": "ancho",
+                  "value": "32",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "archivo",
+                  "value": "000-001-01-00000001.pdf"
+                }
+              ]
+            },
+            "description": "Un documento: JSON, o la representación impresa con .pdf, .html o .txt\n\nLa copia impresa es idéntica al original (Art. 38). Un documento anulado lleva la leyenda ANULADA (Art. 41)."
+          }
+        },
+        {
+          "name": "Anula un documento (Art. 41): conserva número y contenido, cambia el estado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/documentos/:numero/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "documentos",
+                ":numero",
+                "anular"
+              ],
+              "variable": [
+                {
+                  "key": "numero",
+                  "value": "000-001-01-00000001"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Error en el precio de una línea\",\n  \"operador\": \"María López\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Anula un documento (Art. 41): conserva número y contenido, cambia el estado"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Series",
+      "item": [
+        {
+          "name": "Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/series/:identificador/corregir-fecha",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "series",
+                ":identificador",
+                "corregir-fecha"
+              ],
+              "variable": [
+                {
+                  "key": "identificador",
+                  "value": "000-001-01"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"El reloj de la caja estaba adelantado\",\n  \"operador\": \"María López\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Anula los documentos emitidos con el reloj adelantado (Arts. 41 y 43)"
+          }
+        },
+        {
+          "name": "Números que hay que reportar al SAR como no utilizados (Art. 42)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/series/:identificador/no-utilizados",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "series",
+                ":identificador",
+                "no-utilizados"
+              ],
+              "variable": [
+                {
+                  "key": "identificador",
+                  "value": "000-001-01"
+                }
+              ]
+            },
+            "description": "Números que hay que reportar al SAR como no utilizados (Art. 42)\n\nLas autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reportes",
+      "item": [
+        {
+          "name": "Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/libro-ventas?desde=2026-11-18&hasta=2026-11-18",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "libro-ventas"
+              ],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "formato",
+                  "value": "json",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Libro de ventas de un período (las NC restan, las ND suman; anulados en cero)\n\nCon una llave admin, el libro de todo el tenant. Con una llave de caja, solo el de su punto de emisión (todos sus tipos de documento); el CSV se llama `libro-ventas_<establecimiento>-<punto>_<desde>_<hasta>.csv`. Una llave de caja sin punto de emisión recibe 403 `CAJA_SIN_PUNTO`."
+          }
+        },
+        {
+          "name": "Archivo de texto de un período para el SAR (Art. 53 num. 5)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/exportacion?desde=2026-11-18&hasta=2026-11-18",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "exportacion"
+              ],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "hasta",
+                  "value": "2026-11-18"
+                },
+                {
+                  "key": "formato",
+                  "value": "jsonl",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Archivo de texto de un período para el SAR (Art. 53 num. 5)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auditoría",
+      "item": [
+        {
+          "name": "Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/bitacora",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "bitacora"
+              ],
+              "query": [
+                {
+                  "key": "origen",
+                  "value": "fiscal",
+                  "description": "`fiscal` (por defecto): emisiones, anulaciones y autorizaciones. `api`: llaves, emisor y webhooks.",
+                  "disabled": true
+                },
+                {
+                  "key": "limite",
+                  "value": "1",
+                  "description": "Elementos por página (1-500). Por defecto 100.",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "El valor `siguiente` de la página anterior.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Bitácora fiscal (Art. 53 num. 2) o de la API, del evento más reciente al más antiguo (paginada)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Llaves",
+      "item": [
+        {
+          "name": "Llaves del tenant (sin secretos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/llaves",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "llaves"
+              ]
+            },
+            "description": "Llaves del tenant (sin secretos)"
+          }
+        },
+        {
+          "name": "Crea una llave (la llave completa se muestra solo esta vez)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/llaves",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "llaves"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Caja 2\",\n  \"rol\": \"caja\",\n  \"establecimiento\": \"000\",\n  \"puntoEmision\": \"002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Crea una llave (la llave completa se muestra solo esta vez)"
+          }
+        },
+        {
+          "name": "Revoca una llave",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/llaves/:prefijo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "llaves",
+                ":prefijo"
+              ],
+              "variable": [
+                {
+                  "key": "prefijo",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Revoca una llave"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Webhooks del tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks"
+              ]
+            },
+            "description": "Webhooks del tenant"
+          }
+        },
+        {
+          "name": "Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://pos.ejemplo.example/webhooks/factura-hn\",\n  \"eventos\": [\n    \"documento.emitido\",\n    \"documento.anulado\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Suscribe una URL a eventos (el secreto de firma se muestra solo esta vez)\n\nHasta 20 webhooks activos por tenant: con 20 activos, crear otro es 409 `LIMITE_WEBHOOKS`."
+          }
+        },
+        {
+          "name": "Desactiva un webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Desactiva un webhook"
+          }
+        },
+        {
+          "name": "Entregas de un webhook, de la más reciente a la más antigua (paginada)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/entregas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "entregas"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "PENDIENTE",
+                  "description": "Solo las entregas en este estado.",
+                  "disabled": true
+                },
+                {
+                  "key": "limite",
+                  "value": "1",
+                  "description": "Elementos por página (1-500). Por defecto 100.",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "El valor `siguiente` de la página anterior.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Entregas de un webhook, de la más reciente a la más antigua (paginada)\n\nEstado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y `webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío."
+          }
+        },
+        {
+          "name": "Vuelve a poner una entrega en la cola",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/entregas/:entrega/reenviar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "entregas",
+                ":entrega",
+                "reenviar"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                },
+                {
+                  "key": "entrega",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Vuelve a poner una entrega en la cola\n\nUna entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el webhook ya tiene 5 pendientes."
+          }
+        },
+        {
+          "name": "Encola un evento de prueba (`webhook.prueba`) para este webhook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/probar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "probar"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Encola un evento de prueba (`webhook.prueba`) para este webhook\n\nLlega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. A lo sumo 5 pruebas pendientes por webhook: más allá, 409 `LIMITE_PRUEBAS`."
+          }
+        },
+        {
+          "name": "Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/:id/rotar-secreto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                ":id",
+                "rotar-secreto"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"graciaHoras\": 24\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)\n\nDurante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia conserva el secreto más viejo (el que el receptor puede seguir usando), descarta el intermedio y alarga la gracia si la nueva termina después. Con `graciaHoras: 0` la gracia termina en el acto."
+          }
+        }
+      ]
+    }
+  ]
+}

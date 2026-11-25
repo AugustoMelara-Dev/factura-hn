@@ -1,0 +1,26 @@
+meta {
+  name: Entregas de un webhook, de la más reciente a la más antigua (paginada)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/v1/webhooks/:id/entregas
+  auth: inherit
+}
+
+params:query {
+  ~estado: PENDIENTE
+  ~limite: 1
+  ~cursor: 
+}
+
+params:path {
+  id: 
+}
+
+docs {
+  Entregas de un webhook, de la más reciente a la más antigua (paginada)
+
+  Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y `webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío.
+}

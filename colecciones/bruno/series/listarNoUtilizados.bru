@@ -1,0 +1,20 @@
+meta {
+  name: Números que hay que reportar al SAR como no utilizados (Art. 42)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/series/:identificador/no-utilizados
+  auth: inherit
+}
+
+params:path {
+  identificador: 000-001-01
+}
+
+docs {
+  Números que hay que reportar al SAR como no utilizados (Art. 42)
+
+  Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.
+}

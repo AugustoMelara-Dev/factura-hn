@@ -1,0 +1,24 @@
+meta {
+  name: Crea una llave (la llave completa se muestra solo esta vez)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/llaves
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nombre": "Caja 2",
+    "rol": "caja",
+    "establecimiento": "000",
+    "puntoEmision": "002"
+  }
+}
+
+docs {
+  Crea una llave (la llave completa se muestra solo esta vez)
+}

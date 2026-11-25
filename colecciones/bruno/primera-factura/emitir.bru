@@ -1,0 +1,56 @@
+meta {
+  name: Emitir la factura
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/documentos
+  body: json
+  auth: inherit
+}
+
+headers {
+  Idempotency-Key: {{idempotencyKey}}
+}
+
+body:json {
+  {
+    "documento": {
+      "preciosIncluyenISV": true,
+      "lineas": [
+        {
+          "descripcion": "Café",
+          "cantidad": "2",
+          "precioUnitario": "57.50"
+        }
+      ]
+    }
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("numero", res.body.documento.numero);
+    bru.setVar("enlacePdf", res.body.enlaces.pdf);
+  }
+}
+
+tests {
+  test("emite la factura (201)", function () {
+    expect(res.status, JSON.stringify(res.body)).to.equal(201);
+  });
+
+  test("el documento es de prueba", function () {
+    expect(res.body.documento.modo).to.equal("prueba");
+  });
+
+  test("trae número y enlace al PDF", function () {
+    expect(res.body.documento.numero).to.match(/^\d{3}-\d{3}-01-\d{8}$/);
+    expect(res.body.enlaces.pdf).to.match(/\.pdf$/);
+  });
+}
+
+docs {
+  Emite la factura de `packages/api/ejemplos/factura.json`. La Idempotency-Key la pone el script previo de la colección (una nueva por envío). En tu sistema, la clave es el id de la venta: un reintento con la misma clave devuelve la misma factura.
+}

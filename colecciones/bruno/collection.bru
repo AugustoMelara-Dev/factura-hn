@@ -1,0 +1,36 @@
+meta {
+  name: factura-hn
+}
+
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{llave}}
+}
+
+script:pre-request {
+  // Una Idempotency-Key nueva en cada solicitud: cada envío de «Emitir» es otra venta y emite otra factura.
+  // En tu sistema la clave es estable por venta (el id del pedido): un reintento con ella devuelve la misma factura.
+  const { v4: uuidv4 } = require("uuid");
+  bru.setVar("idempotencyKey", uuidv4());
+}
+
+docs {
+  Facturación para Honduras según el Reglamento del Régimen de Facturación del SAR (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR. Fechas en America/Tegucigalpa.
+
+  Montos: en la entrada, texto decimal (`"57.50"`, recomendado) o número. En la salida, número en lempiras con a lo sumo 2 decimales, calculado en centavos enteros: `Math.round(monto * 100)` da los centavos exactos. Para sumar montos, pásalos antes a centavos.
+
+  Respuestas: cada recurso va envuelto con su nombre (`{ documento }`, `{ emisor }`, `{ llave, secreto }`…). Cada lista es `{ <plural>, hayMas, siguiente }`: si `hayMas`, pide la página siguiente con `?cursor=<siguiente>` (`limite` de 1 a 500, 100 por defecto).
+
+  Reglas para integrar (también en AGENTS.md, sección «Con la API REST»):
+  1. La llave va solo en el servidor. Usa una llave de caja, atada a su punto de emisión.
+  2. `POST /v1/documentos` lleva una Idempotency-Key estable por venta (el id del pedido o de la venta, nunca un valor nuevo por intento): un reintento devuelve la misma factura.
+  3. 422 = reglas fiscales: muestra `errores[].mensaje` tal cual. Un 422 no consume número ni la clave: corrige y reintenta con la misma.
+  4. Guarda el número y reimprime desde `/v1/documentos/{numero}.pdf|.html|.txt`; no recalcules.
+  5. Webhooks: verifica `X-FacturaHN-Firma` (t=<unix>,v1=hex HMAC-SHA256(secreto, "<t>.<cuerpo crudo>"), 5 min de tolerancia; puede traer varios `v1` y basta con que uno verifique), descarta repetidos por `id` y responde 2xx solo cuando procesaste el aviso.
+
+  Colección generada de `packages/api/openapi.json` con `pnpm colecciones`: no la edites a mano.
+  Entorno `demo`: `baseUrl` es la API local y `llave` (secreta) la llave de caja que da `factura-hn-api demo llave`.
+}

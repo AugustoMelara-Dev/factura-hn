@@ -1,0 +1,14 @@
+{
+  "name": "@factura-hn/colecciones",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Colecciones de Bruno y Postman generadas del OpenAPI de la API de factura-hn.",
+  "type": "module",
+  "scripts": {
+    "generar": "node generar.mjs",
+    "bruno": "cd bruno && bru run primera-factura --env demo"
+  },
+  "devDependencies": {
+    "@usebruno/cli": "4.3.0"
+  }
+}
