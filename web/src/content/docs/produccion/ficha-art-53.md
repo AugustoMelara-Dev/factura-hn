@@ -45,7 +45,7 @@ encuentra el servidor** y los **puntos de emisión**.
 | Nombre del software | factura-hn | |
 | Versión | La versión instalada de cada paquete (`npm ls factura-hn`). Esta ficha describe la 0.2.0 | Anotar la versión instalada al declarar, y revisar la ficha si actualiza |
 | Licencia | MIT (código abierto) | |
-| Paquetes en uso | `factura-hn` y el almacén elegido; opcionales `@factura-hn/pdf`, `@factura-hn/api`, `@factura-hn/mcp` | Cuáles usa su instalación |
+| Paquetes en uso | `factura-hn` y el almacén elegido; opcionales `@factura-hn/pdf`, `@factura-hn/mcp` y la API (`@factura-hn/api`, imagen Docker) | Cuáles usa su instalación |
 | Establecimiento donde está el servidor | | La dirección del equipo donde corre la base o la API |
 | Puntos de emisión | | Los que registra ante el SAR (Art. 45 num. 5). En red, una o varias numeraciones según el Art. 48 |
 | Desarrollador o proveedor de la integración | | Quien integró factura-hn en su sistema, si es otro |
