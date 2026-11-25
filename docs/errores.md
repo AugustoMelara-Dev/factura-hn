@@ -616,9 +616,11 @@ moneda: la mayoría de estos errores desaparecen.
 
 ## API REST
 
-La API responde con `{ error: { codigo, mensaje }, errores?, advertencias? }`. Un error fiscal del SDK llega como
-`422 VALIDACION`, con la lista de problemas del SDK (con sus códigos de arriba) en `errores`. `@factura-hn/cliente`
-lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `HTTP_<estado>`.
+La API responde con `{ error: { codigo, mensaje, solicitud }, errores?, advertencias? }`. Un error fiscal del SDK
+llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos de arriba) en `errores`.
+`error.solicitud` es el id de la solicitud, el mismo de la cabecera `Solicitud-Id`: cítalo al reportar un problema.
+`@factura-hn/cliente` lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa
+`HTTP_<estado>`.
 
 ### VALIDACION
 
@@ -629,6 +631,11 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 - **Qué significa (400):** el cuerpo no tiene la forma que espera la API. `errores` dice qué campo falla.
 - **Solución:** compara la solicitud con `GET /openapi.json`.
+
+### JSON_INVALIDO
+
+- **Qué significa (400):** el cuerpo no es JSON válido (comillas, comas o llaves de más o de menos).
+- **Solución:** genera el cuerpo con `JSON.stringify` (o el equivalente de tu lenguaje) en lugar de armarlo a mano.
 
 ### NO_AUTENTICADO
 
@@ -741,7 +748,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 
 ### LIMITE_MENSUAL
 
-- **Qué significa (429):** el negocio alcanzó su límite de documentos del mes.
+- **Qué significa (429):** el negocio alcanzó su límite de documentos del mes. `Retry-After` trae los segundos que
+  faltan para el primer día del mes siguiente (00:00 en Honduras): un reintento automático antes no sirve.
 - **Solución:** espera al mes siguiente o amplía el límite.
 
 ### PERIODO_DEMASIADO_GRANDE
@@ -773,7 +781,8 @@ lanza `ErrorFacturaHN` con el mismo `codigo`; si la respuesta no trae uno, usa `
 ### ERROR_INTERNO
 
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.
-- **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, revisa el log del servidor.
+- **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, busca en el log del servidor la línea con el
+  id de `error.solicitud` (o de la cabecera `Solicitud-Id`).
 
 ## Servidor MCP
 
