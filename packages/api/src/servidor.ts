@@ -167,7 +167,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     mantenimientoApi(poolApi, rol, retencion).catch((e) => console.error('Mantenimiento de retención', e));
   await mantener();
 
-  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza });
+  const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza, hayDemo });
   const puerto = Number(env.PUERTO ?? 8787);
   const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
   console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);

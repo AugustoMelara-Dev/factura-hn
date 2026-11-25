@@ -103,6 +103,8 @@ export interface ConfigApi {
   proxiesDeConfianza?: ProxiesDeConfianza;
   /** Cómo se invoca la consola del operador en este despliegue, para los mensajes. Por defecto `factura-hn-api`. */
   consola?: string;
+  /** Si este despliegue tiene el tenant de demostración (modo local): solo entonces la guía de errores lo menciona. */
+  hayDemo?: boolean;
   /**
    * Documentos como máximo en un reporte de período (libro de ventas, exportación); más allá, 422
    * `PERIODO_DEMASIADO_GRANDE`. Por defecto `FHN_MAX_DOCUMENTOS_REPORTE` o 50 000.
@@ -235,7 +237,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     throw new Error('proxiesDeConfianza debe ser un entero mayor o igual que 0 o una lista de direcciones.');
   /** Hash de las llaves que este proceso ya validó, por prefijo: quien presenta el secreto correcto no gasta intentos. */
   const verificadas = new Map<string, Buffer>();
-  const guia = soluciones(cfg.consola ?? CONSOLA_POR_DEFECTO);
+  const guia = soluciones({ consola: cfg.consola ?? CONSOLA_POR_DEFECTO, modo: cfg.modo, hayDemo: cfg.hayDemo });
   const conGuia = (p: ProblemaApi): ProblemaApi => conSolucion({ error: { codigo: '_', mensaje: '' }, errores: [p] }, guia).errores![0]!;
   const buscarLlave = (prefijo: string): Promise<BusquedaLlave> =>
     base.transaccion(async (t) => {

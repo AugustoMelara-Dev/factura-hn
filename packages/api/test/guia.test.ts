@@ -20,7 +20,7 @@ describe('guía de errores', () => {
   });
 
   it('la solución de un 422 sale del primer problema que tenga una, sin pisar la que ya traiga', () => {
-    const guia = soluciones('factura-hn-api');
+    const guia = soluciones({ consola: 'factura-hn-api', modo: 'local' });
     const r = conSolucion(
       { error: { codigo: 'VALIDACION', mensaje: 'x' }, errores: [{ codigo: 'CLIENTE_RTN', mensaje: 'a' }, { codigo: 'RANGO_AGOTADO', mensaje: 'b', solucion: 'propia' } as never] },
       guia,
@@ -31,12 +31,43 @@ describe('guía de errores', () => {
     expect(r.errores![1]!.solucion).toBe('propia');
   });
 
-  it('las soluciones mencionan la consola de este despliegue', () => {
-    expect(soluciones('docker compose exec api factura-hn-api').NO_AUTENTICADO).toContain('`docker compose exec api factura-hn-api demo llave`');
+  it('las soluciones mencionan la consola de este despliegue, y el demo solo si existe', () => {
+    const conDemo = soluciones({ consola: 'docker compose exec api factura-hn-api', modo: 'local', hayDemo: true }).NO_AUTENTICADO!;
+    expect(conDemo).toContain('`docker compose exec api factura-hn-api demo llave`');
+    expect(conDemo).toContain('`docker compose exec api factura-hn-api llave crear local --rol admin');
+    const sinDemo = soluciones({ consola: 'factura-hn-api', modo: 'local' }).NO_AUTENTICADO!;
+    expect(sinDemo).not.toMatch(/demo/);
+    expect(sinDemo).toContain('llave crear local');
+  });
+
+  it('en modo alojado, lo que ve quien no se autenticó no nombra comandos ni tenants del operador', () => {
+    const g = soluciones({ consola: 'docker compose exec api factura-hn-api', modo: 'alojado', hayDemo: true });
+    for (const codigo of ['NO_AUTENTICADO', 'DEMASIADOS_INTENTOS', 'CUERPO_NO_UTF8', 'CUERPO_DEMASIADO_GRANDE', 'SOLICITUD_INVALIDA']) {
+      expect(g[codigo]).not.toMatch(/docker|compose|factura-hn-api|demo|\blocal\b/);
+    }
+    expect(g.NO_AUTENTICADO).toContain('pide una al operador de la API');
+  });
+
+  it('DEMASIADOS_INTENTOS no culpa solo a la dirección', () => {
+    const g = soluciones({ consola: 'factura-hn-api', modo: 'local' });
+    expect(g.DEMASIADOS_INTENTOS).not.toMatch(/desde esta dirección/);
+    expect(g.DEMASIADOS_INTENTOS).toMatch(/dirección o con esta misma llave/);
   });
 });
 
 conBase('errores con solución', () => {
+  it('el 401 de un despliegue alojado no revela comandos ni tenants', async () => {
+    const p = await poolPrueba();
+    const opciones = { pool: p, rol: ROL, registrar: () => undefined, consola: 'docker compose exec api factura-hn-api', hayDemo: true };
+    const alojado = await json(await cliente(crearApp({ ...opciones, modo: 'alojado' }), null)('GET', '/v1/sesion'));
+    expect(alojado.error.codigo).toBe('NO_AUTENTICADO');
+    expect(alojado.error.solucion).toContain('pide una al operador de la API');
+    expect(JSON.stringify(alojado)).not.toMatch(/docker|demo llave|llave crear/);
+    const local = await json(await cliente(crearApp({ ...opciones, modo: 'local' }), null)('GET', '/v1/sesion'));
+    expect(local.error.solucion).toContain('docker compose exec api factura-hn-api demo llave');
+  });
+
+
   it('400 de forma en español, con el campo en error.campo', async () => {
     const { admin } = await tenantListo();
     const r = await emitir(admin, { lineas: [] });

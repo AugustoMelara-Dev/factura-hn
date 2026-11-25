@@ -31,19 +31,30 @@ export const documentacionDe = (codigo: string): string => `${URL_ERRORES}#${cod
 /** Cómo se invoca la consola del operador fuera de Docker. En la imagen, `FHN_CONSOLA` le antepone `docker compose exec api`. */
 export const CONSOLA_POR_DEFECTO = 'factura-hn-api';
 
+export interface ContextoGuia {
+  /** Forma de invocar la consola del operador en este despliegue (p. ej. `docker compose exec api factura-hn-api`). */
+  consola: string;
+  modo: 'local' | 'alojado';
+  /** Si este despliegue tiene el tenant de demostración. */
+  hayDemo?: boolean;
+}
+
 /**
- * Qué hacer ante los errores más frecuentes. `consola` es la forma de invocar la consola del operador en este
- * despliegue (p. ej. `docker compose exec api factura-hn-api`).
+ * Qué hacer ante los errores más frecuentes. Las respuestas sin autenticar (401, 429 de intentos) las lee
+ * cualquiera: en modo alojado no nombran comandos ni tenants del operador, y el demo solo se menciona si existe.
  */
-export function soluciones(consola: string): Record<string, string> {
+export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Record<string, string> {
+  const cabecera = 'Envía la cabecera `Authorization: Bearer fhn_<prefijo>_<secreto>` con una llave activa, sin espacios ni saltos de línea. ';
   return {
     NO_AUTENTICADO:
-      'Envía la cabecera `Authorization: Bearer fhn_<prefijo>_<secreto>` con una llave activa, sin espacios ni saltos de línea. ' +
-      `Para la demostración, crea una llave de caja con \`${consola} demo llave\`; la llave admin de tu negocio se crea con ` +
-      `\`${consola} llave crear local --rol admin --nombre Administración\`.`,
+      modo === 'alojado'
+        ? `${cabecera}Si no tienes una llave o la tuya fue revocada, pide una al operador de la API.`
+        : cabecera +
+          (hayDemo ? `Para la demostración, crea una llave de caja con \`${consola} demo llave\`; la` : 'La') +
+          ` llave admin de tu negocio se crea con \`${consola} llave crear local --rol admin --nombre Administración\`.`,
     DEMASIADOS_INTENTOS:
-      'Hubo demasiados intentos con llaves no válidas desde esta dirección. Revisa que la llave esté completa y activa, ' +
-      'y reintenta después de los segundos de la cabecera Retry-After.',
+      'Hubo demasiados intentos con llaves no válidas, desde tu dirección o con esta misma llave. Revisa que la llave ' +
+      'esté completa y activa, y reintenta después de los segundos de la cabecera Retry-After.',
     DEMASIADAS_SOLICITUDES:
       'Espera los segundos de la cabecera Retry-After y reintenta (al emitir, con la misma Idempotency-Key). ' +
       'Si pasa seguido, reparte las solicitudes en el tiempo.',
