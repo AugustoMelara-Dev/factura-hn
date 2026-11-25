@@ -60,7 +60,7 @@ contingencia dependen del negocio.
 
 :::caution[Por confirmar con fuente]
 Ninguna guía dice qué modalidad de facturación le corresponde a cada negocio según su tamaño o giro (sistema,
-imprenta o máquina registradora): el repositorio no lo respalda (F-20). Tampoco tiene listas de bienes exentos
-(F-02) ni la lista oficial de bienes al 18 % (F-01, pregunta P-11). Confírmalo con tu contador antes de configurar
-los productos.
+imprenta o máquina registradora): el repositorio no lo respalda (aún sin pregunta propia en la consulta). Tampoco tiene listas de bienes exentos
+(aún sin pregunta propia en la consulta) ni la lista oficial de bienes al 18 % (pregunta P-11). Confírmalo con tu contador antes de configurar
+los productos. Ver [Consulta al SAR](/produccion/consulta-sar/).
 :::

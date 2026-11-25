@@ -123,14 +123,14 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
 
 :::caution[Por confirmar con fuente]
 - **Productos exentos.** El repositorio no tiene ninguna lista de bienes exentos (canasta básica u otros). La
-  clasificación de cada producto la decide el negocio con su contador (F-02, pregunta nueva fuera de P-01 a P-14).
+  clasificación de cada producto la decide el negocio con su contador (aún sin pregunta propia en la consulta).
 - **Productos al 18 %.** La Ley del ISV, en la copia del repositorio, no trae las tasas vigentes. La de 18 % viene
-  del Decreto 278-2013, Art. 16, que no está en texto primario (F-01, pregunta P-11; DEC-069 [REVISAR]).
+  del Decreto 278-2013, Art. 16, que no está en texto primario (pregunta P-11; DEC-069 [REVISAR]).
 - **Si una pulpería está obligada a facturar con un sistema** o puede usar talonarios de imprenta, según su tamaño
-  (F-20).
+  (aún sin pregunta propia en la consulta).
 - **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
 - **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» que menciona
-  (F-08, pregunta P-07).
+  (pregunta P-07).
 
 Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
 :::

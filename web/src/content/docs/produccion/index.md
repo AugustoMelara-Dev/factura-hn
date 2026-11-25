@@ -15,8 +15,8 @@ otra cosa. La lista de pasos ante el SAR, con sus fuentes, está en [Trámites a
 
 :::caution[Por confirmar con fuente]
 El repositorio tiene los artículos de cada trámite, pero no el procedimiento actual: qué formulario se usa, por
-qué medio de la Oficina Virtual se presenta y cuánto tarda (F-03, pregunta P-03). Tampoco sabe qué modalidad
-corresponde a cada negocio según su tamaño o giro: sistema, imprenta o máquina registradora (F-20). Ambas cosas
+qué medio de la Oficina Virtual se presenta y cuánto tarda (pregunta P-03). Tampoco sabe qué modalidad
+corresponde a cada negocio según su tamaño o giro: sistema, imprenta o máquina registradora (aún sin pregunta propia en la consulta). Ambas cosas
 las confirma tu contador. La consulta formal está en [Consulta al SAR](/produccion/consulta-sar/) y aún no se ha
 enviado.
 :::
@@ -49,7 +49,7 @@ enviado.
 6. **Solicitud del CAI**: una autorización por punto de emisión y por tipo de documento (Art. 59), y por cada
    sistema (Art. 61). Ver [CAI y rangos](/produccion/cai-y-rangos/).
 7. **Papel térmico**, si va a imprimir tickets en ese papel: la certificación del proveedor del papel de que la
-   impresión dura al menos 5 años (Art. 38). El trámite exacto está por confirmar (F-08, P-07).
+   impresión dura al menos 5 años (Art. 38). El trámite exacto está por confirmar (P-07).
 8. **Talonarios de contingencia** de una imprenta, para vender si el sistema no está disponible. Vender sin
    documento se sanciona (Art. 55).
 9. **Respaldos**: decidir quién los hace, dónde se guardan y quién prueba la restauración.

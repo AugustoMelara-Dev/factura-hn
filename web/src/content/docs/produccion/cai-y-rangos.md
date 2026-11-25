@@ -33,8 +33,8 @@ para el tipo 01 y otra para el 06 en el mismo punto de emisión. Con tres cajas,
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene el procedimiento actual de la solicitud: el formulario, la pantalla de la Oficina Virtual,
-los anexos y el tiempo de respuesta (F-03, pregunta P-03). Tampoco sabe qué es «un Sistema» para el Art. 61 cuando
-la API está alojada por un tercero para varios negocios (F-05, pregunta P-02). Confírmalo con tu contador. La
+los anexos y el tiempo de respuesta (pregunta P-03). Tampoco sabe qué es «un Sistema» para el Art. 61 cuando
+la API está alojada por un tercero para varios negocios (pregunta P-02). Confírmalo con tu contador. La
 consulta está en [Consulta al SAR](/produccion/consulta-sar/) y aún no se ha enviado.
 :::
 
@@ -213,7 +213,8 @@ por identificador `NNN-NNN-TT`, no por CAI, y rechaza rangos que se solapan.
 
 :::caution[Por confirmar con fuente]
 No se sabe si hay una fecha mínima para la primera emisión de una serie, por ejemplo la fecha de la resolución
-(F-12, pregunta P-13). factura-hn no pone piso: la fecha de emisión es siempre la de hoy en Honduras (DEC-022).
+(pregunta P-13). factura-hn no pone piso: la fecha de emisión es siempre la de hoy en Honduras (DEC-022). Ver
+[Consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Rangos no utilizados

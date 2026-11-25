@@ -16,8 +16,8 @@ depende también de la configuración y la operación del negocio, y lo evalúa 
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene el formulario de la Declaración Jurada ni sus anexos técnicos: qué campos pide, por qué
-medio se presenta y en qué plazo (F-03, pregunta P-03). Tampoco sabe si el SAR lleva un registro o certificación de
-proveedores de software, o si el software o su versión deben registrarse (F-04, pregunta P-01). El Reglamento solo
+medio se presenta y en qué plazo (pregunta P-03). Tampoco sabe si el SAR lleva un registro o certificación de
+proveedores de software, o si el software o su versión deben registrarse (pregunta P-01). El Reglamento solo
 regula el Registro Fiscal de Imprentas (Arts. 66-70), que no aplica a un software. Las preguntas están en
 [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
 :::
@@ -53,8 +53,9 @@ encuentra el servidor** y los **puntos de emisión**.
 :::caution[Por confirmar con fuente]
 Si la API corre en la nube de un tercero para varios negocios, no se sabe qué «establecimiento donde se encuentre
 el servidor» se declara (Art. 47), si es un «sistema en red» (Art. 4 num. 42) ni si una sola API cuenta como «un
-Sistema» por cliente (Art. 61). Es la pregunta P-02 (F-05). Mientras no haya respuesta, el modo recomendado es la
-instalación local, en un equipo del negocio y en su establecimiento.
+Sistema» por cliente (Art. 61). Es la pregunta P-02. Mientras no haya respuesta, el modo recomendado es la
+instalación local, en un equipo del negocio y en su establecimiento. Ver
+[Consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Otros requisitos del Reglamento que el sistema implementa, con su prueba
@@ -75,7 +76,8 @@ automatizada en la [matriz de cumplimiento](/referencia/cumplimiento/).
 ## Lo que el sistema no hace
 
 - No envía nada al SAR: ni la Declaración Jurada, ni los archivos de texto, ni el aviso de no utilizados.
-- No emite con CAEE (Art. 4 num. 9 y Art. 54): no hay especificación técnica pública (F-13, pregunta P-12).
+- No emite con CAEE (Art. 4 num. 9 y Art. 54): no hay especificación técnica pública (pregunta P-12,
+  ver [Consulta al SAR](/produccion/consulta-sar/)).
 - No emite el Comprobante de Retención (05), la Guía de Remisión (08) ni la Boleta de Compra (11). La numeración
   los reconoce; falta su cálculo y su impresión.
 - No decide el tratamiento de ISV de cada producto: lo indica el negocio.

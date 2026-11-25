@@ -120,14 +120,13 @@ No son reglas fiscales: son la forma segura de integrar.
 :::caution[Por confirmar con fuente]
 - **Entrega del original.** Si el cliente no está presente, el emisor debe hacerle llegar el original. El
   repositorio sugiere el PDF por correo, pero sin artículo: no se sabe si la entrega electrónica cumple la
-  obligación de entregar el original (Arts. 5 y 14) (F-18, pregunta nueva fuera de P-01 a P-14).
+  obligación de entregar el original (Arts. 5 y 14) (aún sin pregunta propia en la consulta).
 - **Compradores en el extranjero**: si una venta en línea a alguien fuera de Honduras es una exportación con tasa
-  cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento» (F-09, pregunta P-09).
+  cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento» (pregunta P-09).
 - **Moneda de cobro frente a moneda del documento**: si la tienda cobra en dólares, qué moneda y qué tipo de cambio
   lleva la factura. El repositorio solo cubre el tipo de cambio vigente a la fecha (Art. 11, párrafo final).
 - **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos (DEC-079 [REVISAR]).
-- **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio (F-14,
-  pregunta P-05), y el encaje de una API alojada con los Arts. 47 y 61 (F-05, pregunta P-02).
+- **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio (pregunta P-05), y el encaje de una API alojada con los Arts. 47 y 61 (pregunta P-02).
 
 Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
 :::

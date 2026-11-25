@@ -127,15 +127,13 @@ CAI de cada caja y una llave de caja por punto de emisión. Ver [Autoalojamiento
 - **Ventas del talonario de contingencia**: cómo se reportan en el libro de ventas y en la declaración. Confírmalo
   con tu contador; el repositorio no lo trata.
 - **Propina o cargo por servicio.** El repositorio no tiene ningún artículo sobre si forma parte de la base del
-  ISV ni sobre cómo se imprime (F-17, pregunta nueva fuera de P-01 a P-14). Por eso el ejemplo no la incluye.
-- **Cuentas divididas entre comensales**: si cada parte es un documento separado y con qué datos (F-17).
-- **Bebidas alcohólicas al 18 %.** La lista de bienes al 18 % no está en texto primario en el repositorio (F-01,
-  pregunta P-11; DEC-069 [REVISAR]). El SDK acepta `isv: 'ISV18'` en la línea, pero qué productos van ahí lo decide
+  ISV ni sobre cómo se imprime (aún sin pregunta propia en la consulta). Por eso el ejemplo no la incluye.
+- **Cuentas divididas entre comensales**: si cada parte es un documento separado y con qué datos (aún sin pregunta propia en la consulta).
+- **Bebidas alcohólicas al 18 %.** La lista de bienes al 18 % no está en texto primario en el repositorio (pregunta P-11; DEC-069 [REVISAR]). El SDK acepta `isv: 'ISV18'` en la línea, pero qué productos van ahí lo decide
   el contador.
 - **Consumo en el local frente a para llevar**: si cambia algo en el documento o en el momento de emisión. El
   repositorio no lo trata.
-- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» (F-08,
-  pregunta P-07).
+- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» (pregunta P-07).
 
 Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.
 :::

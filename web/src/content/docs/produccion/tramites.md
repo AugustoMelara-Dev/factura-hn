@@ -16,11 +16,11 @@ la sección 3a de la investigación normativa del repositorio (ver [Normativa](/
 Esta página tiene los artículos, no el procedimiento. Falta lo siguiente:
 
 - **Formularios, medio y plazos** de la inscripción como autoimpresor y de la Declaración Jurada del Art. 53: qué
-  pantalla de la Oficina Virtual, qué anexos y cuánto tarda (F-03, pregunta P-03).
+  pantalla de la Oficina Virtual, qué anexos y cuánto tarda (pregunta P-03).
 - **Qué modalidad corresponde a cada negocio** según su tamaño o giro: sistema, imprenta o máquina registradora
-  (F-20). Los Arts. 46, 47 y 52 mencionan las modalidades, pero el repositorio no dice cuál le toca a cada uno.
+  (aún sin pregunta propia en la consulta). Los Arts. 46, 47 y 52 mencionan las modalidades, pero el repositorio no dice cuál le toca a cada uno.
 - **Registro de proveedores de software**: el repositorio no encontró uno en el Reglamento, lo que no prueba que no
-  exista (F-04, pregunta P-01).
+  exista (pregunta P-01).
 
 Las preguntas están redactadas en [Consulta al SAR](/produccion/consulta-sar/). Aún no se ha enviado.
 :::
@@ -44,7 +44,7 @@ certificación del proveedor del papel de que la impresión dura al menos 5 año
 
 :::caution[Por confirmar con fuente]
 No se sabe si la certificación del papel térmico la gestiona y presenta el negocio, ni qué son los «resúmenes de
-ventas» del Art. 38, en qué formato ni en qué plazo se entregan (F-08, pregunta P-07). Ver
+ventas» del Art. 38, en qué formato ni en qué plazo se entregan (pregunta P-07). Ver
 [Consulta al SAR](/produccion/consulta-sar/).
 :::
 
@@ -63,7 +63,7 @@ ventas» del Art. 38, en qué formato ni en qué plazo se entregan (F-08, pregun
 Los pasos 7, 9 y 13 tienen su rutina en [Operación mensual](/produccion/operacion-mensual/).
 
 :::caution[Por confirmar con fuente]
-El formato del aviso de no utilizados (paso 9) no está publicado en las fuentes del repositorio (F-06, pregunta
+El formato del aviso de no utilizados (paso 9) no está publicado en las fuentes del repositorio (pregunta
 P-04). factura-hn calcula los rangos y la fecha límite, pero el aviso se hace en el sistema del SAR. Ver
 [Consulta al SAR](/produccion/consulta-sar/).
 :::
@@ -86,8 +86,9 @@ Cómo se reportan las ventas del talonario en el libro de ventas y en la declara
 El repositorio no lo trata.
 
 Las sanciones concretas por vender sin documento (montos y tipos de falta) están en el Código Tributario, que el
-repositorio no ha analizado para este fin (F-22). Tampoco está la fuente de la declaración mensual (formulario,
-nombre y campos) ni su relación con el libro de ventas (F-21). Confírmalo con tu contador.
+repositorio no ha analizado para este fin (aún sin pregunta propia en la consulta). Tampoco está la fuente de la declaración mensual (formulario,
+nombre y campos) ni su relación con el libro de ventas (aún sin pregunta propia en la consulta). Confírmalo con tu contador.
+Ver [Consulta al SAR](/produccion/consulta-sar/).
 :::
 
 ## Lo que hace el proveedor del software
@@ -99,8 +100,8 @@ cómo cumple cada numeral del Art. 53, la versión del software y dónde está e
 
 :::caution[Por confirmar con fuente]
 Si la API corre en la nube de un tercero, no se sabe cómo encaja con el Art. 47 («el establecimiento donde se
-encuentre el servidor») ni con el Art. 61 («por cada Sistema») (F-05, pregunta P-02). El modo recomendado,
+encuentre el servidor») ni con el Art. 61 («por cada Sistema») (pregunta P-02). El modo recomendado,
 mientras tanto, es instalar la API en un equipo del negocio. Tampoco se sabe qué normativa de protección de datos
-aplica a los datos del cliente guardados por un tercero (F-14, pregunta P-05). Ver
+aplica a los datos del cliente guardados por un tercero (pregunta P-05). Ver
 [Consulta al SAR](/produccion/consulta-sar/).
 :::

@@ -147,14 +147,14 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
 
 :::caution[Por confirmar con fuente]
 - **Guía de Remisión (08)**: si la ferretería debe emitirla al despachar mercadería y cuándo. El repositorio solo
-  sabe que está en el Art. 29, sin su contenido, y factura-hn todavía no la emite (F-15).
+  sabe que está en el Art. 29, sin su contenido, y factura-hn todavía no la emite (aún sin pregunta propia en la consulta).
 - **Retenciones** de grandes contribuyentes y el Comprobante de Retención (05): el repositorio solo sabe que está en
-  el Art. 33 (F-15). factura-hn no lo emite.
+  el Art. 33 (aún sin pregunta propia en la consulta). factura-hn no lo emite.
 - **Usos concretos de la Nota de Débito (07)**: intereses, fletes, diferencias de precio. El Reglamento solo dice
-  «ajustes» (Art. 4 num. 32) (F-19).
+  «ajustes» (Art. 4 num. 32; aún sin pregunta propia en la consulta).
 - **Exonerado agroindustrial solo con el registro SAG/RUPNSA**, sin Orden de Compra Exenta: es la lectura adoptada
-  (DEC-021), pendiente de confirmación (F-11, pregunta P-08).
-- **Productos exentos**: el repositorio no tiene listas (F-02).
+  (DEC-021), pendiente de confirmación (pregunta P-08).
+- **Productos exentos**: el repositorio no tiene listas (aún sin pregunta propia en la consulta).
 - **Si el equivalente en lempiras** de un documento en dólares es exigible y con qué redondeo (DEC-068 [REVISAR]).
 
 Ver [Consulta al SAR](/produccion/consulta-sar/), aún no enviada.

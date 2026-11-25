@@ -12,7 +12,7 @@ Guía orientativa, pendiente de revisión por un contador. No sustituye asesorí
 :::danger[Casi todo está por confirmar]
 El repositorio no sabe si un profesional independiente puede facturar sus honorarios con Factura (01) como
 autoimpresor por sistema, en lugar del Recibo por Honorarios (04), ni cómo se tratan el ISV y las retenciones de
-esos honorarios (F-16). No configures factura-hn para emitir honorarios hasta que tu contador lo confirme con su
+esos honorarios. No configures factura-hn para emitir honorarios hasta que tu contador lo confirme con su
 fuente.
 :::
 
@@ -45,7 +45,7 @@ Con el MCP, para probar: `npx -y @factura-hn/mcp init --demo`. Ver [Servidor MCP
 ## Ejemplo: un servicio a una empresa
 
 Solo para ver cómo quedaría el documento. Usa la demo: CAI ficticio `DEMO00-NO-VALIDO-…` y la leyenda «DOCUMENTO DE
-PRUEBA — SIN VALOR FISCAL». El tratamiento de ISV del servicio está por confirmar (F-16): el ejemplo lo marca de
+PRUEBA — SIN VALOR FISCAL». El tratamiento de ISV del servicio está por confirmar: el ejemplo lo marca de
 forma explícita para que no pase inadvertido.
 
 ```bash
@@ -79,7 +79,7 @@ const factura = await facturador.emitir({
     cantidad: '1',
     precioUnitario: '8000.00',
     unidad: 'servicio',
-    isv: 'ISV15', // el tratamiento del servicio está por confirmar con tu contador (F-16)
+    isv: 'ISV15', // el tratamiento del servicio está por confirmar con tu contador
   }],
 });
 await writeFile('factura-servicio.html', renderizarHTML(factura)); // carta
@@ -92,10 +92,10 @@ cambia `isv` en la línea; factura-hn no decide cuál corresponde.
 
 :::caution[Por confirmar con fuente]
 - **Si un profesional independiente puede emitir Factura (01) como autoimpresor** por sistema en lugar del Recibo
-  por Honorarios (04), que es solo de imprenta (F-16, pregunta nueva fuera de P-01 a P-14).
-- **ISV sobre honorarios profesionales**: si aplica, a qué tasa o si están exentos (F-16).
-- **Retenciones sobre honorarios** y el Comprobante de Retención (05), que factura-hn no emite (F-16 y F-15).
-- **Qué modalidad le corresponde** según su actividad: sistema, imprenta o máquina registradora (F-20).
+  por Honorarios (04), que es solo de imprenta.
+- **ISV sobre honorarios profesionales**: si aplica, a qué tasa o si están exentos.
+- **Retenciones sobre honorarios** y el Comprobante de Retención (05), que factura-hn no emite.
+- **Qué modalidad le corresponde** según su actividad: sistema, imprenta o máquina registradora.
 
 Ninguna de estas preguntas está todavía en la [consulta al SAR](/produccion/consulta-sar/), que además aún no se ha
 enviado. Si tienes la fuente (un artículo o una respuesta escrita del SAR), apórtala con la plantilla «Regla

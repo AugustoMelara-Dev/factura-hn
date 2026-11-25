@@ -46,7 +46,7 @@ MCP: la herramienta `libro_ventas`.
 
 :::caution[Por confirmar con fuente]
 El repositorio no tiene una norma que fije el formato del libro de ventas, ni la fuente de la declaración mensual
-del ISV: formulario, nombre y campos, y cómo se relaciona con este libro (F-21). El libro de factura-hn es un
+del ISV: formulario, nombre y campos, y cómo se relaciona con este libro (aún sin pregunta propia en la consulta). El libro de factura-hn es un
 apoyo para el contador, no un formulario del SAR. Ver [Consulta al SAR](/produccion/consulta-sar/).
 :::
 
@@ -69,7 +69,7 @@ Con la API: `GET /v1/exportacion?desde=2026-11-01&hasta=2026-11-30&formato=csv` 
 exportación queda en la bitácora de la API.
 
 :::caution[Por confirmar con fuente]
-No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5 (F-06, preguntas P-04 y
+No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5 (preguntas P-04 y
 P-14). Si el SAR publica uno, se agregará como un formato más de `exportarTexto`. Ver
 [Consulta al SAR](/produccion/consulta-sar/).
 :::
@@ -116,7 +116,7 @@ Cómo cuenta los plazos, y qué decisiones hay detrás:
 Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).
 
 :::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio (F-06, pregunta
+El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio (pregunta
 P-04). Ver [Consulta al SAR](/produccion/consulta-sar/).
 :::
 
@@ -168,6 +168,6 @@ no protege de un disco dañado: el respaldo es responsabilidad del negocio.
 El plazo de conservación se tomó del Código Tributario (Arts. 58 num. 4, 63 num. 3, 144 y 145) en una
 compilación de 2024 del Poder Judicial, no de La Gaceta. Con esa fuente, el proyecto adoptó conservar los
 documentos **al menos 5 años desde el vencimiento de la declaración del período** para quien está inscrito en el
-RTN (F-07, pregunta P-06). Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
+RTN (pregunta P-06). Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
 borres nada. Ver [Consulta al SAR](/produccion/consulta-sar/).
 :::
