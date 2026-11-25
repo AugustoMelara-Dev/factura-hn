@@ -57,7 +57,7 @@ anula por su cuenta. Con `@factura-hn/cliente`: `fhn.anular(numero, motivo, { op
 **Después de anular:**
 
 - Si la venta fue real, emite un documento nuevo con los datos correctos. La fecha será la de hoy: no se
-  retrofecha (Arts. 14 y 43).
+  retrofecha (DEC-022, aprobada).
 - Recupera el original del cliente cuando sea posible: el Art. 41 pide resguardar el original y la copia.
 - En el libro de ventas, el anulado sale con su número y montos en cero. En la exportación de texto, con sus
   importes originales y `estado = ANULADO`. Ver [Reportes del mes](/guias/reportes/).
@@ -84,22 +84,24 @@ declare const caja: Facturador;
 declare const numeroFactura: string;
 -->
 ```ts
-// El cliente devuelve una unidad de una venta correcta.
+// El cliente con RTN devuelve una unidad de una venta correcta.
 const nota = await caja.notaCredito({
   original: numeroFactura,
+  cliente: { nombre: 'Ferretería Ejemplo S. de R.L.', rtn: '99990000000002' },
   motivo: 'Devolución de 1 unidad',
   lineas: [{ descripcion: 'Arroz 5 lb', cantidad: '1', precioUnitario: '89.50' }],
 });
 ```
 
-Una Nota de Crédito necesita el RTN del adquirente (Art. 26 num. 1-2) y no puede superar el saldo del original.
+Una Nota de Crédito necesita el RTN del adquirente (Art. 26 num. 1-2) y no puede superar el saldo del original
+(DEC-051, marcada [REVISAR]).
 Los detalles están en [Nota de Crédito](/documentos/nota-credito/).
 
 ## Lo que no se puede hacer
 
 - **Anular dos veces.** Da `YA_ANULADO`. No hace falta hacer nada.
 - **Emitir una nota sobre un documento anulado.** Da `REFERENCIA_ANULADA`: un anulado no respalda una operación
-  que ajustar (Art. 41). Si la venta sigue vigente, refiere al documento que la respalda.
+  que ajustar (DEC-004, aprobada; el Art. 41 trata el anulado como un documento con errores). Si la venta sigue vigente, refiere al documento que la respalda.
 - **Editar o borrar.** Los almacenes de SQLite y Postgres lo impiden con disparadores en la base, aunque alguien
   la edite a mano: un documento emitido solo puede pasar a ANULADO.
 
@@ -131,4 +133,5 @@ Consulta los dos casos con tu contador.
 - Reglamento, Arts. 4 num. 31-32, 14, 26, 41 y 43: matriz de [cumplimiento](/referencia/cumplimiento/), filas
   4.31-32, 26 y 41.
 - `anular` y `corregirFechaAdelantada` en el núcleo; [Documentos inmutables](/conceptos/inmutables/).
-- DEC-001, DEC-051 y DEC-079 en [decisiones](/referencia/decisiones/).
+- DEC-001, DEC-004, DEC-022, DEC-051 (marcada [REVISAR]) y DEC-079 (marcada [REVISAR]) en
+  [decisiones](/referencia/decisiones/).
