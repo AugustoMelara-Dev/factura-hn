@@ -106,7 +106,8 @@ Dónde va el bloque en cada cliente: [README del MCP](https://github.com/Augusto
 
 ### Next.js
 
-Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app` (con el alias `@/`):
+Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app` (con el alias `@/`). Si tu
+proyecto usa `src/`, crea los archivos en `src/lib` y `src/app`.
 
 1. `npm install factura-hn`
 2. Crea `lib/facturador.ts`:
@@ -115,7 +116,8 @@ Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app
    // lib/facturador.ts: solo en el servidor. Se crea una vez por proceso, no en cada solicitud.
    import { crearFacturadorDemo } from 'factura-hn/demo';
 
-   // crearFacturadorDemo() devuelve una promesa (registra el CAI ficticio al crearse): úsala con `await`.
+   // crearFacturadorDemo() ya trae el emisor ficticio y el CAI ficticio de la caja 000-001 (establecimiento 000,
+   // punto 001). Devuelve una promesa (registra el CAI al crearse): úsala con `await`.
    export const facturador = crearFacturadorDemo();
    ```
 
@@ -128,15 +130,19 @@ Primero en modo de prueba, sin base de datos, en un proyecto de `create-next-app
 
    export async function GET() {
      const caja = await facturador;
+     // Sin `cliente`, el documento va a CONSUMIDOR FINAL.
      const factura = await caja.emitir({
-       lineas: [{ descripcion: 'Café molido 1 lb', cantidad: 2, precioUnitario: '100.00' }],
+       preciosIncluyenISV: true, // los precios ya traen el ISV
+       lineas: [{ descripcion: 'Café molido 1 lb', cantidad: 2, precioUnitario: '115.00' }],
      });
      return new Response(renderizarHTML(factura), { headers: { 'content-type': 'text/html; charset=utf-8' } });
    }
    ```
 
-4. `npm run dev` y abre <http://localhost:3000/factura>. Verás la factura con la leyenda de prueba. El almacén
-   es de memoria: la numeración vuelve a empezar al reiniciar el servidor.
+4. `npm run dev` y abre <http://localhost:3000/factura>. Verás la factura `000-001-01-00000001` con la misma
+   venta del SDK: 2 × L 115.00, subtotal L 200.00, ISV L 30.00 y total L 230.00, con la leyenda
+   «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». Cada recarga emite el número siguiente. El almacén es de memoria:
+   la numeración vuelve a empezar al reiniciar el servidor.
 
 Para facturar de verdad, el mismo `lib/facturador.ts` pasa a usar tu emisor, Postgres y tu CAI: ver
 [Pasar a producción](#pasar-a-producción).
