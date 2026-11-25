@@ -72,7 +72,7 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     expect(forma.solucion).toEqual(expect.any(String));
     expect(forma.documentacion).toMatch(/#solicitud_invalida$/);
 
-    // DEC-031: el operador del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
+    // Art. 53 num. 2: el operador del cliente (cabecera X-Operador, con tildes) llega a la bitácora y se imprime si se pide.
     const cajero = crearCliente({ url: 'http://api.local', llave: llaveAdmin, operador: 'José Núñez', fetch: fetchApi });
     const conOperador = await cajero.emitir({ ...venta, imprimirOperador: true }, { idempotencyKey: 'venta-3' });
     expect(conOperador.documento.operador).toBe('José Núñez');
@@ -88,7 +88,7 @@ describe.skipIf(!URL_PG)('contra la API', () => {
     expect(await fhn.libroVentasCSV(hoy, hoy)).toContain(a.documento.numero);
     expect(await fhn.exportacion(hoy, hoy)).toContain(a.documento.numero);
 
-    // Paginación (DEC-047): página por página con el cursor, o todo de una vez con documentos().
+    // Paginación: página por página con el cursor, o todo de una vez con documentos().
     const p1 = await fhn.paginaDocumentos(hoy, hoy, { limite: 1 });
     expect(p1).toMatchObject({ hayMas: true, documentos: [{ numero: a.documento.numero }] });
     const p2 = await fhn.paginaDocumentos(hoy, hoy, { limite: 1, cursor: p1.siguiente! });

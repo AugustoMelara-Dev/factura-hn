@@ -1,5 +1,5 @@
 /**
- * Paso 8 · B-07 documentos no utilizados (Reglamento Art. 42) y B-11 aviso de renovación (Art. 59).
+ * Documentos no utilizados (Reglamento Art. 42) y aviso de renovación (Art. 59).
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,7 +18,7 @@ const AUT: AutorizacionCAI = {
   rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: '2026-10-31',
 };
 
-describe('B-07 · Art. 42: plazo de «diez (10) días hábiles del mes siguiente»', () => {
+describe('Art. 42: plazo de «diez (10) días hábiles del mes siguiente»', () => {
   it('cuenta lunes a viernes desde el día 1 del mes siguiente', () => {
     // Noviembre 2026 empieza en domingo: hábiles 2-6 y 9-13.
     expect(decimoDiaHabilDelMesSiguiente('2026-10-31')).toBe('2026-11-13');
@@ -33,7 +33,7 @@ describe('B-07 · Art. 42: plazo de «diez (10) días hábiles del mes siguiente
   });
 });
 
-describe('B-07 · rangos no utilizados', () => {
+describe('Art. 42: rangos no utilizados', () => {
   it('Art. 42 num. 1: autorización vencida con 40 números libres', () => {
     const r = documentosNoUtilizados([AUT], 60, { hoy: '2026-11-05' });
     expect(r).toEqual([{
@@ -81,7 +81,7 @@ describe('B-07 · rangos no utilizados', () => {
   });
 });
 
-describe('B-07 · revisión interna: números saltados de una autorización vencida', () => {
+describe('Art. 42: números saltados de una autorización vencida', () => {
   it('se siguen reportando después de que la serie continúa en la autorización siguiente', async () => {
     const almacen = new AlmacenFiscalMemoria();
     const A = { ...AUT, rangoFinal: 10 };
@@ -105,7 +105,7 @@ describe('B-07 · revisión interna: números saltados de una autorización venc
   });
 });
 
-describe('B-11 · Art. 59: aviso de renovación «dentro de los dos (2) meses previos»', () => {
+describe('Art. 59: aviso de renovación «dentro de los dos (2) meses previos»', () => {
   const aut = { ...AUT, fechaLimiteEmision: '2027-01-31' };
   it('avisa por defecto desde que se abre la ventana de dos meses de calendario', () => {
     const codigos = (hoy: string) => estadoAutorizacion(aut, 1, { hoy }).alertas.map((a) => a.codigo);

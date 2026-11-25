@@ -1,5 +1,5 @@
 /**
- * Matriz de cumplimiento (docs/investigacion.md, sección 1): pruebas de las filas que no tienen un archivo
+ * Matriz de cumplimiento (docs/cumplimiento.md): pruebas de las filas que no tienen un archivo
  * propio. Cada `describe` lleva el número de fila tal como aparece en la matriz.
  */
 import { describe, expect, it } from 'vitest';
@@ -86,7 +86,7 @@ describe('Art. 10 num. 1: datos del emisor impresos', () => {
   });
 });
 
-describe('Art. 10 num. 7: número NNN-NNN-TT-NNNNNNNN; sin reinicio tras 99999999 (D-07)', () => {
+describe('Art. 10 num. 7: número NNN-NNN-TT-NNNNNNNN; sin reinicio tras 99999999', () => {
   it('el número lleva establecimiento, punto, tipo y correlativo de 8 dígitos', () => {
     expect(doc({}, AUT, 7).numero).toBe('000-001-01-00000007');
   });

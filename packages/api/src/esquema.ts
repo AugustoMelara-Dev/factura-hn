@@ -47,10 +47,10 @@ CREATE TABLE IF NOT EXISTS api_llaves (
   ultimo_uso timestamptz
 );
 CREATE INDEX IF NOT EXISTS api_llaves_tenant ON api_llaves (tenant);
--- v3 (DEC-031): id interno estable de la llave, el que identifica al actor en las bitácoras.
+-- v3: id interno estable de la llave, el que identifica al actor en las bitácoras.
 ALTER TABLE api_llaves ADD COLUMN IF NOT EXISTS id uuid NOT NULL DEFAULT gen_random_uuid();
 CREATE UNIQUE INDEX IF NOT EXISTS api_llaves_id ON api_llaves (id);
--- v4: una llave de caja nueva siempre va atada a un punto de emisión (DEC-035), aunque se inserte a mano.
+-- v4: una llave de caja nueva siempre va atada a un punto de emisión, aunque se inserte a mano.
 -- Disparador de INSERT y no CHECK: un CHECK (aun NOT VALID) también se revisa en el UPDATE de ultimo_uso
 -- y dejaría inservible, con error 500, una llave vieja que hoy solo lee. Esas llaves ya no emiten (la API
 -- falla cerrado con CAJA_SIN_PUNTO).
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS api_bitacora (
   detalle jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS api_bitacora_tenant ON api_bitacora (tenant, id);
--- v3 (DEC-031): persona que operó (p. ej. el cajero), si la solicitud la indica.
+-- v3: persona que operó (p. ej. el cajero), si la solicitud la indica.
 ALTER TABLE api_bitacora ADD COLUMN IF NOT EXISTS operador text CHECK (operador IS NULL OR length(operador) BETWEEN 1 AND 80);
 
 -- v8: modo del tenant (sandbox con llaves fhn_test_, o producción con llaves fhn_live_). Los tenants que ya

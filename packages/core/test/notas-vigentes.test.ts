@@ -1,7 +1,7 @@
 /**
- * Lote 6, hallazgos del núcleo:
- * - DEC-182 [REVISAR] (Arts. 41 y 4 num. 32): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
- * - DEC-051 ampliada: tope de la nota de crédito por tasa; original en USD por el mismo camino que la nota;
+ * Notas vigentes y tope de la nota de crédito:
+ * - Arts. 41 y 4 num. 32 (lectura de factura-hn): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
+ * - Art. 4 num. 32: tope de la nota de crédito por tasa; original en USD por el mismo camino que la nota;
  *   `AVISO_NOTA_EXONERACION_DISTINTA`.
  * - Menores: `ANULACION_MOTIVO`, `estadoAutorizacion` con una serie que viene de otro CAI, `caiEstricto` en la demo,
  *   leyenda G0 en el HTML, columnas nuevas de la exportación.
@@ -103,7 +103,7 @@ describe('DOCUMENTO_CON_NOTAS: un original con notas vigentes no se anula (Arts.
   });
 });
 
-describe('DEC-051 ampliada: tope de la nota de crédito por tasa', () => {
+describe('Art. 4 num. 32: tope de la nota de crédito por tasa', () => {
   const MIXTA = [
     { descripcion: 'Arroz', cantidad: 1, precioUnitario: '100.00', isv: 'EXENTO' as const },
     { descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' },
@@ -140,7 +140,7 @@ describe('DEC-051 ampliada: tope de la nota de crédito por tasa', () => {
   });
 });
 
-describe('DEC-051 ampliada: original en dólares por el mismo camino que la nota', () => {
+describe('Art. 4 num. 32: original en dólares por el mismo camino que la nota', () => {
   it('la devolución total de 7 × USD 0.07 a 24.5 se emite (antes NOTA_SUPERA_ORIGINAL: L 13.81 contra L 13.72)', async () => {
     const LINEA = [{ descripcion: 'Tornillo', cantidad: 7, precioUnitario: '0.07' }];
     const f = await factura({ moneda: 'USD', tipoCambio: '24.5', lineas: LINEA }); // USD 0.56

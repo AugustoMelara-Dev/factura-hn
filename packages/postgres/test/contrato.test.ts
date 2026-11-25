@@ -146,7 +146,7 @@ conPostgres('Postgres', () => {
     expect(r.map((x) => (x.status === 'rejected' ? String(x.reason) : 'ok'))).toEqual(['ok', 'ok']);
   });
 
-  describe('dos notas de crédito cruzadas entre puntos de emisión (Lote 4)', () => {
+  describe('dos notas de crédito cruzadas entre puntos de emisión', () => {
     // La nota de 000-001 se aplica a una factura de 000-002 y la de 000-002 a una de 000-001. Cada nota bloquea su
     // serie 06 y después la 01 del original: 000-001-06 → 000-002-01 y 000-002-06 → 000-001-01.
     const cliente = { nombre: 'Constructora Pérez', rtn: '99990000000002' };

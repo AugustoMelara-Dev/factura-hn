@@ -19,7 +19,7 @@ const json = async (r: Response) => (await r.json()) as any;
 const bytes = async (r: Response) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(await r.arrayBuffer());
 /**
  * Registra una autorización ficticia con el núcleo en un tenant de producción, como lo permitía la API antes de
- * los modos de tenant (DEC-093). Hoy la base lo impide (CAI_DE_PRUEBA): el tenant pasa a prueba solo mientras se
+ * los modos de tenant. Hoy la base lo impide (CAI_DE_PRUEBA): el tenant pasa a prueba solo mientras se
  * registra, para simular una base que la registró antes.
  */
 async function registrarSinApi(tenant: string, a: Omit<AutorizacionCAI, 'cai'> & { cai: string }) {
@@ -173,7 +173,7 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
   it('POST /v1/autorizaciones: un tenant de producción no acepta CAI ficticios; el tenant demo no acepta CAI reales', async () => {
     const { admin } = await tenantListo(sinLimite);
     const aut = { cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '003', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE };
-    // Con o sin prueba: true (antes, con prueba: true se aceptaba: DEC-093).
+    // Con o sin prueba: true (antes, con prueba: true se aceptaba).
     for (const cuerpo of [aut, { ...aut, prueba: true }]) {
       const r = await admin('POST', '/v1/autorizaciones', cuerpo);
       expect(r.status).toBe(422);

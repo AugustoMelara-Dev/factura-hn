@@ -1,5 +1,5 @@
 /**
- * DEC-051 [REVISAR]: con el original en el almacén, una nota de crédito no puede llevar el acumulado de notas por
+ * Con el original en el almacén, una nota de crédito no puede llevar el acumulado de notas por
  * encima del total del original ni usar otra tasa de ISV (Art. 4 num. 32: ajuste, devolución o descuento sobre el
  * «correspondiente» comprobante). Con un original externo solo queda el aviso AVISO_ORIGINAL_EXTERNO.
  */
@@ -57,7 +57,7 @@ const errorDe = (p: Promise<unknown>) =>
     },
   );
 
-describe('nota de crédito contra su original en el almacén (DEC-051)', () => {
+describe('nota de crédito contra su original en el almacén (Art. 4 num. 32)', () => {
   it('una nota dentro del total y con la misma tasa se emite sin avisos', async () => {
     const nc = await nota(await factura(), MARTILLO(1));
     expect(nc.numero).toBe('000-001-06-00000001');
@@ -106,7 +106,7 @@ describe('nota de crédito contra su original en el almacén (DEC-051)', () => {
 
   it('con un original en dólares compara en lempiras con su tipo de cambio', async () => {
     const usd = await factura({ moneda: 'USD', tipoCambio: '24.70' }); // USD 115.00 = L 2,840.50
-    // Las líneas de la nota van en la moneda del original y se convierten (DEC-018): USD 57.50 = L 1,420.25.
+    // Las líneas de la nota van en la moneda del original y se convierten (Arts. 26 num. 9 y 28 num. 8): USD 57.50 = L 1,420.25.
     expect((await nota(usd, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '50.00' }])).totales.total).toBe(1420.25);
     const errores = await errorDe(nota(usd, MARTILLO(1))); // USD 115.00 = L 2,840.50 > saldo
     expect(errores![0]!.mensaje).toContain('saldo disponible L 1,420.25');

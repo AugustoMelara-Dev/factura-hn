@@ -202,7 +202,7 @@ describe('validación', () => {
     );
     expect(v.errores.map((e) => e.codigo)).toEqual(['NOTA_MONEDA']);
   });
-  it('B-09: CAI con otra forma no da error ni advertencia; con caiEstricto, error', () => {
+  it('Art. 4 num. 7: CAI con otra forma no da error ni advertencia; con caiEstricto, error', () => {
     const v = validarEntrada(base(), { ...AUT, cai: 'RARO-123' });
     expect(v.ok).toBe(true);
     expect(v.advertencias.map((a) => a.codigo)).not.toContain('CAI_FORMATO');
@@ -210,13 +210,13 @@ describe('validación', () => {
     expect(validarEntrada(base(), { ...AUT, cai: 'RARO-123' }, { caiEstricto: true }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     expect(validarEntrada(base(), AUT, { caiEstricto: true }).ok).toBe(true);
   });
-  it('B-09 / DEC-013: un carácter distinto de letra, dígito o guion en medio es error aun sin caiEstricto', () => {
+  it('Art. 4 num. 7: un carácter distinto de letra, dígito o guion en medio es error aun sin caiEstricto', () => {
     for (const cai of ['A1B2 C3-D4', 'A1B2C3_D4', 'A1B2C3-D4.', 'A1B2C3/D4']) {
       expect(validarEntrada(base(), { ...AUT, cai }).errores.map((e) => e.codigo)).toEqual(['CAI_FORMATO']);
     }
     for (const cai of ['A1B2C3--D4', '-A1B2', 'a1b2c3-d4']) expect(validarEntrada(base(), { ...AUT, cai }).ok).toBe(true);
   });
-  it('DEC-013: un CAI pegado con espacios alrededor se normaliza sin error', async () => {
+  it('Art. 4 num. 7: un CAI pegado con espacios alrededor se normaliza sin error', async () => {
     const pegado = `  ${AUT.cai.toLowerCase()} \t\n`;
     expect(validarEntrada(base(), { ...AUT, cai: pegado }).ok).toBe(true);
     const almacen = new AlmacenFiscalMemoria();

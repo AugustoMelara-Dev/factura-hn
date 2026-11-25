@@ -1,8 +1,8 @@
 /**
- * Lote 4, pendientes del núcleo:
+ * Textos de entrada y avisos al registrar una autorización:
  * - `TEXTO_CARACTER_NO_PERMITIDO`: los textos de entrada no llevan caracteres de control (salvo tabulador y
  *   saltos de línea) ni mitades sueltas de pares sustitutos. No es regla fiscal: PostgreSQL no los guarda en
- *   `jsonb` y la impresora toma los de control como comandos (DEC-060).
+ *   `jsonb` y la impresora toma los de control como comandos.
  * - `registrarAutorizacionConAvisos` devuelve `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62); `registrarAutorizacion`
  *   conserva su firma.
  */

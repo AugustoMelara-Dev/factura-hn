@@ -3,7 +3,7 @@
  *
  * Cómo aplica: cabeceras de seguridad en toda respuesta, sin CORS (la llave va solo en el servidor del integrador),
  * errores sin detalles internos, representación HTML y `/docs` con CSP, y un arranque que falla cerrado ante una
- * configuración peligrosa (DEC-035, DEC-054, DEC-057).
+ * configuración peligrosa.
  *
  * Ataque: recorrer respuestas de todo tipo buscando cabeceras que falten o sobren; una solicitud previa de CORS desde
  * otro origen; un error interno con datos sensibles en el mensaje; cabeceras inyectadas; variables de entorno mal

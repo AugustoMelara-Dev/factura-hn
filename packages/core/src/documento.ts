@@ -178,7 +178,7 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
  *   carro, que tienen sentido en texto libre (descripciones, direcciones, observaciones);
  * - las mitades sueltas de un par sustituto UTF-16, que no son texto válido.
  * No es una regla fiscal: un NUL o un sustituto suelto no se pueden guardar en `jsonb` de PostgreSQL (la
- * emisión o el listado terminaban en error 500) y los de control la impresora los toma como comandos (DEC-060).
+ * emisión o el listado terminaban en error 500) y los de control la impresora los toma como comandos.
  */
 const CARACTER_NO_PERMITIDO = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
@@ -539,7 +539,7 @@ export function construirDocumento(
   if (entrada.exoneracion) doc.exoneracion = entrada.exoneracion;
   if (moneda !== 'HNL') doc.tipoCambio = Number(escaladoATexto(leerTipoCambio(entrada.tipoCambio)!, 6));
   if (entrada.referencia) {
-    // El número se guarda con guiones para poder buscar las notas de un documento (DEC-051).
+    // El número se guarda con guiones para poder buscar las notas de un documento.
     const r = entrada.referencia;
     doc.referencia = esNumeroValido(r.numero) ? { ...r, numero: formatearNumero(parsearNumero(r.numero)) } : r;
   }

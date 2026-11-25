@@ -3,7 +3,7 @@
  *
  * Cómo aplica: la API consume dos cosas de terceros. (1) Las respuestas de los receptores de webhooks: de ellas solo
  * usa el código de estado; no lee el cuerpo, no sigue redirecciones (API7) y corta toda la entrega a los 10 s. (2) La
- * Swagger UI de `/docs`, que viene de un CDN: versión exacta, Subresource Integrity y CSP (DEC-052).
+ * Swagger UI de `/docs`, que viene de un CDN: versión exacta, Subresource Integrity y CSP.
  *
  * Ataque, con receptores locales: un cuerpo enorme, un cuerpo y cabeceras con contenido malicioso, una conexión que
  * se corta a media respuesta y códigos de estado raros. Nada de eso debe entrar a la base ni a las respuestas de la

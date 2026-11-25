@@ -2,7 +2,7 @@
  * OWASP API6:2023 · Unrestricted Access to Sensitive Business Flows.
  *
  * Cómo aplica: los flujos sensibles son fiscales. Emitir consume un correlativo autorizado por el SAR (Arts. 4 y 59),
- * los documentos de prueba quedan fuera del libro y de la exportación (DEC-063, DEC-087), y la exportación entrega
+ * los documentos de prueba quedan fuera del libro y de la exportación, y la exportación entrega
  * todo el período (Art. 53 num. 5). Abusarlos sería: emitir dos veces la misma venta, hacer pasar ventas reales por
  * «de prueba» para sacarlas de los reportes, o sacar datos en masa sin rastro.
  *

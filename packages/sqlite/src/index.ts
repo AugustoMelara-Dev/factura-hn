@@ -1,6 +1,6 @@
 /**
  * @factura-hn/sqlite — `AlmacenFiscal` sobre SQLite, para el POS fuera de línea o la instalación local
- * en el negocio (docs/investigacion.md, «Modos de despliegue»).
+ * en el negocio.
  *
  * Funciona con cualquier driver síncrono con `exec` y `prepare().run/get/all`: `better-sqlite3` o
  * `node:sqlite` (`DatabaseSync`, Node ≥ 22.13 sin bandera experimental). El adaptador no instala ni elige el driver.

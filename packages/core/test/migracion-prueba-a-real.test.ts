@@ -1,5 +1,5 @@
 /**
- * Segunda revisión del Lote 2 (M4 y DEC-091): un punto de emisión pasa de prueba a real, nunca al revés. Una base
+ * Un punto de emisión pasa de prueba a real, nunca al revés. Una base
  * de la 0.2.0 tiene CAI de demostración `DEMO00-…` sin `prueba: true` junto a CAI reales en el mismo punto:
  * registrar CAI reales sigue funcionando, y la demo del punto queda retirada.
  */

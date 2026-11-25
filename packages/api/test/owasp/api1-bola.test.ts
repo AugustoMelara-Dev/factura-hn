@@ -97,8 +97,8 @@ conBase('API1 · autorización a nivel de objeto', () => {
     expect(d.numero).toBe('000-002-01-00000001');
   });
 
-  it('límite conocido (DEC-122): una caja lee los documentos de otro punto de su mismo tenant, nunca los de otro tenant', async () => {
-    // Documentado en docs/api.md y en DEC-122: la lectura de documentos con llave de caja es de todo el tenant. Si
+  it('límite conocido: una caja lee los documentos de otro punto de su mismo tenant, nunca los de otro tenant', async () => {
+    // Documentado en docs/api.md: la lectura de documentos con llave de caja es de todo el tenant. Si
     // se decide acotarla al punto (propuesta abierta), esta prueba cambia de expectativa.
     const t = await tenantConRecursos();
     const caja2 = cliente(t.app, t.caja2);

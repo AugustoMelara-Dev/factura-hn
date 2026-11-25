@@ -189,7 +189,7 @@ describe('servidor MCP con el SDK local', () => {
     expect(() => new BackendLocal({ db: new DatabaseSync(':memory:'), emisor: EMISOR, establecimiento: '000', puntoEmision: '001' })).toThrow(/en archivo/);
   });
 
-  it('DEC-031: el operador (configurado o de la herramienta) va a la bitácora y se imprime solo si se pide', async () => {
+  it('Art. 53 num. 2: el operador (configurado o de la herramienta) va a la bitácora y se imprime solo si se pide', async () => {
     const backend = await backendLocal('Cajera Rosa');
     const { llamar } = await conectar(backend);
     const linea = [{ descripcion: 'Café', cantidad: '1', precioUnitario: '20.00' }];
@@ -415,7 +415,7 @@ describe.skipIf(!URL_PG)('servidor MCP vía la API', () => {
     const reg = await admin07.llamar('registrar_cai', cai07);
     expect([reg.error, reg.texto]).toEqual([false, 'CAI registrado: A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-07 · serie 000-001-07 · rango 1–100 · fecha límite 2027-10-31']);
     expect((await admin07.llamar('registrar_cai', cai07)).datos.errores[0].codigo).toBe('AUTORIZACION_DUPLICADA');
-    // DEC-031: el operador configurado llega a la bitácora de la API junto al id de la llave.
+    // Art. 53 num. 2: el operador configurado llega a la bitácora de la API junto al id de la llave.
     const bit = (await (await app.request('/v1/bitacora', { headers: { authorization: `Bearer ${llaveAdmin}` } })).json()) as { eventos: { numero?: string; actor: string; operador?: string }[] };
     expect(bit.eventos.find((e) => e.numero === f.datos.documento.numero)).toMatchObject({ actor: expect.stringMatching(/^llave:[0-9a-f-]{36} \(caja: agente\)$/), operador: 'Agente de Rosa' });
   });

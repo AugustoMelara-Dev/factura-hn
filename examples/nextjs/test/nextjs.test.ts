@@ -89,7 +89,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
 
     // Venta 1: se emite y el formulario recibe una clave nueva.
     const r1 = await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-inicial-1' }), nueva);
-    // Precio con ISV incluido (D-01): el total puede quedar un centavo abajo del precio, nunca arriba.
+    // Precio con ISV incluido (Ley del ISV, Art. 9, en la lectura de factura-hn): el total puede quedar un centavo abajo del precio, nunca arriba.
     expect(r1).toMatchObject({ tipo: 'emitida', numero: '000-001-01-00000001', total: 239.99, repetida: false, clave: 'clave-nueva-0001' });
     // Doble clic con la misma clave: la misma factura.
     expect(await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-inicial-1' }), nueva)).toMatchObject({ numero: '000-001-01-00000001', repetida: true });
@@ -110,7 +110,7 @@ describe.skipIf(!URL_PG)('server action contra la API', () => {
     expect(firmaValida('000-001-01-00000002', firma)).toBe(false);
     expect(firmaValida('000-001-01-00000001', null)).toBe(false);
 
-    // DEC-031: quién atiende va a la bitácora; impreso solo si se marca.
+    // Quién atiende va a la bitácora; impreso solo si se marca.
     const r4 = await facturarVenta(fhn, formulario({ ...venta, clave: 'clave-cajero-1', operador: 'Rosa Mejía', imprimirOperador: 'on' }), nueva);
     const numero4 = r4.tipo === 'emitida' ? r4.numero : '';
     expect(await fhn.descargar(numero4, 'txt')).toContain('Atendido por: Rosa Mejía');

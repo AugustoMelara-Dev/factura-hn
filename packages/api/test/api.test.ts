@@ -188,7 +188,7 @@ conBase('flujo completo', () => {
     expect((await json(nc)).documento.numero).toBe('000-001-06-00000001');
   });
 
-  it('DEC-051: una NC que supera el original es 422 para todos; sobre un original externo solo la emite una admin; el número no se pierde', async () => {
+  it('Art. 4 num. 32: una NC que supera el original es 422 para todos; sobre un original externo solo la emite una admin; el número no se pierde', async () => {
     const { app, admin } = await tenantListo();
     const caja = cliente(app, await crearCaja(admin, '001'));
     const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '99990000000002' }, lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' }] } })))).documento;
@@ -497,7 +497,7 @@ conBase('modo local', () => {
   });
 });
 
-conBase('respuestas uniformes y paginación (DEC-047)', () => {
+conBase('respuestas uniformes y paginación', () => {
   it('GET /v1/documentos se recorre por páginas con el cursor, sin repetir ni saltar documentos', async () => {
     const { admin } = await tenantListo({}, { cajas: ['001', '002'] });
     const numeros: string[] = [];

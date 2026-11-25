@@ -291,7 +291,7 @@ export class BackendLocal implements Backend {
   async estadoCAI(): Promise<EstadoCAI[]> {
     const hoy = fechaHonduras((this.o.reloj ?? (() => new Date()))());
     return this.almacen.transaccion(async (tx) => {
-      // Notas antes que facturas: el mismo orden de bloqueo que registrarAutorizacion (DEC-092).
+      // Notas antes que facturas: el mismo orden de bloqueo que registrarAutorizacion.
       const series: Array<{ auts: AutorizacionCAI[]; ultimo: number | null }> = [];
       for (const tipoDocumento of ['06', '07', '01'] as const) {
         const id = identificadorDe({ establecimiento: this.o.establecimiento, puntoEmision: this.o.puntoEmision, tipoDocumento });

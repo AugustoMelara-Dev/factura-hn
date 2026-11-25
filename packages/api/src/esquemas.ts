@@ -243,7 +243,7 @@ export const EstadoAutorizacion = z
   })
   .openapi('EstadoAutorizacion');
 
-// --- Respuestas (DEC-047) ------------------------------------------------------------------------------------
+// --- Respuestas ------------------------------------------------------------------------------------------
 // Todo recurso va envuelto con su nombre y toda lista es { <plural>, hayMas, siguiente }.
 
 /** Parámetros de una lista paginada: `limite` (1-500, 100 por defecto) y el `cursor` de la página anterior. */

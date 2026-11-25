@@ -4,7 +4,7 @@
  * Cómo aplica: dos roles. `caja` emite y consulta; `admin` hace todo lo demás (emisor, CAI, anulaciones, series,
  * exportación, bitácora, llaves y webhooks). Una caja no puede subir de rol creando una llave admin, ni usar las
  * opciones de una operación permitida que son solo de admin (salto de fecha, Art. 43; nota sobre un original
- * externo, DEC-051).
+ * externo, Art. 4 num. 32).
  *
  * Ataque: una llave de caja llama a **todas** las operaciones del catálogo; la clasificación sale del código y se
  * contrasta con la especificación (las que exigen admin declaran 403).

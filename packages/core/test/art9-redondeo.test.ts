@@ -1,6 +1,7 @@
 /**
  * Ley del ISV Art. 9 (ISV L.252-260): fracción < 0.005 baja, ≥ 0.005 puede subir; cobrar fuera de la
- * regla «se considerará como hurto». Decisión D-01 (docs/investigacion.md) para precios con ISV incluido.
+ * regla «se considerará como hurto». Para precios con ISV incluido, factura-hn
+ * aplica su lectura del mismo artículo: el total puede quedar un centavo abajo del precio, nunca arriba.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -30,7 +31,7 @@ describe('regla del Art. 9', () => {
   });
 });
 
-describe('precios con ISV incluido (D-01)', () => {
+describe('precios con ISV incluido (Ley del ISV, Art. 9)', () => {
   it('0.27 al 15 %: no existe base exacta → total 0.26, 1 centavo menos, con aviso', () => {
     const r = calcularDocumento([{ descripcion: 'x', cantidad: 1, precioUnitario: '0.27' }], { preciosIncluyenISV: true });
     expect(r.totales).toMatchObject({ importeGravado15: 0.23, isv15: 0.03, total: 0.26, ajustePorRedondeo: 0.01 });
@@ -60,7 +61,7 @@ describe('precios con ISV incluido (D-01)', () => {
         expect(Math.round(totales.total * 100) + aj).toBe(Number(totalC));
         if (aj) conAjuste++;
       }
-      // Proporción esperada de montos sin base exacta (docs/investigacion.md, B-03).
+      // Proporción esperada de montos sin base exacta (Ley del ISV, Art. 9: el ISV impreso es la tasa por la base impresa).
       expect(conAjuste).toBe(isv === 'ISV15' ? 13_044 : 15_254);
     }, 120_000);
   }

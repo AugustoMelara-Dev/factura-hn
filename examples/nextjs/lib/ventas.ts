@@ -27,7 +27,7 @@ export async function facturarVenta(
   if (!CLAVE.test(clave)) return { tipo: 'error', mensajes: ['Formulario vencido: vuelve a intentar.'], clave: nuevaClave() };
   const texto = (k: string) => String(datos.get(k) ?? '').trim();
   const cliente = { ...(texto('cliente') && { nombre: texto('cliente') }), ...(texto('rtn') && { rtn: texto('rtn') }) };
-  // DEC-031: quién atiende queda en la bitácora junto a la llave; se imprime solo si se marca. En tu aplicación,
+  // Quién atiende queda en la bitácora junto a la llave; se imprime solo si se marca. En tu aplicación,
   // tómalo de la sesión del usuario, no de un campo editable.
   const operador = texto('operador') || undefined;
   const imprimirOperador = Boolean(operador) && datos.get('imprimirOperador') === 'on';

@@ -98,7 +98,7 @@ export function autorizacionesActivas(deSerie: AutorizacionCAI[], puntoConReal: 
  */
 export function validarNuevaAutorizacion(existentes: AutorizacionCAI[], nueva: AutorizacionCAI, estado?: EstadoPunto): Problema[] {
   const problemas = validarAutorizacion(nueva).filter((p) => !esAdvertencia(p));
-  // B-15: no se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
+  // No se registran autorizaciones de documentos que un sistema no puede emitir (Arts. 4.43, 46 y 47).
   const tipo = problemaDeTipo(nueva.tipoDocumento);
   if (tipo?.codigo === 'TIPO_NO_EMITIBLE') problemas.push(tipo);
   if (nueva.ultimoEmitidoAntes !== undefined) {
@@ -420,7 +420,7 @@ export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision)
       tipo === '06' || tipo === '07' ? await problemasDeReferencia(tx, entrada, esAutorizacionDePrueba(eleccion.autorizacion)) : [];
     let doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, adicionales);
     if (tipo === '06') {
-      // DEC-051: el importe y la tasa se comparan con los totales ya calculados de la nota. Con errores,
+      // Art. 4 num. 32: el importe y la tasa se comparan con los totales ya calculados de la nota. Con errores,
       // construirDocumento lanza ErrorValidacion y la transacción se revierte sin consumir número.
       const errores = await problemasDeNotaCredito(tx, entrada, doc);
       if (errores.length) doc = construirDocumento(entrada, eleccion.autorizacion, eleccion.correlativo, opciones, [...adicionales, ...errores]);
@@ -483,8 +483,8 @@ async function anularEnTransaccion(
   if (!doc) throw error('DOCUMENTO_NO_ENCONTRADO', `No existe el documento ${numero}.`, 'numero');
   const anulado = anularDocumento(doc, { motivo, reloj: () => ahora });
   if (doc.tipoDocumento !== '06' && doc.tipoDocumento !== '07') {
-    // DEC-182 [REVISAR] (Reglamento Arts. 41 y 4 num. 32): un documento con notas vigentes no se anula; primero se
-    // anulan las notas. Es la regla inversa de REFERENCIA_ANULADA (DEC-004). La serie del documento ya está bloqueada,
+    // Reglamento Arts. 41 y 4 num. 32: un documento con notas vigentes no se anula; primero se anulan las notas. El
+    // Reglamento no lo dice de forma literal: es la lectura de factura-hn, la regla inversa de REFERENCIA_ANULADA. La serie del documento ya está bloqueada,
     // y una nota la bloquea antes de leer el original (`bloquearSerieDelOriginal`): las dos no se cruzan.
     const notas = await notasVigentes(tx, doc);
     if (notas.length) {
@@ -606,12 +606,12 @@ async function bloquearSerieDelOriginal(tx: TransaccionFiscal, entrada: Document
 }
 
 /**
- * Coherencia de una nota 06/07 con el documento que modifica, contra lo guardado en el almacén (B-13).
+ * Coherencia de una nota 06/07 con el documento que modifica, contra lo guardado en el almacén.
  *
  * - Si el original está en el almacén: no puede estar ANULADO (Art. 41: un anulado no respalda operación
  *   que ajustar) y su CAI, fecha y RTN del adquirente deben coincidir con los de la nota (Arts. 26 y 28
  *   num. 1-3: la nota identifica al adquirente y los datos del comprobante al que se aplica).
- * - Si no está: `AVISO_ORIGINAL_EXTERNO` (DEC-004), salvo que el número pertenezca a una autorización que
+ * - Si no está: `AVISO_ORIGINAL_EXTERNO` (decisión de diseño: no hay con qué comparar), salvo que el número pertenezca a una autorización que
  *   este sistema administra y no se haya consumido (`REFERENCIA_NO_EXISTE`).
  */
 async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEntrada, notaDePrueba: boolean): Promise<Problema[]> {
@@ -622,7 +622,7 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
   const original = await tx.buscarDocumento(numero);
   const problemas: Problema[] = [];
   if (!original) {
-    // DEC-004: un original que no está en el almacén (talonario de imprenta, otro sistema, emisiones
+    // Un original que no está en el almacén (talonario de imprenta, otro sistema, emisiones
     // anteriores a la migración) se acepta con la referencia completa y un aviso. La única excepción es un
     // número que este sistema administra y todavía no ha consumido: ese documento no puede existir.
     const auts = await tx.autorizaciones(identificadorDeNumero(numero));
@@ -665,7 +665,7 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
   if (original.cliente.rtn && rtnNota && rtnNota !== original.cliente.rtn) {
     problemas.push({ codigo: 'REFERENCIA_RTN_NO_COINCIDE', mensaje: `El RTN del adquirente no es el del documento ${numero} (${original.cliente.rtn}).`, campo: 'cliente.rtn' });
   }
-  // DEC-018: la conversión a lempiras usa la moneda y el tipo de cambio del original.
+  // Arts. 26 num. 9 y 28 num. 8 (moneda nacional): la conversión a lempiras usa la moneda y el tipo de cambio del original.
   const monedaRef = r.moneda ?? 'HNL';
   if (monedaRef !== original.moneda) {
     problemas.push({ codigo: 'REFERENCIA_MONEDA_NO_COINCIDE', mensaje: `El documento ${numero} está en ${original.moneda}, no en ${monedaRef}.`, campo: 'referencia.moneda' });
@@ -681,7 +681,7 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
 /**
  * Totales en centavos de lempira del original, por el mismo camino que una nota sobre él: si está en moneda
  * extranjera, sus propias líneas pasan por `notaEnLempiras` (precio × tipo de cambio) y `calcularCentavos`. Así una
- * nota idéntica al original da exactamente sus totales (DEC-183). En lempiras son los totales guardados.
+ * nota idéntica al original da exactamente sus totales. En lempiras son los totales guardados.
  */
 function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
   const t = original.totales;
@@ -710,7 +710,7 @@ function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
 }
 
 /**
- * DEC-051 [REVISAR], ampliada en DEC-183: coherencia de importe y tasa de una nota de crédito con el original guardado
+ * Coherencia de importe y tasa de una nota de crédito con el original guardado
  * en el almacén. El Art. 4 num. 32 (C L.381-385) dice que la nota respalda un ajuste, devolución o descuento sobre el
  * «correspondiente» comprobante: no puede devolver más de lo que se vendió ni a otra tasa. Son errores:
  * - `NOTA_SUPERA_ORIGINAL`: la suma de las notas de crédito vigentes sobre el original, más esta, supera su total o,
@@ -718,7 +718,7 @@ function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
  *   convierte por el mismo camino que la nota (`totalesEnLempiras`). El mensaje da el saldo.
  * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
  * Y un aviso, `AVISO_NOTA_EXONERACION_DISTINTA`, si el original es exonerado y la nota no, o al revés.
- * Con un original externo no hay con qué comparar: queda `AVISO_ORIGINAL_EXTERNO` (DEC-004).
+ * Con un original externo no hay con qué comparar: queda `AVISO_ORIGINAL_EXTERNO`.
  * La serie del original ya está bloqueada (`bloquearSerieDelOriginal`): dos cajas no emiten a la vez notas que
  * juntas lo superen.
  */
@@ -757,7 +757,7 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
       campo: 'lineas',
     });
   } else if (!tasaNueva && !sobreExonerado) {
-    // DEC-183: tope por tasa. La nota no acredita más gravado ni más ISV a una tasa que los que el original tuvo a esa tasa.
+    // Tope por tasa (Art. 4 num. 32). La nota no acredita más gravado ni más ISV a una tasa que los que el original tuvo a esa tasa.
     for (const [tasa, base, isv] of [['15', 'importeGravado15', 'isv15'], ['18', 'importeGravado18', 'isv18']] as const) {
       const baseSaldo = o[base] - suma(base);
       const isvSaldo = o[isv] - suma(isv);
@@ -785,7 +785,7 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
       campo: 'lineas',
     });
   }
-  // DEC-183: aviso, no error. Una nota sin exoneración sobre un original exonerado (o al revés) pone el crédito en otra
+  // Aviso, no error. Una nota sin exoneración sobre un original exonerado (o al revés) pone el crédito en otra
   // columna del libro de ventas que la venta (exento contra exonerado).
   const originalExonerado = Boolean(original.exoneracion);
   if (originalExonerado !== Boolean(entrada.exoneracion)) {
@@ -803,7 +803,7 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
   return problemas;
 }
 
-/** DEC-018: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */
+/** Arts. 26 num. 9 y 28 num. 8: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */
 async function monedaDelOriginal(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<DocumentoEntrada> {
   const r = entrada.referencia;
   if (!r?.numero || !esNumeroValido(r.numero) || r.moneda !== undefined) return entrada;

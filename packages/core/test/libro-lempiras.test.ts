@@ -1,5 +1,5 @@
 /**
- * DEC-050: el libro de ventas va en lempiras. Un documento en moneda extranjera se convierte con el tipo de
+ * El libro de ventas va en lempiras (lectura de factura-hn). Un documento en moneda extranjera se convierte con el tipo de
  * cambio que imprime (Art. 11, párrafo final), campo por campo y redondeando a centavos (Art. 9, Ley del ISV).
  */
 import { describe, expect, it } from 'vitest';
@@ -11,7 +11,7 @@ const EMISOR = {
 };
 const CLIENTE = { nombre: 'Importadora Norte', rtn: '99990000000002' };
 
-describe('libro de ventas con documentos en moneda extranjera (DEC-050)', () => {
+describe('libro de ventas con documentos en moneda extranjera', () => {
   it('suma en lempiras: L 100 + USD 100 a 24.70 dan ISV 15 % de 385.50, no 30', async () => {
     const almacen = new AlmacenFiscalMemoria();
     await registrarAutorizacion(almacen, {

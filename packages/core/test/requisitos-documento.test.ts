@@ -1,5 +1,6 @@
 /**
- * Paso 7 de la Fase 1: B-01, B-02, B-05, B-12, B-15 (docs/investigacion.md). Cada prueba cita su artículo.
+ * Requisitos del documento: emisor, alícuota cero, crédito fiscal, exonerados y tipos no emitibles. Cada prueba
+ * cita su artículo.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -37,7 +38,7 @@ const entrada = (extra: Partial<DocumentoEntrada> = {}): DocumentoEntrada => ({
 const codigos = (e: DocumentoEntrada, aut = AUT) => validarEntrada(e, aut).errores.map((p) => p.codigo);
 const avisos = (e: DocumentoEntrada) => validarEntrada(e, AUT).advertencias.map((p) => p.codigo);
 
-describe('B-05 · datos completos del emisor (Art. 10 num. 1)', () => {
+describe('datos completos del emisor (Art. 10 num. 1)', () => {
   const casos: Array<[keyof Emisor, string]> = [
     ['nombreComercial', 'EMISOR_NOMBRE_COMERCIAL'], // num. 1 c
     ['direccionEstablecimiento', 'EMISOR_DIRECCION_ESTABLECIMIENTO'], // num. 1 d
@@ -62,7 +63,7 @@ describe('B-05 · datos completos del emisor (Art. 10 num. 1)', () => {
   });
 });
 
-describe('B-01 · gravado con alícuota cero (Arts. 11 num. 1 g y 12)', () => {
+describe('gravado con alícuota cero (Arts. 11 num. 1 g y 12)', () => {
   const exportacion = entrada({
     cliente: { nombre: 'Importadora de Miami LLC', identificacion: { tipo: 'OTRO', numero: 'US-123' } },
     lineas: [
@@ -99,7 +100,7 @@ describe('B-01 · gravado con alícuota cero (Arts. 11 num. 1 g y 12)', () => {
   });
 });
 
-describe('B-02 · base de crédito fiscal en ventas mixtas (Art. 11 num. 3)', () => {
+describe('base de crédito fiscal en ventas mixtas (Art. 11 num. 3)', () => {
   const mixta = (cliente: DocumentoEntrada['cliente']) =>
     entrada({
       cliente,
@@ -129,7 +130,7 @@ describe('B-02 · base de crédito fiscal en ventas mixtas (Art. 11 num. 3)', ()
   });
 });
 
-describe('B-12 · adquirente exonerado: OCE + constancia, o registro SAG/RUPNSA (Art. 11 num. 4)', () => {
+describe('adquirente exonerado: OCE + constancia, o registro SAG/RUPNSA (Art. 11 num. 4)', () => {
   const cliente = { nombre: 'Agroexportadora S.A.', rtn: '99990000000002' };
   it('camino 1: Orden de Compra Exenta y Constancia', () => {
     expect(codigos(entrada({ cliente, exoneracion: { ordenCompraExenta: 'OCE-1', constanciaRegistroExonerado: 'CRE-1' } }))).toEqual([]);
@@ -153,7 +154,7 @@ describe('B-12 · adquirente exonerado: OCE + constancia, o registro SAG/RUPNSA 
   });
 });
 
-describe('B-15 · tipos que un sistema computarizado no puede emitir (Arts. 4 num. 43, 46 y 47)', () => {
+describe('tipos que un sistema computarizado no puede emitir (Arts. 4 num. 43, 46 y 47)', () => {
   const casos: Array<[string, RegExp]> = [
     ['09', /máquinas registradoras \(Art\. 4 num\. 43\)/],
     ['04', /imprenta \(Art\. 46\)/],

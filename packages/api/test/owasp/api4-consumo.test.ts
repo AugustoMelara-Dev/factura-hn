@@ -2,8 +2,8 @@
  * OWASP API4:2023 · Unrestricted Resource Consumption.
  *
  * Cómo aplica: un solo proceso atiende a todos los tenants. Los topes que ya existían: cuerpo de 512 KB, 500 líneas,
- * largo de cada texto, `limite` de 1 a 500, período de 366 días, exponentes de los montos (DEC-052), solicitudes por
- * llave (DEC-070), reportes acotados (DEC-059), 20 webhooks activos (DEC-058) y 5 pruebas pendientes (DEC-116).
+ * largo de cada texto, `limite` de 1 a 500, período de 366 días, exponentes de los montos, solicitudes por
+ * llave, reportes acotados, 20 webhooks activos y 5 pruebas pendientes.
  *
  * Ataque: cuerpos grandes sin `Content-Length`, profundos o con montos extremos; páginas de documentos grandes; listas
  * repetidas que terminan en la bitácora.
@@ -65,7 +65,7 @@ conBase('API4 · consumo de recursos', () => {
       ['501 líneas', () => emitir(t.admin, venta('1', { documento: { lineas: Array(501).fill(linea) } })), 400],
       ['descripción de 501', () => emitir(t.admin, venta('1', { documento: { lineas: [{ ...linea, descripcion: 'x'.repeat(501) }] } })), 400],
       ['monto de 33 caracteres', () => emitir(t.admin, venta('1'.repeat(33))), 400],
-      ['exponente enorme (DEC-052)', () => emitir(t.admin, venta('1e10000000')), 422],
+      ['exponente enorme', () => emitir(t.admin, venta('1e10000000')), 422],
       ['número 1e308', () => emitir(t.admin, { ...venta(), documento: { lineas: [{ ...linea, precioUnitario: 1e308 }] } }), 422],
       ['cantidad 1e21', () => emitir(t.admin, { ...venta(), documento: { lineas: [{ ...linea, cantidad: 1e21 }] } }), 422],
       ['Idempotency-Key de 256', () => emitir(t.admin, venta(), 'k'.repeat(256)), 400],
@@ -80,7 +80,7 @@ conBase('API4 · consumo de recursos', () => {
       const inicio = Date.now();
       const r = await hacer();
       expect(r.status, `${nombre}: ${await r.clone().text()}`).toBe(estado);
-      // Holgura para una CI lenta: lo que se busca es que no bloquee el proceso (DEC-052), no medir.
+      // Holgura para una CI lenta: lo que se busca es que no bloquee el proceso, no medir.
       expect(Date.now() - inicio, nombre).toBeLessThan(10_000);
     }
     // Nada de lo anterior consumió un número.
@@ -98,7 +98,7 @@ conBase('API4 · consumo de recursos', () => {
     expect([201, 400]).toContain(r.status);
   });
 
-  it('límite de solicitudes por llave: 429 con Retry-After y las cabeceras RateLimit (DEC-070, DEC-108)', async () => {
+  it('límite de solicitudes por llave: 429 con Retry-After y las cabeceras RateLimit', async () => {
     const t = await tenantListo({ limiteSolicitudes: { porSegundo: 0.001, rafaga: 3 } });
     // tenantListo ya gastó la ráfaga al preparar el emisor y los CAI: la siguiente es 429.
     const r = await t.admin('GET', '/v1/sesion');
