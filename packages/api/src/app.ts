@@ -20,6 +20,7 @@ import {
   documentosPorPaginas,
   elegirAutorizacion,
   emitir,
+  esAutorizacionDePrueba,
   esCAIDemo,
   esDocumentoDePrueba,
   LEYENDA_PRUEBA,
@@ -1112,13 +1113,30 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     createRoute({
       method: 'get', path: '/v1/series/{identificador}/no-utilizados', tags: ['Series'], security: seguridad,
       summary: 'Números que hay que reportar al SAR como no utilizados (Art. 42)',
+      description: 'Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.',
       request: { params: rutaSerie },
-      responses: { 200: json(z.object({ rangos: z.array(z.looseObject({ desde: z.number(), hasta: z.number(), cantidad: z.number(), fechaLimiteAviso: z.string() })) }), 'Rangos'), ...respuestasError },
+      responses: {
+        200: json(
+          z.object({
+            rangos: z.array(z.looseObject({ desde: z.number(), hasta: z.number(), cantidad: z.number(), fechaLimiteAviso: z.string() })),
+            aviso: z.string().optional().openapi({ description: 'Solo si la serie tiene autorizaciones de prueba, que no se reportan.' }),
+          }),
+          'Rangos',
+        ),
+        ...respuestasError,
+      },
     }),
     async (c) => {
       exigirAdmin(c);
-      const rangos = await noUtilizadosDelAlmacen(almacenDe(c), c.req.valid('param').identificador, { hoy: fechaHonduras(reloj()) });
-      return c.json({ rangos } as never, 200);
+      const identificador = c.req.valid('param').identificador;
+      const rangos = await noUtilizadosDelAlmacen(almacenDe(c), identificador, { hoy: fechaHonduras(reloj()) });
+      const deSerie = await almacenDe(c).transaccion((tx) => tx.autorizaciones(identificador));
+      const prueba = deSerie.filter((a) => esAutorizacionDePrueba(a)).length;
+      const aviso = prueba
+        ? `${prueba === 1 ? 'Una autorización' : `${prueba} autorizaciones`} de prueba (CAI ficticio) de esta serie no se ` +
+          `reporta${prueba === 1 ? '' : 'n'} al SAR: sus números no aparecen aquí. ${LEYENDA_PRUEBA}.`
+        : undefined;
+      return c.json({ rangos, ...(aviso ? { aviso } : {}) } as never, 200);
     },
   );
 

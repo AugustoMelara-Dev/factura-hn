@@ -5,7 +5,7 @@
  * impiden registrar CAI reales.
  */
 import { describe, expect, it } from 'vitest';
-import { AlmacenFiscalMemoria, emitir, registrarAutorizacion, type AutorizacionCAI } from '../src';
+import { AlmacenFiscalMemoria, documentosNoUtilizados, emitir, registrarAutorizacion, type AutorizacionCAI } from '../src';
 import { autorizacionDemo, EMISOR_DEMO } from '../src/demo';
 
 const venta = { emisor: EMISOR_DEMO, lineas: [{ descripcion: 'Café 1 lb', cantidad: '1', precioUnitario: '100.00' }] };
@@ -43,7 +43,7 @@ describe('base de la 0.2.0: CAI de demostración sin `prueba` junto a CAI reales
     await expect(registrarAutorizacion(almacen, real('01', 10001, 20000, '02'), { reloj })).resolves.toMatchObject({ rangoInicial: 10001 });
     await expect(registrarAutorizacion(almacen, real('06', 1, 500, '03'), { reloj })).resolves.toMatchObject({ tipoDocumento: '06' });
     // Y la emisión sigue con el CAI real.
-    const doc = await emitir(venta, { almacen, ...caja, reloj });
+    const doc = await emitir(venta, { almacen, ...caja, opciones: { reloj } });
     expect(doc.cai).toBe('A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-01');
   });
 
@@ -52,8 +52,8 @@ describe('base de la 0.2.0: CAI de demostración sin `prueba` junto a CAI reales
     await registrarAutorizacion(almacen, autorizacionDemo({ hoy: '2026-11-24', rangoFinal: 2 }), { reloj });
     const otroTipo = real('06', 1, 500, '03');
     await expect(registrarAutorizacion(almacen, otroTipo, { reloj })).rejects.toMatchObject({ errores: [{ codigo: 'AUTORIZACION_MODO_MEZCLADO' }] });
-    await emitir(venta, { almacen, ...caja, reloj });
-    await emitir(venta, { almacen, ...caja, reloj });
+    await emitir(venta, { almacen, ...caja, opciones: { reloj } });
+    await emitir(venta, { almacen, ...caja, opciones: { reloj } });
     await expect(registrarAutorizacion(almacen, otroTipo, { reloj })).resolves.toMatchObject({ tipoDocumento: '06' });
   });
 
@@ -63,5 +63,15 @@ describe('base de la 0.2.0: CAI de demostración sin `prueba` junto a CAI reales
     await expect(registrarAutorizacion(almacen, autorizacionDemo({ hoy: '2026-11-24', rangoInicial: 101, rangoFinal: 200 }), { reloj })).resolves.toMatchObject({
       prueba: true,
     });
+  });
+});
+
+describe('no utilizados (Art. 42): las autorizaciones de prueba no se reportan al SAR', () => {
+  it('un CAI ficticio vencido, con o sin prueba: true, no deja rangos por reportar; el real de la serie sí', () => {
+    const demo: AutorizacionCAI = { cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01', tipoDocumento: '01', ...caja, rangoInicial: 1, rangoFinal: 5000, fechaLimiteEmision: '2026-03-31' };
+    expect(documentosNoUtilizados([demo], 10, { hoy: '2026-11-24' })).toEqual([]);
+    expect(documentosNoUtilizados([{ ...demo, prueba: true }], 10, { hoy: '2026-11-24' })).toEqual([]);
+    const vencida = { ...real('01', 5001, 6000), fechaLimiteEmision: '2026-10-31' };
+    expect(documentosNoUtilizados([demo, vencida], () => null, { hoy: '2026-11-24' }).map((r) => r.cai)).toEqual([vencida.cai]);
   });
 });

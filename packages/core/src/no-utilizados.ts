@@ -11,6 +11,7 @@
  */
 import { diasEntre, esFechaValida, fechaHonduras } from './autorizacion';
 import { identificadorDe, type AlmacenFiscal } from './almacen';
+import { esAutorizacionDePrueba } from './modo';
 import { correlativosDe } from './paginas';
 import type { AutorizacionCAI } from './tipos';
 
@@ -98,6 +99,8 @@ export type UltimoConsumido = number | null | ((autorizacion: AutorizacionCAI) =
 /**
  * Rangos sin usar de las autorizaciones de **un** identificador.
  *
+ * - Las autorizaciones de prueba (`prueba: true` o CAI ficticio) no se reportan al SAR: no aparecen.
+ *
  * - Causal 1 (vencimiento): cada autorización cuya fecha límite ya pasó deja sin uso los números
  *   posteriores al último consumido. El acontecimiento es la fecha límite misma (lectura conservadora: la
  *   otra lectura, el día siguiente, puede mover el aviso un mes más tarde).
@@ -111,7 +114,7 @@ export function documentosNoUtilizados(
   const hoy = opciones.hoy ?? fechaHonduras();
   const feriados = opciones.feriados ?? [];
   const resultado: RangoNoUtilizado[] = [];
-  const ordenadas = [...autorizaciones].sort((a, b) => a.rangoInicial - b.rangoInicial);
+  const ordenadas = autorizaciones.filter((a) => !esAutorizacionDePrueba(a)).sort((a, b) => a.rangoInicial - b.rangoInicial);
   const global = typeof ultimoConsumido === 'function' ? null : Math.max(ultimoConsumido ?? 0, ...ordenadas.map((a) => a.ultimoEmitidoAntes ?? 0));
   for (const a of ordenadas) {
     const consumido = typeof ultimoConsumido === 'function'

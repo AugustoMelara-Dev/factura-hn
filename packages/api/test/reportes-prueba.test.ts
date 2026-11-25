@@ -123,6 +123,15 @@ describe.skipIf(!URL_PG)('documentos de prueba fuera de los reportes', () => {
     expect(libro.aviso).toContain(LEYENDA_PRUEBA);
   });
 
+  it('no utilizados: una serie de prueba no tiene rangos por reportar al SAR y lo avisa', async () => {
+    const { admin } = await conPrueba();
+    const prueba = await json(await admin('GET', '/v1/series/000-002-01/no-utilizados'));
+    expect(prueba.rangos).toEqual([]);
+    expect(prueba.aviso).toContain('no se reporta al SAR');
+    const real = await json(await admin('GET', '/v1/series/000-001-01/no-utilizados'));
+    expect(real.aviso).toBeUndefined();
+  });
+
   it('POST /v1/autorizaciones: un CAI ficticio necesita prueba: true; el tenant demo no acepta CAI reales', async () => {
     const { admin } = await tenantListo(sinLimite);
     const aut = { cai: caiDemo('01'), tipoDocumento: '01', establecimiento: '000', puntoEmision: '003', rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: FECHA_LIMITE };

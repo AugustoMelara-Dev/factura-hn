@@ -191,7 +191,7 @@ El esquema `Bearer` no distingue mayúsculas.
 | `GET /v1/documentos/{numero}[.pdf\|.html\|.txt]` | caja | `?formato=carta\|ticket` (PDF), `?ancho=` (TXT) |
 | `POST /v1/documentos/{numero}/anular` | admin | Art. 41 |
 | `POST /v1/series/{id}/corregir-fecha` | admin | Reloj adelantado (Arts. 41 y 43) |
-| `GET /v1/series/{id}/no-utilizados` | admin | Art. 42 |
+| `GET /v1/series/{id}/no-utilizados` | admin | Art. 42. Sin las autorizaciones de prueba (no se reportan); `aviso` lo dice |
 | `GET /v1/libro-ventas?desde&hasta&formato=json\|csv` | caja | |
 | `GET /v1/exportacion?desde&hasta&formato=jsonl\|csv\|txt` | admin | Art. 53 num. 5 |
 | `GET /v1/bitacora?origen=fiscal\|api[&limite&cursor]` | admin | Paginada, del evento más reciente al más antiguo. `fiscal` (por defecto): la del núcleo; `api`: llaves, emisor y webhooks |

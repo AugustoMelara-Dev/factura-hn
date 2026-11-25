@@ -2745,6 +2745,7 @@
           }
         ],
         "summary": "Números que hay que reportar al SAR como no utilizados (Art. 42)",
+        "description": "Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.",
         "parameters": [
           {
             "schema": {
@@ -2791,6 +2792,10 @@
                         ],
                         "additionalProperties": {}
                       }
+                    },
+                    "aviso": {
+                      "type": "string",
+                      "description": "Solo si la serie tiene autorizaciones de prueba, que no se reportan."
                     }
                   },
                   "required": [
