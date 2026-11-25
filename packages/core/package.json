@@ -72,7 +72,8 @@
     "build": "tsup src/index.ts src/pruebas.ts src/demo.ts --format esm,cjs --dts --splitting --clean && tsup src/cli.ts --format esm --target node18",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prepack": "node ../../scripts/copiar-docs.mjs packages/core README.md AGENTS.md llms.txt LICENSE skills docs"
+    "prepack": "node ../../scripts/copiar-docs.mjs packages/core README.md AGENTS.md llms.txt LICENSE skills docs",
+    "mutacion": "stryker run && node ../../scripts/umbral-mutacion.mjs"
   },
   "repository": {
     "type": "git",
@@ -85,5 +86,10 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
+    "fast-check": "4.11.0"
   }
 }

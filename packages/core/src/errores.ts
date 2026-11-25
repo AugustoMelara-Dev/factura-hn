@@ -94,6 +94,7 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   LINEA_PRECIO: "Pasa el precio como texto con punto decimal (p. ej. '89.50'), hasta 4 decimales y sin símbolo de moneda.",
   LINEA_DESCUENTO: "Pasa el descuento como monto (no porcentaje) con punto decimal (p. ej. '5.00'), sin superar el importe de la línea.",
   LINEA_ISV: "Usa 'ISV15', 'ISV18', 'GRAVADO0' o 'EXENTO', u omite el campo (ISV15).",
+  MONTO_FUERA_DE_RANGO: 'Revisa la cantidad y el precio de las líneas (y el tipo de cambio, en moneda extranjera): el total no puede pasar de L 9,999,999,999,999.99. Suele ser un error de digitación (un precio en centavos, o la cantidad y el precio intercambiados).',
   TIPO_CAMBIO: "Indica `tipoCambio` en lempiras por unidad de la moneda extranjera de la fecha de emisión (p. ej. '24.6500').",
 
   // Exoneración

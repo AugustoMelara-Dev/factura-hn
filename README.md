@@ -486,6 +486,10 @@ pnpm verificar:dist  # empaqueta cada paquete y revisa lo que se publicaría
 pnpm sitio        # sitio de documentación en sitio/ (GitHub Pages)
 ```
 
+Qué más se mide (propiedades, contrato OpenAPI, fuzzing, mutación, carga, resiliencia y OWASP API Top 10), con
+sus resultados y cómo repetirlo:
+[calidad medida](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/calidad.md).
+
 Guía para contribuir:
 [CONTRIBUTING.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/CONTRIBUTING.md). Seguridad:
 [SECURITY.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/SECURITY.md). Cada cambio a un paquete

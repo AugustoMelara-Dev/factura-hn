@@ -403,6 +403,20 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Solución:** usa `'ISV15'`, `'ISV18'`, `'GRAVADO0'` o `'EXENTO'`, u omite el campo (ISV15). Qué producto va
   al 18 % lo decide el negocio: el SDK no lo infiere.
 
+### MONTO_FUERA_DE_RANGO
+
+- **Qué significa:** el total del documento pasaría de L 9,999,999,999,999.99 (`MONTO_MAXIMO_CENTAVOS`). No es
+  una regla fiscal: es el mayor total que el SDK representa con exactitud (los importes salen como `number` con 15
+  cifras y el total en letras). En la API es un 422 y no consume número. Se revisa en dos sitios:
+  - `validarLineas` (campo `lineas`): suma el importe neto de las líneas por tasa y le agrega a cada grupo su ISV
+    (15 % o 18 %; exento y alícuota cero, sin ISV), como si los precios no incluyeran el ISV y sin exoneración. Es
+    el total exacto en ese caso; con el ISV incluido en el precio o con exoneración el total real es menor o igual,
+    así que en esos dos casos el tope puede rechazar un documento cuyo total real cabría.
+  - `validarEntrada` (campo `tipoCambio`): en moneda extranjera, el total en lempiras al tipo de cambio del
+    documento (el que se guarda en `equivalenteLempiras`) tampoco puede pasar del tope.
+- **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
+  centavos, o la cantidad y el precio intercambiados.
+
 ### TIPO_CAMBIO
 
 - **Qué significa:** el documento está en moneda extranjera y no trae un tipo de cambio válido.
@@ -660,6 +674,12 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Qué significa (400):** el cuerpo no es JSON válido (comillas, comas o llaves de más o de menos).
 - **Solución:** genera el cuerpo con `JSON.stringify` (o el equivalente de tu lenguaje) en lugar de armarlo a mano.
 
+### TIPO_DE_CONTENIDO
+
+- **Qué significa (415):** la operación espera un cuerpo JSON y la solicitud no trae `Content-Type: application/json`
+  (curl sin `-H`, por ejemplo, manda `application/x-www-form-urlencoded`).
+- **Solución:** agrega la cabecera `Content-Type: application/json` y envía el cuerpo como JSON.
+
 ### NO_AUTENTICADO
 
 - **Qué significa (401):** falta la llave de API o no es válida.
@@ -823,6 +843,14 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
   reenviar una prueba terminada.
 - **Solución:** espera a que se entreguen o fallen (cada prueba se intenta a lo sumo 3 veces) y revisa su estado
   con `GET /v1/webhooks/{id}/entregas`.
+
+### BASE_NO_DISPONIBLE
+
+- **Qué significa (503):** la base de datos se está reiniciando, se cayó o no tiene conexiones libres. La API
+  sigue en pie y se recupera sola cuando la base vuelve. Trae `Retry-After`.
+- **Solución:** reintenta después de los segundos de `Retry-After`. Al emitir, usa la misma `Idempotency-Key`:
+  si el documento alcanzó a emitirse recibes el mismo (con `Idempotency-Replayed: true`), y si no, se emite una
+  sola vez. Ningún número se pierde ni se repite.
 
 ### ERROR_INTERNO
 

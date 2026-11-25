@@ -104,6 +104,12 @@ jobs:
         run: pnpm test:pg
       - name: Humo de la API desde dist (llave del demo, emisión y PDF)
         run: node scripts/humo.mjs api
+      # Versión corta (menos de 2 minutos entre las dos). La larga corre en nocturno.yml.
+      - name: 'Carga corta: latencia, rendimiento, numeración sin huecos ni duplicados e idempotencia'
+        run: pnpm carga ci
+      - name: 'Resiliencia corta: PostgreSQL reiniciado y caído en medio de la emisión, cliente a través de cortes'
+        # Un clúster desechable con los binarios de PostgreSQL del runner (no el servicio de arriba, que no se reinicia).
+        run: pnpm resiliencia
 
   docker:
     name: Imagen de la API

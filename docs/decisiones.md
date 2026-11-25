@@ -1860,3 +1860,452 @@ intentos de la API se corrigió en DEC-070.
   - `FacturaHN-Modo` queda declarada en el OpenAPI junto con las demás cabeceras comunes.
   - El cursor de `GET /v1/documentos` exige una fecha del calendario (antes, `2024-99-99` daba 500).
 - **Alternativa:** v8 y v9 por separado, con el mismo resultado y una migración más.
+
+## Lote 5: calidad medida (Etapa 4)
+
+Los informes con los números están en `docs/calidad.md`.
+
+<!-- OWASP API Security Top 10 (rama lote5/owasp) -->
+
+### DEC-135 · Revisión OWASP API Security Top 10 (2023) con pruebas que recorren el catálogo de operaciones
+- **Contexto:** Lote 5, medir la calidad. El encargo pide recorrer los diez riesgos contra `@factura-hn/api` con
+  pruebas que intenten explotarlos, y dejar el resultado en `docs/calidad/owasp.md`.
+- **Elegida:**
+  - Un archivo por riesgo en `packages/api/test/owasp/` (`api1-bola` … `api10-terceros`). `comun.ts` tiene un
+    tenant con un recurso de cada tipo y el **catálogo** de las 28 operaciones autenticadas, cada una con una
+    solicitud de ejemplo, si es solo de admin y su plantilla de ruta.
+  - Las pruebas de BOLA, autenticación y roles recorren el catálogo entero. La de inventario exige que el catálogo
+    y la especificación tengan las mismas operaciones y que el servidor no atienda rutas fuera de la
+    especificación (salvo `/openapi.json`, `/docs` y `/`). Una ruta nueva sin entrada en el catálogo rompe la CI.
+  - Cada ataque comprueba también que no hubo efecto: `huella(t)` lee el tenant antes y después (estado del
+    documento, emisor, llaves, webhooks, entregas, CAI y el secreto guardado del webhook).
+  - No se duplicaron las pruebas que ya existían (reportes acotados, topes de webhooks, receptor lento, RLS en la
+    base, límite mensual). El informe las cita.
+  - Medición: `pnpm calidad:owasp` (`scripts/owasp.mjs`) corre las pruebas con el informe JSON de Vitest y
+    resume por riesgo. Falla si un riesgo tiene una prueba fallida u omitida, o ninguna que pase. Ninguna prueba
+    depende de la red ni del equipo: `despacharWebhooks` acepta `resolver` (solo para pruebas) y `lookupSeguro` se
+    exporta como `crearLookupSeguro(resolver)`, así que la revisión de direcciones al conectar se prueba con un
+    resolvedor fijo (revisión independiente: la primera versión dependía del nombre del equipo y podía omitirse).
+    `pnpm --filter @factura-hn/api test:owasp` corre solo las pruebas.
+  - CI: corren dentro de `pnpm test:pg` (unos 60 s), en el trabajo «Postgres». No se agregó paso nocturno.
+- **Alternativa:** una herramienta externa (ZAP, Schemathesis) contra la API levantada. Sin ella no hay que
+  instalar nada global ni levantar contenedores. Además, las pruebas usan lo que una herramienta genérica no sabe:
+  roles, tenants, cajas, correlativos y la regla de que nada cambie.
+
+### DEC-136 · Tope de bytes por página en `GET /v1/documentos`
+- **Contexto:** hallazgo API4. `limite` llega a 500 y un documento puede pesar unos 480 KB (500 líneas en un cuerpo
+  de 512 KB). Una página cargaba hasta unos 240 MB en el proceso compartido. Medido con 20 documentos de ese
+  tamaño: 10 MB y 218 ms por respuesta. Es lo mismo que DEC-059 corrigió en los reportes.
+- **Elegida:** `MAX_BYTES_PAGINA = 8 MiB` (configurable con `ConfigApi.maxBytesPagina`). En la base, sobre las
+  `limite + 1` filas de la página, una suma acumulada de `octet_length(datos::text)` deja las filas que **empiezan**
+  antes del tope. Siempre sale al menos una, y las demás no salen de Postgres. Si hubo corte (`count(*) OVER ()`
+  mayor que las filas que quedan), `hayMas` es `true` y el cursor es el del último documento devuelto.
+- **Compatibilidad:** una página puede traer menos de `limite` con `hayMas: true`. `docs/api.md` ya decía «si
+  `hayMas`, pide la siguiente», y `@factura-hn/cliente` lo hace; la especificación no lo decía, así que
+  `listarDocumentos` lleva ahora una `description` con el corte y con «sigue mientras `hayMas`». Solo un cliente que se
+  detenga al recibir menos de `limite` vería menos documentos, y solo con documentos muy grandes: 8 MiB son unos
+  4 000 documentos típicos de 2 KB, más que el `limite` máximo. `docs/api.md` lo dice y hay changeset.
+  `crearApp` rechaza un `maxBytesPagina` que no sea un entero positivo (con 0, cada listado daba 500).
+- **Alternativa:** bajar el máximo de `limite`, que es incompatible (§5) y no acota bien porque el tamaño varía
+  mucho entre documentos. Otra opción era transmitir la lista como los reportes, que es más código para un caso
+  que el tope ya resuelve.
+
+### DEC-137 · La bitácora de `webhook.creado` guarda los eventos sin repetir
+- **Contexto:** hallazgo API4 (bajo). La bitácora guardaba `eventos` tal como venía en el cuerpo: hasta 512 KB
+  por alta, que después salían en `GET /v1/bitacora` (hasta 500 por página).
+- **Elegida:** se guarda la lista de la fila del webhook, que ya se guardaba sin repetidos. No cambia la forma de
+  la solicitud: se siguen aceptando repetidos. Rechazarlos con `.max()` en el esquema sería un cambio que no hace
+  falta.
+
+### DEC-138 · `problemaDeURL` quita el punto final del nombre
+- **Contexto:** hallazgo API7 (bajo). En modo alojado, `https://localhost./`, `https://x.internal./` y
+  `https://x.local./` pasaban la validación del registro. Al conectar, `lookupSeguro` los frenaba porque resuelven
+  a direcciones internas. No era explotable, pero la validación decía «válido».
+- **Elegida:** se quitan los puntos finales del nombre antes de comparar con `localhost`, `.localhost`,
+  `.internal` y `.local`, y un nombre que queda vacío (`https://./`) es «URL inválida». `docs/api.md` lo menciona.
+
+### DEC-139 · `GET /v1/libro-ventas` declara el 403
+- **Contexto:** la prueba de API5 compara las operaciones que la especificación marca con 403 con las que el
+  código puede negar. `obtenerLibroVentas` devuelve 403 `CAJA_SIN_PUNTO` (DEC-122) sin declararlo, en contra de
+  DEC-105.
+- **Elegida:** se agrega 403 a sus respuestas y se regeneran `openapi.json` y `packages/cliente/src/esquema.ts`.
+  La prueba fija el conjunto: las 18 de admin más `emitirDocumento` y `obtenerLibroVentas`.
+
+#### Propuestas que quedaron fuera (OWASP)
+- **Representación impresa en el hilo principal (API4).** El PDF de un documento de 500 líneas tarda unos 440 ms
+  de CPU, y el HTML unos 60 ms. Con 20 solicitudes por segundo por llave, una caja puede ocupar el proceso de
+  todos los tenants. Propuestas:
+  - renderizar en un `worker_threads` con un cupo por tenant, como `ReportesEnCurso`;
+  - o guardar la representación en caché por número y estado: el documento es inmutable (Art. 38) y solo cambia
+    al anularse (Art. 41).
+
+  No se hizo en este lote porque toca `@factura-hn/pdf` o agrega estado al servidor.
+- **Límite por tenant, no solo por llave (API4).** Una admin puede crear llaves sin tope, y cada una trae su
+  cubeta de 20/s. Propuestas:
+  - una cubeta por tenant además de la de cada llave;
+  - o un tope de llaves activas por tenant (409 `LIMITE_LLAVES`, como DEC-058).
+
+  Cualquiera de las dos pone un número que debe fijar el responsable del servicio alojado.
+- **Lectura de documentos con llave de caja (API1).** Es el límite conocido de DEC-122. La prueba
+  «límite conocido (DEC-122)» fija el comportamiento actual, para que un cambio se note.
+- **`GET /v1/autorizaciones` y `GET /v1/llaves` sin paginar.** Devuelven todo con `hayMas: false`. Hoy son pocas
+  filas por tenant. Paginarlas con `limite`/`cursor` es aditivo.
+- **Puertos en webhooks alojados.** En modo alojado se acepta cualquier puerto de una dirección pública. No es
+  SSRF hacia la red interna. Limitar a 443 (o a una lista) rompería a quien hoy recibe en otro puerto.
+
+<!-- Propiedades, contrato OpenAPI y fuzzing (rama lote5/propiedades) -->
+
+### DEC-140 · Propiedades del núcleo con fast-check: qué se prueba y cómo se cita
+- **Contexto:** Lote 5, medir la calidad. El encargo pide propiedades de dinero y cálculo, numeración, validación
+  y montos en letras, cada una con su artículo cuando es fiscal y sin inventar reglas.
+- **Elegida:**
+  - `packages/core/test/propiedades/*.prop.test.ts` (dinero, cálculo, numeración, validación, letras, fuzz). El
+    nombre de cada `describe`/`it` fiscal cita su artículo (Ley del ISV Arts. 3 y 9 y Art. 12 de
+    su Reglamento; Acuerdo 189-2014 Arts. 10, 11, 14, 43 y 62).
+  - Donde el código hace algo que el reglamento no dice (el tope de montos, los billones, el aviso del Art. 62
+    exactamente en el día 366), la propiedad prueba solo lo que la norma sí dice (p. ej. ningún aviso hasta 365 días
+    y siempre a partir de 367) y lo demás queda como hallazgo en este archivo.
+  - `config.ts`: `FHN_PROP_CORRIDAS` (200 en el CI, 20 000 de noche), `FHN_PROP_SEMILLA` para reproducir, e
+    `FHN_PROP_INFORME` para contar casos. Las propiedades con emisión en memoria usan una fracción (`corridas(0.1)`).
+  - fast-check 4.11.0 fijado como dependencia de desarrollo del núcleo y de la API.
+- **Descartada:** propiedades «oráculo» que reimplementan `calcularDocumento`: probarían el código contra sí
+  mismo. Se usan invariantes (suma de las partes, permutación, fusión de documentos) y oráculos independientes
+  pequeños (redondeo del Art. 9 en `bigint`, un lector de letras→número).
+
+### DEC-141 · Tope técnico de montos: `MONTO_MAXIMO_CENTAVOS` y el problema `MONTO_FUERA_DE_RANGO`
+- **Hallazgo:** con cantidades enormes (`cantidad: '99999999999999999999'`), `calcularDocumento` llegaba hasta
+  `centavosEnLetras`, que lanzaba un `RangeError` sin código; en la API era un 500. Además, un total de más de 15
+  cifras ya no es exacto al centavo en `number` (los totales del documento son `number`).
+- **Elegida:** `MONTO_MAXIMO_CENTAVOS = 10^15 − 1` (L 9,999,999,999,999.99), en dos sitios:
+  - `validarLineas` (campo `lineas`) suma el importe neto por grupo de tasa y le agrega a cada grupo su ISV con
+    `impuestoArt9` (exento y alícuota cero, sin ISV). Es el total exacto con precios sin ISV y sin exoneración; con
+    ISV incluido o exoneración el total real es menor o igual, así que ahí el tope puede rechazar un documento que
+    cabría. `calcularDocumento` lanza `ErrorCalculo` y la API responde 422 sin consumir número.
+  - `validarEntrada` (campo `tipoCambio`): en moneda extranjera, el total en lempiras al tipo de cambio (el de
+    `equivalenteLempiras`) tampoco puede pasar del tope.
+- **Revisión independiente:** la primera versión suponía 18 % en todas las líneas (rechazaba documentos exentos o
+  al 15 % que cabían) e ignoraba el tipo de cambio (un documento en USD de ~USD 9.7 billones se emitía y su
+  equivalente en lempiras perdía centavos). Las dos cosas se corrigieron; la propiedad del tope recorre ahora los
+  dos lados del límite (L 8 a 12 billones, de 1 a 3 líneas con tasas mezcladas) y compara con un oráculo por grupo.
+- **No es fiscal:** el reglamento no pone techo a una factura. Es el límite en que el total sigue exacto; está
+  en el comentario de la constante («tope técnico, no fiscal») y en `docs/errores.md`.
+
+### DEC-142 · Montos en letras: billones en escala larga
+- **Hallazgo:** 10^12 salía «UN MILLÓN MILLONES». Desde DEC-141 (tope) los montos llegan hasta 10^13 − 1, así que el
+  caso es alcanzable.
+- **Elegida:** escala larga del español (RAE): 10^12 = «UN BILLÓN», 2.5 × 10^12 = «DOS BILLONES QUINIENTOS MIL
+  MILLONES». Por debajo de 10^12 nada cambia, y lleva «DE LEMPIRAS» igual que «MILLÓN»/«MILLONES». Una propiedad
+  lee las letras de vuelta a número con un lector independiente.
+
+### DEC-143 · `ErrorExportacion` en `leerExportacionJSONL`
+- **Hallazgo:** una línea que no es JSON lanzaba el `SyntaxError` de `JSON.parse` sin número de línea, y una línea
+  que es JSON pero no un objeto (`5`, `null`, `[]`) se devolvía como si fuera un documento.
+- **Elegida:** `ErrorExportacion extends SyntaxError` con `linea` (1-based, contando las vacías). Rechaza también
+  las líneas que no son un objeto. Al heredar de `SyntaxError`, quien atrapaba `SyntaxError` sigue igual.
+
+### DEC-144 · 415 `TIPO_DE_CONTENIDO` con la forma de error de la API
+- **Hallazgo (fuzz y contrato):** sin `Content-Type: application/json`, el validador de `@hono/zod-openapi`
+  respondía 415 en texto plano, sin `solicitud` ni `solucion`, y ninguna operación lo declaraba.
+- **Elegida:** `onError` convierte el `HTTPException` 415 al sobre de error (`TIPO_DE_CONTENIDO`, con su solución y
+  enlace a la guía), y `conErrorDeTipoDeContenido` declara el 415 en cada operación con cuerpo.
+- **Descartada:** responder 400 `SOLICITUD_INVALIDA`. 415 es el estado correcto (RFC 9110 §15.5.16) y ya era el que
+  se enviaba; cambiarlo rompería a quien lo maneje. Lo nuevo es solo la forma del cuerpo y la declaración.
+
+### DEC-145 · La especificación se alinea con lo que la API ya enviaba
+- **Hallazgo (contrato):** cuatro respuestas de las pruebas existentes no estaban en `openapi.json`: la cabecera
+  `Idempotency-Replayed` del 201 de `emitirDocumento`, los tipos `text/csv` y `text/plain` de `exportarPeriodo`,
+  el 403 de `obtenerLibroVentas` (también lo encontró la rama owasp, DEC-139: al integrar queda uno) y
+  `FacturaHN-Modo` en los 429 `LIMITE_MENSUAL` y `DEMASIADOS_REPORTES`.
+- **Elegida:** en los cuatro casos se cambió la especificación, no el código: el comportamiento era el documentado
+  en `docs/api.md` (o el deseable: el modo del tenant ya se conoce cuando se decide ese 429). La descripción de
+  `FacturaHN-Modo` dice en qué 429 no viene (los que se deciden antes de validar la llave).
+
+### DEC-146 · Fechas de período que no existen: 400, no 500
+- **Hallazgo (fuzz):** `desde=2026-02-30` pasaba el patrón `AAAA-MM-DD` y Postgres fallaba al convertirla: 500.
+- **Elegida:** `FechaDelCalendario` (el patrón más `esFechaValida` del núcleo) en `desde` y `hasta` de todos los
+  períodos: 400 `SOLICITUD_INVALIDA`. La especificación no cambia (el refinamiento no se expresa en JSON Schema).
+
+### DEC-147 · Un CAI con NUL en la ruta es 404
+- **Hallazgo (fuzz):** `GET /v1/autorizaciones/%00/estado` llegaba a Postgres, que rechaza `\0` en un texto: 500.
+- **Elegida:** `obtenerEstadoAutorizacion` responde 404 `NO_ENCONTRADO` si el CAI trae `\u0000`: ningún CAI lo
+  tiene. Las demás rutas con parámetro de texto ya validaban su forma antes de consultar (el fuzz las recorrió).
+
+### DEC-148 · Caracteres de control en los textos que van directo a la base: 400, no 500
+- **Hallazgo (revisión independiente):** `POST /v1/llaves` con `nombre: "a\u0000b"` y `POST /v1/webhooks` con un
+  NUL en la URL respondían 500: Postgres no guarda U+0000 en `text` (SQLSTATE 22021). El fuzz no lo había visto:
+  generaba NUL solo como valor entero de un campo, y rara vez en esas rutas.
+- **Elegida, en dos capas:**
+  - Esquemas: `LlaveNueva.nombre` (patrón, visible en `openapi.json`) y `WebhookNuevo.url` (refinamiento, para no
+    perder `format: uri` en la especificación) rechazan los caracteres de control con la misma regla del núcleo
+    (`TEXTO_CARACTER_NO_PERMITIDO`: se permiten tabulador y saltos de línea). Es 400 `SOLICITUD_INVALIDA` con su
+    campo. Los textos del documento, el emisor, el motivo y el operador ya los revisaba el núcleo (422); la sonda lo
+    confirmó ruta por ruta.
+  - Red de seguridad en `onError`: un error de Postgres con SQLSTATE `22021` o `22P05` es 400
+    `SOLICITUD_INVALIDA`, no 500. Su prueba monta una ruta `/prueba-*` que manda un NUL a la base de verdad.
+- **Fuzz:** el modo sano y el hostil meten a veces un carácter de control (casi siempre U+0000) dentro de un texto
+  al azar del cuerpo, sin cambiar su forma (`conCaracterDeControl`). El modo hostil ya usaba la llave admin (2 de
+  cada 7 casos). Con 3 000 casos llegan 22 `POST /v1/llaves` y 18 `POST /v1/webhooks` a ese 400.
+
+### DEC-149 · Validador del contrato OpenAPI en las pruebas de la API
+- **Elegida:** un `setupFile` de vitest (`test/setup-contrato.ts`) envuelve `app.fetch` de toda app que crea
+  `crearApp`, así que **todas** las pruebas de la API pasan por el validador sin tocarlas. Ajv 2020 (dialecto de
+  OpenAPI 3.1) con `ajv-formats`. Se valida: operación existente, estado declarado, tipo de contenido, cuerpo JSON
+  contra su esquema, las cabeceras propias declaradas para ese estado (y su tipo) y que `Solicitud-Id` y
+  `FacturaHN-Version` vengan siempre. Una violación lanza en la misma prueba.
+- **Excepciones, todas explícitas en `openapi-validador.ts`:** `/openapi.json`, `/docs` y `/` (fuera de la
+  especificación a propósito, como en DEC-135 de owasp); las rutas `/prueba-*` que montan algunas pruebas; y en
+  rutas que no existen, el 404 `NO_ENCONTRADO` o los errores de los middleware previos a la ruta (400
+  `CUERPO_NO_UTF8`, 401, 413, 429), con el esquema `Error`.
+- **No se lee el cuerpo** de las respuestas que no son JSON (CSV, JSONL, PDF): son flujos, y leerlos en el
+  validador cambiaba lo que miden las pruebas de reportes acotados. Se valida su tipo de contenido. Si la
+  respuesta no declara contenido, el cuerpo se lee siempre y debe llegar vacío.
+- **Cabeceras obligatorias:** `Solicitud-Id`, `FacturaHN-Version` y `Retry-After` (solo en los 429) se marcan
+  `required: true` en `openapi.json`; el validador exige toda cabecera declarada `required` (también
+  `Documentos-Prueba-Excluidos`) y que todo 429 traiga `Retry-After`.
+- **Descartada:** Schemathesis contra la API local: es Python (dependencia global) y no ve las respuestas de las
+  pruebas que ya existen, que son las que recorren los casos raros.
+
+### DEC-150 · Fuzzing de la API desde la especificación
+- **Elegida:** `test/fuzz.test.ts` genera las solicitudes desde `openapi.json` (`fuzz-esquema.ts` traduce JSON
+  Schema a fast-check). Dos modos mezclados: **sano** (llave válida, cabeceras correctas, cuerpos que cumplen el
+  esquema con valores verosímiles; un tercio son emisiones) para llegar a la lógica, y **hostil** (llaves, cabeceras,
+  rutas, cursores y cuerpos al azar o mutados, UTF-8 inválido). Afirma que ningún estado es 500 y, con ≥ 300 casos,
+  que se vieron las 28 operaciones, más de 15 % de 2xx y un 201 y un 422 de emisión (si el fuzz solo recibiera 400,
+  no probaría nada).
+- **Cantidades y semilla:** 300 casos en el CI (unos 5 s) con la semilla fija 20261125, para que los umbrales de
+  cobertura (que dependen de la suerte) no fallen al azar; 20 000 en `nocturno.yml` con `FHN_PROP_SEMILLA` igual al
+  número de corrida, distinta cada noche y reproducible. Las propiedades del núcleo no tienen umbrales: siguen con
+  semilla al azar en el CI salvo que se fije `FHN_PROP_SEMILLA`.
+- El tenant del fuzz tiene límites de solicitudes altos y una llave «de sacrificio» para que el fuzz no revoque
+  las suyas; tras un PATCH del emisor exitoso, se restaura.
+
+### DEC-151 · Dominio de las propiedades de fecha: 2007–2099
+- **Contexto:** Honduras tuvo horario de verano en 2006 (UTC−5 de mayo a agosto). `fechaHonduras` usa la zona
+  `America/Tegucigalpa` de ICU, que lo sabe.
+- **Elegida:** la propiedad «la fecha en Honduras es UTC−6» se limita a 2007–2099; 2006 queda fuera porque la
+  propiedad sería falsa, no el código. Las fechas fiscales del producto son de 2014 en adelante.
+
+### DEC-152 · ISV por grupo de tasa: la propiedad prueba la lectura ya documentada [REVISAR]
+- **Contexto:** la propiedad de «fusión» (calcular dos documentos juntos o por separado) muestra que el ISV puede
+  diferir en ±1 centavo por tasa, porque el núcleo redondea el ISV una vez por grupo de tasa (los subtotales por
+  tarifa del Acuerdo 189-2014 Art. 11 num. 1 g-i), no por línea. El Art. 9 de la Ley del ISV habla del redondeo
+  «sobre el precio del artículo vendido», lo que también puede leerse por artículo.
+- **Elegida:** la propiedad fija esa cota (±1 centavo por tasa) y el ISV impreso = tasa × base impresa redondeado
+  por el Art. 9. No agrega una regla ni abre una consulta nueva: la pregunta ya está en `docs/consulta-sar.md`
+  §P-10 («por línea o por tasa»). [REVISAR] cuando el SAR responda; si cambia a por línea, estas propiedades lo
+  detectan.
+
+### DEC-153 · Observación: `validarEntrada` no lanza con valores sin tipo
+- **Contexto:** el fuzz del núcleo pasa a `validarEntrada` y `construirDocumento` objetos con la forma de los tipos
+  y valores arbitrarios (lo que manda un integrador en JavaScript sin tipos).
+- **Resultado:** `validarEntrada` nunca lanza (devuelve problemas) y `construirDocumento` solo lanza
+  `ErrorValidacion`. No se cambió nada; queda como propiedad para que no retroceda.
+
+<!-- Pruebas de mutación (rama lote5/mutacion) -->
+
+### DEC-154 · Pruebas de mutación del núcleo con Stryker: alcance y pruebas que corren
+- **Contexto:** el Lote 5 pide un puntaje de mutación ≥ 85 % en cálculo, dinero, numeración y validación.
+- **Elegida:** `@stryker-mutator/core` y `@stryker-mutator/vitest-runner` 10.1.1 como dependencias de desarrollo de
+  `factura-hn` (`packages/core`), con `coverageAnalysis: 'perTest'`. Se mutan ocho módulos:
+  `calculo.ts`, `dinero.ts`, `numeracion.ts`, `documento.ts`, `autorizacion.ts`, `identificacion.ts` (los del
+  encargo) y además `letras.ts` (el total en letras del Art. 11 sale del cálculo) y `modo.ts` (decide si un
+  documento es de prueba; lo usan `autorizacion.ts` y `documento.ts`).
+- **Fuera del alcance:** `emision.ts`, `almacen.ts`, `anulacion.ts`, `no-utilizados.ts`, `reportes.ts`,
+  `render.ts`, `exportacion.ts`: dependen del almacén o son salida. Quedan para una medición posterior.
+- **Pruebas que corre Stryker:** `vitest.mutacion.config.ts` (la configuración normal más exclusiones). Quedan fuera
+  `readme.test.ts` (compila fragmentos de la documentación con tsc, unos 40 s), `lote2-cli.test.ts` (lanza el CLI
+  desde `dist/`), `sin-flotante.test.ts` y `lote2-errores.test.ts` (leen el texto de `src/` o de `docs/` del
+  repositorio; en la copia aislada de Stryker esas rutas no existen y el código está instrumentado). Ninguna de
+  ellas prueba el comportamiento de los módulos mutados.
+- **Zona horaria:** `stryker.config.mjs` fija `TZ=UTC`, igual que el CI, para que una prueba de fecha mate los
+  mismos mutantes en cualquier equipo.
+
+### DEC-155 · Umbral: 85 % global (`thresholds.break`) y 85 % por módulo
+- **Contexto:** `thresholds.break` de Stryker solo mira el puntaje global; un módulo pequeño puede bajar sin que el
+  global lo note.
+- **Elegida:** `thresholds: { high: 90, low: 85, break: 85 }` y, después, `scripts/umbral-mutacion.mjs`, que lee
+  el informe JSON y falla si **algún** módulo baja de 85 %. `pnpm mutacion` corre las dos cosas.
+- **Puntaje:** (muertos + tiempo agotado) / (muertos + tiempo agotado + sobrevivientes + sin cobertura), como
+  Stryker. Los mutantes excluidos con comentario no cuentan.
+
+### DEC-156 · La medición corre de noche, no en el CI
+- **Contexto:** el encargo permite el CI si tarda menos de ~5 min.
+- **Medido:** la línea base tardó 66 min (8 procesos, Windows). Con las pruebas nuevas, 10 a 16 min con 8 a 12
+  procesos en un equipo de 20 núcleos. El runner de GitHub tiene 4 vCPU (3 procesos): se espera de 30 a 50 min.
+  La mayor parte se va en las pruebas que barren de 0.01 a 1,000.00 (`art9-redondeo.test.ts`, unos 13 s), que
+  cubren casi todo `dinero.ts` y `calculo.ts`.
+- **Elegida:** solo en `.github/workflows/nocturno.yml` (sección «lote5/mutacion», cron 08:00 UTC y
+  `workflow_dispatch`, `timeout-minutes: 120`), con el informe HTML y JSON como artefacto. No va en el CI: no cabe
+  en 5 minutos. Las pruebas nuevas (`test/mutacion-*.test.ts`) sí corren en el CI con `pnpm test` (menos de 1 s).
+- **Informe como artefacto:** `actions/upload-artifact` v7.0.2 fijada por SHA
+  (`cf430e030ddbb5b0abf93d22962f4752f3646cd9`, comprobado con `gh api repos/actions/upload-artifact/git/ref/tags/v7.0.2`;
+  la etiqueta apunta directo al commit). La v4 corre en Node 20, ya obsoleto en los runners.
+- **Alternativa descartada:** sacar `art9-redondeo.test.ts` de la medición para entrar en el CI. Esas pruebas son
+  las que mejor vigilan el Art. 9; quitarlas para ganar tiempo debilita justo lo que se mide.
+
+### DEC-157 · Mutantes equivalentes: se excluyen solo si la línea no tiene otros; si no, se dejan vivos
+- **Contexto:** un mutante equivalente no cambia el comportamiento y ninguna prueba lo puede matar. Stryker solo
+  permite excluir por línea y por tipo de mutación (`// Stryker disable next-line <Mutador>`); una exclusión por
+  línea esconde también los mutantes matables de ese tipo en la misma línea. Un primer intento lo hizo así y
+  escondía mutantes matables (p. ej. `!==` → `===` en `dividirRedondeando`).
+- **Elegida:**
+  - Se **excluyen** con comentario solo los equivalentes que son los únicos de su tipo en la línea (10): las
+    entradas sin usar de las tablas de `letras.ts` (índice 0 de unidades y centenas, decenas 0 a 2), las anclas de
+    `apocopar` (VEINTIUNO y UNO solo pueden quedar al final), la lista inicial de `problemasDeTexto` y la de
+    `leerLinea` en `calcularCentavos`, y `exento + exonerado` en la venta mixta (con exoneración no hay base gravada).
+  - Los demás equivalentes **se dejan vivos** con un comentario en el código que dice por qué (17): las
+    comparaciones con 0 en `dividirRedondeando` y `escala` 0 en `parsearDecimal`/`redondearDecimal`, las cotas y
+    condiciones de `baseDesdePrecioConISV` y `sugerirPrecioSinAjuste`, `catch` de `ErrorMonto` (parsearDecimal solo
+    lanza ErrorMonto; ver la decisión siguiente), las anclas del patrón de `esFechaValida` (con algo de más, el texto
+    ya no es igual a `toISOString().slice(0, 10)`), y `ok = false` del descuento en `leerLinea`. El patrón de
+    `esFechaValida` en sí **no** es equivalente: sin él, «+010000-01» y «-000001-01» (años extendidos) pasan la
+    comparación con `toISOString`; hay prueba.
+- **Código muerto quitado en lugar de excluido** (mismo comportamiento, con pruebas): `leerTipoCambio` ya no
+  compara con undefined, null y '' (parsearDecimal lanza ErrorMonto y da null igual); `notaEnLempiras` no usa
+  `?? '01'`; `hoyHonduras` delega en el valor por omisión de `fechaHonduras`; `calcularEquivalenteLempiras`
+  mira solo `tipoCambio`; `formatearMonto` no separa el signo (la expresión de miles no pone coma tras «-»);
+  `centavosEnLetras` no trata el 0 aparte; `menorQueMil` no recibe 0; `descomponer` no usa `?? '0'` ni
+  `|| '0'` donde no pueden aplicar; los nombres de campo que solo iban en mensajes descartados.
+
+### DEC-158 · Montos en letras desde un billón (10^12)
+- **Encontrado** por las pruebas de mutación de `letras.ts`: `enteroALetras(10^12)` daba «UN MILLÓN MILLONES» y
+  `999 999 999 999 999` repetía «MILLONES». El tope (10^15) ya estaba; la escala de billones no.
+- **Corregido:** escala larga del español: «UN BILLÓN», «DOS BILLONES», «VEINTIÚN BILLONES», y «DE» tras
+  BILLÓN/BILLONES al final («UN BILLÓN DE LEMPIRAS»). Por debajo de 10^12 nada cambia. Pruebas en
+  `test/mutacion-letras.test.ts` y changeset `patch` (`.changeset/lote5-mutacion-letras.md`).
+- **No es regla fiscal:** el Art. 11 pide el total en letras; cómo se nombra el número es gramática. Montos así no
+  aparecen en una factura real, pero el SDK aceptaba el número y escribía mal las letras.
+
+### DEC-159 · Las pruebas nuevas fijan mensajes y campos exactos
+- **Contexto:** la mayoría de los sobrevivientes eran textos: el mensaje, el `campo` o el nombre del campo en un
+  error. Son parte de lo que ve el integrador (y la API los devuelve tal cual).
+- **Elegida:** las pruebas comparan `codigo`, `mensaje` y `campo` completos (`toEqual`), sin instantáneas
+  (`toMatchInlineSnapshot`), para que el texto esperado se lea en la prueba. Cambiar un mensaje obliga a cambiar
+  su prueba; es intencional.
+
+### DEC-160 · Un monto que no se puede convertir a texto es ErrorMonto, no TypeError
+- **Encontrado** en la revisión de la rama: `descomponer` armaba el mensaje con `String(valor)`, que lanza TypeError
+  con `Object.create(null)` o con un objeto cuyo `toString` lanza.
+  `validarLineas([{ descripcion: 'a', cantidad: Object.create(null), precioUnitario: '1' }])` lanzaba en lugar de
+  devolver el problema, y la API podía responder 500 con un cuerpo así.
+- **Corregido** en `dinero.ts`: el mensaje se arma con `textoDe(valor)`, que no lanza (si `String` falla, escribe
+  «objeto»). Ahora `parsearDecimal` solo lanza ErrorMonto y el comentario de los `catch` de `calculo.ts` y
+  `documento.ts` es cierto. Prueba en `mutacion-calculo.test.ts`: da `LINEA_CANTIDAD` con
+  «Línea 1: Monto inválido: objeto». No es regla fiscal.
+
+<!-- Carga y resiliencia (rama lote5/resiliencia) -->
+
+### DEC-161 · 503 `BASE_NO_DISPONIBLE` cuando PostgreSQL se reinicia o se cae (antes, 500 `ERROR_INTERNO`)
+- **Hallazgo:** con la base detenida en medio de una emisión, la API respondía 500 `ERROR_INTERNO` («Error
+  interno. Se registró para revisión.») y dejaba en el log la traza completa de cada solicitud. El cliente no
+  podía distinguir «reintenta en un momento» de «hay un error en el servidor». Lo encontró
+  `test/resiliencia/reinicio-pg.test.ts`.
+- **Elegida:** `app.onError` reconoce los errores de base no disponible (`esBaseNoDisponible` en `errores.ts`:
+  SQLSTATE 57P01, 57P02, 57P03, 53300 y los códigos de conexión de la clase 08 uno por uno (08000, 08001, 08003,
+  08004, 08006: `/^(0800[0-46]|57P0[123]|53300)$/`); ECONNREFUSED, ECONNRESET y parecidos; «Connection terminated»,
+  el tiempo agotado del pool) y responde 503 `BASE_NO_DISPONIBLE` con `Retry-After: 2`, `solucion` y
+  `documentacion`. El log lleva una línea con el id de la solicitud, sin traza.
+- **Corregido tras la revisión:** la primera versión aceptaba toda la clase 08 y con ella 08P01
+  (`protocol_violation`), que PostgreSQL también devuelve por un error del código (p. ej. `SELECT $1::int + $2::int`
+  con un solo parámetro). Eso habría sido un 503 reintentado para siempre en lugar de un 500 con su traza. Ahora
+  la lista es explícita y 08P01 está entre los casos que la prueba exige que no se confundan.
+- **Lo que garantiza:** la transacción se revirtió o su resultado es incierto (la base pudo confirmar el COMMIT
+  justo antes de caerse). La solución lo dice: reintentar con la misma `Idempotency-Key`, que devuelve el mismo
+  documento o lo emite una sola vez. Las pruebas lo comprueban con reinicios `fast` y caídas `immediate`, y el
+  caso incierto con `test/resiliencia/commit-incierto.test.ts`: un proxy TCP entre la API y PostgreSQL deja pasar
+  el COMMIT de la emisión, descarta la confirmación y corta; la API responde 503, el documento quedó y el
+  reintento con la misma clave lo devuelve (`Idempotency-Replayed: true`) sin emitir otro.
+- **OpenAPI:** toda operación que declaraba 500 declara también 503 (`respuestasDe` lo agrega solo). `/salud`
+  también lo declara aunque no consulta la base: más simple que una excepción, y un estado declarado de más no
+  rompe a nadie.
+- **Compatibilidad:** compatible según `api-rest.md` §5 (un estado 5xx nuevo con un código nuevo; quien trataba
+  todo 5xx como reintentable sigue igual). El cliente lo entrega como `ErrorFacturaHN` con `estado: 503`.
+
+### DEC-162 · El despacho de webhooks vacía lo acumulado en una pasada
+- **Hallazgo:** cada pasada del despacho (cada 5 s) reclamaba un solo lote de 20 entregas por tenant: a lo sumo
+  4 avisos por segundo por tenant. En la carga (más de 100 documentos por segundo en un tenant) la cola crecía sin
+  fin, y tras un corte del receptor lo acumulado tardaba en salir mucho más que su calendario (1000 avisos, más de
+  4 minutos).
+- **Elegida:** `despacharTenant` sigue reclamando lotes mientras el anterior vino lleno; pasados 30 s
+  (`PRESUPUESTO_PASADA_MS`, inyectable como `presupuestoMs`) no reclama lotes nuevos. El presupuesto se revisa
+  entre lotes: el lote en curso termina, así que con un receptor colgado una pasada puede durar más (un lote de 20
+  con el tiempo máximo de 10 s por entrega lleva la pasada a unos 80 s). No es un problema: el tenant queda en
+  `enCurso` mientras tanto y la emisión no espera al despacho. Lo ya intentado en la pasada no se vuelve a
+  reclamar en ella (con espera 0, como en las pruebas, se reintentaría en bucle). El servidor ya omite al tenant
+  en curso en las pasadas siguientes (`enCurso`), así que nada se entrega dos veces por esto.
+- **Medido:** 70 avisos acumulados salen en una pasada (prueba); en la carga, todos los avisos están entregados
+  en el mismo segundo en que termina la emisión.
+
+### DEC-163 · `fechaHonduras` y `horaHonduras` reusan su `Intl.DateTimeFormat`
+- **Hallazgo:** el perfil de CPU de la API bajo carga mostró `fechaHonduras` como la función propia más cara
+  (cerca del 8 % del CPU): creaba un `Intl.DateTimeFormat` en cada llamada, y la emisión la llama varias veces.
+- **Elegida:** el formateador se crea una vez, la primera vez que se usa. El resultado no cambia (mismas opciones,
+  misma zona America/Tegucigalpa). El rendimiento en saturación subió de unos 107 a unos 124 documentos por segundo
+  en el equipo de la medición.
+
+### DEC-164 · El cliente no reintenta solo
+- **Contexto:** el encargo pedía probar los reintentos de `@factura-hn/cliente` «si reintenta». No reintenta: lanza
+  el error de `fetch` (corte de red) o `ErrorFacturaHN` (respuesta de error), y el integrador reintenta `emitir`
+  con la misma `idempotencyKey`, como dicen su JSDoc y `docs/api.md`.
+- **Elegida:** no agregar reintentos automáticos en este lote. Las pruebas fijan lo que ve el integrador en cada
+  corte y que su reintento da un solo documento (respuesta perdida después de emitir, API inalcanzable, PostgreSQL
+  reiniciado).
+- **Propuesta para después:** una opción `reintentos` en `crearCliente` (desactivada por defecto, solo para
+  `emitir` y los `GET`), con espera creciente que respete `Retry-After` en 429 y 503. Es compatible (opcional).
+
+### DEC-165 · Cómo se reinicia PostgreSQL en las pruebas: un clúster desechable, también en el CI
+- **Elegida:** `scripts/pg-temporal.mjs` crea un clúster con `initdb` y `pg_ctl` locales en `.pg-temporal/`
+  (ignorada por git), en 127.0.0.1:55440, con `trust`, sin socket Unix y con `fsync=off` (solo pruebas). `pnpm
+  resiliencia` lo crea, corre las pruebas con `FHN_PG_REINICIABLE=1` y lo borra al terminar, también si fallan.
+  Sin esa variable, las pruebas que reinician se omiten: nunca se reinicia la base de `pnpm test:pg` ni el
+  contenedor compartido.
+- **Por qué no `docker restart` en el CI:** los runners `ubuntu-latest` traen PostgreSQL instalado
+  (`/usr/lib/postgresql/<versión>/bin`), así que la misma prueba corre igual en Windows, en Linux y en el CI, sin
+  un contenedor aparte. `FHN_PG_BIN` indica otra carpeta. Si un runner dejara de traerlo, el paso falla con un
+  mensaje que lo dice.
+- **Modos:** `pg_ctl stop -m fast` (cierra las sesiones con 57P01, como un reinicio ordenado) y `-m immediate`
+  (como una caída: al arrancar, la base se recupera del WAL).
+
+### DEC-166 · Medición de carga en dos fases, con umbrales holgados
+- **Elegida:** `pnpm carga [ci|local|nocturno]` (perfiles en `packages/api/carga/perfiles.json`). La latencia se
+  mide a tasa fija con un generador de lazo abierto (25 o 30 solicitudes por segundo, por debajo de la saturación);
+  el rendimiento, con autocannon saturando la API. Con la API saturada la latencia solo mide la cola (ley de Little:
+  conexiones / rendimiento), así que exigir un p99 ahí solo diría cuántas conexiones se usaron. El `overallRate` de
+  autocannon no sirve para la fase fija: manda las solicitudes de cada segundo de golpe.
+- **La API de la medición** (`carga/servidor.ts`) es la de producción con el límite por llave levantado (se mide
+  la emisión, no el limitador) y en su propio proceso.
+- **Umbrales:** p50 ≤ 100 ms, p95 ≤ 300 ms, p99 ≤ 600 ms a tasa fija; ≥ 40 documentos por segundo en saturación
+  (≥ 30 en el perfil `ci`); 0 respuestas que no sean 201 en las dos fases y 0 errores de red a tasa fija; en
+  saturación se toleran tiempos agotados y errores de red mientras la integridad se cumpla (una solicitud puede
+  esperar más de 10 s en la cola de un runner cargado; la emisión que pudo pasar se cuenta contra la base); 0 duplicados, 0 huecos, una clave por documento y un número por clave; todos los avisos entregados.
+  Unas 5 veces lo medido, porque los runners del CI son más lentos y variables que el equipo de la medición, y
+  porque la base compartida de Docker en Windows rinde la mitad que una nativa. Todos los números medidos salen de
+  un equipo Windows de 20 núcleos; el runner de GitHub tiene 4 vCPU que reparten la API, autocannon, PostgreSQL y
+  el receptor. **Pendiente:** calibrar los umbrales del perfil `ci` con las primeras corridas en GitHub.
+- **Pruebas sensibles a la carga del runner** (tras la revisión): la de receptor colgado exige que el pool nunca
+  se agote (conexiones prestadas < `max`, no ≤ 1: dos pasadas pueden coincidir si la consulta tarda más de 100 ms)
+  y compara medianas, no el p95 de 40 muestras.
+
+### DEC-167 · Propuestas que no se hicieron (rendimiento, sin bugs)
+- **Menos idas y vueltas por emisión:** una emisión hace 30 consultas en 4 transacciones (llave, idempotencia,
+  emisor y la emisión). Juntar las tres primeras en una ahorraría 8 consultas. Toca `app.ts`, que otras ramas
+  cambian a la vez: queda para un lote propio.
+- **Entregas de webhooks más baratas:** cada entrega abre una conexión TCP nueva (la respuesta se destruye sin
+  leerla, a propósito) y el resultado de un lote se escribe con un `UPDATE` por entrega. Con webhook, el rendimiento
+  en saturación baja de unos 190 a unos 125 documentos por segundo. Un `UPDATE … FROM unnest(...)` por lote ayudaría.
+
+### DEC-168 · Integración del Lote 5
+- **Contexto:** cuatro ramas (`owasp`, `propiedades`, `mutacion`, `resiliencia`), cada una revisada por un agente
+  que no la escribió y corregida antes de unirla.
+- **Elegida:**
+  - Un solo `nocturno.yml` con un trabajo por tema (propiedades, carga y resiliencia, mutación), a las 07:00 UTC
+    (01:00 en Honduras) y a mano con `workflow_dispatch`.
+  - «UN BILLÓN» lo corrigieron dos ramas por su cuenta (DEC-142 y DEC-158); queda la versión de
+    `mutacion`, con el mismo resultado.
+  - El 403 de `libro-ventas` (DEC-139) y las cabeceras de la especificación quedan una sola vez. `Retry-After` es
+    obligatoria en los 429 y en el 503 `BASE_NO_DISPONIBLE`; `FacturaHN-Modo` sale también en los 429.
+  - El validador del contrato acepta en `/v1` a secas lo mismo que en `/v1/*` antes de la ruta (401 sin llave):
+    la prueba de inventario de OWASP lo pide.
+  - `docs/calidad.md` reúne los cuatro informes y lo enlaza el README.
+- **Alternativa:** unir las ramas sin revisión y corregir después; se descartó porque cada revisión encontró al
+  menos un error real (500 con NUL, 503 que escondía errores de código, mutantes mal declarados equivalentes).

@@ -26,6 +26,7 @@ pnpm test               # núcleo, SQLite, PDF y lo que no necesita base
 pnpm test:ejemplos
 pnpm test:pg            # PostgreSQL en Docker (docker-compose.dev.yml) o en FHN_PG_URL
 pnpm typecheck
+pnpm mutacion           # pruebas de mutación del núcleo (Stryker, ~10 min; corre cada noche), ver docs/calidad/mutacion.md
 pnpm verificar:dist     # lo que se publicaría en npm
 pnpm sitio              # sitio de documentación (web/, Astro Starlight) en sitio/
 pnpm sitio:ver          # el sitio construido en http://localhost:4321/factura-hn/

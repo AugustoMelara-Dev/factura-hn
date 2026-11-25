@@ -18,9 +18,11 @@
     "build": "tsup src/index.ts src/servidor.ts src/cli.ts --format esm --dts --clean",
     "dev": "tsx src/servidor.ts",
     "test": "vitest run --passWithNoTests",
+    "test:owasp": "vitest run test/owasp",
     "typecheck": "tsc --noEmit",
     "openapi": "tsx src/cli.ts openapi openapi.json",
-    "build:docker": "tsup --config tsup.docker.config.ts"
+    "build:docker": "tsup --config tsup.docker.config.ts",
+    "carga": "tsx carga/emitir.ts"
   },
   "dependencies": {
     "@factura-hn/pdf": "workspace:*",
@@ -33,7 +35,12 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/pg": "8.23.1"
+    "@types/autocannon": "7.12.7",
+    "@types/pg": "8.23.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "autocannon": "9.0.0",
+    "fast-check": "4.11.0"
   },
   "exports": {
     ".": {

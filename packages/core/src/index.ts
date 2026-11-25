@@ -70,6 +70,7 @@ export {
   TASAS_ISV,
   ESCALA_CANTIDAD,
   ESCALA_PRECIO,
+  MONTO_MAXIMO_CENTAVOS,
   ErrorCalculo,
 } from './calculo';
 export type { OpcionesCalculo, TotalesCentavos } from './calculo';
@@ -118,7 +119,7 @@ export { crearFacturador } from './facturador';
 export type { AutorizacionCaja, ConfigFacturador, Facturador, NotaEntrada, OpcionesOperacion, Venta } from './facturador';
 export { conSolucion, enlaceError, SOLUCIONES, URL_ERRORES } from './errores';
 export { esAutorizacionDePrueba, esCAIDemo, esDocumentoDePrueba, LEYENDA_PRUEBA } from './modo';
-export { exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, separarDocumentosDePrueba, VERSION_EXPORTACION } from './exportacion';
+export { ErrorExportacion, exportarTexto, inicioExportacion, lineaExportacion, leerExportacionJSONL, separarDocumentosDePrueba, VERSION_EXPORTACION } from './exportacion';
 export type { FormatoExportacion, LibroContable } from './exportacion';
 export {
   CAUSALES_NO_UTILIZACION,

@@ -10,30 +10,39 @@ import { esAutorizacionDePrueba, esCAIDemo } from './modo';
 const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 export function esFechaValida(fecha: string): boolean {
+  // El patrón hace falta: sin él, «+010000-01» y «-000001-01» (años extendidos) pasan la comparación con
+  // toISOString(). Quitarle las anclas es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con
+  // algo de más, el texto ya no es igual a toISOString().slice(0, 10).
   if (!PATRON_FECHA.test(fecha)) return false;
   const d = new Date(`${fecha}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === fecha;
 }
 
+// Crear un Intl.DateTimeFormat cuesta mucho más que usarlo (en la medición de carga, la emisión creaba varios
+// por documento: un 8 % del CPU de la API). Se crean una vez, la primera vez que se piden.
+let formatoFecha: Intl.DateTimeFormat | undefined;
+let formatoHora: Intl.DateTimeFormat | undefined;
+
 /** Fecha actual en Honduras (America/Tegucigalpa) como YYYY-MM-DD. */
 export function fechaHonduras(fecha: Date = new Date()): string {
-  const partes = new Intl.DateTimeFormat('en-CA', {
+  formatoFecha ??= new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Tegucigalpa',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(fecha);
-  return partes; // en-CA ya produce YYYY-MM-DD
+  });
+  return formatoFecha.format(fecha); // en-CA ya produce YYYY-MM-DD
 }
 
 /** Hora actual en Honduras como HH:mm. */
 export function horaHonduras(fecha: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-GB', {
+  formatoHora ??= new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/Tegucigalpa',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).format(fecha);
+  });
+  return formatoHora.format(fecha);
 }
 
 /** Días calendario de `desde` a `hasta` (fechas YYYY-MM-DD). */

@@ -133,12 +133,41 @@ export function lineaExportacion(d: ResumenDocumento, formato: FormatoExportacio
 const TEXTO_CSV = new Set<string>(['clienteNombre', 'clienteRTN', 'motivoAnulacion', 'referencia']);
 const comillasCSV = (s: string) => (/[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 
-/** Lee un archivo `jsonl` de `exportarTexto` y devuelve los documentos tal como se exportaron. */
+/**
+ * Error al leer un archivo `jsonl`: dice en qué línea. Extiende `SyntaxError`, el error que se lanzaba antes, así
+ * que un `catch` que lo buscaba sigue funcionando.
+ */
+export class ErrorExportacion extends SyntaxError {
+  constructor(
+    mensaje: string,
+    /** Línea del archivo (desde 1). */
+    readonly linea: number,
+  ) {
+    super(mensaje);
+    this.name = 'ErrorExportacion';
+  }
+}
+
+/**
+ * Lee un archivo `jsonl` de `exportarTexto` y devuelve los documentos tal como se exportaron. Una línea que no es
+ * JSON, o que no es un objeto, lanza `ErrorExportacion` con su número.
+ */
 export function leerExportacionJSONL(texto: string): DocumentoFiscal[] {
-  return texto
-    .split(/\r?\n/)
-    .filter((l) => l.trim() !== '')
-    .map((l) => JSON.parse(l) as DocumentoFiscal);
+  const docs: DocumentoFiscal[] = [];
+  texto.split(/\r?\n/).forEach((l, i) => {
+    if (l.trim() === '') return;
+    let valor: unknown;
+    try {
+      valor = JSON.parse(l);
+    } catch (e) {
+      throw new ErrorExportacion(`Línea ${i + 1} del archivo jsonl: no es JSON válido (${(e as Error).message}).`, i + 1);
+    }
+    if (valor === null || typeof valor !== 'object' || Array.isArray(valor)) {
+      throw new ErrorExportacion(`Línea ${i + 1} del archivo jsonl: se esperaba un documento (un objeto JSON).`, i + 1);
+    }
+    docs.push(valor as DocumentoFiscal);
+  });
+  return docs;
 }
 
 /**
