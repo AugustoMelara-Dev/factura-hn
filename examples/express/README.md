@@ -11,13 +11,19 @@ docker compose up -d --build                                   # API en 127.0.0.
 FHN_LLAVE=fhn_… pnpm --filter @factura-hn/ejemplo-express start  # compila el cliente y abre 127.0.0.1:3001
 ```
 
+En PowerShell, el tercer comando es:
+
+```powershell
+$env:FHN_LLAVE = 'fhn_…'; pnpm --filter @factura-hn/ejemplo-express start
+```
+
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
 crea otra: `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "Tienda" --caja 000-001`.
 
-Pruébalo en otra terminal:
+Pruébalo en otra terminal (en PowerShell, escribe `curl.exe` en lugar de `curl`):
 
 ```bash
-curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201: emite y responde el número
+curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201 la primera vez (200 si el pedido ya se facturó)
 curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 200: la misma factura
 curl -o factura.pdf http://127.0.0.1:3001/pedidos/1001/factura.pdf
 ```

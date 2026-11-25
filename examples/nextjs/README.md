@@ -19,6 +19,12 @@ FHN_LLAVE=fhn_… FHN_SECRETO_ENLACES=$(node -e "console.log(crypto.randomUUID()
   pnpm --filter @factura-hn/ejemplo-nextjs dev     # compila el cliente y abre http://localhost:3002
 ```
 
+En PowerShell, el tercer comando es:
+
+```powershell
+$env:FHN_LLAVE = 'fhn_…'; $env:FHN_SECRETO_ENLACES = node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"; pnpm --filter @factura-hn/ejemplo-nextjs dev
+```
+
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
 crea otra: `docker compose exec api node cli.cjs llave crear demo --rol caja --nombre "Caja web" --caja 000-001`.
 Cada carga del formulario trae una clave nueva y el número sale de la respuesta: puedes emitir, reiniciar y

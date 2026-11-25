@@ -10,6 +10,14 @@ pnpm install
 POS_DEMO=1 pnpm --filter @factura-hn/ejemplo-pos-offline start   # compila el SDK y abre http://127.0.0.1:3000
 ```
 
+En PowerShell, el segundo comando es:
+
+```powershell
+$env:POS_DEMO = '1'; pnpm --filter @factura-hn/ejemplo-pos-offline start
+```
+
+`$env:` deja la variable puesta en esa terminal hasta cerrarla.
+
 La base queda en `examples/pos-offline/pos.db` (`POS_DB` para cambiarla). Al volver a arrancar, la caja sigue
 con su CAI y su numeración: el CAI ficticio solo se registra la primera vez. Para empezar de cero, borra
 `pos.db`.
