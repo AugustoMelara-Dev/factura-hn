@@ -331,6 +331,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/{id}/entregas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Entregas de un webhook, de la más reciente a la más antigua (paginada)
+         * @description Estado de cada aviso: `PENDIENTE` (en cola o esperando un reintento), `ENTREGADA` (el receptor respondió 2xx) o `FALLIDA` (se agotaron los intentos o el webhook se desactivó). Pasados `FHN_RETENCION_DIAS` días, las terminadas de `documento.*` y `webhook.prueba` se borran; las de `autorizacion.*` se quedan con el cuerpo vacío.
+         */
+        get: operations["listarEntregasWebhook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/entregas/{entrega}/reenviar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vuelve a poner una entrega en la cola
+         * @description Una entrega `FALLIDA` o `ENTREGADA` vuelve a `PENDIENTE` con el calendario de reintentos completo (unos 3 días) y sale en segundos, con el mismo `id`: el receptor la descarta si ya la procesó. Una `PENDIENTE` se adelanta a ahora y conserva sus intentos. 409 `WEBHOOK_INACTIVO` si el webhook está desactivado; 409 `ENTREGA_VENCIDA` si es una de `autorizacion.*` cuyo cuerpo ya se vació por retención (las de `documento.*` y `webhook.prueba` se borran: 404); 409 `LIMITE_PRUEBAS` si es una prueba y el webhook ya tiene 5 pendientes.
+         */
+        post: operations["reenviarEntregaWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/probar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encola un evento de prueba (`webhook.prueba`) para este webhook
+         * @description Llega solo a este webhook, aunque no esté suscrito a ningún evento con ese nombre, firmado. Se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). `datos` lleva `webhookId` y un mensaje. Sigue su estado en `GET /v1/webhooks/{id}/entregas`. A lo sumo 5 pruebas pendientes por webhook: más allá, 409 `LIMITE_PRUEBAS`.
+         */
+        post: operations["probarWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/{id}/rotar-secreto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cambia el secreto de firma, con gracia (el secreto nuevo se muestra solo esta vez)
+         * @description Durante la gracia (`graciaHoras`, 24 por defecto, de 0 a 168) cada entrega lleva dos `v1` en `X-FacturaHN-Firma`: primero el del secreto anterior y después el del nuevo. Al terminar, solo el del nuevo. Cambia el secreto del receptor durante la gracia. Rotar otra vez durante una gracia conserva el secreto más viejo (el que el receptor puede seguir usando), descarta el intermedio y alarga la gracia si la nueva termina después. Con `graciaHoras: 0` la gracia termina en el acto.
+         */
+        post: operations["rotarSecretoWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -703,6 +783,8 @@ export interface components {
             eventos: string[];
             activo: boolean;
             creado: string;
+            /** @description Tras una rotación del secreto: hasta cuándo se firma también con el secreto anterior (dos `v1`). null si no hay gracia en curso. */
+            graciaHasta: string | null;
         };
         WebhookNuevo: {
             /** Format: uri */
@@ -711,6 +793,36 @@ export interface components {
         };
         RespuestaWebhook: {
             webhook: components["schemas"]["Webhook"];
+        };
+        EntregaWebhook: {
+            /** @description UUID de la entrega: el de la cabecera `X-FacturaHN-Entrega` y el campo `id` del cuerpo. */
+            id: string;
+            webhookId: string;
+            /** @description Uno de los eventos suscribibles o `webhook.prueba`. */
+            evento: string;
+            /** @enum {string} */
+            estado: "PENDIENTE" | "ENTREGADA" | "FALLIDA";
+            /** @description Intentos hechos desde que se encoló o se reenvió por última vez. */
+            intentos: number;
+            /** @description Cuándo se intenta de nuevo, si está PENDIENTE; null si ya terminó. */
+            proximoIntento: string | null;
+            /** @description Código HTTP de la última respuesta del receptor; null si no respondió. */
+            ultimoCodigo: number | null;
+            /** @description Por qué falló el último intento (`HTTP 503`, `Tiempo agotado`, `Error de red`…). */
+            ultimoError: string | null;
+            creada: string;
+        };
+        RespuestaEntregaWebhook: {
+            entrega: components["schemas"]["EntregaWebhook"];
+        };
+        RespuestaSecretoRotado: {
+            webhook: components["schemas"]["Webhook"];
+            /** @description El secreto de firma nuevo (`whsec_…`). Solo se muestra esta vez. */
+            secreto: string;
+        };
+        RotacionSecreto: {
+            /** @description Horas en que cada entrega se firma con los dos secretos (0 a 168, 24 por defecto). Con 0, el secreto anterior deja de valer en el acto. */
+            graciaHoras?: number;
         };
     };
     responses: never;
@@ -3091,6 +3203,508 @@ export interface operations {
             };
             /** @description No existe */
             404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listarEntregasWebhook: {
+        parameters: {
+            query?: {
+                /** @description Solo las entregas en este estado. */
+                estado?: "PENDIENTE" | "ENTREGADA" | "FALLIDA";
+                /** @description Elementos por página (1-500). Por defecto 100. */
+                limite?: number;
+                /** @description El valor `siguiente` de la página anterior. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Una página */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entregas: components["schemas"]["EntregaWebhook"][];
+                        /** @description true si hay más elementos después de esta página. */
+                        hayMas: boolean;
+                        /** @description Cursor para la página siguiente (parámetro `cursor`); null en la última. */
+                        siguiente: string | null;
+                    };
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    reenviarEntregaWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                entrega: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description En la cola */
+            202: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEntregaWebhook"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook o la entrega no existen */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO), cuerpo vaciado por retención (ENTREGA_VENCIDA) o demasiadas pruebas pendientes (LIMITE_PRUEBAS) */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    probarWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description En la cola */
+            202: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaEntregaWebhook"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) o demasiadas pruebas pendientes (LIMITE_PRUEBAS) */
+            409: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
+            413: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Límite de solicitudes (con `Retry-After`) */
+            429: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    "Retry-After": components["headers"]["Retry-After"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
+            500: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    rotarSecretoWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RotacionSecreto"];
+            };
+        };
+        responses: {
+            /** @description Rotado */
+            200: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RespuestaSecretoRotado"];
+                };
+            };
+            /** @description Solicitud mal formada: forma, parámetros, cabeceras o JSON */
+            400: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Falta la llave de API o no es válida */
+            401: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description La llave no tiene permiso */
+            403: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El webhook no existe */
+            404: {
+                headers: {
+                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
+                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
+                    "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+                    RateLimit: components["headers"]["RateLimit"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Webhook desactivado (WEBHOOK_INACTIVO) */
+            409: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
                     "FacturaHN-Version": components["headers"]["FacturaHN-Version"];

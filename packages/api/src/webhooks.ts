@@ -8,7 +8,9 @@
  * - `X-FacturaHN-Evento`: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer`, `autorizacion.agotada`
  * - `X-FacturaHN-Entrega`: id de la entrega, un UUID (el mismo en cada reintento y en el campo `id` del cuerpo;
  *   úsalo para descartar duplicados)
- * - `X-FacturaHN-Firma`: `t=<segundos unix>,v1=<hex de HMAC-SHA256(secreto, "<t>.<cuerpo>")>`
+ * - `X-FacturaHN-Firma`: `t=<segundos unix>,v1=<hex de HMAC-SHA256(secreto, "<t>.<cuerpo>")>`. Durante la gracia de
+ *   una rotación del secreto lleva dos `v1`: primero el del secreto anterior y después el del nuevo. El receptor
+ *   acepta la entrega si **alguno** verifica con su secreto e ignora las entradas que no conoce.
  */
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { lookup as dnsLookup } from 'node:dns';
@@ -24,21 +26,73 @@ export type EventoWebhook = (typeof EVENTOS_WEBHOOK)[number];
 /** Webhooks activos por tenant como máximo: cada emisión encola una entrega por webhook suscrito. */
 export const MAX_WEBHOOKS_ACTIVOS = 20;
 
-/** 12 intentos: entre el primero y el último pasan unas 14 h y media (cubre un receptor caído una noche). */
-export const MAX_INTENTOS = 12;
-/** Espera antes del intento n (n ≥ 1): 30 s, 1 min, 2 min, … hasta 6 h. */
-export function esperaReintento(intentos: number): number {
-  return Math.min(30 * 2 ** (intentos - 1), 6 * 3600) * 1000;
+/** Eventos que se entregan: los suscribibles y el de prueba (`POST /v1/webhooks/{id}/probar`), que no se suscribe. */
+export type EventoEntrega = EventoWebhook | 'webhook.prueba';
+
+/**
+ * 22 intentos: entre el primero y el último pasan unos 3 días (74 h y media de media), como en Stripe. Un
+ * receptor caído un fin de semana largo no pierde el aviso. Después la entrega queda FALLIDA y se puede
+ * reenviar a mano (`POST /v1/webhooks/{id}/entregas/{entrega}/reenviar`).
+ */
+export const MAX_INTENTOS = 22;
+/** Intentos de un evento de prueba (`webhook.prueba`): una prueba no se reintenta durante días. */
+export const MAX_INTENTOS_PRUEBA = 3;
+/** Pruebas pendientes por webhook como máximo (`POST /v1/webhooks/{id}/probar`); más allá, 409 `LIMITE_PRUEBAS`. */
+export const MAX_PRUEBAS_PENDIENTES = 5;
+/** Firmas `v1` que se consideran por cabecera; las demás se ignoran (la API manda a lo sumo dos). */
+export const MAX_FIRMAS_V1 = 8;
+/** Espera máxima entre dos intentos, antes de la fluctuación. */
+export const ESPERA_MAXIMA_MS = 6 * 3600 * 1000;
+/** Fluctuación de cada espera: ±20 %. Reparte en el tiempo los reintentos de muchas entregas que fallaron juntas. */
+export const FLUCTUACION = 0.2;
+
+/** Espera, sin fluctuación, después de `intentos` intentos fallidos (n ≥ 1): 30 s, 1 min, 2 min, … 4 h 16 min, 6 h, 6 h… */
+export function esperaBase(intentos: number): number {
+  return Math.min(30_000 * 2 ** (intentos - 1), ESPERA_MAXIMA_MS);
 }
 
-export function firmar(secreto: string, cuerpo: string, t: number): string {
-  const v1 = createHmac('sha256', secreto).update(`${t}.${cuerpo}`, 'utf8').digest('hex');
-  return `t=${t},v1=${v1}`;
+/** La espera con fluctuación: `esperaBase` por un factor entre 0,8 y 1,2. `azar` devuelve un número en [0, 1). */
+export function esperaReintento(intentos: number, azar: () => number = Math.random): number {
+  return Math.round(esperaBase(intentos) * (1 - FLUCTUACION + 2 * FLUCTUACION * azar()));
+}
+
+const hmac = (secreto: string, cuerpo: string, t: number) => createHmac('sha256', secreto).update(`${t}.${cuerpo}`, 'utf8').digest('hex');
+
+/**
+ * La cabecera `X-FacturaHN-Firma`: `t=<t>,v1=<firma>`, con un `v1` por secreto y en el orden dado (durante la
+ * gracia de una rotación, el anterior primero y el nuevo después).
+ */
+export function firmar(secreto: string | readonly string[], cuerpo: string, t: number): string {
+  const secretos = typeof secreto === 'string' ? [secreto] : secreto;
+  return [`t=${t}`, ...secretos.map((s) => `v1=${hmac(s, cuerpo, t)}`)].join(',');
+}
+
+/**
+ * Lee la cabecera de firma: el instante `t` y **todas** las firmas `v1` bien formadas. Las entradas de otros
+ * esquemas (`v0=`, `v2=`…), los `v1` mal formados y los que pasan de los primeros `MAX_FIRMAS_V1` se ignoran.
+ * Sin `t`, con más de un `t` o sin ningún `v1` bien formado, null.
+ */
+export function leerFirma(cabecera: string | null | undefined): { t: number; v1: string[] } | null {
+  if (!cabecera) return null;
+  const ts: string[] = [];
+  const v1: string[] = [];
+  for (const parte of cabecera.split(',')) {
+    const i = parte.indexOf('=');
+    if (i < 0) continue;
+    const clave = parte.slice(0, i).trim();
+    const valor = parte.slice(i + 1).trim();
+    if (clave === 't') ts.push(valor);
+    else if (clave === 'v1' && /^[0-9a-f]{64}$/.test(valor) && v1.length < MAX_FIRMAS_V1) v1.push(valor);
+  }
+  if (ts.length !== 1 || !/^\d{1,15}$/.test(ts[0]!) || !v1.length) return null;
+  return { t: Number(ts[0]), v1 };
 }
 
 /**
  * Verifica la cabecera `X-FacturaHN-Firma` en el receptor. Usa el cuerpo **crudo** (los bytes recibidos,
- * antes de parsear el JSON). Rechaza firmas con más de `toleranciaSegundos` de antigüedad (repetición).
+ * antes de parsear el JSON). Acepta la entrega si **alguna** firma `v1` es de `secreto` (durante la gracia de
+ * una rotación llegan dos) e ignora las entradas que no conoce. Rechaza firmas con más de
+ * `toleranciaSegundos` de antigüedad (repetición).
  */
 export function verificarFirmaWebhook(
   cuerpo: string,
@@ -46,15 +100,15 @@ export function verificarFirmaWebhook(
   secreto: string,
   opciones: { toleranciaSegundos?: number; ahora?: () => number } = {},
 ): boolean {
-  if (!cabecera) return false;
-  const partes = new Map(cabecera.split(',').map((p) => p.trim().split('=', 2) as [string, string]));
-  const t = Number(partes.get('t'));
-  const v1 = partes.get('v1');
-  if (!Number.isInteger(t) || !v1 || !/^[0-9a-f]{64}$/.test(v1)) return false;
+  const firma = leerFirma(cabecera);
+  if (!firma || !secreto) return false;
   const ahora = Math.floor((opciones.ahora ?? Date.now)() / 1000);
-  if (Math.abs(ahora - t) > (opciones.toleranciaSegundos ?? 300)) return false;
-  const esperado = Buffer.from(firmar(secreto, cuerpo, t).slice(-64), 'hex');
-  return timingSafeEqual(esperado, Buffer.from(v1, 'hex'));
+  if (Math.abs(ahora - firma.t) > (opciones.toleranciaSegundos ?? 300)) return false;
+  const esperado = Buffer.from(hmac(secreto, cuerpo, firma.t), 'hex');
+  // Sin cortar en el primer acierto: el tiempo no depende de cuál de las firmas coincide.
+  let valida = false;
+  for (const v of firma.v1) valida = timingSafeEqual(esperado, Buffer.from(v, 'hex')) || valida;
+  return valida;
 }
 
 // --- Secretos en reposo -------------------------------------------------------------------------------
@@ -251,10 +305,18 @@ export interface OpcionesDespacho {
   enCurso?: Set<string>;
   /** Solo para pruebas: atiende solo estos tenants (la base de pruebas es compartida). */
   soloTenants?: readonly string[];
+  /**
+   * El calendario de reintentos. Por defecto `MAX_INTENTOS`, `MAX_INTENTOS_PRUEBA` (para `webhook.prueba`) y
+   * `esperaReintento`. Las pruebas lo cambian para no esperar 3 días de verdad.
+   */
+  reintentos?: { maxIntentos?: number; maxIntentosPrueba?: number; espera?: (intentos: number) => number };
 }
 
-/** `id` es el bigserial interno; `entrega`, el UUID público; `arriendo`, el `proximo` del reclamo (en µs). */
-interface Reclamada { id: string; entrega: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string; arriendo: string }
+/**
+ * `id` es el bigserial interno; `entrega`, el UUID público; `arriendo`, el `proximo` del reclamo (en µs);
+ * `anterior`, el secreto anterior si la gracia de una rotación sigue vigente.
+ */
+interface Reclamada { id: string; entrega: string; evento: string; cuerpo: unknown; intentos: number; url: string; secreto: string; anterior: string | null; arriendo: string }
 
 /**
  * Entrega los avisos pendientes cuyo momento llegó. Cada entrega se **reclama** en una transacción corta
@@ -296,7 +358,8 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
       [tenant],
     );
     const r = await tx.consulta<Omit<Reclamada, 'arriendo'>>(
-      `SELECT e.id, e.entrega, e.evento, e.cuerpo, e.intentos, w.url, w.secreto
+      `SELECT e.id, e.entrega, e.evento, e.cuerpo, e.intentos, w.url, w.secreto,
+              CASE WHEN w.anterior_hasta > now() THEN w.secreto_anterior END AS anterior
          FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
         WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
         ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
@@ -321,17 +384,21 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
     }),
   );
   if (resultados.length) {
+    const maxIntentos = o.reintentos?.maxIntentos ?? MAX_INTENTOS;
+    const maxIntentosPrueba = o.reintentos?.maxIntentosPrueba ?? MAX_INTENTOS_PRUEBA;
+    const espera = o.reintentos?.espera ?? ((n: number) => esperaReintento(n));
     await almacen.transaccion(async (t) => {
       const tx = comoTransaccionPostgres(t);
       for (const { e, ok, codigo, error } of resultados) {
         const intentos = e.intentos + 1;
-        const estado = ok ? 'ENTREGADA' : intentos >= MAX_INTENTOS ? 'FALLIDA' : 'PENDIENTE';
+        const tope = e.evento === 'webhook.prueba' ? maxIntentosPrueba : maxIntentos;
+        const estado = ok ? 'ENTREGADA' : intentos >= tope ? 'FALLIDA' : 'PENDIENTE';
         // Si el arrendamiento venció y otra pasada ya reclamó (o entregó) la entrega, este resultado se descarta:
         // nunca devuelve a PENDIENTE una entrega ENTREGADA ni pisa el conteo de intentos de la otra pasada.
         await tx.consulta(
           `UPDATE api_entregas SET estado = $2, intentos = $3, proximo = $4, ultimo_codigo = $5, ultimo_error = $6
             WHERE id = $1 AND estado = 'PENDIENTE' AND ${MICROSEGUNDOS} = $7::bigint`,
-          [e.id, estado, intentos, new Date(ahora().getTime() + esperaReintento(intentos)), codigo, error, e.arriendo],
+          [e.id, estado, intentos, new Date(ahora().getTime() + espera(intentos)), codigo, error, e.arriendo],
         );
       }
     });
@@ -349,7 +416,9 @@ async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<{ ok: boolea
     'user-agent': 'factura-hn-webhooks/0.2',
     'x-facturahn-evento': e.evento,
     'x-facturahn-entrega': e.entrega,
-    'x-facturahn-firma': firmar(o.cofre.leer(e.secreto), cuerpo, t),
+    // Durante la gracia de una rotación, dos `v1`: primero el del secreto anterior y después el del nuevo. Así un
+    // receptor con el verificador viejo (que se quedaba con el último `v1`) y el secreto nuevo sigue verificando.
+    'x-facturahn-firma': firmar(e.anterior ? [o.cofre.leer(e.anterior), o.cofre.leer(e.secreto)] : [o.cofre.leer(e.secreto)], cuerpo, t),
   };
   const tiempo = o.tiempoMaximo ?? 10_000;
   try {

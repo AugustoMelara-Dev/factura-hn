@@ -200,15 +200,19 @@ El esquema `Bearer` no distingue mayúsculas.
 | `GET /v1/bitacora?origen=fiscal\|api[&limite&cursor]` | admin | Paginada, del evento más reciente al más antiguo. `fiscal` (por defecto): la del núcleo; `api`: llaves, emisor y webhooks |
 | `POST/GET /v1/llaves` · `DELETE /v1/llaves/{prefijo}` | admin | La llave completa se muestra solo al crearla |
 | `POST/GET /v1/webhooks` · `DELETE /v1/webhooks/{id}` | admin | El secreto se muestra solo al crearlo |
+| `GET /v1/webhooks/{id}/entregas[?estado&limite&cursor]` | admin | Paginada, de la más reciente a la más antigua |
+| `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` | admin | 202. Vuelve a poner la entrega en la cola |
+| `POST /v1/webhooks/{id}/probar` | admin | 202. Encola un evento `webhook.prueba` |
+| `POST /v1/webhooks/{id}/rotar-secreto` | admin | Secreto nuevo con gracia (`graciaHoras`, 24 por defecto); se muestra solo esta vez |
 
 Los períodos (`desde`, `hasta`) son de hasta 366 días.
 
 ### Forma de las respuestas
 
 - Cada recurso va envuelto con su nombre: `{ "documento": … }`, `{ "emisor": … }`, `{ "autorizacion": … }`,
-  `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`. Al crear una llave o un webhook,
-  la respuesta trae además `secreto` (la llave completa `fhn_…` o el secreto de firma `whsec_…`), que solo se
-  muestra esa vez.
+  `{ "autorizacion": …, "estado": … }`, `{ "llave": … }`, `{ "webhook": … }`, `{ "entrega": … }`. Al crear una
+  llave o un webhook, o al rotar el secreto de un webhook, la respuesta trae además `secreto` (la llave completa
+  `fhn_…` o el secreto de firma `whsec_…`), que solo se muestra esa vez.
 - Cada lista es `{ "<plural>": [...], "hayMas": bool, "siguiente": "cursor" | null }`. Si `hayMas`, pide la
   página siguiente con `?cursor=<siguiente>` y los mismos filtros. `limite` va de 1 a 500 (100 por defecto).
   El cursor es opaco: no lo armes ni lo modifiques (400 `CURSOR_INVALIDO`). `@factura-hn/cliente` recorre las
@@ -386,17 +390,54 @@ arrancar y cada hora.
 
 Eventos: `documento.emitido`, `documento.anulado`, `autorizacion.por_vencer` (alerta del Art. 59 o 90 % del
 rango) y `autorizacion.agotada`, una vez por autorización. Se encolan en la misma transacción de la operación
-y un despachador los entrega cada 5 s: hasta 12 intentos con espera creciente (30 s, 1 min, 2 min, … 4 h 16 min,
-6 h), unas 14 h y media entre el primero y el último. Después la entrega queda `FALLIDA`. Cada entrega se reclama
+y un despachador los entrega cada 5 s. Una entrega sin respuesta 2xx se reintenta durante unos 3 días: hasta 22
+intentos, con espera creciente (30 s, 1 min, 2 min, 4 min, … 2 h 8 min, 4 h 16 min y después 6 h entre cada uno)
+y una fluctuación de ±20 % en cada espera, para que los avisos que fallaron juntos no vuelvan todos a la vez.
+Entre el primer intento y el último pasan unas 74 h y media de media (con la fluctuación, entre unas 60 y 89 h
+en el peor caso). Después la entrega queda `FALLIDA` y se puede reenviar a mano (abajo). Cada entrega se reclama
 en una transacción corta y el HTTP corre fuera de ella, en paralelo por tenant. Una entrega tiene un tiempo
 máximo total (10 s), así que un receptor lento solo retrasa los avisos de su propio tenant. Lo pendiente de un
 webhook desactivado no se entrega. Cada tenant tiene a lo sumo 20 webhooks activos: con 20 activos, crear otro
 es 409 `LIMITE_WEBHOOKS` (desactiva uno antes). Pasados `FHN_RETENCION_DIAS` días, las entregas `ENTREGADA` o
-`FALLIDA` de `documento.*` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío para que el mismo
-aviso no se repita; las pendientes no se tocan.
+`FALLIDA` de `documento.*` y `webhook.prueba` se borran, y las de `autorizacion.*` se quedan con el cuerpo vacío
+para que el mismo aviso no se repita; las pendientes no se tocan.
 
 El `id` de cada entrega es un UUID: va en la cabecera `X-FacturaHN-Entrega` y en el campo `id` del cuerpo, y
-es el mismo en cada reintento.
+es el mismo en cada reintento y en un reenvío manual. No se garantiza el orden de llegada.
+
+### Entregas, reenvío y evento de prueba
+
+Todas con la llave admin, y solo sobre los webhooks del propio tenant (RLS):
+
+- `GET /v1/webhooks/{id}/entregas` lista las entregas, de la más reciente a la más antigua, paginadas como las
+  demás listas (`limite`, `cursor`), con `?estado=PENDIENTE|ENTREGADA|FALLIDA` opcional. Cada una trae `id`,
+  `evento`, `estado`, `intentos`, `proximoIntento` (si está pendiente), `ultimoCodigo` y `ultimoError` (`HTTP 503`,
+  `Tiempo agotado`, `Error de red`…). El cuerpo del aviso no se devuelve.
+- `POST /v1/webhooks/{id}/entregas/{entrega}/reenviar` responde 202 `{ entrega }`. Una entrega `FALLIDA` o
+  `ENTREGADA` vuelve a `PENDIENTE` con el calendario completo (otros 3 días) y sale en segundos, con el mismo `id`.
+  Una `PENDIENTE` se adelanta a ahora y conserva sus intentos (si justo se estaba enviando, puede llegar dos
+  veces: el receptor ya descarta repetidos por `id`). 409 `WEBHOOK_INACTIVO` si el webhook está desactivado. 409
+  `ENTREGA_VENCIDA` si es una entrega de `autorizacion.*` (`ENTREGADA` o `FALLIDA`) cuyo cuerpo ya se vació por
+  retención; una de `documento.*` o `webhook.prueba` tan vieja ya se borró y da 404 `NO_ENCONTRADO`.
+- `POST /v1/webhooks/{id}/probar` responde 202 `{ entrega }` y encola un aviso `webhook.prueba` solo para ese
+  webhook, aunque no esté suscrito a él: `{ id, evento: "webhook.prueba", creado, datos: { webhookId, mensaje } }`,
+  firmado. Una prueba se intenta a lo sumo 3 veces (no los 3 días de los demás avisos). Sirve para probar el
+  receptor sin emitir un documento. Cada webhook tiene a lo sumo 5 pruebas pendientes: más allá, 409
+  `LIMITE_PRUEBAS` (también al reenviar una prueba terminada). 409 `WEBHOOK_INACTIVO` si está desactivado.
+
+### Rotación del secreto
+
+`POST /v1/webhooks/{id}/rotar-secreto` (cuerpo opcional `{ "graciaHoras": 24 }`, de 0 a 168) responde
+`{ webhook, secreto }` con el secreto nuevo, que solo se muestra esta vez. Durante la gracia, cada entrega lleva
+**dos** firmas `v1`: primero la del secreto anterior y después la del nuevo. `webhook.graciaHasta` dice hasta
+cuándo; al terminar, solo la del nuevo, y el servidor borra el secreto anterior en su mantenimiento de cada hora.
+Con `graciaHoras: 0`, el secreto anterior deja de valer en el acto. Rotar otra vez durante una gracia (un
+reintento, un doble clic) **conserva el secreto más viejo**, el que el receptor puede seguir usando: valen ese y el
+nuevo, el intermedio se descarta y la gracia dura hasta la más tardía de las dos. 409 `WEBHOOK_INACTIVO` si el
+webhook está desactivado.
+
+Pasos: actualiza el receptor a un verificador que acepte varios `v1` (`@factura-hn/cliente` desde esta versión),
+rota, cambia el secreto del receptor antes de que termine la gracia y comprueba con `probar`.
 
 ```ts
 import { verificarFirmaWebhook } from '@factura-hn/cliente'; // npm install @factura-hn/cliente
@@ -409,6 +450,9 @@ const evento = JSON.parse(cuerpo); // { id, evento, creado, datos }
 ```
 
 Firma: `X-FacturaHN-Firma: t=<unix>,v1=hex(HMAC-SHA256(secreto, "<t>.<cuerpo>"))`, con 5 minutos de tolerancia.
+Puede llevar más de un `v1` (durante la gracia de una rotación): la entrega es válida si **alguno** verifica con
+tu secreto. Ignora las entradas que no conozcas (`v0=`, `v2=`…). `verificarFirmaWebhook` ya lo hace. Si escribes
+tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se queda solo con uno.
 
 ## Seguridad
 

@@ -792,6 +792,27 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Qué significa (409):** el negocio ya tiene el máximo de webhooks activos.
 - **Solución:** desactiva uno (`DELETE /v1/webhooks/{id}`) antes de crear otro.
 
+### WEBHOOK_INACTIVO
+
+- **Qué significa (409):** se pidió reenviar una entrega, enviar un evento de prueba o rotar el secreto de un
+  webhook desactivado. Un webhook desactivado no se reactiva.
+- **Solución:** crea otro webhook con `POST /v1/webhooks` (su secreto es nuevo) y recupera lo que no llegó
+  consultando la API (por ejemplo, `GET /v1/documentos?desde&hasta`).
+
+### ENTREGA_VENCIDA
+
+- **Qué significa (409):** se pidió reenviar una entrega de `autorizacion.*`, `ENTREGADA` o `FALLIDA`, cuyo cuerpo
+  ya se vació por retención (`FHN_RETENCION_DIAS`, 30 días por defecto). Queda solo como registro de que el aviso
+  se intentó. Una entrega de `documento.*` o `webhook.prueba` tan vieja ya se borró: da 404 `NO_ENCONTRADO`.
+- **Solución:** consulta el dato en la API (por ejemplo, `GET /v1/autorizaciones/{cai}/estado`).
+
+### LIMITE_PRUEBAS
+
+- **Qué significa (409):** el webhook ya tiene 5 eventos de prueba (`webhook.prueba`) pendientes; vale también al
+  reenviar una prueba terminada.
+- **Solución:** espera a que se entreguen o fallen (cada prueba se intenta a lo sumo 3 veces) y revisa su estado
+  con `GET /v1/webhooks/{id}/entregas`.
+
 ### ERROR_INTERNO
 
 - **Qué significa (500):** un error inesperado del servidor. Se registró para revisión.

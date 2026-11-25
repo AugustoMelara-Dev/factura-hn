@@ -346,7 +346,7 @@ conBase('límite de solicitudes', () => {
       await propio.query(
         "INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, revocada) VALUES ('aaaaaaaaaaaa', 't', '\\x00', 'admin', 'vieja', now())",
       );
-      await expect(exigirEsquemaApi(propio, ROL)).rejects.toThrow(/versión anterior a la 7[\s\S]*migrar/);
+      await expect(exigirEsquemaApi(propio, ROL)).rejects.toThrow(new RegExp(`versión anterior a la ${VERSION_ESQUEMA_API}[\\s\\S]*migrar`));
       await migrarApi(propio, ROL);
       await exigirEsquemaApi(propio, ROL);
       const c = await propio.connect();

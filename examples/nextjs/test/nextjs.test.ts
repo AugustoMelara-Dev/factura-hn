@@ -36,6 +36,10 @@ describe('route handler de webhooks', () => {
     expect((await pedir(firmar('secreto-next', cuerpo, t))).status).toBe(204);
     expect((await pedir()).status).toBe(400);
     expect((await pedir(firmar('otro', cuerpo, t))).status).toBe(400);
+    // Dos firmas (rotación del secreto), una válida y otra no: se acepta.
+    expect((await pedir(firmar(['secreto-viejo', 'secreto-next'], cuerpo, t))).status).toBe(204);
+    expect((await pedir(firmar(['secreto-next', 'secreto-viejo'], cuerpo, t))).status).toBe(204);
+    expect((await pedir(firmar(['secreto-viejo', 'otro'], cuerpo, t))).status).toBe(400);
   });
 });
 
