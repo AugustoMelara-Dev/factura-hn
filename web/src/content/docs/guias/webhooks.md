@@ -108,7 +108,8 @@ El ejemplo `examples/express` del repositorio tiene un receptor completo en Expr
 ## Reintentos
 
 Los avisos se encolan en la misma transacción que la operación: si la emisión se revierte, no hay aviso. Un
-despachador los entrega cada 5 segundos.
+despachador los entrega cada 5 segundos. Lo que se acumuló mientras tu receptor estuvo caído sale en la misma
+pasada, al ritmo de tu receptor, apenas su próximo intento llega.
 
 - Hasta **22 intentos** durante unos **3 días**, con espera creciente: 30 s, 1 min, 2 min, … 4 h 16 min y después
   6 h entre cada uno. Cada espera varía ±20 % al azar, para que los avisos que fallaron juntos no vuelvan todos a

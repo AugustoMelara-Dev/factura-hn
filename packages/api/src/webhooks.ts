@@ -43,6 +43,11 @@ export const MAX_PRUEBAS_PENDIENTES = 5;
 export const MAX_FIRMAS_V1 = 8;
 /** Espera máxima entre dos intentos, antes de la fluctuación. */
 export const ESPERA_MAXIMA_MS = 6 * 3600 * 1000;
+/**
+ * Tiempo que una pasada del despacho sigue con un tenant que tiene más de un lote vencido (30 s). El servidor
+ * omite al tenant en las pasadas siguientes mientras tanto (`enCurso`), así que no se entrega nada dos veces.
+ */
+export const PRESUPUESTO_PASADA_MS = 30_000;
 /** Fluctuación de cada espera: ±20 %. Reparte en el tiempo los reintentos de muchas entregas que fallaron juntas. */
 export const FLUCTUACION = 0.2;
 
@@ -295,6 +300,11 @@ export interface OpcionesDespacho {
   /** Milisegundos por entrega. */
   tiempoMaximo?: number;
   lote?: number;
+  /**
+   * Milisegundos que una pasada sigue reclamando lotes de un mismo tenant mientras los encuentre llenos. Por
+   * defecto `PRESUPUESTO_PASADA_MS`.
+   */
+  presupuestoMs?: number;
   /** Entregas simultáneas por tenant. */
   paralelas?: number;
   ahora?: () => Date;
@@ -347,8 +357,31 @@ export async function despacharWebhooks(o: OpcionesDespacho): Promise<number> {
 /** `proximo` en microsegundos desde 1970, exacto (un Date de JavaScript solo guarda milisegundos). */
 const MICROSEGUNDOS = "(extract(epoch FROM proximo) * 1000000)::bigint";
 
+/**
+ * Atiende un tenant: reclama un lote, lo entrega y, si el lote vino lleno, reclama el siguiente, hasta que no
+ * quede nada vencido o pase `presupuestoMs`. Así lo que se acumuló mientras el receptor estaba caído se vacía al
+ * ritmo del receptor, no de a un lote por pasada (20 entregas cada 5 s).
+ */
 async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenant: string, ahora: () => Date): Promise<number> {
   const almacen = base.paraTenant(tenant);
+  const lote = o.lote ?? 20;
+  const fin = Date.now() + (o.presupuestoMs ?? PRESUPUESTO_PASADA_MS);
+  // Lo ya intentado en esta pasada no se vuelve a reclamar en ella, aunque su próximo intento ya haya llegado.
+  const intentadas: string[] = [];
+  for (;;) {
+    const n = await despacharLote(o, almacen, tenant, lote, ahora, intentadas);
+    if (n < lote || Date.now() >= fin) return intentadas.length;
+  }
+}
+
+async function despacharLote(
+  o: OpcionesDespacho,
+  almacen: AlmacenPostgres,
+  tenant: string,
+  lote: number,
+  ahora: () => Date,
+  intentadas: string[],
+): Promise<number> {
   const reclamadas = await almacen.transaccion(async (t) => {
     const tx = comoTransaccionPostgres(t);
     // Lo pendiente de un webhook desactivado ya no se entrega.
@@ -361,11 +394,12 @@ async function despacharTenant(o: OpcionesDespacho, base: AlmacenPostgres, tenan
       `SELECT e.id, e.entrega, e.evento, e.cuerpo, e.intentos, w.url, w.secreto,
               CASE WHEN w.anterior_hasta > now() THEN w.secreto_anterior END AS anterior
          FROM api_entregas e JOIN api_webhooks w ON w.id = e.webhook_id
-        WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo
+        WHERE e.tenant = $1 AND e.estado = 'PENDIENTE' AND e.proximo <= now() AND w.activo AND NOT (e.id = ANY($3::bigint[]))
         ORDER BY e.id LIMIT $2 FOR UPDATE OF e SKIP LOCKED`,
-      [tenant, o.lote ?? 20],
+      [tenant, lote, intentadas],
     );
     if (!r.rows.length) return [];
+    intentadas.push(...r.rows.map((e) => String(e.id)));
     // El arrendamiento: `proximo` adelantado 5 minutos. Se guarda el valor exacto (en microsegundos) para que la
     // escritura del resultado solo aplique si nadie más reclamó la entrega mientras tanto.
     const a = await tx.consulta<{ id: string; arriendo: string }>(
