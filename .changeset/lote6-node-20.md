@@ -7,7 +7,7 @@
 
 Node 20 o más reciente.
 
-## Cambios incompatibles
+**Cambios incompatibles:**
 
 - `factura-hn`, `@factura-hn/sqlite`, `@factura-hn/postgres` y `@factura-hn/pdf` piden Node 20 o más reciente
   (`engines: >=20`; antes, `>=18`). Node 18 dejó de recibir parches de seguridad en abril de 2025 y la CI ya no lo

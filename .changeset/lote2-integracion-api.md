@@ -21,7 +21,7 @@ API REST: el mismo modo de prueba que el SDK, y los documentos de prueba fuera d
   `equivalenteLempiras`; `Autorizacion` declara `prueba`. En `@factura-hn/cliente`, `Problema` trae esos campos,
   `ProblemaConGuia` queda como alias y `libroVentas` devuelve `excluidos` y `aviso`.
 
-## Cambios incompatibles
+**Cambios incompatibles:**
 
 - `EstadoAutorizacion` (respuesta de `GET /v1/autorizaciones`) trae el campo obligatorio `retirada`: `true` en una
   autorización de prueba de un punto que ya tiene una real. Un objeto `EstadoAutorizacion` armado a mano (por

@@ -16,7 +16,7 @@ API REST: el contrato de la especificación OpenAPI.
 - Un cuerpo que no es JSON es 400 `JSON_INVALIDO` con la forma de error de la API (antes, texto plano).
 - La especificación pasa el linter de Redocly en la CI (`pnpm lint:openapi`).
 
-## Cambios incompatibles
+**Cambios incompatibles:**
 
 - Tipos de `@factura-hn/cliente`: las respuestas de error de los `GET` (salvo `/v1/libro-ventas` y
   `/v1/exportacion`) ya no incluyen el 422. Quien usa `fhn.api.GET(...)` y compara `response.status === 422` o

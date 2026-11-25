@@ -10,7 +10,7 @@ Un solo modo de prueba, y los documentos de prueba fuera de los reportes fiscale
 - README: la primera factura en 3 pasos por el SDK (`npx factura-hn init` y `node emitir.mjs`), la API y el MCP;
   Next.js, cómo pasar a producción con el CAI real y enlaces absolutos al repositorio.
 
-## Cambios incompatibles
+**Cambios incompatibles:**
 
 - `exportarTexto` (CSV, TXT y JSONL) y `libroVentas` dejan fuera los documentos de prueba (`modo: 'prueba'` o CAI
   `DEMO00-NO-VALIDO-…`). El encabezado TXT cuenta solo los reales. `libroVentas` devuelve además `excluidos`.
@@ -28,7 +28,7 @@ Un solo modo de prueba, y los documentos de prueba fuera de los reportes fiscale
   `Solución: …` y `Más información: <enlace a docs/errores.md>` cuando el código los tiene. Quien comparaba el
   texto debe usar `errores[].codigo`.
 
-### Nota de migración desde la 0.2.0
+**Nota de migración desde la 0.2.0:**
 
 Una base de la 0.2.0 puede tener, en el mismo punto de emisión, CAI de demostración `DEMO00-…` (sin
 `prueba: true`, que entonces no existía) y CAI reales. Registrar CAI reales en ese punto sigue funcionando,

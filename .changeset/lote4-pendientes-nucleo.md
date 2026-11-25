@@ -14,7 +14,7 @@ Pendientes menores del núcleo:
   devuelve `{ autorizacion, advertencias }`, p. ej. con `AVISO_VIGENCIA_MAYOR_1_ANIO` (Art. 62).
   `registrarAutorizacion` no cambia de firma.
 
-## Cambios incompatibles
+**Cambios incompatibles:**
 
 - **La configuración del emisor también se revisa.** Un emisor configurado con un carácter de control (en
   `crearFacturador({ emisor })`, en `emitir({ emisor })` o guardado en la API) hace fallar toda emisión con
