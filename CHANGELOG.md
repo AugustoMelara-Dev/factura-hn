@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — sin publicar
+## 0.2.0 — 2026-11-24
 
 Se cierran las brechas de `docs/investigacion.md`. Mientras la versión sea 0.x, los cambios incompatibles
 van en versión menor (SemVer §4). La regla de versión mayor rige desde la 1.0.0.

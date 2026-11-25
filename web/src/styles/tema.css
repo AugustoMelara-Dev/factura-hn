@@ -214,3 +214,8 @@ h1#_top {
 	border-radius: 8px;
 	background: var(--sl-color-black);
 }
+
+/* En las tablas, el código no se parte letra por letra: la columna se ensancha y la tabla se desplaza. */
+.sl-markdown-content :is(td, th) code {
+	overflow-wrap: normal;
+}

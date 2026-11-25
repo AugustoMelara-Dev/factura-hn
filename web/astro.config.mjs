@@ -10,6 +10,16 @@ export default defineConfig({
   site: SITIO_URL,
   base: BASE || '/',
   trailingSlash: 'always',
+  // Los bloques sin página índice llevan a su primera página: quien recorta la dirección no cae en un 404.
+  // Astro no antepone la base al destino de una redirección: va escrita.
+  redirects: Object.fromEntries(
+    Object.entries({
+      empezar: 'primera-factura',
+      conceptos: 'como-funciona',
+      guias: 'imprimir',
+      ayuda: 'preguntas-frecuentes',
+    }).map(([bloque, pagina]) => [`/${bloque}/`, `${BASE}/${bloque}/${pagina}/`]),
+  ),
   outDir: SALIDA,
   // El sitio casi no tiene imágenes: sin sharp (y sin su script de instalación).
   image: { service: passthroughImageService() },
