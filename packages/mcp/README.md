@@ -20,7 +20,7 @@ e imprime el bloque `mcpServers` con las rutas absolutas.
 
 | Cliente | Dónde |
 |---|---|
-| Claude Desktop | Configuración > Desarrollador > Editar configuración (`claude_desktop_config.json`) |
+| Claude Desktop | Settings > Developer > Edit Config (Configuración > Desarrollador > Editar configuración) |
 | Claude Code | `.mcp.json` en la raíz del proyecto |
 | Cursor | `~/.cursor/mcp.json` (todos los proyectos) o `.cursor/mcp.json` (uno) |
 | VS Code | `.vscode/mcp.json`, con la clave `"servers"` en vez de `"mcpServers"` |
@@ -31,7 +31,8 @@ un `.cmd`; en macOS y Linux, `"command": "npx"`.
 **3.** Pídele al asistente: «emite una factura de prueba».
 
 El resultado dice **DOCUMENTO DE PRUEBA — SIN VALOR FISCAL**: el CAI es ficticio (`DEMO00-NO-VALIDO-…`) y vence
-a los 180 días. Repetir `init --demo` no cambia nada; `init --demo --forzar` recrea la base de prueba.
+a los 180 días. Repetir `init --demo` no cambia nada; `init --demo --forzar` recrea la base de prueba, salvo que
+tenga algún CAI real: entonces no la toca.
 
 ## Con tus datos reales
 
@@ -70,22 +71,28 @@ Corrige el archivo, guárdalo y reinicia el servidor MCP desde tu cliente. Hay u
 ```
 
 **2. Registra el CAI de tu resolución del SAR**, una vez por tipo de documento (01 facturas, 06 notas de
-crédito, 07 notas de débito). Copia cada dato de la resolución:
+crédito, 07 notas de débito). Copia cada dato de la resolución (en una línea; funciona igual en PowerShell, cmd y
+bash):
 
 ```bash
-npx -y @factura-hn/mcp registrar-cai --base C:/negocio/factura.db \
-  --cai A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4 --tipo 01 --establecimiento 000 --punto 001 \
-  --desde 1 --hasta 5000 --fecha-limite 2027-06-30
+npx -y @factura-hn/mcp registrar-cai --base C:/negocio/factura.db --cai A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4 --tipo 01 --establecimiento 000 --punto 001 --desde 1 --hasta 5000 --fecha-limite 2027-06-30
 ```
+
+**¿Ya emitiste documentos con ese CAI** (talonario u otro sistema)? Agrega `--ultimo-emitido-antes` con el último
+número que usaste, p. ej. `--ultimo-emitido-antes 120`: la serie sigue en el 121. Sin él, empieza en `--desde` y
+esos números se repetirían.
 
 - Valida con las mismas reglas del núcleo (`registrarAutorizacion`): formato del CAI, rango, fecha, rangos que se
   solapan y CAI repetidos. Con `--fecha-autorizacion` también avisa si la vigencia pasa de un año (Art. 62).
 - `--base` puede omitirse si defines `FHN_SQLITE` o si `factura.db` está en la carpeta actual. No crea una base
   nueva: si la ruta no existe, lo dice.
-- No acepta el CAI ficticio ni registra un CAI real en la base de prueba (`CAI_DEMO`, `BASE_DEMO`).
+- No acepta el CAI ficticio (`CAI_DEMO`) ni registra un CAI real en una base de prueba, en ninguna serie
+  (`BASE_DEMO`).
+- Un CAI registrado no se puede quitar: revisa los datos antes.
 
 También puedes pedirle al asistente que lo registre con la herramienta `registrar_cai`, dándole los datos de la
-resolución: la herramienta le exige no inventarlos y confirmarlos contigo antes de registrar.
+resolución: la herramienta le exige no inventarlos, preguntarte si ya emitiste con ese CAI
+(`ultimoEmitidoAntes`) y confirmarlos contigo antes de registrar.
 
 **3. Pega el bloque** que imprimió `init` y reinicia el cliente MCP.
 
@@ -97,7 +104,7 @@ resolución: la herramienta le exige no inventarlos y confirmarlos contigo antes
 | `emitir_nota_credito` | Nota de crédito (06) sobre un documento por su número; `cliente` opcional |
 | `consultar_documento` | Resumen, JSON o representación impresa (texto) |
 | `anular_documento` | Art. 41 (marcada como destructiva) |
-| `registrar_cai` | Registra una autorización del SAR con los datos de la resolución (con efecto, no destructiva) |
+| `registrar_cai` | Registra una autorización del SAR con los datos de la resolución (irreversible: marcada como destructiva) |
 | `estado_cai` | Vigencia, restantes y alertas de cada autorización |
 | `libro_ventas` | Ventas de un período con totales |
 
@@ -130,14 +137,27 @@ VALOR FISCAL» y `structuredContent.prueba` es `true`.
   `<datos_documento>` ni `</datos_documento>`: se quitan, para que un nombre no pueda cerrar el bloque de datos.
 - `anular_documento` es destructiva (`destructiveHint`). **No la apruebes automáticamente** en tu cliente MCP:
   que pida confirmación cada vez. Vía la API, usa una llave de caja y el agente no podrá anular (403).
-- `registrar_cai` escribe en la base. Que tu cliente pida confirmación y revisa los datos contra la resolución.
+- `registrar_cai` también es destructiva (`destructiveHint`): no borra nada, pero un CAI registrado no se quita y
+  fija la numeración. Que tu cliente pida confirmación y revisa los datos contra la resolución.
 
 ## Modo SQLite (en este equipo)
+
+En Windows:
+
+```json
+{ "mcpServers": { "factura-hn": {
+  "command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp"],
+  "env": { "FHN_SQLITE": "C:/negocio/factura.db", "FHN_EMISOR": "C:/negocio/emisor.json",
+           "FHN_ESTABLECIMIENTO": "000", "FHN_PUNTO": "001" }
+} } }
+```
+
+En macOS y Linux:
 
 ```json
 { "mcpServers": { "factura-hn": {
   "command": "npx", "args": ["-y", "@factura-hn/mcp"],
-  "env": { "FHN_SQLITE": "C:/negocio/factura.db", "FHN_EMISOR": "C:/negocio/emisor.json",
+  "env": { "FHN_SQLITE": "/srv/negocio/factura.db", "FHN_EMISOR": "/srv/negocio/emisor.json",
            "FHN_ESTABLECIMIENTO": "000", "FHN_PUNTO": "001" }
 } } }
 ```
@@ -150,7 +170,8 @@ VALOR FISCAL» y `structuredContent.prueba` es `true`.
 
 ## Modo API
 
-Contra la API de factura-hn (local con Docker, o alojada):
+Contra la API de factura-hn (local con Docker, o alojada). En Windows, usa `"command": "cmd"` y
+`"args": ["/c", "npx", "-y", "@factura-hn/mcp"]`, como arriba:
 
 ```json
 { "mcpServers": { "factura-hn": {
@@ -163,8 +184,8 @@ Contra la API de factura-hn (local con Docker, o alojada):
   emite una nota de crédito sobre un documento que no está en el sistema (403 `SOLO_ADMIN`). Usa una llave admin
   solo si quieres que pueda hacerlo.
 - `registrar-cai` también funciona contra la API (`POST /v1/autorizaciones`), con una llave admin:
-  `npx -y @factura-hn/mcp registrar-cai --api-url http://127.0.0.1:8787 --llave fhn_… --cai …` (o `FHN_API_URL` y
-  `FHN_LLAVE`).
+  `npx -y @factura-hn/mcp registrar-cai --api-url http://127.0.0.1:8787 --llave fhn_… --cai CAI_DE_LA_RESOLUCION …`
+  (o `FHN_API_URL` y `FHN_LLAVE`).
 - Si la API no responde, el error es `API_INACCESIBLE`.
 
 En ambos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el agente: queda en la bitácora. Las
@@ -179,8 +200,9 @@ Todos en español. `npx -y @factura-hn/mcp ayuda` los lista.
 |---|---|
 | *(ninguno)* | Arranca el servidor MCP por stdio. Lo hace tu cliente MCP. |
 | `init` (o `iniciar`) | Crea la base y el emisor e imprime el bloque `mcpServers`. Opciones: `--demo`, `--dir`, `--establecimiento`, `--punto`, `--forzar`. |
-| `registrar-cai` | Registra el CAI de una resolución del SAR, en la base SQLite o vía la API. |
+| `registrar-cai` | Registra el CAI de una resolución del SAR, en la base SQLite o vía la API. Opciones: `--cai`, `--tipo`, `--establecimiento`, `--punto`, `--desde`, `--hasta`, `--fecha-limite`, `--fecha-autorizacion`, `--ultimo-emitido-antes`, `--base`, `--api-url`, `--llave`. |
 | `ayuda` | La ayuda. |
 
 `init` no sobrescribe nada sin `--forzar`, y repetirlo da el mismo resultado. `--forzar` reescribe el archivo del
-emisor y, con `--demo`, recrea la base de prueba. La base real no se borra nunca.
+emisor (del `emisor.json` real guarda antes una copia, `emisor.json.bak`) y, con `--demo`, recrea la base de
+prueba si no tiene ningún CAI real. La base real no se borra nunca.
