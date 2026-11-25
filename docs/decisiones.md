@@ -1754,7 +1754,102 @@ intentos de la API se corrigió en DEC-070.
 - **Alternativa:** un candado consultivo por tenant para las notas. Serializaría todas las notas de un tenant sin
   necesidad.
 
-### DEC-126 · Integración del Lote 4
+<!-- Colecciones y cliente de Python (rama lote4/colecciones) -->
+
+### DEC-126 · Las colecciones salen de un generador propio, no de `bru import` ni de openapi-to-postmanv2
+- **Contexto:** plan-v1 3.4 pide colecciones de Bruno y Postman generadas del OpenAPI y reproducibles (la CI las
+  regenera y falla si hay diferencias). `ecosistema.md` §3.1 sugería `bru import openapi` y el encargo, por ejemplo,
+  `openapi-to-postmanv2`.
+- **Decisión:** `colecciones/generar.mjs` (`pnpm colecciones`) lee `packages/api/openapi.json` y escribe las dos
+  colecciones desde un mismo modelo: una carpeta por etiqueta, un archivo `<operationId>.bru` por operación, la
+  carpeta «Primera factura» (sesión, emitir, PDF, con pruebas), el entorno `demo` y el script de la
+  `Idempotency-Key`. Sin fechas ni ids aleatorios; el orden es el del OpenAPI. Los cuerpos de ejemplo están en
+  `colecciones/ejemplos.mjs` (datos ficticios); el de emitir es `packages/api/ejemplos/factura.json`. Una operación
+  nueva sin ejemplo sale con un esqueleto de sus campos obligatorios, así la generación nunca se rompe.
+- **Por qué:** probé `bru import openapi` (CLI 4.3.0). Es reproducible, pero nombra cada archivo con el `summary`
+  (tildes, dos puntos, comillas invertidas y paréntesis en el nombre del archivo), llena cada cuerpo con todos los
+  campos opcionales y valores que la API rechaza (`"descuento": "115.00"`, `"rtn": ""`) y agrega un ejemplo por
+  cada código de error (unas 20 000 líneas). openapi-to-postmanv2 pone UUID aleatorios en cada elemento, que habría
+  que reescribir. Con un modelo común, Bruno y Postman tienen exactamente las mismas solicitudes y pruebas.
+- **Alternativa:** `bru import` + posproceso. Más código frágil sobre un formato de salida que cambia entre
+  versiones de la CLI.
+- **Dependencias:** solo `@usebruno/cli` 4.3.0 (fijada), para `bru run`. openapi-to-postmanv2 no se agregó. La
+  colección de Postman se comprobó convirtiéndola con `postmanToBruno` de `@usebruno/converters` (31 solicitudes,
+  0 problemas), pero no se ejecutó en Postman ni con newman (ver «Fuera»).
+
+### DEC-127 · El generador borra solo lo suyo
+- **Decisión:** `generar.mjs` ya no vacía `bruno/` ni `postman/`. Reescribe y borra solo los archivos que genera:
+  en `bruno/`, los `.bru` fuera de `environments/` (también el de una operación que ya no existe), `bruno.json` y
+  `environments/demo.bru`; en `postman/`, sus dos archivos. Luego borra las carpetas vacías. Se conservan otros
+  entornos, `bruno/.env` y otros archivos de `postman/`. Una solicitud propia guardada dentro de `bruno/` se
+  borra (lo dice `colecciones/README.md`).
+
+### DEC-128 · Formato `.bru` y no OpenCollection (YAML)
+- **Decisión:** la colección de Bruno usa el formato `.bru`, aunque `bru import` ya propone OpenCollection por
+  defecto. Lo abren las versiones de Bruno 1.x, 2.x y las actuales, y la CLI 4.3 lo corre.
+- **Alternativa:** OpenCollection YAML, si Bruno deja de leer `.bru`. Cambia solo el escritor de `generar.mjs`.
+
+### DEC-129 · Paquete privado `@factura-hn/colecciones` en el espacio de trabajo
+- **Decisión:** `colecciones/` es un paquete privado del espacio de trabajo (`pnpm-workspace.yaml`) con
+  `@usebruno/cli` como dependencia de desarrollo, y no la raíz: sus ~470 dependencias quedan fuera de los demás
+  paquetes. Como el paquete es miembro del espacio de trabajo, un `pnpm install` sin filtro también las instalaría:
+  por eso los trabajos `verificar` y `postgres` de `ci.yml`, `pages.yml` y `release.yml` instalan con
+  `--filter '!@factura-hn/colecciones'`. En un clon limpio, ese filtro instala la raíz (Redocly, changesets, tsx,
+  vitest), todos los demás paquetes, `web` y los ejemplos, y ningún `@usebruno`. Solo el trabajo `colecciones`
+  instala `--filter @factura-hn/colecciones`. La imagen de Docker no cambia (instala `--filter @factura-hn/api...`).
+- **Script de instalación bloqueado:** pnpm bloqueó el `postinstall` de `protobufjs@7.6.6` (lo trae la CLI de
+  Bruno). Lo leí: solo avisa por stderr si un `package.json` ajeno declara protobufjs con otro esquema de versión.
+  Quedó denegado de forma explícita (`allowBuilds: protobufjs: false`, con un comentario).
+
+### DEC-130 · Una `Idempotency-Key` nueva por solicitud en las colecciones
+- **Decisión:** el script previo de las dos colecciones pone `idempotencyKey` = un UUID v4 nuevo en cada solicitud
+  (`require("uuid")`, que existe en el sandbox seguro de Bruno y en el de Postman), y la solicitud de emitir lo
+  manda en `Idempotency-Key`. Cada envío de «Emitir» es otra venta y emite otra factura de prueba.
+- **Por qué:** así lo pide el encargo, y en una colección de prueba enviar dos veces debe dar dos facturas. La regla
+  de integración (clave estable por venta, nunca una nueva por intento) se repite en el comentario del script, en
+  la documentación de la solicitud y en `docs/api.md`.
+
+### DEC-131 · El entorno `demo` no trae llave; Bruno la lee de `FHN_LLAVE`
+- **Decisión:** `baseUrl` = `http://127.0.0.1:8787`. En Bruno, `llave: {{process.env.FHN_LLAVE}}`: la toma de la
+  variable de entorno o de `colecciones/bruno/.env` (ignorado por git y por Docker); así la llave no pasa por la
+  línea de órdenes (`--env-var llave=…` la dejaba en el historial y en la salida de pnpm). En Postman, que no lee
+  variables del sistema, `llave` es una variable secreta vacía donde se pega. En la CI sale de
+  `factura-hn-api demo llave --solo-llave`, se enmascara y va a `FHN_LLAVE` por `$GITHUB_ENV`.
+- Probado: con `FHN_LLAVE` exportada y con un `.env`, 7/7; la llave no aparece en la salida.
+
+### DEC-132 · Cliente de Python en `clientes/python/`, sin versionar el código generado
+- **Decisión:** `clientes/python/generar.py` corre openapi-python-client 0.30.0 (paquete `factura_hn_api`,
+  `config.yml`, `--fail-on-warning`) y escribe en `clientes/python/generado/` (ignorado por git). La prueba
+  `test_primera_factura.py` (pytest) emite contra la API de `FHN_API_URL` con la llave de `FHN_LLAVE` y comprueba:
+  tenant de prueba y `puedeEmitir`; número `000-001-01-NNNNNNNN` con el `correlativo` igual a sus 8 dígitos; la
+  misma clave devuelve el mismo número con `Idempotency-Replayed: true` (y la primera emisión sin ella); otra clave
+  toma el correlativo siguiente; total = 115.00 y su desglose, gravado al 15 % = 100.00 e ISV 15 % = 15.00 (ISV 18 %
+  = 0), en centavos enteros como pide la especificación; `modo` = `prueba`; la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» en el `.txt`;
+  el PDF empieza con `%PDF`; y el documento se lee de nuevo por su número.
+- `requirements.in` lista las directas; `requirements.txt` sale de él con
+  `uv pip compile --universal --python-version 3.12 --generate-hashes` (uv 0.13.7, solo en el entorno virtual local):
+  todas las dependencias fijadas con sus hashes y marcadores para Linux, macOS y Windows. La CI instala con
+  `pip install --require-hashes`. Comprobado: instala con `--require-hashes` en Windows, y `pip download
+  --require-hashes --platform manylinux… --python-version 3.12` baja y verifica las 29 ruedas de Linux.
+  `.gitignore` le hace una excepción a `*.txt`. En local, el entorno virtual es `.venv-python/`, ignorado
+  también en `.dockerignore`, igual que `clientes/python/generado/` y `.pytest_cache`.
+- **Supuesto:** la prueba del correlativo siguiente supone que nadie más emite con esa caja del demo mientras corre
+  (en la CI corre sola, después de Bruno).
+- **Nota:** el generador actual depende de `httpx2` (no de `httpx`) y agrupa los módulos por etiqueta: las de tilde
+  quedan `api/sesi_ó_n` y `api/auditor_í_a`. Funcionan, pero son feos.
+- **Propuesta (no hecha):** etiquetas sin tilde en el OpenAPI (`Sesion`, `Auditoria`) o un `x-` con nombre ASCII.
+  Cambiar las etiquetas cambia la documentación interactiva y el sitio, y no es de esta rama.
+
+### DEC-133 · Trabajo `colecciones` en la CI
+- **Decisión:** un trabajo nuevo en `ci.yml`: instala solo `@factura-hn/colecciones`, regenera las colecciones y
+  falla con `git diff --exit-code` o con archivos nuevos sin versionar; levanta la imagen con
+  `docker compose up -d --build --wait`; crea la llave del demo (enmascarada, en `FHN_LLAVE`); corre
+  `bru run primera-factura --env demo`; instala
+  Python 3.12 (`actions/setup-python` v7.1.0 fijada por SHA), genera el cliente y corre pytest. Muestra el log de la
+  API si algo falla y baja Compose al final.
+- **Por qué separado de «Imagen de la API»:** ese trabajo no instala Node ni Python y es una prueba de humo rápida.
+
+### DEC-134 · Integración del Lote 4
 - **Contexto:** las ramas `webhooks` y `llaves` subieron cada una el esquema de la API a la v8; `pendientes` dejó a
   la API el registro con avisos.
 - **Elegida:**
