@@ -92,13 +92,13 @@ Un rango nuevo se registra igual; la numeración continúa sola.
 ## Emitir, imprimir, anular
 
 <!-- declaraciones:
-import type { Facturador, TratamientoISV } from 'factura-hn';
+import type { TratamientoISV } from 'factura-hn';
 declare const caja: Facturador;
 declare const cliente: { nombre: string; rtn?: string } | undefined;
 declare const carrito: { sku: string; nombre: string; cantidad: string; precio: string; tratamientoISV: TratamientoISV }[];
 -->
 ```ts
-import { ErrorValidacion, renderizarHTML } from 'factura-hn';
+import { ErrorValidacion, renderizarHTML, type Facturador } from 'factura-hn';
 
 export async function facturar() {
   try {
