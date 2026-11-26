@@ -20,16 +20,25 @@ describe('guía de errores', () => {
     expect(documentacionDe('SIN_AUTORIZACION')).toBe('https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion');
   });
 
-  it('la solución de un 422 sale del primer problema que tenga una, sin pisar la que ya traiga', () => {
+  it('la solución de un 422 sale del primer problema que tenga una; la de la API reemplaza la del SDK en sus códigos', () => {
     const guia = soluciones({ consola: 'factura-hn-api', modo: 'local' });
     const r = conSolucion(
-      { error: { codigo: 'VALIDACION', mensaje: 'x' }, errores: [{ codigo: 'CLIENTE_RTN', mensaje: 'a' }, { codigo: 'RANGO_AGOTADO', mensaje: 'b', solucion: 'propia' } as never] },
+      {
+        error: { codigo: 'VALIDACION', mensaje: 'x' },
+        errores: [
+          { codigo: 'CLIENTE_RTN', mensaje: 'a' },
+          { codigo: 'RANGO_AGOTADO', mensaje: 'b', solucion: 'del SDK: registrarAutorizacion(almacen, …)' } as never,
+          { codigo: 'FECHA_FUTURA', mensaje: 'c', solucion: 'propia' } as never,
+        ],
+      },
       guia,
     );
     expect(r.error.documentacion).toMatch(/#rango_agotado$/);
     expect(r.error.solucion).toBe(guia.RANGO_AGOTADO);
     expect(r.errores![0]).toEqual({ codigo: 'CLIENTE_RTN', mensaje: 'a', documentacion: documentacionDe('CLIENTE_RTN') });
-    expect(r.errores![1]!.solucion).toBe('propia');
+    expect(r.errores![1]!.solucion).toBe(guia.RANGO_AGOTADO);
+    // Un código que la API no tiene en su tabla conserva la solución que traiga.
+    expect(r.errores![2]!.solucion).toBe('propia');
   });
 
   it('las soluciones mencionan la consola de este despliegue, y el demo solo si existe', () => {
@@ -120,7 +129,9 @@ conBase('errores con solución', () => {
       solucion: expect.stringContaining('POST /v1/autorizaciones'),
       documentacion: documentacionDe('SIN_AUTORIZACION'),
     });
-    expect(cuerpo.errores[0]).toMatchObject({ codigo: 'SIN_AUTORIZACION', documentacion: documentacionDe('SIN_AUTORIZACION'), solucion: expect.any(String) });
+    expect(cuerpo.errores[0]).toMatchObject({ codigo: 'SIN_AUTORIZACION', documentacion: documentacionDe('SIN_AUTORIZACION'), solucion: expect.stringContaining('POST /v1/autorizaciones') });
+    // La solución de cada problema habla de la API, no de las funciones del SDK.
+    expect(JSON.stringify(cuerpo)).not.toMatch(/registrarAutorizacion\(|crearFacturadorDemo/);
   });
 
   it('403 de rol, 409 sin emisor, 400 sin Idempotency-Key y 413: con solución', async () => {
