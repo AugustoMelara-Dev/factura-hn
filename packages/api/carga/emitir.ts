@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import autocannon from 'autocannon';
 import pg from 'pg';
 import { crearTenant } from '../src/operador';
-import { problemasDeIntegridad, revisarIntegridad } from './integridad';
+import { esperarQuietud, problemasDeAvisos, problemasDeIntegridad, revisarAvisos, revisarIntegridad } from './integridad';
 
 interface Perfil {
   duracionS: number;
@@ -279,6 +279,11 @@ try {
   const sinRespuestaSaturada = erroresDeRed + agotadas - sinRespuestaATasa;
 
   // --- 3. Revisión contra la base --------------------------------------------------------------------------
+  // Al vencer la fase de saturación, autocannon suelta las solicitudes en vuelo (una por conexión) sin esperar su
+  // respuesta, y la API las termina igual: emiten y encolan su aviso seguido. Revisar en ese mismo instante dejaba
+  // esas emisiones fuera de la cuenta de documentos, pero no de la de avisos (que se lee después): «6037 avisos
+  // para 6021 documentos». Se revisa cuando la cantidad de documentos ya no cambia.
+  await esperarQuietud(dueno, tenant);
   const integridad = await revisarIntegridad(dueno, tenant);
   const clavesConVariosNumeros = [...numerosPorClave].filter(([, s]) => s.size > 1);
   // Lo que vio el cliente coincide con lo que guarda la base para cada clave.
@@ -291,17 +296,15 @@ try {
   const clavesQueNoCoinciden = [...numerosPorClave].filter(([k, s]) => s.size !== 1 || enBase.get(k) !== [...s][0]).map(([k]) => k);
 
   // Los avisos de webhook: uno por documento, todos entregados (el despacho corre cada 5 s) dentro de `vaciarS`.
-  const filasEntregas = async () => (await dueno.query<{ estado: string; n: number }>(
-    "SELECT estado, count(*)::int AS n FROM api_entregas WHERE tenant = $1 AND evento = 'documento.emitido' GROUP BY estado", [tenant],
-  )).rows;
+  // Documentos y avisos se comparan uno a uno (por número) en la misma foto de la base.
   const inicioEntregas = Date.now();
-  let entregas = await filasEntregas();
-  while (perfil.webhook && entregas.some((f) => f.estado !== 'ENTREGADA') && Date.now() < inicioEntregas + (perfil.vaciarS ?? 120) * 1000) {
+  let avisos = await revisarAvisos(dueno, tenant);
+  while (perfil.webhook && avisos.entregados < avisos.avisos && Date.now() < inicioEntregas + (perfil.vaciarS ?? 120) * 1000) {
     await esperar(500);
-    entregas = await filasEntregas();
+    avisos = await revisarAvisos(dueno, tenant);
   }
-  const entregadas = entregas.find((f) => f.estado === 'ENTREGADA')?.n ?? 0;
-  const totalEntregas = entregas.reduce((a, f) => a + f.n, 0);
+  const entregadas = avisos.entregados;
+  const totalEntregas = avisos.avisos;
 
   const informe = {
     perfil: nombrePerfil,
@@ -342,10 +345,10 @@ try {
     ...(aTasa.latenciaMs.p95 > u.p95Ms ? [`p95 a ${perfil.tasa}/s: ${aTasa.latenciaMs.p95} ms > ${u.p95Ms} ms`] : []),
     ...(aTasa.latenciaMs.p99 > u.p99Ms ? [`p99 a ${perfil.tasa}/s: ${aTasa.latenciaMs.p99} ms > ${u.p99Ms} ms`] : []),
     ...(saturada.documentosPorS < u.minDocumentosPorS ? [`${saturada.documentosPorS} documentos/s en saturación < ${u.minDocumentosPorS}`] : []),
-    ...(perfil.webhook && (entregadas !== integridad.documentos || totalEntregas !== integridad.documentos)
-      ? [`webhooks: ${entregadas} entregadas de ${totalEntregas} encoladas para ${integridad.documentos} documentos`]
-      : []),
-    ...(perfil.webhook && recibidos.size !== integridad.documentos ? [`el receptor vio ${recibidos.size} avisos distintos para ${integridad.documentos} documentos`] : []),
+    ...(perfil.webhook ? problemasDeAvisos(avisos) : []),
+    // Lo que no es de la medición: la cantidad de documentos ya no cambia después de esperar la quietud.
+    ...(avisos.documentos !== integridad.documentos ? [`${avisos.documentos - integridad.documentos} documento(s) emitidos después de la revisión`] : []),
+    ...(perfil.webhook && recibidos.size !== avisos.avisos ? [`el receptor vio ${recibidos.size} avisos distintos de ${avisos.avisos} encolados`] : []),
   ];
   mkdirSync(`${DIR}resultados`, { recursive: true });
   const archivo = `${DIR}resultados/${nombrePerfil}-${informe.fecha.replace(/[:.]/g, '-')}.json`;
