@@ -21,6 +21,20 @@ describe('solucionPara', () => {
     expect(solucionPara({ codigo: 'OTRO' })).toMatch(/^Explícale el mensaje al usuario, corrige con él el dato que nombra y vuelve a intentarlo\./);
   });
 
+  it('SOLICITUD_INVALIDA nombra el campo real (no «`campo`»); sin campo, habla de los argumentos', () => {
+    for (const campo of ['lineas', 'lineas.0.isv', 'desde']) {
+      expect(solucionPara({ codigo: 'SOLICITUD_INVALIDA', campo })).toBe(`Corrige ${campo} según el mensaje y vuelve a llamar la herramienta. Si el dato viene del usuario, pregúntaselo.`);
+    }
+    expect(solucionPara({ codigo: 'SOLICITUD_INVALIDA' })).toMatch(/^Corrige los argumentos según el mensaje/);
+    expect(solucionPara({ codigo: 'SOLICITUD_INVALIDA', campo: 'idempotencyKey' })).toContain('reutiliza la misma clave');
+  });
+
+  it('NO_AUTENTICADO sirve por stdio y por URL; NO_ENCONTRADO manda a listar_documentos', () => {
+    expect(solucionPara({ codigo: 'NO_AUTENTICADO' })).toBe('La llave de API o la URL del MCP no es válida o fue revocada. Pide una nueva al administrador.');
+    expect(solucionPara({ codigo: 'NO_ENCONTRADO' })).toContain('listar_documentos');
+    expect(solucionPara({ codigo: 'NO_ENCONTRADO' })).not.toContain('libro_ventas');
+  });
+
   it('conSolucion agrega la solución y el enlace a la guía', () => {
     expect(conSolucion({ codigo: 'LINEA_ISV', mensaje: 'x' })).toMatchObject({
       solucion: SOLUCIONES.LINEA_ISV,

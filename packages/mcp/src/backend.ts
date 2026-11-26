@@ -8,6 +8,8 @@ import {
   anular,
   buscarDocumento,
   emitir,
+  esCAIValido,
+  esFechaValida,
   ErrorValidacion,
   estadoAutorizacion,
   fechaHonduras,
@@ -16,6 +18,7 @@ import {
   renderizarTexto,
   registrarAutorizacion,
   validarAutorizacion,
+  validarNuevaAutorizacion,
   type AlmacenFiscal,
   type AutorizacionCAI,
   type DocumentoEntrada,
@@ -81,6 +84,12 @@ export interface ResultadoRegistroCAI {
   advertencias: Problema[];
 }
 
+/** Una página de documentos de un período: `hayMas` dice si quedaron más fuera. */
+export interface ListaDocumentos {
+  documentos: DocumentoFiscal[];
+  hayMas: boolean;
+}
+
 export interface Backend {
   readonly nombre: string;
   /** Establecimiento y punto de emisión en que emite este servidor, si se conocen. */
@@ -93,6 +102,15 @@ export interface Backend {
   estadoCAI(): Promise<EstadoCAI[]>;
   /** Libro de ventas sin los documentos de prueba; `excluidos` dice cuántos quedaron fuera. */
   libroVentas(desde: string, hasta: string): Promise<{ filas: unknown[]; resumen: unknown; excluidos: number }>;
+  /** Documentos de un período (también los de prueba), por fecha y número; a lo sumo `limite`. */
+  listarDocumentos(desde: string, hasta: string, limite: number): Promise<ListaDocumentos>;
+  /** Rol de la llave: `caja` no anula ni registra CAI. Sin API (SQLite local), `admin`. */
+  rol(): Promise<'admin' | 'caja'>;
+  /**
+   * Revisa una autorización sin registrarla (lanza `ErrorBackend` si no se puede): así la confirmación del usuario
+   * se pide solo si el registro puede hacerse.
+   */
+  revisarCAI(autorizacion: AutorizacionCAI): Promise<void>;
 }
 
 /** Error con la lista de problemas fiscales, para mostrarla tal cual al usuario. */
@@ -114,6 +132,53 @@ const errorDe = (codigo: string, mensaje: string, campo?: string) => new ErrorBa
  */
 function exigirCAIReal(a: AutorizacionCAI) {
   if (esCAIDemo(a.cai)) throw errorDe('CAI_DEMO', `El CAI ${a.cai} es el ficticio de prueba, no uno de una resolución del SAR.`, 'cai');
+}
+
+/**
+ * Lo que el MCP exige además del núcleo antes de registrar un CAI (es irreversible): la forma de un CAI del SAR
+ * (6-6-6-6-6-2 hexadecimal; uno mal copiado quedaría impreso en documentos fiscales) y una fecha límite que no haya
+ * pasado (con un CAI vencido no se puede emitir).
+ */
+export function problemasExtraCAI(a: AutorizacionCAI, hoy: string): Problema[] {
+  const problemas: Problema[] = [];
+  const cai = String(a.cai ?? '').trim();
+  // Un CAI con espacios o signos ya lo rechaza el núcleo (CAI_FORMATO): no se repite el error.
+  if (cai && !esCAIDemo(cai) && /^[A-Za-z0-9-]+$/.test(cai) && !esCAIValido(cai)) {
+    problemas.push({
+      codigo: 'CAI_FORMATO',
+      mensaje: `El CAI "${cai}" no tiene la forma de un CAI del SAR: seis grupos de dígitos y letras A-F separados por guiones (6-6-6-6-6-2), p. ej. A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4.`,
+      campo: 'cai',
+    });
+  }
+  if (esFechaValida(a.fechaLimiteEmision) && a.fechaLimiteEmision < hoy) {
+    problemas.push({
+      codigo: 'AUTORIZACION_VENCIDA',
+      mensaje: `La fecha límite de emisión (${a.fechaLimiteEmision}) ya pasó: con este CAI no se puede emitir. Revisa la fecha en la resolución.`,
+      campo: 'fechaLimiteEmision',
+    });
+  }
+  return problemas;
+}
+
+const errorValidacion = (problemas: Problema[]) => new ErrorBackend('VALIDACION', problemas.map((p) => p.mensaje).join(' '), problemas);
+
+/**
+ * Revisa una autorización contra una base SQLite sin registrarla: CAI real, base que no sea de demostración, las
+ * reglas del núcleo contra los CAI del mismo punto de emisión y las de `problemasExtraCAI`.
+ */
+export async function revisarCAIEnAlmacen(almacen: AlmacenFiscal, db: Pick<BaseSQLite, 'prepare'>, a: AutorizacionCAI, hoy: string): Promise<void> {
+  exigirCAIReal(a);
+  if (caisDeBase(db).ficticios.length) {
+    throw errorDe('BASE_DEMO', 'Esta base es de demostración (tiene el CAI ficticio): no recibe CAI reales.', 'cai');
+  }
+  const delPunto = await almacen.transaccion(async (tx) => {
+    const tipos = [...new Set(['01', '06', '07', String(a.tipoDocumento)])] as AutorizacionCAI['tipoDocumento'][];
+    const todas: AutorizacionCAI[] = [];
+    for (const tipoDocumento of tipos) todas.push(...(await tx.autorizaciones(identificadorDe({ ...a, tipoDocumento }))));
+    return todas;
+  });
+  const problemas = [...validarNuevaAutorizacion(delPunto, a), ...problemasExtraCAI(a, hoy)];
+  if (problemas.length) throw errorValidacion(problemas);
 }
 
 /** Advertencias de una autorización válida (el mismo criterio que `esAdvertencia` del núcleo). */
@@ -160,11 +225,8 @@ export async function registrarCAIEnAlmacen(
   a: AutorizacionCAI,
   opciones: { reloj?: () => Date; actor?: string; operador?: string } = {},
 ): Promise<ResultadoRegistroCAI> {
-  exigirCAIReal(a);
   try {
-    if (caisDeBase(db).ficticios.length) {
-      throw errorDe('BASE_DEMO', 'Esta base es de demostración (tiene el CAI ficticio): no recibe CAI reales.', 'cai');
-    }
+    await revisarCAIEnAlmacen(almacen, db, a, fechaHonduras((opciones.reloj ?? (() => new Date()))()));
     const autorizacion = await registrarAutorizacion(almacen, a, opciones);
     return { autorizacion, advertencias: advertenciasDe(autorizacion) };
   } catch (e) {
@@ -279,6 +341,17 @@ export class BackendLocal implements Backend {
   registrarCAI(a: AutorizacionCAI): Promise<ResultadoRegistroCAI> {
     return registrarCAIEnAlmacen(this.almacen, this.o.db, a, { reloj: this.o.reloj, actor: this.o.actor ?? 'mcp', operador: this.o.operador });
   }
+  async revisarCAI(a: AutorizacionCAI): Promise<void> {
+    try {
+      await revisarCAIEnAlmacen(this.almacen, this.o.db, a, fechaHonduras((this.o.reloj ?? (() => new Date()))()));
+    } catch (e) {
+      throw traducir(e);
+    }
+  }
+  /** En SQLite local no hay llaves: quien tiene la base puede todo. */
+  async rol(): Promise<'admin'> {
+    return 'admin';
+  }
   async anular(numero: string, motivo: string, opciones: { operador?: string } = {}) {
     try {
       return await anular(numero, {
@@ -310,17 +383,52 @@ export class BackendLocal implements Backend {
     const docs = await this.almacen.transaccion((tx) => tx.documentos({ desde, hasta }));
     return libroVentasNucleo(docs);
   }
+  async listarDocumentos(desde: string, hasta: string, limite: number): Promise<ListaDocumentos> {
+    const docs = await this.almacen.transaccion((tx) => tx.documentos({ desde, hasta }));
+    const ordenados = [...docs].sort((x, y) => x.fechaEmision.localeCompare(y.fechaEmision) || x.numero.localeCompare(y.numero));
+    return { documentos: ordenados.slice(0, limite), hayMas: ordenados.length > limite };
+  }
 }
 
 export class BackendApi implements Backend {
   readonly nombre = 'api';
   private readonly c: ClienteFacturaHN;
   /** `operador`: persona por defecto; va en la cabecera X-Operador de cada solicitud. */
-  constructor(o: { url: string; llave: string; establecimiento?: string; puntoEmision?: string; operador?: string; fetch?: typeof fetch }) {
+  private rolConocido: Promise<'admin' | 'caja'> | null;
+  /** `rol`: el de la llave, si ya se conoce (p. ej. el MCP remoto lo lee de `GET /v1/sesion` al abrir la sesión). */
+  constructor(o: { url: string; llave: string; establecimiento?: string; puntoEmision?: string; operador?: string; fetch?: typeof fetch; rol?: 'admin' | 'caja' }) {
     this.c = crearCliente(o);
     this.punto = { establecimiento: o.establecimiento, puntoEmision: o.puntoEmision };
+    this.rolConocido = o.rol ? Promise.resolve(o.rol) : null;
   }
   readonly punto: { establecimiento?: string; puntoEmision?: string };
+
+  /** Rol de la llave, de `GET /v1/sesion` (se pregunta una vez). */
+  rol(): Promise<'admin' | 'caja'> {
+    this.rolConocido ??= this.c.sesion().then(
+      (s): 'admin' | 'caja' => (s.llave.rol === 'caja' ? 'caja' : 'admin'),
+      (e: unknown) => {
+        this.rolConocido = null;
+        throw traducir(e);
+      },
+    );
+    return this.rolConocido;
+  }
+  async revisarCAI(a: AutorizacionCAI): Promise<void> {
+    exigirCAIReal(a);
+    if ((await this.rol()) === 'caja') throw errorDe('SOLO_ADMIN', 'Registrar un CAI requiere una llave con rol admin.');
+    const delNucleo = validarAutorizacion(a).filter((p) => !p.codigo.startsWith('AVISO_') && !p.codigo.endsWith('_ADVERTENCIA'));
+    const problemas = [...delNucleo, ...problemasExtraCAI(a, fechaHonduras(new Date()))];
+    if (problemas.length) throw errorValidacion(problemas);
+  }
+  async listarDocumentos(desde: string, hasta: string, limite: number): Promise<ListaDocumentos> {
+    try {
+      const p = await this.c.paginaDocumentos(desde, hasta, { limite });
+      return { documentos: p.documentos as unknown as DocumentoFiscal[], hayMas: p.hayMas };
+    } catch (e) {
+      throw traducir(e);
+    }
+  }
 
   async emitir(entrada: EntradaSinEmisor, idempotencyKey: string, opciones: OpcionesOperador = {}): Promise<ResultadoEmision> {
     try {
@@ -351,6 +459,8 @@ export class BackendApi implements Backend {
   }
   async registrarCAI(a: AutorizacionCAI): Promise<ResultadoRegistroCAI> {
     exigirCAIReal(a);
+    const extra = problemasExtraCAI(a, fechaHonduras(new Date()));
+    if (extra.length) throw errorValidacion(extra);
     try {
       const autorizacion = (await this.c.registrarAutorizacion(a as never)) as unknown as AutorizacionCAI;
       return { autorizacion, advertencias: advertenciasDe(autorizacion) };

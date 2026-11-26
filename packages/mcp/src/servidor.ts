@@ -5,7 +5,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { esDocumentoDePrueba, renderizarTexto, type AutorizacionCAI, type DocumentoFiscal, type Problema } from 'factura-hn';
+import { esDocumentoDePrueba, esFechaValida, fechaHonduras, renderizarTexto, type AutorizacionCAI, type DocumentoFiscal, type Problema } from 'factura-hn';
 import { ErrorBackend, type Backend, type EntradaSinEmisor, type ResultadoEmision } from './backend';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { conSolucion } from './soluciones';
@@ -13,6 +13,24 @@ import { versionPaquete } from './version';
 
 const Monto = z.union([z.string(), z.number()]).describe('Decimal; mejor como texto, p. ej. "57.50".');
 const Fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('YYYY-MM-DD');
+/** Días que lista `listar_documentos` sin fechas, y cuántos documentos devuelve como máximo. */
+const DIAS_LISTA = 31;
+const MAX_LISTA = 100;
+
+/**
+ * Un período válido: fechas que existen y desde no después de hasta (los mismos errores que la API, también en
+ * modo SQLite).
+ */
+function problemasDePeriodo(desde: string, hasta: string): Problema[] {
+  const problemas: Problema[] = [];
+  for (const [campo, v] of [['desde', desde], ['hasta', hasta]] as const) {
+    if (!esFechaValida(v)) problemas.push({ codigo: 'SOLICITUD_INVALIDA', mensaje: `La fecha ${v} no existe en el calendario.`, campo });
+  }
+  if (!problemas.length && desde > hasta) {
+    problemas.push({ codigo: 'SOLICITUD_INVALIDA', mensaje: `desde (${desde}) debe ser anterior o igual a hasta (${hasta}).`, campo: 'desde' });
+  }
+  return problemas;
+}
 const Numero = z.string().regex(/^\d{3}-\d{3}-\d{2}-\d{8}$/).describe('Número de 16 dígitos, p. ej. 000-001-01-00000001');
 const Linea = z.object({
   descripcion: z.string().min(1),
@@ -96,10 +114,10 @@ const okConDatos = (texto: string, datos: Record<string, unknown>): CallToolResu
  * Resultado de error: cada problema con su mensaje (tal cual), qué hacer y el enlace a la guía de errores. Un
  * error sin lista de problemas se presenta como uno solo, con su código.
  */
-function fallo(e: unknown): CallToolResult {
+function fallo(e: unknown, soluciones: Record<string, string> = {}): CallToolResult {
   if (e instanceof ErrorBackend) {
     const problemas: Problema[] = e.errores.length ? e.errores : [{ codigo: e.codigo, mensaje: e.message }];
-    const errores = problemas.map(conSolucion);
+    const errores = problemas.map(conSolucion).map((p) => (soluciones[p.codigo] ? { ...p, solucion: soluciones[p.codigo]! } : p));
     const lista = errores
       .map((p) => `- [${p.codigo}] ${p.mensaje}${p.campo ? ` (${p.campo})` : ''}\n  Qué hacer: ${p.solucion}\n  Guía: ${p.guia}`)
       .join('\n');
@@ -199,6 +217,11 @@ export interface OpcionesServidorMCP {
    */
   permitirDestructivas?: boolean;
   /**
+   * true en el MCP remoto (HTTP): ahí `FHN_MCP_PERMITIR_DESTRUCTIVAS` no aplica, así que el error de un cliente sin
+   * elicitación no la recomienda.
+   */
+  remoto?: boolean;
+  /**
    * Caracteres como máximo del resultado de una herramienta (texto y datos juntos, en JSON). Más allá, el texto se
    * recorta, los datos estructurados se omiten y se avisa. Sin valor, no hay tope (stdio). El MCP remoto lo fija.
    */
@@ -224,6 +247,12 @@ function acotar(r: CallToolResult, max: number | undefined): CallToolResult {
   return { ...(r.isError ? { isError: true } : {}), content };
 }
 
+/** Qué hacer sin elicitación en el MCP remoto: ahí no hay variable que la reemplace. */
+const SOLUCION_CONFIRMACION_REMOTO =
+  'Esta herramienta pide la confirmación del usuario en el cliente MCP (elicitación) y este cliente no la ofrece. Díselo al ' +
+  'usuario: que use un cliente MCP que pida confirmaciones, o que anule o registre el CAI con una llave admin desde la API ' +
+  '(o con `npx -y @factura-hn/mcp registrar-cai`).';
+
 const CONFIRMAR = {
   type: 'object' as const,
   properties: { confirmar: { type: 'boolean' as const, title: 'Confirmo', description: 'Marca para confirmar. Sin marcar, no se hace nada.', default: false } },
@@ -237,12 +266,13 @@ const CONFIRMAR = {
  */
 async function confirmar(s: McpServer, o: OpcionesServidorMCP, mensaje: string, dePrueba: boolean): Promise<CallToolResult | null> {
   if (!s.server.getClientCapabilities()?.elicitation?.form) {
-    if (o.permitirDestructivas || dePrueba) return null;
+    if ((o.permitirDestructivas && !o.remoto) || dePrueba) return null;
     return fallo(
       new ErrorBackend(
         'CONFIRMACION_NO_DISPONIBLE',
         'Tu cliente MCP no puede pedirle confirmación al usuario (no ofrece elicitación), así que esta herramienta no se ejecutó.',
       ),
+      o.remoto ? { CONFIRMACION_NO_DISPONIBLE: SOLUCION_CONFIRMACION_REMOTO } : {},
     );
   }
   let r;
@@ -396,6 +426,8 @@ export function crearServidorMCP(backend: Backend, opciones: OpcionesServidorMCP
         // Antes de anular: el documento existe y el usuario confirma el número y el motivo exactos.
         const actual = await backend.consultar(numero);
         if (!actual) return fallo(new ErrorBackend('NO_ENCONTRADO', `No existe el documento ${numero}.`));
+        // Con una llave de caja no se puede anular: se dice antes de pedirle al usuario que confirme.
+        if ((await backend.rol()) === 'caja') return fallo(new ErrorBackend('SOLO_ADMIN', 'Anular requiere una llave con rol admin.'));
         const dePrueba = esDocumentoDePrueba(actual);
         const negado = await confirmar(
           s,
@@ -446,6 +478,9 @@ export function crearServidorMCP(backend: Backend, opciones: OpcionesServidorMCP
     },
     async (a) => {
       try {
+        // Primero lo que se puede revisar sin registrar (rol, CAI real, rango, fechas): la confirmación se pide solo
+        // si el registro puede hacerse.
+        await backend.revisarCAI(a as AutorizacionCAI);
         const negado = await confirmar(
           s,
           opciones,
@@ -517,6 +552,8 @@ export function crearServidorMCP(backend: Backend, opciones: OpcionesServidorMCP
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ desde, hasta }) => {
+      const periodo = problemasDePeriodo(desde, hasta);
+      if (periodo.length) return falloDeArgumentos(periodo);
       let libro;
       try {
         libro = await backend.libroVentas(desde, hasta);
@@ -525,8 +562,48 @@ export function crearServidorMCP(backend: Backend, opciones: OpcionesServidorMCP
       }
       // Los documentos de prueba no entran en el libro (no tienen valor fiscal): se dice cuántos quedaron fuera.
       const excluidos = libro.excluidos ?? 0;
-      const fuera = excluidos ? `\n${excluidos} documento${excluidos === 1 ? '' : 's'} de prueba no entra${excluidos === 1 ? '' : 'n'} en el libro (${LEYENDA_PRUEBA}).` : '';
-      return okConDatos(`Libro de ventas ${desde} a ${hasta}: ${libro.filas.length} documentos.${fuera}\nResumen:${JSON.stringify(libro.resumen)}`, libro as Record<string, unknown>);
+      const fuera = excluidos ? `\n${excluidos} documento${excluidos === 1 ? '' : 's'} de prueba no entra${excluidos === 1 ? '' : 'n'} en el libro (${LEYENDA_PRUEBA}); para verlos, usa listar_documentos.` : '';
+      const n = libro.filas.length;
+      return okConDatos(`Libro de ventas ${desde} a ${hasta}: ${n} documento${n === 1 ? '' : 's'}.${fuera}\nResumen:${JSON.stringify(libro.resumen)}`, libro as Record<string, unknown>);
+    },
+  );
+
+  s.registerTool(
+    'listar_documentos',
+    {
+      title: 'Listar documentos',
+      description:
+        'Documentos emitidos en un período (también los de prueba y los anulados), por fecha y número: número, estado, ' +
+        `fecha y total. Sin fechas, los últimos ${DIAS_LISTA} días. Para ver uno completo, usa consultar_documento.`,
+      inputSchema: {
+        desde: Fecha.optional().describe(`Desde (YYYY-MM-DD). Por defecto, ${DIAS_LISTA} días antes de hasta.`),
+        hasta: Fecha.optional().describe('Hasta (YYYY-MM-DD), inclusive. Por defecto, hoy.'),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async (a) => {
+      const hasta = a.hasta ?? fechaHonduras(new Date());
+      const desde = a.desde ?? (esFechaValida(hasta) ? new Date(Date.parse(`${hasta}T00:00:00Z`) - (DIAS_LISTA - 1) * 86_400_000).toISOString().slice(0, 10) : hasta);
+      const periodo = problemasDePeriodo(desde, hasta);
+      if (periodo.length) return falloDeArgumentos(periodo);
+      let lista;
+      try {
+        lista = await backend.listarDocumentos(desde, hasta, MAX_LISTA);
+      } catch (e) {
+        return fallo(e);
+      }
+      const { documentos, hayMas } = lista;
+      const n = documentos.length;
+      const encabezado = `Documentos del ${desde} al ${hasta}: ${n}${hayMas ? ` (los primeros ${MAX_LISTA}; hay más: acorta el período)` : ''}.`;
+      if (!n) return ok(`${encabezado} No hay documentos en ese período.`, { documentos: [], hayMas, desde, hasta });
+      const lineas = documentos.map(
+        (d) => `${d.numero} · ${d.nombreDocumento} · ${d.estado} · ${d.fechaEmision} · total L ${d.totales.total.toFixed(2)}${esDocumentoDePrueba(d) ? ` · ${LEYENDA_PRUEBA}` : ''} · ${d.cliente?.nombreImpreso ?? ''}`,
+      );
+      const resumenes = documentos.map((d) => ({
+        numero: d.numero, tipoDocumento: d.tipoDocumento, nombreDocumento: d.nombreDocumento, estado: d.estado, fechaEmision: d.fechaEmision,
+        total: d.totales.total, cliente: d.cliente?.nombreImpreso ?? null, prueba: esDocumentoDePrueba(d),
+      }));
+      return okConDatos(`${encabezado}\n${comoDatos(lineas.join('\n'))}`, { documentos: resumenes, hayMas, desde, hasta });
     },
   );
 
