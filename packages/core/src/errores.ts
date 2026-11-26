@@ -57,8 +57,8 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   ULTIMO_EMITIDO_ANTES:
     'Indica el último correlativo de esta autorización que emitiste fuera de este sistema; si no emitiste ninguno, omite el campo.',
   TIPO_NO_EMITIBLE: 'Ese documento no se emite por sistema computarizado. Emítelo por la vía que fija el Reglamento (imprenta o máquina registradora).',
-  TIPO_NO_SOPORTADO: "Esta versión emite '01' (factura), '06' (nota de crédito) y '07' (nota de débito).",
-  CORRELATIVO_FUERA_DE_RANGO: 'Usa `emitir`: elige el correlativo dentro del rango vigente sin que lo calcules.',
+  TIPO_NO_SOPORTADO: "Emite con `tipoDocumento` '01' (factura), '06' (nota de crédito) o '07' (nota de débito): son los que emite factura-hn.",
+  CORRELATIVO_FUERA_DE_RANGO: 'Ese número está fuera del rango autorizado. Usa `emitir`, que toma el siguiente número del rango vigente por ti.',
 
   // Fecha y reloj
   FECHA_EMISION: 'Omite `fechaEmision`: la pone el reloj con la fecha de hoy en Honduras.',
@@ -67,16 +67,16 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
     'Si el reloj de este dispositivo está atrasado, corrígelo. Si el último documento se emitió con el reloj adelantado, anúlalo con `corregirFechaAdelantada`.',
   RELOJ_ADELANTADO_SOSPECHOSO:
     'Revisa el reloj del dispositivo. Si la fecha es correcta (p. ej. el negocio estuvo cerrado), vuelve a emitir con `confirmarSaltoDeFecha: true`.',
-  SIN_DOCUMENTOS_ADELANTADOS: 'No hay nada que corregir en esa serie: no tiene documentos con fecha posterior a hoy.',
+  SIN_DOCUMENTOS_ADELANTADOS: 'No hay nada que corregir: esa serie no tiene documentos con fecha posterior a hoy. Sigue emitiendo con normalidad.',
 
   // Emisor
   EMISOR: 'Pasa los datos del emisor: rtn, razonSocial, nombreComercial, direccionCasaMatriz, direccionEstablecimiento, telefono y correo.',
   EMISOR_RTN: 'Usa el RTN del emisor de 14 dígitos, con o sin guiones.',
   EMISOR_NOMBRE: 'Indica la razón social o el nombre del emisor tal como está en el RTN.',
   EMISOR_NOMBRE_COMERCIAL: 'Indica el nombre comercial; si no tiene uno distinto, repite la razón social.',
-  EMISOR_DIRECCION: 'Indica la dirección de la casa matriz.',
-  EMISOR_DIRECCION_ESTABLECIMIENTO: 'Indica la dirección del establecimiento del punto de emisión (puede ser la de casa matriz).',
-  EMISOR_TELEFONO: 'Indica el teléfono del emisor.',
+  EMISOR_DIRECCION: 'Indica la dirección de la casa matriz en `direccionCasaMatriz`.',
+  EMISOR_DIRECCION_ESTABLECIMIENTO: 'Indica en `direccionEstablecimiento` la dirección del establecimiento que emite (puede ser la de casa matriz).',
+  EMISOR_TELEFONO: 'Indica el teléfono del emisor en `telefono`.',
   EMISOR_CORREO: 'Indica el correo del emisor registrado en el contrato de adhesión, con la forma nombre@dominio.',
 
   // Cliente

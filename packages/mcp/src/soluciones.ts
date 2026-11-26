@@ -2,7 +2,7 @@
  * Qué hacer ante cada error, y el enlace a su entrada en la guía de errores (`docs/errores.md`, un encabezado
  * `### CODIGO` por código). El texto está escrito para el asistente, que se lo explica al usuario.
  */
-import type { Problema } from 'factura-hn';
+import { SOLUCIONES as SOLUCIONES_SDK, type Problema } from 'factura-hn';
 
 const GUIA = 'https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md';
 
@@ -80,7 +80,10 @@ const SOLUCION_CAMPO: Record<string, string> = {
   numeroOriginal: 'El número del original tiene 16 dígitos con guiones, p. ej. 000-001-01-00000001. Verifícalo con el usuario.',
 };
 
-/** Texto de solución del código: el propio o, si no hay, uno general que remite a la guía. */
+/**
+ * Texto de solución del código: el propio del MCP; si no hay, el del SDK; y si tampoco, uno general que dice qué
+ * revisar.
+ */
 export function solucionPara(p: Pick<Problema, 'codigo' | 'campo'>): string {
   const delCampo = p.codigo === 'SOLICITUD_INVALIDA' && p.campo ? SOLUCION_CAMPO[p.campo.split('.')[0]!] : undefined;
   if (delCampo) return delCampo;
@@ -88,7 +91,11 @@ export function solucionPara(p: Pick<Problema, 'codigo' | 'campo'>): string {
   if (propia) return propia;
   if (p.codigo.startsWith('EMISOR_')) return 'Corrige ese dato en emisor.json (FHN_EMISOR) y reinicia el servidor MCP.';
   if (p.codigo.startsWith('REFERENCIA_')) return 'Revisa con el usuario el documento original: número, CAI, fecha y cliente deben ser los del original.';
-  return p.campo ? `Revisa el campo ${p.campo} con el usuario y corrígelo. Detalle en la guía.` : 'Detalle y solución en la guía.';
+  const delSdk = Object.prototype.hasOwnProperty.call(SOLUCIONES_SDK, p.codigo) ? SOLUCIONES_SDK[p.codigo] : undefined;
+  if (delSdk) return delSdk;
+  return p.campo
+    ? `Revisa con el usuario el dato de ${p.campo}, corrígelo según el mensaje y vuelve a llamar la herramienta.`
+    : 'Explícale el mensaje al usuario, corrige con él el dato que nombra y vuelve a intentarlo. La guía tiene el detalle.';
 }
 
 /** El problema con su solución y su enlace, para el resultado de la herramienta. */

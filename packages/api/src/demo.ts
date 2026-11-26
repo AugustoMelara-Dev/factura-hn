@@ -41,7 +41,7 @@ export interface ConfigDemo {
   secreto: Buffer;
 }
 
-/** Origen por defecto de CORS: el sitio de la documentación, donde vive la página «Pruébalo ahora». */
+/** Origen por defecto de CORS: el sitio de la documentación. */
 export const ORIGENES_DEMO_POR_DEFECTO = ['https://augustomelara-dev.github.io'] as const;
 
 export const RUTA_ENTORNOS_DEMO = '/v1/demo/entornos';

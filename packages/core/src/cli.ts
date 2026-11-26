@@ -6,7 +6,7 @@
  *   npx factura-hn init     crea emitir.mjs y emisor.json en el directorio actual
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { crearFacturadorDemo, LEYENDA_PRUEBA } from './demo';
 import { esErrorValidacion } from './documento';
 import { formatearMonto } from './dinero';
@@ -32,7 +32,8 @@ Comandos:
                     ticket y escribe factura-demo.html en este directorio (si ya existe,
                     factura-demo-2.html, y así: nunca sobrescribe).
   init, iniciar     Crea emitir.mjs (un ejemplo que emite y guarda factura.html) y emisor.json (datos
-                    ficticios del negocio) en este directorio. No sobrescribe nada salvo con --forzar.
+                    ficticios del negocio) en este directorio, sin preguntas. Si ya existen con otro
+                    contenido, no toca nada; --forzar los reemplaza.
   ayuda, --help     Muestra esta ayuda.
   version           Muestra la versión.
 
@@ -124,33 +125,76 @@ Siguientes pasos:
      (@factura-hn/sqlite o @factura-hn/postgres). Guía: ${GUIA}`);
 }
 
+/**
+ * Si `node emitir.mjs` encontrará `factura-hn` desde `dir`: un `import` de ESM lo busca en `node_modules` de la
+ * carpeta y de las de arriba (no en NODE_PATH, como `require`).
+ */
+function instaladoEn(dir: string): boolean {
+  for (let d = dir; ; d = dirname(d)) {
+    if (existsSync(join(d, 'node_modules', 'factura-hn', 'package.json'))) return true;
+    if (dirname(d) === d) return false;
+  }
+}
+
+/** El comando que instala factura-hn con el gestor de paquetes que ya usa el proyecto (npm si no hay otro). */
+function comandoInstalar(dir: string): string {
+  for (let d = dir; ; d = dirname(d)) {
+    if (existsSync(join(d, 'pnpm-lock.yaml'))) return 'pnpm add factura-hn';
+    if (existsSync(join(d, 'yarn.lock'))) return 'yarn add factura-hn';
+    if (existsSync(join(d, 'bun.lock')) || existsSync(join(d, 'bun.lockb'))) return 'bun add factura-hn';
+    if (existsSync(join(d, 'package-lock.json')) || dirname(d) === d) return 'npm install factura-hn';
+  }
+}
+
 function init(dir: string, forzar: boolean): number {
   const archivos: Array<[string, string]> = [
     ['emitir.mjs', EMITIR_MJS],
     ['emisor.json', JSON.stringify(EMISOR_PLANTILLA, null, 2) + '\n'],
   ];
-  const existentes = archivos.filter(([nombre]) => existsSync(join(dir, nombre))).map(([nombre]) => nombre);
-  if (existentes.length && !forzar) {
-    console.error(`Ya ${existentes.length > 1 ? 'existen' : 'existe'} ${existentes.join(' y ')} en ${dir}: no se tocó nada. Para reemplazarlos, usa: npx factura-hn init --forzar`);
+  // Un archivo igual al que se crearía no estorba: init se puede correr dos veces.
+  const distintos = archivos
+    .filter(([nombre, contenido]) => existsSync(join(dir, nombre)) && readFileSync(join(dir, nombre), 'utf8') !== contenido)
+    .map(([nombre]) => nombre);
+  if (distintos.length && !forzar) {
+    const verbo = distintos.length > 1 ? 'existen' : 'existe';
+    console.error(
+      `Ya ${verbo} ${distintos.join(' y ')} en ${dir}, con otro contenido: no se tocó nada.\n` +
+        'Para reemplazar los dos con el ejemplo, corre: npx factura-hn init --forzar\n' +
+        'O corre init en una carpeta vacía.',
+    );
     return 1;
   }
   for (const [nombre, contenido] of archivos) writeFileSync(join(dir, nombre), contenido);
-  console.log(`Se crearon emitir.mjs y emisor.json en ${dir}.
-
-Siguientes pasos:
-  1. node emitir.mjs     emite una factura de prueba: imprime el ticket en la consola, con su número y
-                         total, y escribe factura.html con la leyenda «${LEYENDA_PRUEBA}».
-  2. Cambia emisor.json por los datos de tu negocio. Para emitir de verdad, registra el CAI de tu
-     resolución del SAR y usa un almacén que guarde. Guía: ${GUIA}
-
-emitir.mjs es un módulo ESM (import y await de nivel superior). Necesita factura-hn instalado en este
-proyecto: si node dice que no lo encuentra, corre antes npm install factura-hn.`);
+  console.log(`Listo: creé emitir.mjs y emisor.json en ${dir} (modo de prueba, CAI ficticio).`);
+  if (instaladoEn(dir)) {
+    console.log('Ahora corre: node emitir.mjs');
+    console.log(`Para emitir de verdad, cambia emisor.json por los datos de tu negocio y registra tu CAI. Guía: ${GUIA}`);
+  } else {
+    // npx trae factura-hn solo para este comando: emitir.mjs lo importa, así que se instala en el proyecto.
+    console.log(`Ahora corre: ${comandoInstalar(dir)}`);
+    console.log('Y después:   node emitir.mjs');
+  }
   return 0;
+}
+
+/** Versión mínima de Node (la de `engines` del paquete). */
+const NODE_MINIMO = 20;
+
+/** El mensaje para quien corre la CLI en un Node anterior al mínimo, o null. */
+function problemaDeNode(version: string): string | null {
+  const mayor = Number.parseInt(version.split('.')[0] ?? '', 10);
+  if (!(mayor < NODE_MINIMO)) return null;
+  return `factura-hn necesita Node ${NODE_MINIMO} o más reciente, y tienes ${version}. Instala la versión LTS de https://nodejs.org y vuelve a correr el comando.`;
 }
 
 const COMANDOS = new Set(['demo', 'init', 'iniciar', 'ayuda', '--help', '-h', 'help', 'version', '--version', '-v']);
 
 export async function principal(args: string[], dir = process.cwd()): Promise<number> {
+  const node = problemaDeNode(process.versions.node);
+  if (node) {
+    console.error(node);
+    return 1;
+  }
   const [comando = 'ayuda', ...resto] = args;
   const opciones = new Set(resto);
   // Solo init acepta una opción (--forzar). Cualquier otra, o una errata, es un error: no se adivina.
@@ -195,8 +239,15 @@ principal(process.argv.slice(2)).then(
     process.exitCode = codigo;
   },
   (e: unknown) => {
+    const codigo = (e as { code?: unknown } | null)?.code;
     if (esErrorValidacion(e)) console.error(e.message);
-    else console.error(e instanceof Error ? e.message : e);
+    else if (codigo === 'EACCES' || codigo === 'EPERM' || codigo === 'EROFS') {
+      const ruta = (e as { path?: unknown }).path;
+      console.error(
+        `No se pudo escribir ${typeof ruta === 'string' ? ruta : 'en esta carpeta'}: no hay permiso. ` +
+          'Corre el comando en una carpeta tuya (p. ej. una carpeta nueva en tu escritorio), o cierra el programa que tenga abierto el archivo.',
+      );
+    } else console.error(e instanceof Error ? e.message : e);
     process.exitCode = 1;
   },
 );

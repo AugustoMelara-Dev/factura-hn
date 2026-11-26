@@ -67,7 +67,7 @@ export function formatearNumero(partes: {
 export function parsearNumero(numero: string): PartesNumero {
   const limpio = numero.replace(/[\s-]/g, '');
   if (!/^\d{16}$/.test(limpio)) {
-    throw new RangeError(`El número de documento debe tener 16 dígitos: "${numero}"`);
+    throw new RangeError(`El número de documento debe tener 16 dígitos, con o sin guiones (p. ej. 000-001-01-00000001): "${numero}"`);
   }
   const tipo = limpio.slice(6, 8) as CodigoTipoDocumento;
   if (!(tipo in TIPOS_DOCUMENTO)) throw new RangeError(`Tipo de documento desconocido: ${tipo}`);

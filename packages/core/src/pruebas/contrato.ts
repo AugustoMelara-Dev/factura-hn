@@ -421,7 +421,7 @@ export function ejecutarContratoAlmacen(t: FuncionesDePrueba, config: ConfigCont
       }
     }), 30_000);
 
-    t.it('el tope de la nota de crédito por tasa suma las notas previas guardadas (Art. 4 num. 32; interpretación en consulta)', conAlmacen(async (a) => {
+    t.it('el tope de la nota de crédito por tasa suma las notas previas guardadas (Art. 4 num. 32)', conAlmacen(async (a) => {
       await registrarAutorizacion(a, D.autorizacion('CAI-F', 1, 100));
       await registrarAutorizacion(a, D.autorizacion('CAI-NC1', 1, 100, { tipoDocumento: '06' }));
       const cliente = { nombre: 'Cliente de Prueba', rtn: '99990000000002' };

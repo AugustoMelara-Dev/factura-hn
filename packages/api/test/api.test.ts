@@ -188,7 +188,7 @@ conBase('flujo completo', () => {
     expect((await json(nc)).documento.numero).toBe('000-001-06-00000001');
   });
 
-  it('una NC que supera el original es 422 para todos (Art. 4 num. 32, lectura de factura-hn); sobre un original externo solo la emite una admin (política de seguridad de la API, no una regla fiscal); el número no se pierde', async () => {
+  it('una NC que supera el original es 422 para todos (Art. 4 num. 32); sobre un original externo solo la emite una admin (política de seguridad de la API, no una regla fiscal); el número no se pierde', async () => {
     const { app, admin } = await tenantListo();
     const caja = cliente(app, await crearCaja(admin, '001'));
     const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '99990000000002' }, lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' }] } })))).documento;

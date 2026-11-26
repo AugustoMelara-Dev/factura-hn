@@ -7,8 +7,8 @@
  *   supera la suma de precios (cobrar de más «se considerará como hurto»);
  * - Reglamento Art. 12: lo gravado con alícuota cero no lleva ISV.
  *
- * Las propiedades de redondeo del ISV por grupo de tasa (no por línea) siguen la lectura documentada en
- * calculo.ts (lectura de factura-hn); no la vuelven regla.
+ * Las propiedades de redondeo del ISV por grupo de tasa (no por línea) siguen la regla documentada en
+ * calculo.ts (Art. 11 h-i).
  */
 import { describe, expect, it } from 'vitest';
 import {
