@@ -11,9 +11,9 @@
  * 4. El buscador (el índice de Pagefind generado, consultado con su propia API) encuentra «CAI», «nota de
  *    crédito» y «rango».
  * 5. Los comandos de las páginas del producto son los del README (no pueden desincronizarse de los pasos probados).
- * 6. La portada (src/pages/): tiene su `.md`, lleva la etiqueta viewport, no carga JavaScript externo (solo el
- *    script en línea del botón «Copiar») ni estilos de tema oscuro. Su CSS no tiene anchos fijos de más de 375 px,
- *    para que quepa en un teléfono.
+ * 6. La portada (src/pages/): tiene su `.md`, lleva la etiqueta viewport, no carga islas de un framework ni más
+ *    JavaScript que el script en línea del botón «Copiar» y el de la demo (el SDK empaquetado, con un límite de
+ *    peso), ni estilos de tema oscuro. Su CSS no tiene anchos fijos de más de 375 px, para que quepa en un teléfono.
  *
  * Sale con 1 y la lista de problemas si algo falla.
  */
@@ -148,6 +148,8 @@ for (const linea of [...COMANDOS, ...MCP_HTTP, ...lineasPortada].map((l) => l.tr
 }
 
 // --- 6. Páginas del producto --------------------------------------------------------------------------------
+/** Peso máximo del script de la demo sin comprimir. Hoy es el SDK minificado (~64 KB): margen para que crezca un poco. */
+const JS_DEMO_MAX = 90_000;
 for (const { ruta } of PAGINAS_PRODUCTO) {
   const pagina = ruta ? `${ruta}/index.html` : 'index.html';
   const md = `${ruta || 'index'}.md`;
@@ -159,10 +161,18 @@ for (const { ruta } of PAGINAS_PRODUCTO) {
   const contenido = readFileSync(join(SALIDA, pagina), 'utf8');
   if (!/<meta name="viewport" content="width=device-width, initial-scale=1"/.test(contenido)) errores.push(`${pagina}: falta la etiqueta viewport`);
   if (!/<html lang="es"/.test(contenido)) errores.push(`${pagina}: falta lang="es" en <html>`);
-  // Sin islas ni scripts propios: el único JavaScript es el script en línea del botón «Copiar» (y el de prefetch de
-  // Astro, `_astro/page.*.js`, que Starlight activa en todo el sitio).
+  // Sin islas de un framework (React y compañía). JavaScript: el script en línea del botón «Copiar», el de prefetch de
+  // Astro (`_astro/page.*.js`, que Starlight activa en todo el sitio) y el de la demo (components/producto/Demo.astro:
+  // el SDK empaquetado, sin dependencias), que no puede pasar de JS_DEMO_MAX bytes.
   const scripts = [...contenido.matchAll(/<script[^>]*\ssrc="([^"]*)"/g)].map((m) => m[1]).filter((src) => !/\/_astro\/page\.[\w-]+\.js$/.test(src));
-  if (/<astro-island\b/.test(contenido) || scripts.length) errores.push(`${pagina}: carga JavaScript externo (solo se permite el script en línea de «Copiar»)`);
+  const demo = scripts.filter((src) => /\/_astro\/Demo\.astro_astro_type_script_[\w.-]+\.js$/.test(src));
+  if (/<astro-island\b/.test(contenido)) errores.push(`${pagina}: tiene una isla de un framework (la demo va sin React)`);
+  if (scripts.length > demo.length) errores.push(`${pagina}: carga JavaScript externo que no es el de la demo: ${scripts.filter((s) => !demo.includes(s)).join(', ')}`);
+  for (const src of demo) {
+    const archivoJs = src.startsWith(`${BASE}/`) && join(SALIDA, src.slice(BASE.length));
+    const bytes = archivoJs && existsSync(archivoJs) ? statSync(archivoJs).size : 0;
+    if (bytes > JS_DEMO_MAX) errores.push(`${pagina}: el script de la demo pesa ${Math.round(bytes / 1000)} KB (máximo ${JS_DEMO_MAX / 1000} KB)`);
+  }
   if (!/<html[^>]*data-theme="light"/.test(contenido)) errores.push(`${pagina}: <html> sin data-theme="light" (el sitio tiene un solo tema, claro)`);
   const css = [...contenido.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
   const peso = css.reduce((t, href) => t + (href.startsWith(`${BASE}/`) && existsSync(join(SALIDA, href.slice(BASE.length))) ? statSync(join(SALIDA, href.slice(BASE.length))).size : 0), 0);
