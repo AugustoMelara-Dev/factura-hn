@@ -258,13 +258,26 @@ describe.skipIf(!URL_PG)('entregas', () => {
   it('un receptor que responde byte a byte no pasa del tiempo máximo ni retrasa a otro tenant', async () => {
     const http = await import('node:http');
     // Receptor lento: responde una cabecera válida de a un byte cada 50 ms, sin terminarla nunca.
+    // Se mide cuánto queda abierta su conexión: es lo que acota `tiempoMaximo`. La pasada completa también consulta
+    // la base, y en un equipo cargado eso solo puede tardar más que el tope sin que el tope falle.
     const sockets = new Set<import('node:net').Socket>();
     const lento = http.createServer();
+    let conectado!: () => void;
+    const conexion = new Promise<void>((r) => (conectado = r));
+    let cerrado!: () => void;
+    const cierre = new Promise<void>((r) => (cerrado = r));
+    let abierta = -1;
     lento.on('connection', (s) => {
       sockets.add(s);
+      const desde = Date.now();
+      conectado();
       s.write('HTTP/1.1 200 OK\r\nX-Goteo: ');
       const goteo = setInterval(() => s.writable && s.write('a'), 50);
-      s.on('close', () => clearInterval(goteo));
+      s.on('close', () => {
+        clearInterval(goteo);
+        abierta = Date.now() - desde;
+        cerrado();
+      });
     });
     let rapidoRecibio = 0;
     const rapido = http.createServer((req, res) => {
@@ -287,13 +300,15 @@ describe.skipIf(!URL_PG)('entregas', () => {
 
       // Tope total por entrega: con 300 ms, la entrega lenta termina en «Tiempo agotado» poco después.
       const enCurso = new Set<string>();
-      const inicio = Date.now();
       const pasada = despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso });
-      // Mientras el tenant lento está en curso, otra pasada lo omite y atiende al otro.
-      await new Promise((r) => setTimeout(r, 50));
+      // Mientras el receptor lento tiene la conexión abierta, su tenant está en curso.
+      await conexion;
       expect(enCurso.has(a.tenant)).toBe(true);
       await pasada;
-      expect(Date.now() - inicio).toBeLessThan(2_000);
+      // El goteo nunca termina la respuesta: sin el tope, la conexión seguiría abierta los 10 s del tope por omisión.
+      await cierre;
+      expect(abierta).toBeGreaterThanOrEqual(250);
+      expect(abierta).toBeLessThan(2_000);
       expect(enCurso.size).toBe(0);
       const estado = async (t: string) => (await pool.query('SELECT estado, ultimo_error FROM api_entregas WHERE tenant = $1', [t])).rows;
       expect(await estado(a.tenant)).toEqual([{ estado: 'PENDIENTE', ultimo_error: 'Tiempo agotado' }]);
