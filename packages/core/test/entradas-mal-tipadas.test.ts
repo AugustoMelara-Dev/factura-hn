@@ -96,7 +96,7 @@ describe('entradas mal tipadas: un ErrorValidacion con código, nunca un TypeErr
   const grande = { descripcion: 'Refrigeradora', cantidad: '1', precioUnitario: '20000.00' };
   const nota = (extra: Record<string, unknown>) =>
     venta({
-      tipoDocumento: '06', motivo: 'x', cliente: { nombre: 'Ana', rtn: '08011999123456' },
+      tipoDocumento: '06', motivo: 'x', cliente: { nombre: 'Ana', rtn: '99990000000002' },
       referencia: { cai: 'X', numero: '000-001-01-00000001', fecha: '2026-01-01' }, ...extra,
     });
 
@@ -109,7 +109,7 @@ describe('entradas mal tipadas: un ErrorValidacion con código, nunca un TypeErr
       ['LINEA', () => emitir(linea({ unidad: 5 }), { almacen, ...caja })],
       ['CLIENTE', () => emitir(venta({ cliente: 'Juan' }), { almacen, ...caja })],
       ['CLIENTE_NOMBRE', () => emitir(venta({ cliente: { nombre: 5 } }), { almacen, ...caja })],
-      ['CLIENTE_RTN', () => emitir(venta({ cliente: { nombre: 'Ana', rtn: 8011999123456 } }), { almacen, ...caja })],
+      ['CLIENTE_RTN', () => emitir(venta({ cliente: { nombre: 'Ana', rtn: 9999000000002 } }), { almacen, ...caja })],
       ['EMISOR_NOMBRE', () => emitir({ ...venta({}), emisor: { ...EMISOR_DEMO, razonSocial: 5 } } as unknown as DocumentoEntrada, { almacen, ...caja })],
       ['CLIENTE_IDENTIFICACION', () =>
         emitir(venta({ lineas: [grande], cliente: { nombre: 'Ana', identificacion: { tipo: 'XYZ', numero: '1' } } }), { almacen, ...caja })],

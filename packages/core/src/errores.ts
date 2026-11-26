@@ -84,7 +84,7 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   EMISOR_CORREO: 'Indica el correo del emisor registrado en el contrato de adhesión, con la forma nombre@dominio.',
 
   // Cliente
-  CLIENTE: "Pasa el cliente como objeto: `cliente: { nombre: 'Juan Pérez', rtn: '08011999123456' }`, con textos en cada campo, u omítelo (CONSUMIDOR FINAL).",
+  CLIENTE: "Pasa el cliente como objeto: `cliente: { nombre: 'Juan Pérez', rtn: '99990000000002' }`, con textos en cada campo, u omítelo (CONSUMIDOR FINAL).",
   CLIENTE_RTN: 'Usa el RTN del cliente de 14 dígitos, con o sin guiones, o quita el campo si el cliente no lo pidió.',
   CLIENTE_DNI: 'Usa el DNI del cliente de 13 dígitos, con o sin guiones.',
   CLIENTE_IDENTIFICACION:
