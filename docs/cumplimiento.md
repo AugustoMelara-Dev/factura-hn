@@ -13,7 +13,7 @@ PostgreSQL. El sitio publica esta matriz en https://augustomelara-dev.github.io/
 | # | Requisito | factura-hn | Prueba |
 |---|---|---|---|
 | 4.7 | El CAI es una serie alfanumérica generada electrónicamente | ✅ Letras, dígitos y guiones; el patrón 6-6-6-6-6-2 con `caiEstricto` | `factura.test.ts` «Art. 4 num. 7: CAI con otra forma …» y «Art. 4 num. 7: un carácter …» |
-| 4.31-32 | Nota de Crédito y de Débito vinculadas a un Comprobante Fiscal | ✅ El original en el almacén debe existir, no estar anulado y tener el mismo CAI, fecha y RTN. La suma de las notas de crédito no supera su total ni cambia la tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`). Un original de otro sistema da `AVISO_ORIGINAL_EXTERNO` | `notas-coherencia.test.ts`; `nota-credito-tope.test.ts`; contrato `factura-hn/pruebas` «notas de crédito: el acumulado…» |
+| 4.31-32 | Nota de Crédito y de Débito vinculadas a un Comprobante Fiscal | ✅ El original en el almacén debe existir, no estar anulado y tener el mismo CAI, fecha y RTN. factura-hn no deja que la suma de las notas de crédito supere su total ni cambie la tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`). Un original de otro sistema da `AVISO_ORIGINAL_EXTERNO` | `notas-coherencia.test.ts`; `nota-credito-tope.test.ts`; contrato `factura-hn/pruebas` «notas de crédito: el acumulado…» |
 | 4.43 | El Ticket se emite solo por máquina registradora | ✅ El tipo 09 da `TIPO_NO_EMITIBLE` | `requisitos-documento.test.ts` «tipos que un sistema computarizado no puede emitir …» |
 | 5 | Original y copia | ✅ Destino impreso; la copia reimpresa es idéntica al original | `pdf.test.ts` «Art. 38: la copia reimpresa …»; contrato `factura-hn/pruebas` «emite correlativos consecutivos y el documento guardado es idéntico al emitido» |
 | 9 | Sistemas computarizados: un documento por venta, sin el mínimo de L 50 al día | ✅ Sin consolidación diaria | `matriz.test.ts` «Art. 9 …» |
@@ -22,7 +22,7 @@ PostgreSQL. El sitio publica esta matriz en https://augustomelara-dev.github.io/
 | 10.3-5 | CAI, fecha límite y rango autorizado impresos | ✅ | `matriz.test.ts` «Art. 10 num. 2-6»; `factura.test.ts` «HTML con campos obligatorios y escapado» |
 | 10.6 | Destino de los ejemplares | ✅ | `matriz.test.ts` «Art. 10 num. 2-6» |
 | 10.7 | Número `NNN-NNN-NN-NNNNNNNN`; la serie inicia en 00000001 por identificador | ✅ Una serie por identificador; un rango que cruce 99999999 se rechaza | `matriz.test.ts` «Art. 10 num. 7 …»; contrato `factura-hn/pruebas` «continúa la numeración …», «cada identificador … su propia serie» |
-| 10.8 / 11.4 | Adquirente exonerado: Orden de Compra Exenta y Constancia de Registro de Exonerados, o registro SAG/RUPNSA | ✅ `exoneracion` con OCE y constancia, o `registroSAG` | `requisitos-documento.test.ts` «adquirente exonerado …» |
+| 10.8 / 11.4 | Adquirente exonerado: Orden de Compra Exenta, Constancia de Registro de Exonerados y registro SAG/RUPNSA | ✅ `exoneracion` con OCE y constancia, o con `registroSAG`: factura-hn acepta cualquiera de las dos formas | `requisitos-documento.test.ts` «adquirente exonerado …» |
 | 10.10 | Descuentos y rebajas otorgados | ✅ | `matriz.test.ts` «Art. 10 num. 10 …» |
 | 11.1 a-c | Crédito fiscal: nombre, RTN del cliente y fecha | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» |
 | 11.1 d-f | Descripción, cantidad y valor unitario | ✅ | `matriz.test.ts` «Art. 11 num. 1 …» |
@@ -68,4 +68,4 @@ PostgreSQL. El sitio publica esta matriz en https://augustomelara-dev.github.io/
 | ISV 3 | Los descuentos que constan en la factura no forman parte de la base gravable | ✅ | `matriz.test.ts` «Ley del ISV Art. 3 …» |
 | ISV 6 | Tasas de 15 % y 18 % (Decreto 278-2013, Art. 16) | ✅ `ISV15` e `ISV18`, por producto | `factura.test.ts` «precios sin ISV, tasas mixtas y descuento» |
 | ISV 9 | Redondeo: una fracción menor de 0.005 se baja; desde 0.005 puede subirse | ✅ Sobre la base impresa; con precios con ISV incluido, el total puede quedar un centavo abajo, nunca arriba | `art9-redondeo.test.ts` |
-| ISV 9 | Redondeo por grupo de tasa, con subtotales por tarifa (Reglamento Art. 11 num. 1 h-i) | ✅ | `matriz.test.ts` «Ley del ISV Art. 9 …» |
+| ISV 9 | Redondeo del ISV, con subtotales por tarifa (Reglamento Art. 11 num. 1 h-i) | ✅ factura-hn redondea por grupo de tasa | `matriz.test.ts` «Ley del ISV Art. 9 …» |

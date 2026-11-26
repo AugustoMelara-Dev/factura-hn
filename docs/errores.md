@@ -569,14 +569,15 @@ moneda: la mayoría de estos errores desaparecen.
   disponible (por tasa, si es el tope de una tasa).
 - **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
   línea la misma tasa que en el original.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente): no se devuelve ni se
-  descuenta más de lo vendido, ni a otra tasa.
+- **Base:** regla de factura-hn: las notas no devuelven ni descuentan más de lo vendido, ni a otra tasa. La nota
+  ajusta el comprobante correspondiente (Reglamento, Art. 4 num. 32).
 
 ### NOTA_TASA_DISTINTA
 
 - **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
 - **Solución:** usa en cada línea el mismo tratamiento de ISV que en el original.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente).
+- **Base:** regla de factura-hn: la nota no cambia la tasa del original. La nota ajusta el comprobante
+  correspondiente (Reglamento, Art. 4 num. 32).
 
 ## SDK: anulación y consulta
 
@@ -584,7 +585,8 @@ moneda: la mayoría de estos errores desaparecen.
 
 - **Qué significa:** se pidió anular (o corregir una fecha adelantada) sin motivo.
 - **Solución:** indica por qué se anula; queda en el documento y en la bitácora.
-- **Base:** Reglamento, Art. 41 (anulación) y Art. 53 num. 2 (pistas de auditoría).
+- **Base:** factura-hn exige el motivo para la bitácora (los controles de auditoría del Reglamento, Art. 53
+  num. 2). La anulación es la del Art. 41.
 
 ### YA_ANULADO
 
@@ -598,8 +600,8 @@ moneda: la mayoría de estos errores desaparecen.
   vigentes. El mensaje dice cuáles. Anularlo dejaría en el libro de ventas una nota sin venta (importes negativos).
 - **Solución:** anula primero las notas de crédito y débito vigentes que indica el mensaje (con su propio motivo) y
   después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.
-- **Base:** Reglamento, Art. 41 (anulación) y Art. 4 num. 32 (la nota respalda un ajuste sobre el comprobante
-  correspondiente). Es la regla inversa de [`REFERENCIA_ANULADA`](#referencia_anulada).
+- **Base:** regla de factura-hn, la inversa de [`REFERENCIA_ANULADA`](#referencia_anulada): una nota vigente no
+  se queda sin su documento. La anulación es la del Reglamento, Art. 41.
 
 ### DOCUMENTO_NO_ENCONTRADO
 
@@ -658,7 +660,8 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** el original se emitió sin RTN del adquirente (por ejemplo, a CONSUMIDOR FINAL). La nota se
   emite con el RTN que indiques, que el original no tenía.
 - **Qué hacer:** confirma que la nota corresponde al mismo cliente.
-- **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente).
+- **Base:** la nota lleva nombre y RTN del adquirente (Reglamento, Arts. 26 y 28). factura-hn acepta el RTN que
+  indiques y emite este aviso.
 
 ### AVISO_NOTA_EXONERACION_DISTINTA
 
@@ -667,8 +670,8 @@ moneda: la mayoría de estos errores desaparecen.
   `importeExonerado` +100.
 - **Qué hacer:** si el original es exonerado, copia su `exoneracion` en la nota; si no lo es, quita `exoneracion`
   de la nota. El aviso trae esa `solucion`.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente) y Art. 11 num. 4 (datos del
-  adquirente exonerado).
+- **Base:** aviso de factura-hn, para que el libro de ventas cuadre. Los datos del adquirente exonerado son los
+  del Reglamento, Art. 11 num. 4.
 
 ### AVISO_VENCIMIENTO
 

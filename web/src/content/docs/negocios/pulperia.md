@@ -34,7 +34,7 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
 - **Arriba de L 10,000**, la venta a consumidor final lleva el nombre y la identificación del cliente (Art. 11,
   párrafo final). factura-hn lo exige (`CONSUMIDOR_FINAL_IDENTIFICACION`).
 - **Precios con ISV incluido y el centavo.** Con algunos precios no hay una base exacta y el total
-  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Por eso se cobra siempre
+  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más. Por eso se cobra siempre
   `totales.total` y se calcula antes con `cotizar`. Para evitar el ajuste, `sugerirPrecioSinAjuste` propone precios
   que no lo necesitan.
 - **Papel térmico.** Antes de imprimir en papel térmico, el Art. 38 pide la certificación del proveedor del papel

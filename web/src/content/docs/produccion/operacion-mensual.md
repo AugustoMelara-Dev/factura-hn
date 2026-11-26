@@ -108,7 +108,7 @@ Cómo cuenta los plazos:
 
 - Sin `evento`, solo reporta las autorizaciones **vencidas** con números libres. Una autorización vigente todavía
   se puede usar.
-- Para el vencimiento, el acontecimiento es la fecha límite misma: así el aviso nunca queda tarde.
+- Para el vencimiento, factura-hn toma como acontecimiento la fecha límite misma: así el aviso nunca queda tarde.
 - Solo descuenta sábados y domingos. Los feriados de Honduras cambian por decreto y el SDK no los trae: pásalos en
   `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real.
 - No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR.

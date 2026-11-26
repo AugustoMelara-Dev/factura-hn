@@ -33,7 +33,7 @@ El [ejemplo de Express](https://github.com/AugustoMelara-Dev/factura-hn/tree/mai
   en el formulario de compra; si faltan, la API responde 422 con `CONSUMIDOR_FINAL_IDENTIFICACION`.
 - **Crédito fiscal**: el cliente que lo necesita da su RTN al comprar (Art. 11 num. 1 a-c).
 - **Precios con ISV incluido**: con algunos precios no hay una base exacta y el total
-  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Cobra el total que devuelve la API, o cotiza antes de cobrar.
+  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más. Cobra el total que devuelve la API, o cotiza antes de cobrar.
 
 ## Ejemplo: facturar un pedido pagado
 

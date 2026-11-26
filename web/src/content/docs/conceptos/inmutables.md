@@ -97,7 +97,7 @@ La suma de las notas de crédito sobre un documento no puede superar su total
 ([`NOTA_SUPERA_ORIGINAL`](/referencia/errores/#nota_supera_original), con el saldo en el mensaje), ni llevar
 ISV a una tasa que el original no tenía ([`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta)).
 
-El tope sale del Art. 4 num. 32: la nota ajusta el comprobante correspondiente.
+Es una regla de factura-hn: las notas no superan el saldo del documento original.
 
 Los detalles de cada tipo de documento están en [Documentos](/documentos/).
 

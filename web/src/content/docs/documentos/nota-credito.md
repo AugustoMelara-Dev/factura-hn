@@ -115,8 +115,7 @@ tipo de cambio.
 La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV sobre un original exonerado
 (`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
 
-El tope y la regla de la tasa salen del Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así
-que no devuelve más de lo vendido ni a otra tasa.
+factura-hn no deja que las notas superen el saldo del documento original ni cambien su tasa.
 
 ## El RTN del adquirente
 

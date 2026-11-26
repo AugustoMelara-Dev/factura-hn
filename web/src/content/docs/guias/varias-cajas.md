@@ -99,7 +99,8 @@ Si varias personas usan la misma caja, envía el nombre de quien cobra en `opera
 
 `GET /v1/sesion` dice, con la llave de cada caja, si ya puede emitir y qué le falta: emisor, CAI, punto de emisión.
 
-Para un negocio, usa el modo local: la API en un servidor del propio negocio, en su establecimiento (Art. 47).
+Para un negocio, usa el modo local: la API en un servidor del propio negocio, en su establecimiento (el Art. 47
+pide registrar «el establecimiento donde se encuentre el servidor»).
 Ver [Autoalojar la API](/guias/autoalojar/).
 
 ## Errores frecuentes

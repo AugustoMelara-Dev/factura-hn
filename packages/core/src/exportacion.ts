@@ -7,8 +7,7 @@
  * Art. 53 num. 1: «El sistema de facturación debe estar integrado al menos a un sistema contable o de
  * inventarios.»
  *
- * El Reglamento no fija un formato de archivo para autoimpresores: se ofrecen tres formatos abiertos y
- * documentados.
+ * factura-hn ofrece tres formatos abiertos y documentados.
  * Todos los importes se escriben desde centavos enteros, sin punto flotante.
  */
 import { centavosATexto, redondearDecimal, textoSeguroCSV } from './dinero';

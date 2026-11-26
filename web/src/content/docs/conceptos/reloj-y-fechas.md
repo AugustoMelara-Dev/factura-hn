@@ -29,8 +29,8 @@ horaHonduras(instante);  // "23:30"
 ## No se retrofecha
 
 `emitir` toma la fecha del reloj. Si envías `fechaEmision` con otra fecha, falla con
-[`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. La fecha es siempre
-la de hoy, por el momento de emisión (Art. 14) y el archivo en orden cronológico (Art. 43).
+[`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. factura-hn usa
+siempre la fecha de hoy, por el momento de emisión (Art. 14) y el archivo en orden cronológico (Art. 43).
 
 Un documento con la fecha equivocada no se edita: se anula y se emite otro. Ver
 [Documentos inmutables](/conceptos/inmutables/).

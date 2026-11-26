@@ -9,8 +9,8 @@
  * Los descuentos reducen la base antes del ISV (Ley del ISV Art. 3: «No forman parte de la base gravable
  * los descuentos efectivos que consten en la factura»).
  *
- * El ISV se calcula sobre la suma de cada grupo de tasa, no línea por línea: el Art. 11 h-i pide subtotales e
- * impuestos por tarifa, y así el ISV impreso es siempre la tasa × la base impresa.
+ * factura-hn calcula el ISV sobre la suma de cada grupo de tasa, no línea por línea: así el ISV impreso es siempre
+ * la tasa × la base impresa y cuadra con los subtotales e impuestos por tarifa que pide el Art. 11 h-i.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
 import { centavosEnLetras } from './letras';

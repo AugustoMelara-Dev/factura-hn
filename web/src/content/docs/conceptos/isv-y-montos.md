@@ -55,7 +55,7 @@ totales.total;            // 455
 El ISV de cada tasa se calcula sobre la suma de sus líneas, no línea por línea. Así el ISV impreso siempre es
 la tasa por la base impresa, y el total cuadra con la suma de importes más impuestos.
 
-Es lo que pide el Art. 11 num. 1 h-i del Reglamento: subtotales e impuestos por tarifa.
+Así el impreso cuadra con los subtotales e impuestos por tarifa que pide el Art. 11 num. 1 h-i del Reglamento.
 
 ## Precios con ISV incluido
 
@@ -82,7 +82,7 @@ medio centavo o más se puede subir. El SDK calcula siempre el ISV como la tasa 
 
 Con precios con ISV incluido, no todos los totales tienen una base exacta. Por ejemplo, ninguna base da un total
 de L 0.27 al 15 %. En ese caso el SDK toma la mayor base cuyo total no supera el precio: el cliente paga
-**un centavo menos, nunca más** (Art. 9 de la Ley del ISV).
+**un centavo menos, nunca más**. Es la regla de factura-hn para esos precios.
 
 ```js
 import { calcularDocumento, sugerirPrecioSinAjuste } from 'factura-hn';
@@ -130,8 +130,8 @@ aviso [`AVISO_VENTA_MIXTA`](/referencia/errores/#aviso_venta_mixta).
 
 ## Exonerado
 
-Un cliente exonerado presenta la Orden de Compra Exenta **y** la Constancia del Registro de Exonerados, **o**
-solo el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4):
+Los datos del adquirente exonerado son los del Art. 11 num. 4. factura-hn acepta la Orden de Compra Exenta **y**
+la Constancia del Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustrial:
 
 ```js
 exoneracion: { ordenCompraExenta: '…', constanciaRegistroExonerado: '…' }
@@ -139,7 +139,7 @@ exoneracion: { ordenCompraExenta: '…', constanciaRegistroExonerado: '…' }
 exoneracion: { registroSAG: '…' }
 ```
 
-La exoneración aplica al documento completo. Si la Orden de Compra Exenta no cubre todos los
+En factura-hn, la exoneración aplica al documento completo. Si la Orden de Compra Exenta no cubre todos los
 artículos, emite dos facturas: una con `exoneracion` y los artículos cubiertos, y otra normal con el resto.
 
 ## Exportaciones

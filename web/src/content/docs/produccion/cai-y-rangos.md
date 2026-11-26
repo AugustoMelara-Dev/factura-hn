@@ -174,7 +174,7 @@ factura-hn avisa en estos casos:
 
 | Alerta | Cuándo | Fuente |
 |---|---|---|
-| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59 («dentro de los dos (2) meses previos»), en meses de calendario |
+| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59 («dentro de los dos (2) meses previos»); factura-hn los cuenta como meses de calendario |
 | `AVISO_RANGO` | Al usar el 90 % del rango (configurable con `porcentajeAviso`) | factura-hn |
 | `AUTORIZACION_VENCIDA` | Pasó la fecha límite: no se emite más con ese CAI | Art. 62 |
 | `RANGO_AGOTADO` | Se usó el último número del rango | Art. 59 |

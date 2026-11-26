@@ -66,7 +66,7 @@ contenido da `IDEMPOTENCIA_CONFLICTO`.
 a CONSUMIDOR FINAL), pasa `cliente` con el nombre y el RTN del comprador: el núcleo pide nombre y RTN del adquirente en
 toda nota (`NOTA_CLIENTE_RTN`). Si el original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
 
-Una nota con RTN sobre un original emitido sin RTN sale con el aviso `AVISO_ORIGINAL_SIN_RTN` (Arts. 26 y 28).
+Una nota con RTN sobre un original emitido sin RTN sale con el aviso `AVISO_ORIGINAL_SIN_RTN`.
 
 ### `registrar_cai`
 

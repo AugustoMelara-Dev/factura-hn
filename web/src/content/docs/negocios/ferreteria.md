@@ -33,17 +33,18 @@ la moneda extranjera.
 - **Venta al crédito.** Se emite al otorgar el crédito o al entregar, lo primero que ocurra (Art. 14). El documento
   lleva `condicionPago: 'CREDITO'`.
 - **Exonerados.** El documento lleva la Orden de Compra Exenta **y** la Constancia del Registro de Exonerados, **o**
-  el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). Si la Orden de Compra Exenta no cubre
-  todos los artículos, se emiten dos facturas: una exonerada con los cubiertos y otra normal con el resto. La
-  exoneración aplica al documento completo.
+  el registro SAG/RUPNSA del sector agroindustrial: factura-hn acepta cualquiera de las dos formas (datos del
+  Art. 11 num. 4). Si la Orden de Compra Exenta no cubre
+  todos los artículos, se emiten dos facturas: una exonerada con los cubiertos y otra normal con el resto: en
+  factura-hn, la exoneración aplica al documento completo.
 - **Devoluciones.** Una venta correcta con una devolución posterior se corrige con Nota de Crédito (06) sobre la
   factura (Art. 4 num. 32). La nota lleva el nombre y el RTN del adquirente (Arts. 26 y 28) y el CAI, el número y
   la fecha del documento que modifica (Art. 26 num. 3). factura-hn rechaza una nota de crédito que, sumada a las
-  anteriores, supere el original o cambie su tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`): la nota ajusta
-  el comprobante correspondiente (Art. 4 num. 32).
+  anteriores, supere el original o cambie su tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`).
+  Es una regla de factura-hn.
 - **Precios en dólares.** Un documento en moneda extranjera lleva la tasa de cambio vigente a la fecha (Art. 11,
   párrafo final; `tipoCambio`). factura-hn imprime además el equivalente en lempiras. Las notas
-  se emiten solo en lempiras, con el tipo de cambio de la factura original (Arts. 26 num. 9 y 28 num. 8).
+  se emiten solo en lempiras (Arts. 26 num. 9 y 28 num. 8); factura-hn usa el tipo de cambio de la factura original.
 
 ## Ejemplo: venta al crédito y devolución
 

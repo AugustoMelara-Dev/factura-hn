@@ -25,11 +25,11 @@ Crédito.
 ## En qué se diferencia de la Nota de Crédito
 
 - **Puede referir cualquier documento.** El Art. 4 num. 31 la vincula a un comprobante fiscal, pero el Art. 28
-  num. 3 b dice «Comprobante Fiscal **o el documento**»: una Nota de Débito puede modificar una factura, otra Nota
-  de Débito o una Nota de Crédito.
+  num. 3 b dice «Comprobante Fiscal **o el documento**»: factura-hn deja que una Nota de Débito modifique una factura,
+  otra Nota de Débito o una Nota de Crédito.
 - **No lleva firma de quien la recibe.** Ese dato lo pide el Art. 26 num. 7 solo para la Nota de Crédito.
 - **No tiene saldo.** `NOTA_SUPERA_ORIGINAL` y `NOTA_TASA_DISTINTA` se aplican solo a la Nota de Crédito, y una
-  Nota de Débito no amplía el saldo disponible para notas de crédito (Art. 4 num. 32).
+  Nota de Débito no amplía el saldo disponible para notas de crédito.
 
 Lo demás es igual que en la [Nota de Crédito](/documentos/nota-credito/): la coherencia con el original guardado
 (CAI, fecha, RTN, no anulado), la fecha no anterior al original, el aviso para originales de

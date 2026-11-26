@@ -483,8 +483,8 @@ async function anularEnTransaccion(
   if (!doc) throw error('DOCUMENTO_NO_ENCONTRADO', `No existe el documento ${numero}.`, 'numero');
   const anulado = anularDocumento(doc, { motivo, reloj: () => ahora });
   if (doc.tipoDocumento !== '06' && doc.tipoDocumento !== '07') {
-    // Reglamento Arts. 41 y 4 num. 32: un documento con notas vigentes no se anula; primero se anulan las notas (la
-    // regla inversa de REFERENCIA_ANULADA). La serie del documento ya está bloqueada, y una nota la bloquea antes de
+    // factura-hn no anula un documento con notas vigentes: primero se anulan las notas (la regla inversa de
+    // REFERENCIA_ANULADA). La serie del documento ya está bloqueada, y una nota la bloquea antes de
     // leer el original (`bloquearSerieDelOriginal`): las dos no se cruzan.
     const notas = await notasVigentes(tx, doc);
     if (notas.length) {
@@ -665,7 +665,7 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
   if (original.cliente.rtn && rtnNota && rtnNota !== original.cliente.rtn) {
     problemas.push({ codigo: 'REFERENCIA_RTN_NO_COINCIDE', mensaje: `El RTN del adquirente no es el del documento ${numero} (${original.cliente.rtn}).`, campo: 'cliente.rtn' });
   }
-  // Arts. 26 num. 9 y 28 num. 8: la nota va en moneda nacional, con la moneda y el tipo de cambio del original.
+  // Arts. 26 num. 9 y 28 num. 8: la nota va en moneda nacional. factura-hn usa la moneda y el tipo de cambio del original.
   const monedaRef = r.moneda ?? 'HNL';
   if (monedaRef !== original.moneda) {
     problemas.push({ codigo: 'REFERENCIA_MONEDA_NO_COINCIDE', mensaje: `El documento ${numero} está en ${original.moneda}, no en ${monedaRef}.`, campo: 'referencia.moneda' });
@@ -711,8 +711,9 @@ function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
 
 /**
  * Coherencia de importe y tasa de una nota de crédito con el original guardado
- * en el almacén. El Art. 4 num. 32 (C L.381-385) dice que la nota respalda un ajuste, devolución o descuento sobre el
- * «correspondiente» comprobante: por eso no devuelve más de lo que se vendió ni a otra tasa. Son errores:
+ * en el almacén. El Art. 4 num. 32 dice que la nota respalda un ajuste, devolución o descuento sobre el
+ * «correspondiente» comprobante. factura-hn no deja que las notas devuelvan más de lo que se vendió ni a otra tasa.
+ * Son errores:
  * - `NOTA_SUPERA_ORIGINAL`: la suma de las notas de crédito vigentes sobre el original, más esta, supera su total o,
  *   en una tasa (15 % o 18 %), su importe gravado o su ISV. Todo en lempiras: un original en moneda extranjera se
  *   convierte por el mismo camino que la nota (`totalesEnLempiras`). El mensaje da el saldo.
@@ -757,7 +758,7 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
       campo: 'lineas',
     });
   } else if (!tasaNueva && !sobreExonerado) {
-    // Tope por tasa (Art. 4 num. 32): la nota no acredita más gravado ni más ISV a una tasa que los que el original tuvo a esa tasa.
+    // Tope por tasa de factura-hn: la nota no acredita más gravado ni más ISV a una tasa que los que el original tuvo a esa tasa.
     for (const [tasa, base, isv] of [['15', 'importeGravado15', 'isv15'], ['18', 'importeGravado18', 'isv18']] as const) {
       const baseSaldo = o[base] - suma(base);
       const isvSaldo = o[isv] - suma(isv);
@@ -803,7 +804,7 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
   return problemas;
 }
 
-/** Nota en moneda nacional, con el tipo de cambio del original (Arts. 26 num. 9 y 28 num. 8): si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */
+/** Nota en moneda nacional (Arts. 26 num. 9 y 28 num. 8); factura-hn usa el tipo de cambio del original: si el original está en el almacén y en moneda extranjera, completa su moneda y tipo de cambio. */
 async function monedaDelOriginal(tx: TransaccionFiscal, entrada: DocumentoEntrada): Promise<DocumentoEntrada> {
   const r = entrada.referencia;
   if (!r?.numero || !esNumeroValido(r.numero) || r.moneda !== undefined) return entrada;

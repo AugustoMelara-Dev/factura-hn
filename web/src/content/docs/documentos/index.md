@@ -19,7 +19,7 @@ esa tabla derogada.
 |---|---|---|---|---|
 | `01` | [Factura](/documentos/factura/) | Art. 10 | **Se emite** | Comprobante fiscal principal del autoimpresor |
 | `04` | Recibo por Honorarios Profesionales | Art. 18 | **No se emite** | Solo por imprenta (Art. 46) |
-| `05` | Comprobante de Retención | Art. 33 | No soportado | Se puede emitir por sistema; esta versión no lo emite |
+| `05` | Comprobante de Retención | Art. 33 | No soportado | Esta versión no lo emite |
 | `06` | [Nota de Crédito](/documentos/nota-credito/) | Art. 25 | **Se emite** | Devoluciones, descuentos y anulación de operaciones (Art. 4 num. 32) |
 | `07` | [Nota de Débito](/documentos/nota-debito/) | Art. 27 | **Se emite** | Ajustes sobre un documento emitido (Art. 4 num. 31) |
 | `08` | Guía de Remisión | Art. 29 | No soportado | Igual que el 05 |

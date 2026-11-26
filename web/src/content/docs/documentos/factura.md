@@ -112,9 +112,9 @@ resolución.
 
 ## Casos especiales
 
-- **Cliente exonerado.** Lleva la Orden de Compra Exenta y la Constancia del Registro de Exonerados, o el número
-  del registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). La exoneración cubre el documento
-  completo: si la orden no cubre todos los artículos, emite dos facturas, una exonerada y otra normal.
+- **Cliente exonerado.** Los datos son los del Art. 11 num. 4: factura-hn acepta la Orden de Compra Exenta con la
+  Constancia del Registro de Exonerados, o el número del registro SAG/RUPNSA del sector agroindustrial. En
+  factura-hn, la exoneración cubre el documento completo: si la orden no cubre todos los artículos, emite dos facturas, una exonerada y otra normal.
 - **Moneda extranjera.** `moneda: 'USD'` exige `tipoCambio`. El impreso muestra el tipo de cambio y el
   equivalente en lempiras del ISV y del total.
 - **Exportación.** `isv: 'GRAVADO0'` deja la línea en la columna «gravado 0 %», distinta de lo exento.

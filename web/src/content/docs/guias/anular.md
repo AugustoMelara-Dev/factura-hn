@@ -93,8 +93,8 @@ const nota = await caja.notaCredito({
 });
 ```
 
-Una Nota de Crédito necesita el RTN del adquirente (Art. 26 num. 1-2) y no puede superar el saldo del original
-(Art. 4 num. 32: la nota ajusta el comprobante correspondiente).
+Una Nota de Crédito necesita el RTN del adquirente (Art. 26 num. 1-2). factura-hn no deja que las notas superen
+el saldo del documento original.
 Los detalles están en [Nota de Crédito](/documentos/nota-credito/).
 
 ## Lo que no se puede hacer

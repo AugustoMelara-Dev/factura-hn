@@ -62,8 +62,8 @@ Un ticket de 80 mm impreso por factura-hn no es un Ticket (`09`): es una Factura
 
 ## No soportados
 
-El 05, el 08 y el 11 pueden emitirse desde un sistema: el Reglamento no los reserva a otra modalidad. Esta versión
-de factura-hn no los emite.
+Ningún artículo reserva el 05, el 08 ni el 11 a otra modalidad, así que factura-hn los trata como emitibles
+desde un sistema. Esta versión no los emite.
 
 | Código | Documento | Lo regula |
 |---|---|---|

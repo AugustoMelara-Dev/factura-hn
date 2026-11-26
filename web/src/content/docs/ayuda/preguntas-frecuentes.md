@@ -153,8 +153,9 @@ de prueba y reales. Ver [Reportes](/guias/reportes/).
 
 ### ¿Cuánto tiempo guardo los documentos?
 
-5 años para los inscritos en el RTN, contados desde la presentación de la declaración (Reglamento, Arts. 5, 41
-y 43; Código Tributario, Arts. 58 num. 4, 63 num. 3, 144 y 145). factura-hn no borra nada de forma automática. Ver [Operación mensual](/produccion/operacion-mensual/).
+El Reglamento remite al plazo de prescripción del Código Tributario (Arts. 5, 41 y 43): 5 años para los
+inscritos en el RTN, contados desde la presentación de la declaración (Código Tributario, Arts. 58 num. 4, 63
+num. 3, 144 y 145). factura-hn no borra nada de forma automática. Ver [Operación mensual](/produccion/operacion-mensual/).
 
 ### Al instalar con pnpm aparece «Agent skills awaiting approval: factura-hn (tarball)». ¿Qué es?
 

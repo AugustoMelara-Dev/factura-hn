@@ -1,8 +1,8 @@
 # Autoalojamiento con Docker
 
 La API de factura-hn y su base PostgreSQL corren en un equipo del negocio con Docker Compose. Así varias
-cajas de la red local emiten contra el mismo correlativo, y los documentos quedan en el establecimiento
-(Art. 47).
+cajas de la red local emiten contra el mismo correlativo, y el servidor queda en el establecimiento que el
+negocio registra (el Art. 47 pide registrar «el establecimiento donde se encuentre el servidor»).
 
 Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 

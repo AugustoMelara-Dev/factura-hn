@@ -23,7 +23,7 @@ artículo y la prueba que lo verifica, está en la [matriz de cumplimiento](cump
 | Autorización por punto de emisión y tipo de documento, vigencia máxima de 1 año | `AutorizacionCAI`, `estadoAutorizacion` |
 | Datos del emisor: RTN, razón social, nombre comercial, direcciones, teléfono y correo (Art. 10 num. 1) | `Emisor`, `EMISOR_*`, render |
 | Destino de ejemplares (original cliente, copia emisor) | `DESTINO_EJEMPLARES` |
-| Adquirente exonerado: OCE y constancia de registro, o registro SAG/RUPNSA (Art. 11 num. 4) | `Exoneracion`, `EXONERACION_*` |
+| Adquirente exonerado (Art. 11 num. 4): factura-hn acepta OCE y constancia de registro, o registro SAG/RUPNSA | `Exoneracion`, `EXONERACION_*` |
 | RTN del cliente cuando la compra es para crédito fiscal, costo o gasto | `Cliente.rtn` |
 | «CONSUMIDOR FINAL» cuando no se identifica al cliente | `CONSUMIDOR_FINAL` |
 | Identificación en ventas a consumidor final de más de L 10,000 | `CONSUMIDOR_FINAL_IDENTIFICACION` (umbral configurable) |
@@ -33,8 +33,8 @@ artículo y la prueba que lo verifica, está en la [matriz de cumplimiento](cump
 | Exportaciones con tasa cero (Art. 12) | `isv: 'GRAVADO0'`, `totales.importeGravado0` |
 | Crédito fiscal: en ventas mixtas solo cuentan las gravadas (Art. 11 num. 3) | `totales.baseCreditoFiscal`, `AVISO_VENTA_MIXTA` |
 | Notas 06 y 07 coherentes con el documento que modifican (Arts. 4 num. 32, 26, 28 y 41) | `REFERENCIA_*` en `emitir` |
-| Nota de crédito: la suma de las notas no supera el original ni cambia su tasa (Art. 4 num. 32) | `NOTA_SUPERA_ORIGINAL` (con el saldo), `NOTA_TASA_DISTINTA`, `AVISO_NOTA_EXONERACION_DISTINTA` |
-| Un documento con notas vigentes no se anula: primero se anulan las notas | `DOCUMENTO_CON_NOTAS` en `anular` |
+| Nota de crédito: factura-hn no deja que la suma de las notas supere el original ni cambie su tasa | `NOTA_SUPERA_ORIGINAL` (con el saldo), `NOTA_TASA_DISTINTA`, `AVISO_NOTA_EXONERACION_DISTINTA` |
+| factura-hn no anula un documento con notas vigentes: primero se anulan las notas | `DOCUMENTO_CON_NOTAS` en `anular` |
 | Tipos que un sistema no emite: 04, 09, 10 y 12 (Arts. 4 num. 43, 46 y 47) | `TIPO_NO_EMITIBLE` |
 | Importe total en número y letras, y moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |
@@ -44,7 +44,7 @@ artículo y la prueba que lo verifica, está en la [matriz de cumplimiento](cump
 
 ## Cómo calcula
 
-- El ISV se calcula **por grupo de tasa**: el total siempre cuadra con la suma de importes más ISV.
+- factura-hn calcula el ISV **por grupo de tasa**: el total siempre cuadra con la suma de importes más ISV.
 - Con precios con ISV incluido, el total puede quedar un centavo abajo por el redondeo del Art. 9 de la Ley del
   ISV (`totales.ajustePorRedondeo`). Para evitarlo, `sugerirPrecioSinAjuste`.
 - Moneda extranjera: el libro de ventas convierte a lempiras con el tipo de cambio de cada documento, y el

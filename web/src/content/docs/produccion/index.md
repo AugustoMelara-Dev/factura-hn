@@ -100,6 +100,6 @@ Antes de entregarla al cliente, los tres revisan el impreso:
   correctos, y empieza en el primer número del rango (Art. 10 num. 7).
 - Los datos del emisor coinciden con el RTN (Art. 10 num. 1).
 - El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido, el total puede quedar un
-  centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV).
+  centavo abajo: el cliente paga un centavo menos, nunca más.
 
 Desde ahí, la rutina está en [Operación mensual](/produccion/operacion-mensual/).

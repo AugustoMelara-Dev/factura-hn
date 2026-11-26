@@ -119,7 +119,7 @@ estado.alertas.map((a) => a.codigo); // ["AVISO_VENCIMIENTO", "AVISO_RANGO"]
 El aviso de vencimiento sigue al Art. 59: la nueva autorización se solicita «dentro de los dos (2) meses
 previos» a la fecha límite.
 
-Los dos meses se cuentan como meses de calendario, no como 60 días.
+factura-hn cuenta los dos meses como meses de calendario, no como 60 días.
 
 La API expone lo mismo en `GET /v1/autorizaciones/{cai}/estado` y el MCP en la herramienta `estado_cai`.
 
