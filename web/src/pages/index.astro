@@ -1,400 +1,205 @@
 ---
-// Portada: qué es factura-hn en diez segundos, sus cuatro formas de uso, un ejemplo de código y por qué confiar.
-// HTML y CSS estáticos: sin JavaScript propio. Su versión para IA es src/md/portada.md (/index.md).
-import { Code } from 'astro:components';
+// Portada: qué es factura-hn, cómo se integra, cómo se conecta a un asistente de IA, por qué es confiable y dónde
+// encontrar a la comunidad. HTML y CSS estáticos; el único JavaScript es el de los botones «Copiar».
+// Su versión para IA es src/md/portada.md (/index.md): si cambias el texto aquí, cámbialo allá.
 import Sitio from '../layouts/Sitio.astro';
-import { conBase } from '../datos/navegacion';
-import { PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
-import { matriz, version } from '../datos/proyecto';
+import Codigo from '../components/producto/Codigo.astro';
+import { conBase, DISCUSIONES, DOCUMENTACION } from '../datos/navegacion';
+import { API_DOCKER, MCP_HTTP, PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
+import { EJEMPLO_PORTADA } from '../datos/ejemplo.mjs';
 import { REPO } from '../../sitio.config.mjs';
-import { API_DEMO, PRUEBA } from '../datos/demo';
-import { EJEMPLO_PORTADA, temasCodigo } from '../datos/ejemplo.mjs';
 
-const temas = await temasCodigo();
-
-const productos = [
+const formas = [
   {
-    nombre: 'SDK de TypeScript',
+    nombre: 'SDK',
+    texto: 'Emite desde tu sistema en Node, sobre PostgreSQL, SQLite o tu propia base.',
+    codigo: PRIMERA_FACTURA.join('\n'),
     ruta: '/guias/sdk/',
-    texto: 'Emite dentro de tu sistema, sobre tu base: PostgreSQL, SQLite o la tuya. Numeración, ISV y bitácora en la misma transacción.',
-    comando: PRIMEROS.sdk,
   },
   {
     nombre: 'CLI',
+    texto: 'Una factura de prueba en la consola, sin escribir código.',
+    codigo: PRIMEROS.cli,
     ruta: '/guias/cli/',
-    texto: 'Una factura de prueba en la consola en un minuto, y un proyecto inicial con emitir.mjs y emisor.json.',
-    comando: PRIMEROS.cli,
   },
   {
     nombre: 'API REST',
+    texto: 'Para cualquier lenguaje o varias cajas, con Docker y PostgreSQL.',
+    codigo: API_DOCKER.join('\n'),
     ruta: '/guias/api/',
-    texto: 'Para cualquier lenguaje o varias cajas: OpenAPI 3.1, llaves por punto de emisión, idempotencia, PDF y webhooks.',
-    comando: PRIMEROS.api,
   },
   {
-    nombre: 'Servidor MCP',
+    nombre: 'MCP',
+    texto: 'Un asistente de IA emite, consulta y anula con las mismas reglas.',
+    codigo: PRIMEROS.mcp,
     ruta: '/guias/mcp/',
-    texto: 'Un asistente de IA emite, consulta y anula con las mismas reglas. Local por stdio o remoto con una URL.',
-    comando: PRIMEROS.mcp,
   },
 ];
 
-const garantias = [
-  {
-    titulo: 'Numeración atómica y sin huecos',
-    texto: 'Cada número se reserva en la misma transacción que guarda el documento. Nunca se borra ni se reutiliza.',
-  },
-  {
-    titulo: 'Dinero exacto',
-    texto: 'Sin punto flotante. El ISV sigue el redondeo del Art. 9 de la Ley del ISV, con tarifas de 15 % y 18 %.',
-  },
-  {
-    titulo: 'Documentos inmutables',
-    texto: 'Lo emitido no se edita: se anula (Art. 41) o se corrige con una nota de crédito o de débito.',
-  },
-  {
-    titulo: 'Bitácora de auditoría',
-    texto: 'Quién emitió, anuló o registró un CAI, y cuándo (Art. 53 num. 2). Errores en español que dicen qué hacer.',
-  },
-];
+const CURSOR = `{
+  "mcpServers": {
+    "factura-hn": {
+      "command": "npx",
+      "args": ["-y", "@factura-hn/mcp"],
+      "env": {
+        "FHN_SQLITE": "/ruta/a/factura-demo.db",
+        "FHN_EMISOR": "/ruta/a/emisor-demo.json"
+      }
+    }
+  }
+}`;
+
+const ISSUES = `${REPO}/issues/new/choose`;
+const SEGURIDAD = `${REPO}/security/advisories/new`;
 ---
 
 <Sitio
 	titulo="factura-hn: facturación para Honduras, de código abierto"
-	descripcion="Facturación según el Reglamento del Régimen de Facturación de Honduras (Acuerdo 481-2017): SDK de TypeScript, CLI, API REST y servidor MCP de código abierto, con cada regla que implementa citada y probada. Proyecto independiente, no afiliado al SAR."
+	descripcion="Emite facturas y notas de crédito y débito según el Reglamento de Facturación del SAR desde tu código: SDK de TypeScript, CLI, API REST y servidor MCP. Gratis y de código abierto. Proyecto independiente, no afiliado al SAR."
 	ruta="/"
 >
-	<section class="heroe">
-		<div class="contenedor heroe-rejilla">
-			<div class="heroe-texto">
-				<a class="etiqueta etiqueta-punto" href={conBase('/ayuda/cambios/')}>Versión {version} · código abierto, MIT</a>
-				<h1>Facturación para Honduras, con cada regla que implementa citada y probada.</h1>
-				<p class="heroe-entrada">
-					factura-hn emite facturas, notas de crédito y notas de débito según el Reglamento del Régimen de Facturación del
-					SAR (Acuerdo 481-2017). Úsalo como SDK, desde la línea de comandos, como API REST o desde tu asistente de IA
-					con MCP.
-				</p>
-				<div class="botones">
-					<a class="boton boton-primario" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
-					<a class="boton boton-secundario" href={conBase('/empezar/primera-factura/')}>Leer la documentación</a>
-				</div>
-				<p class="heroe-nota">
-					<code class="comando">{PRIMEROS.sdk}</code>
-					<span>Sin dependencias · TypeScript · Node 20 o más reciente</span>
-				</p>
-			</div>
+	<section class="heroe" aria-labelledby="titulo-heroe">
+		<div class="contenedor heroe-caja">
+			<h1 id="titulo-heroe">Facturación para Honduras, desde tu código.</h1>
+			<p class="heroe-entrada">
+				Emite facturas y notas de crédito y débito que cumplen el Reglamento del SAR. Empieza en modo de prueba, en un
+				minuto.
+			</p>
 			<div class="heroe-codigo">
-				<div class="codigo">
-					<div class="codigo-barra"><span>emitir.ts</span><span>factura-hn</span></div>
-					<Code code={EJEMPLO_PORTADA} lang="ts" themes={temas} defaultColor={false} />
-				</div>
+				<Codigo codigo={EJEMPLO_PORTADA} lang="js" titulo="emitir.mjs" etiqueta="Copiar el ejemplo" />
+			</div>
+			<div class="botones">
+				<a class="boton boton-primario" href={conBase(DOCUMENTACION)}>Empezar</a>
+				<a class="boton boton-secundario" href={REPO} rel="noopener">GitHub</a>
 			</div>
 		</div>
 	</section>
 
-	<section class="seccion" id="productos">
+	<section class="seccion" aria-labelledby="que-es">
 		<div class="contenedor">
-			<div class="cabeza-seccion">
-				<p class="antetitulo">Producto</p>
-				<h2 class="titulo-seccion">Las mismas reglas fiscales, cuatro formas de usarlas.</h2>
-				<p class="entrada">
-					La API y el MCP llaman por dentro al mismo SDK. Elige según quién emite y dónde se guardan los documentos;
-					todos empiezan en modo de prueba, con un CAI ficticio.
-				</p>
-			</div>
-			<div class="rejilla rejilla-2 productos">
-				{
-					productos.map((p) => (
-						<a class="tarjeta" href={conBase(p.ruta)}>
-							<h3>{p.nombre}</h3>
-							<p>{p.texto}</p>
-							<div class="tarjeta-pie">
-								<code class="comando">{p.comando.split(' ').map((palabra, i) => (i ? [' ', <span class="palabra">{palabra}</span>] : <span class="palabra">{palabra}</span>))}</code>
-							</div>
-							<span class="tarjeta-enlace flecha">Ver la guía</span>
-						</a>
-					))
-				}
-			</div>
-			<p class="productos-mas">
-				¿No sabes cuál? <a href={conBase('/empezar/elegir-camino/')}>Compara los caminos</a>, o mira las guías{' '}
-				<a href={conBase('/documentos/')}>por tipo de documento</a> y <a href={conBase('/negocios/')}>por tipo de negocio</a>.
+			<p class="antetitulo">Qué es</p>
+			<h2 class="titulo-seccion" id="que-es">Lo difícil de facturar, resuelto.</h2>
+			<p class="entrada">
+				factura-hn es una librería de TypeScript, sin dependencias, que lleva la numeración con CAI y rangos, calcula el
+				ISV sin errores de redondeo e imprime en hoja carta o ticket. Lo emitido no se edita: se anula o se corrige con
+				una nota. Es gratis y de código abierto.
 			</p>
 		</div>
 	</section>
 
-	<section class="seccion">
-		<div class="contenedor pasos-rejilla">
-			<div>
-				<p class="antetitulo">En cinco minutos</p>
-				<h2 class="titulo-seccion">Tu primera factura de prueba, en tres comandos.</h2>
-				<p class="entrada">
-					En una carpeta nueva o en tu proyecto. Verás el ticket en la consola y quedará <code>factura.html</code> con la
-					leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
-				</p>
-				<div class="botones pasos-botones">
-					<a class="boton boton-secundario" href={conBase('/empezar/primera-factura/')}>Tu primera factura</a>
-					<a class="boton boton-secundario" href={conBase('/empezar/playground/')}>Probar en el navegador</a>
-				</div>
-			</div>
-			<div class="codigo">
-				<div class="codigo-barra"><span>Terminal</span><span>bash</span></div>
-				<pre><code>{PRIMERA_FACTURA.join('\n')}</code></pre>
-			</div>
-		</div>
-	</section>
-
-	<section class="seccion">
+	<section class="seccion" aria-labelledby="integra">
 		<div class="contenedor">
-			<div class="cabeza-seccion">
-				<p class="antetitulo">Lo que resuelve</p>
-				<h2 class="titulo-seccion">Lo difícil de facturar, resuelto una vez y probado.</h2>
-			</div>
-			<div class="rejilla rejilla-2 garantias">
+			<p class="antetitulo">Cómo se integra</p>
+			<h2 class="titulo-seccion" id="integra">Cuatro formas, las mismas reglas.</h2>
+			<div class="rejilla rejilla-2">
 				{
-					garantias.map((g) => (
-						<div class="garantia">
-							<h3>{g.titulo}</h3>
-							<p>{g.texto}</p>
-						</div>
+					formas.map((f) => (
+						<article class="forma">
+							<h3>{f.nombre}</h3>
+							<p>{f.texto}</p>
+							<Codigo codigo={f.codigo} lang="bash" titulo="Terminal" etiqueta={`Copiar los comandos de ${f.nombre}`} />
+							<a class="enlace flecha" href={conBase(f.ruta)}>
+								Guía de {f.nombre}
+							</a>
+						</article>
 					))
 				}
 			</div>
 		</div>
 	</section>
 
-	<section class="seccion confianza">
+	<section class="seccion" aria-labelledby="ia">
 		<div class="contenedor">
-			<div class="cabeza-seccion">
-				<p class="antetitulo">Confianza</p>
-				<h2 class="titulo-seccion">Abierto, verificable y sin letra pequeña.</h2>
-				<p class="entrada">
-					Cada requisito del Reglamento tiene su artículo y la prueba que lo verifica. Si una regla cubierta pierde su
-					prueba, el sitio no se construye.
-				</p>
+			<p class="antetitulo">Conéctalo a tu IA</p>
+			<h2 class="titulo-seccion" id="ia">Factura conversando con tu asistente.</h2>
+			<p class="entrada">El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular.</p>
+			<div class="rejilla rejilla-3">
+				<article class="forma">
+					<h3>Claude</h3>
+					<p>
+						Crea una base de prueba e imprime el bloque <code>mcpServers</code>. Pégalo en Claude Desktop (Settings › Developer ›
+						Edit Config) o en <code>.mcp.json</code> con Claude Code, y reinicia.
+					</p>
+					<Codigo codigo={PRIMEROS.mcp} lang="bash" titulo="Terminal" etiqueta="Copiar el comando para Claude" />
+					<p>Luego pide: «emite una factura de prueba».</p>
+				</article>
+				<article class="forma">
+					<h3>Cursor</h3>
+					<p>
+						El mismo comando imprime este bloque con tus rutas. Pégalo en <code>~/.cursor/mcp.json</code> y reinicia.
+					</p>
+					<Codigo codigo={CURSOR} lang="json" titulo="mcp.json" etiqueta="Copiar la configuración para Cursor" />
+				</article>
+				<article class="forma">
+					<h3>ChatGPT</h3>
+					<p>
+						ChatGPT se conecta a un servidor MCP remoto, por URL. Levántalo tú: primero la API REST (arriba), luego el MCP por
+						HTTP.
+					</p>
+					<Codigo codigo={MCP_HTTP.join('\n')} lang="bash" titulo="Terminal" etiqueta="Copiar el comando para ChatGPT" />
+					<p>Publícalo con HTTPS en tu dominio y agrégalo en ChatGPT como servidor MCP propio (Plugins › Add custom MCP server).</p>
+					<a class="enlace flecha" href={conBase('/ia/mcp/#por-http')}>El MCP por HTTP</a>
+				</article>
 			</div>
-			<dl class="cifras">
+			<p class="mas"><a class="enlace flecha" href={conBase('/guias/mcp/')}>Guía del servidor MCP</a></p>
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="confianza">
+		<div class="contenedor">
+			<p class="antetitulo">Por qué es confiable</p>
+			<h2 class="titulo-confianza" id="confianza">Cumple el Reglamento de Facturación del SAR y cada regla está probada.</h2>
+			<p class="mas"><a class="enlace flecha" href={conBase('/referencia/cumplimiento/')}>Ver cada regla con su prueba</a></p>
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="comunidad">
+		<div class="contenedor">
+			<p class="antetitulo">Comunidad</p>
+			<h2 class="titulo-seccion" id="comunidad">Hecho en abierto.</h2>
+			<p class="entrada">Pregunta, propón mejoras y contribuye con código, pruebas o documentación.</p>
+			<ul class="rejilla rejilla-3 lista-tarjetas">
+				<li>
+					<a class="tarjeta" href={REPO} rel="noopener">
+						<span class="tarjeta-titulo">GitHub</span>
+						<span>El código, las pruebas y la documentación, con licencia MIT.</span>
+					</a>
+				</li>
+				<li>
+					<a class="tarjeta" href={DISCUSIONES} rel="noopener">
+						<span class="tarjeta-titulo">Discussions</span>
+						<span>Preguntas, ideas y lo que estás construyendo.</span>
+					</a>
+				</li>
+				<li>
+					<a class="tarjeta" href={conBase('/ayuda/contribuir/')}>
+						<span class="tarjeta-titulo">Cómo contribuir</span>
+						<span>Prepara el proyecto, corre las pruebas y abre tu pull request.</span>
+					</a>
+				</li>
+			</ul>
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="contacto">
+		<div class="contenedor">
+			<p class="antetitulo">Contacto</p>
+			<h2 class="titulo-seccion" id="contacto">Escríbenos en GitHub.</h2>
+			<dl class="contacto">
 				<div>
-					<dt>requisitos cubiertos y probados</dt>
-					<dd>{matriz.cubiertos}<span> de {matriz.total}</span></dd>
+					<dt>Preguntas e ideas</dt>
+					<dd><a class="enlace flecha" href={DISCUSIONES} rel="noopener">Abre una discusión</a></dd>
 				</div>
 				<div>
-					<dt>pruebas enlazadas en la matriz</dt>
-					<dd>{matriz.pruebas}</dd>
+					<dt>Un error, o una regla fiscal que crees que está mal</dt>
+					<dd><a class="enlace flecha" href={ISSUES} rel="noopener">Abre un issue</a></dd>
 				</div>
 				<div>
-					<dt>licencia, sin planes de pago</dt>
-					<dd>MIT</dd>
+					<dt>Una vulnerabilidad</dt>
+					<dd><a class="enlace flecha" href={SEGURIDAD} rel="noopener">Repórtala en privado</a>, nunca en un issue público</dd>
 				</div>
 			</dl>
-			<div class="rejilla rejilla-3">
-				<a class="tarjeta" href={conBase('/cumplimiento/')}>
-					<h3>Matriz de cumplimiento</h3>
-					<p>Requisito, artículo, estado y la prueba en GitHub. Lo que falta también está dicho.</p>
-					<span class="tarjeta-enlace flecha">Ver el cumplimiento</span>
-				</a>
-				<a class="tarjeta" href={conBase('/produccion/estado-legal/')}>
-					<h3>Lectura del Reglamento</h3>
-					<p>Algunos puntos no son literales. factura-hn declara la lectura que aplica en cada caso.</p>
-					<span class="tarjeta-enlace flecha">Ver el estado legal</span>
-				</a>
-				<a class="tarjeta" href={REPO}>
-					<h3>Código abierto</h3>
-					<p>Todo el código, las pruebas y la documentación, con licencia MIT. Revísalo, úsalo y contribuye.</p>
-					<span class="tarjeta-enlace flecha">Ver en GitHub</span>
-				</a>
-			</div>
-			<p class="nota-version">
-				Versión <code>{version}</code>. Mientras sea 0.x puede haber cambios incompatibles entre versiones menores: ver los{' '}
-				<a href={conBase('/ayuda/cambios/')}>cambios por versión</a>.
-			</p>
-			<p class="aviso-independiente confianza-aviso">
-				<strong>Proyecto independiente, no afiliado al SAR.</strong> factura-hn no es asesoría fiscal ni un sistema autorizado
-				por el SAR. Quien emite sigue siendo responsable de cumplir el Reglamento; revisa la configuración con tu contador.
-			</p>
-		</div>
-	</section>
-
-	<section class="seccion cierre">
-		<div class="contenedor cierre-caja">
-			<h2 class="titulo-seccion">Pruébalo sin instalar nada.</h2>
-			{
-				API_DEMO ? (
-					<p class="entrada">
-						Crea un entorno de prueba con tu propia llave y una URL del MCP para tu asistente. Dura 24 horas y no tiene
-						datos reales.
-					</p>
-				) : (
-					<p class="entrada">
-						El playground corre el SDK en tu navegador: emite una factura de prueba y mira el ticket, sin cuenta y sin
-						instalar nada.
-					</p>
-				)
-			}
-			<div class="botones">
-				<a class="boton boton-primario" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
-				<a class="boton boton-secundario" href={conBase('/precios/')}>Ver precios</a>
-			</div>
+			<p class="nota">No incluyas datos reales de contribuyentes en ningún reporte.</p>
 		</div>
 	</section>
 </Sitio>
-
-<style>
-	.heroe {
-		padding-block: clamp(3.5rem, 9vw, 7rem) clamp(4rem, 9vw, 6.5rem);
-	}
-	.heroe-rejilla {
-		display: grid;
-		gap: clamp(2.5rem, 5vw, 4rem);
-		align-items: center;
-	}
-	.heroe h1 {
-		margin: 1.25rem 0 0;
-		font-size: clamp(2.375rem, 5.6vw, 4rem);
-		font-weight: 600;
-		line-height: 1.04;
-		letter-spacing: -0.04em;
-		text-wrap: balance;
-		color: var(--fhn-texto);
-	}
-	.heroe-entrada {
-		margin: 1.25rem 0 2rem;
-		max-width: 36rem;
-		font-size: clamp(1.0625rem, 1.6vw, 1.1875rem);
-		line-height: 1.6;
-		color: var(--fhn-gris-3);
-		text-wrap: pretty;
-	}
-	.heroe-nota {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.5rem 1rem;
-		margin: 1.75rem 0 0;
-		color: var(--fhn-gris-3);
-		font-size: 0.875rem;
-	}
-	.heroe-codigo {
-		min-width: 0;
-	}
-	@media (min-width: 64rem) {
-		.heroe-rejilla {
-			grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-		}
-	}
-
-	.tarjeta-enlace {
-		color: var(--fhn-acento-texto);
-		font-size: 0.875rem;
-		font-weight: 500;
-	}
-	.productos-mas {
-		margin: 2rem 0 0;
-		color: var(--fhn-gris-3);
-	}
-
-	.pasos-rejilla {
-		display: grid;
-		gap: 2.5rem;
-		align-items: center;
-	}
-	.pasos-botones {
-		margin-top: 2rem;
-	}
-	@media (min-width: 64rem) {
-		.pasos-rejilla {
-			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-			gap: 4rem;
-		}
-	}
-
-	.garantias {
-		gap: 0;
-		border-top: 1px solid var(--fhn-borde);
-	}
-	.garantia {
-		padding: 1.75rem 0;
-		border-bottom: 1px solid var(--fhn-borde);
-	}
-	.garantia h3 {
-		margin: 0;
-		font-size: 1.0625rem;
-		font-weight: 600;
-		color: var(--fhn-texto);
-	}
-	.garantia p {
-		margin: 0.5rem 0 0;
-		max-width: 30rem;
-		color: var(--fhn-gris-3);
-	}
-	@media (min-width: 40rem) {
-		.garantias {
-			column-gap: 3rem;
-		}
-	}
-
-	.cifras {
-		display: grid;
-		gap: 1px;
-		margin: 0 0 1rem;
-		border: 1px solid var(--fhn-borde);
-		border-radius: 12px;
-		background: var(--fhn-borde);
-		overflow: hidden;
-	}
-	.cifras > div {
-		display: flex;
-		flex-direction: column-reverse;
-		gap: 0.25rem;
-		padding: 1.5rem;
-		background: var(--fhn-fondo);
-	}
-	.cifras dt {
-		color: var(--fhn-gris-3);
-		font-size: 0.9375rem;
-	}
-	.cifras dd {
-		margin: 0;
-		font-size: clamp(2rem, 4vw, 2.75rem);
-		font-weight: 600;
-		letter-spacing: -0.03em;
-		line-height: 1.1;
-		font-variant-numeric: tabular-nums;
-		color: var(--fhn-texto);
-	}
-	.cifras dd span {
-		font-size: 1rem;
-		font-weight: 500;
-		letter-spacing: 0;
-		color: var(--fhn-gris-3);
-	}
-	@media (min-width: 48rem) {
-		.cifras {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-		}
-	}
-	.nota-version {
-		margin: 2rem 0 0;
-		color: var(--fhn-gris-3);
-		font-size: 0.9375rem;
-	}
-	.nota-version code {
-		font-size: 0.875em;
-		color: var(--fhn-texto);
-	}
-	.confianza-aviso {
-		margin: 1rem 0 0;
-	}
-
-	.cierre-caja {
-		text-align: center;
-	}
-	.cierre-caja .titulo-seccion,
-	.cierre-caja .entrada {
-		margin-inline: auto;
-	}
-	.cierre-caja .botones {
-		justify-content: center;
-		margin-top: 2rem;
-	}
-</style>

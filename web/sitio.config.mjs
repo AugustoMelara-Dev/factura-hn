@@ -17,54 +17,10 @@ export const WEB = join(RAIZ, 'web');
 export const SALIDA = join(RAIZ, 'sitio');
 export const DOCS = join(WEB, 'src', 'content', 'docs');
 
-// La demostración pública: la URL de su API sale de PUBLIC_FHN_DEMO_API al construir (en GitHub Pages, de la
-// variable del repositorio FHN_DEMO_API; en el equipo, también de web/.env). Sin ella el sitio entero dice que la
-// demostración aún no está en línea: los botones llevan al playground, /probar/ no carga JavaScript y los textos
-// marcados con <!-- con-demo --> se quitan. Con ella, todo cambia solo a la versión en línea.
-try {
-  process.loadEnvFile(join(WEB, '.env'));
-} catch {}
-
-/** Marcador de la dirección de la API de la demostración en los Markdown; se reemplaza por API_DEMO. */
-export const MARCADOR_API = 'https://API_DE_LA_DEMO';
-
-/** HTTPS, o HTTP solo en el propio equipo (para probar el sitio con una API local). Sin URL válida, null. */
-export function urlDemoValida(valor) {
-  const crudo = (valor ?? '').trim();
-  if (!crudo || crudo === MARCADOR_API) return null;
-  try {
-    const url = new URL(crudo);
-    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) return null;
-    if (url.search || url.hash || url.username || url.password) return null;
-    return url.href.replace(/\/+$/, '');
-  } catch {
-    return null;
-  }
-}
-
-/** La API de la demostración pública, o null si no está en línea. */
-export const API_DEMO = urlDemoValida(process.env.PUBLIC_FHN_DEMO_API);
-
-/**
- * Markdown con partes que dependen de la demostración: lo que va entre `<!-- con-demo -->` y `<!-- /con-demo -->`
- * solo queda si está en línea; lo que va entre `<!-- sin-demo -->` y `<!-- /sin-demo -->`, solo si no. Los
- * marcadores van solos en su línea. `https://API_DE_LA_DEMO` se reemplaza por la URL real. Lo usan el plugin de
- * Markdown del sitio (remark-demo.mjs) y las copias para IA (para-ia.mjs), para que digan lo mismo.
- */
-export function filtrarDemo(texto, api = API_DEMO) {
-  const quitar = api ? 'sin-demo' : 'con-demo';
-  const dejar = api ? 'con-demo' : 'sin-demo';
-  return texto
-    .replace(new RegExp(`^<!-- ${quitar} -->\\n[\\s\\S]*?^<!-- /${quitar} -->\\n?`, 'gm'), '')
-    .replace(new RegExp(`^<!-- /?${dejar} -->\\n?`, 'gm'), '')
-    .replaceAll(MARCADOR_API, api ?? MARCADOR_API);
-}
-
 /**
  * Etiquetas para redes y navegadores, las mismas en la documentación (head de Starlight) y en las páginas del
- * producto (layouts/Sitio.astro): la imagen para compartir (public/og.png, 1200×630, sale de public/og.svg con
- * scripts/og.mjs), el idioma y el color de la barra del navegador en cada tema.
+ * producto (layouts/Sitio.astro): la imagen para compartir (public/og.png, 1200×630, sale de src/og/og.svg con
+ * scripts/og.mjs), el idioma y el color de la barra del navegador (blanco: el sitio tiene un solo tema, claro).
  */
 export const META_SOCIAL = [
   { property: 'og:site_name', content: 'factura-hn' },
@@ -72,11 +28,10 @@ export const META_SOCIAL = [
   { property: 'og:image', content: `${SITIO_URL}${BASE}/og.png` },
   { property: 'og:image:width', content: '1200' },
   { property: 'og:image:height', content: '630' },
-  { property: 'og:image:alt', content: 'factura-hn: facturación de código abierto para Honduras, con cada regla que implementa citada y probada.' },
+  { property: 'og:image:alt', content: 'factura-hn: facturación para Honduras, desde tu código. Código abierto.' },
   { name: 'twitter:card', content: 'summary_large_image' },
   { name: 'twitter:image', content: `${SITIO_URL}${BASE}/og.png` },
-  { name: 'theme-color', content: '#ffffff', media: '(prefers-color-scheme: light)' },
-  { name: 'theme-color', content: '#0a0a0b', media: '(prefers-color-scheme: dark)' },
+  { name: 'theme-color', content: '#ffffff' },
 ];
 
 /** Bloques del menú lateral, en orden. Cada uno es una carpeta de `src/content/docs/`. */
@@ -100,19 +55,11 @@ export const BLOQUES = [
 export const GUIAS_PRODUCTO = ['guias/sdk', 'guias/cli', 'guias/api', 'guias/mcp'];
 
 /**
- * El menú lateral de Starlight. Los grupos van cerrados: Starlight abre solo el de la página actual. En
- * «Referencia», la página principal de cumplimiento es /cumplimiento/ (fuera de Starlight); la de la referencia es
- * la matriz completa, fila por fila.
+ * El menú lateral de Starlight. Los grupos van cerrados: Starlight abre solo el de la página actual. Cada grupo
+ * lista las páginas de su carpeta.
  */
 export const MENU = BLOQUES.flatMap(({ dir, label }) => [
-  {
-    label,
-    collapsed: true,
-    items: [
-      { autogenerate: { directory: dir } },
-      ...(dir === 'referencia' ? [{ label: 'Cumplimiento, en resumen', link: '/cumplimiento/' }] : []),
-    ],
-  },
+  { label, collapsed: true, items: [{ autogenerate: { directory: dir } }] },
   ...(dir === 'empezar' ? [{ label: 'Guías por producto', collapsed: true, items: GUIAS_PRODUCTO.map((slug) => ({ slug })) }] : []),
 ]);
 
@@ -121,10 +68,4 @@ export const MENU = BLOQUES.flatMap(({ dir, label }) => [
  * y sin barras ('' es la portada). Su versión para IA (`/<ruta>.md`, `/index.md`) sale de `src/md/<archivo>`,
  * que la página también muestra o resume. `scripts/verificar.mjs` comprueba cada una.
  */
-export const PAGINAS_PRODUCTO = [
-  { ruta: '', md: 'portada.md' },
-  { ruta: 'probar', md: 'probar.md' },
-  { ruta: 'cumplimiento', md: 'cumplimiento.md' },
-  { ruta: 'precios', md: 'precios.md' },
-  { ruta: 'contacto', md: 'contacto.md' },
-];
+export const PAGINAS_PRODUCTO = [{ ruta: '', md: 'portada.md' }];

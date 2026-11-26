@@ -1,72 +1,18 @@
 ---
-// Pie de cada página de la documentación: la paginación de Starlight, los enlaces del producto (una versión
-// compacta del pie de las páginas del producto), el aviso legal y, salvo en la página 404, el archivo del
-// repositorio del que sale la página.
+// Pie de cada página de la documentación: la paginación de Starlight y la misma línea del pie de la portada.
 import Default from '@astrojs/starlight/components/Footer.astro';
-import { REPO } from '../../sitio.config.mjs';
-import { conBase, PRODUCTO } from '../datos/navegacion';
-
-const { entry, id } = Astro.locals.starlightRoute;
-const es404 = id === '404' || entry.id === '404';
-const fuente = entry.data.fuente;
-const archivo = entry.filePath?.replace(/^.*?src\/content\/docs\//, 'web/src/content/docs/');
-const enlaceFuente = es404 ? undefined : fuente ? `${REPO}/blob/main/${fuente}` : archivo && !archivo.includes('/muestra.md') ? `${REPO}/blob/main/${archivo}` : undefined;
-const enlaces = [...PRODUCTO, { texto: 'Cambios', ruta: '/ayuda/cambios/' }, { texto: 'GitHub', ruta: REPO }];
+import LineaPie from './LineaPie.astro';
 ---
 
 <Default><slot /></Default>
 <div class="fhn-pie">
-  <nav aria-label="factura-hn">
-    <ul>
-      {enlaces.map((e) => (
-        <li>
-          <a href={conBase(e.ruta)}>{e.texto}</a>
-        </li>
-      ))}
-    </ul>
-  </nav>
-  <p>
-    Proyecto independiente, no afiliado al SAR. factura-hn no es asesoría fiscal ni un sistema autorizado por el
-    SAR: quien emite sigue siendo responsable de cumplir el Reglamento. Código abierto con licencia MIT.
-  </p>
-  {enlaceFuente && (
-    <p>
-      Fuente de esta página: <a href={enlaceFuente}><code>{fuente ?? archivo}</code></a>
-    </p>
-  )}
+  <LineaPie />
 </div>
 
 <style>
   .fhn-pie {
     margin-top: 2rem;
-    padding-top: 1rem;
+    padding-top: 0.5rem;
     border-top: 1px solid var(--sl-color-hairline-light);
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
-  }
-  .fhn-pie ul {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 1.25rem;
-    margin: 0 0 0.5rem;
-    padding: 0;
-    list-style: none;
-    font-size: var(--sl-text-sm);
-  }
-  .fhn-pie ul a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.75rem;
-    color: var(--sl-color-gray-2);
-    text-decoration: none;
-  }
-  .fhn-pie ul a:hover {
-    color: var(--sl-color-white);
-  }
-  .fhn-pie p + p {
-    margin-top: 0.5rem;
-  }
-  .fhn-pie p a {
-    color: var(--sl-color-gray-3);
   }
 </style>

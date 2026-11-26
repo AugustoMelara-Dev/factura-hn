@@ -1,12 +1,10 @@
 ---
-// Diseño de las páginas del producto (portada, Pruébalo, cumplimiento, precios, contacto), fuera de Starlight.
+// Diseño de la portada, fuera de Starlight.
 //
 // - Estilos: las fuentes, el reset de Astryx con su tema neutral, y encima los tokens del sitio (tokens.css) con el
-//   puente que los asigna a Astryx. El reset de Astryx solo se carga aquí: la documentación sigue con el de
-//   Starlight. Los estilos de los componentes de Astryx (astryx.css, unos 50 KB comprimidos) los importa la isla
-//   de Pruébalo: solo se cargan cuando la isla está en la página. Lo demás es HTML y CSS propio sobre los mismos tokens.
-// - JavaScript: el del selector de tema de Starlight (el mismo de la documentación) y unas líneas que cierran el
-//   menú del teléfono. Una página que necesita más (Pruébalo) lo trae en su propia isla.
+//   puente que los asigna a Astryx (astryx-puente.css). sitio.css compone la página con los tokens de Astryx
+//   (tamaños de texto, radios, duraciones) y los colores del sitio. Un solo tema, claro, como la documentación.
+// - JavaScript: solo el script en línea de los botones «Copiar» (components/producto/Codigo.astro).
 import '../styles/fuentes.css';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/theme-neutral/theme.css';
@@ -14,7 +12,6 @@ import '../styles/tokens.css';
 import '../styles/tema.css';
 import '../styles/astryx-puente.css';
 import '../styles/sitio.css';
-import ProveedorTema from '../components/ProveedorTema.astro';
 import Cabecera from '../components/producto/Cabecera.astro';
 import PieSitio from '../components/producto/PieSitio.astro';
 import { BASE, META_SOCIAL, SITIO_URL } from '../../sitio.config.mjs';
@@ -23,7 +20,7 @@ interface Props {
   /** Título de la pestaña, sin « | factura-hn» (la portada lo lleva completo). */
   titulo: string;
   descripcion: string;
-  /** Ruta sin la base, con barras: '/', '/precios/'. */
+  /** Ruta sin la base, con barras: '/'. */
   ruta: string;
 }
 const { titulo, descripcion, ruta } = Astro.props;
@@ -36,6 +33,7 @@ const canonica = `${SITIO_URL}${BASE}${ruta}`;
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light" />
 		<title>{tituloCompleto}</title>
 		<meta name="description" content={descripcion} />
 		<link rel="canonical" href={canonica} />
@@ -47,15 +45,50 @@ const canonica = `${SITIO_URL}${BASE}${ruta}`;
 		<meta property="og:url" content={canonica} />
 		{META_SOCIAL.map((attrs) => <meta {...attrs} />)}
 		<link rel="sitemap" href={`${BASE}/sitemap-index.xml`} />
-		<ProveedorTema />
-		<slot name="head" />
 	</head>
 	<body data-astryx-theme="neutral">
 		<a class="saltar" href="#contenido">Ir al contenido</a>
-		<Cabecera ruta={ruta} />
+		<Cabecera />
 		<main id="contenido">
 			<slot />
 		</main>
 		<PieSitio />
+		<p class="sr-only" role="status" aria-live="polite" data-aviso-copiado></p>
+		<script is:inline>
+			(() => {
+				const aviso = document.querySelector('[data-aviso-copiado]');
+				document.addEventListener('click', async (e) => {
+					const boton = e.target instanceof Element && e.target.closest('[data-copiar]');
+					if (!boton) return;
+					const codigo = boton.closest('[data-codigo]')?.querySelector('pre');
+					if (!codigo) return;
+					const contenido = codigo.innerText.replace(/\n+$/, '');
+					let copiado = false;
+					try {
+						await navigator.clipboard.writeText(contenido);
+						copiado = true;
+					} catch {
+						// Sin permiso para el portapapeles (o sin HTTPS): el método de siempre, con un campo temporal.
+						const campo = document.createElement('textarea');
+						campo.value = contenido;
+						campo.setAttribute('readonly', '');
+						campo.style.cssText = 'position:fixed;opacity:0';
+						document.body.append(campo);
+						campo.select();
+						try {
+							copiado = document.execCommand('copy');
+						} catch {}
+						campo.remove();
+						boton.focus();
+					}
+					const texto = copiado ? 'Copiado' : 'No se pudo copiar: selecciona el texto y cópialo a mano.';
+					boton.textContent = copiado ? 'Copiado' : 'Copiar';
+					aviso.textContent = '';
+					setTimeout(() => (aviso.textContent = texto), 50);
+					clearTimeout(boton._t);
+					boton._t = setTimeout(() => (boton.textContent = 'Copiar'), 2000);
+				});
+			})();
+		</script>
 	</body>
 </html>

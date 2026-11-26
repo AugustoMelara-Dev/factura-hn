@@ -5,8 +5,7 @@
  * - Las páginas del producto y los componentes de Astryx los leen en `astryx-puente.css`, que asigna los tokens
  *   semánticos de Astryx (`--color-*`, `--font-family-*`) a estos mismos.
  *
- * Claro es el tema por defecto (`:root`); oscuro se activa con `data-theme="dark"` en <html>, que pone el selector
- * de tema de Starlight. Cada par texto/fondo que se usa pasa AA (4,5:1 para texto, 3:1 para bordes de controles):
+ * El sitio tiene un solo tema, claro: blanco, texto negro y un color de acento. Cada par texto/fondo que se usa pasa AA (4,5:1 para texto, 3:1 para bordes de controles):
  * lo comprueba `scripts/contraste.test.mjs` leyendo este archivo.
  */
 
@@ -53,43 +52,4 @@
 	--fhn-rojo-fuerte: #9a1c13;
 	--fhn-neutro: #3a3a41;
 	--fhn-neutro-suave: #ececef;
-}
-
-:root[data-theme='dark'] {
-	--fhn-fondo: #0a0a0b;
-	--fhn-superficie: #141417;
-	--fhn-texto: #ededef;
-	--fhn-gris-1: #dcdce0;
-	--fhn-gris-2: #babac2;
-	--fhn-gris-3: #9d9da7;
-	--fhn-gris-4: #6e6e78;
-	--fhn-gris-5: #26262c;
-	--fhn-gris-6: #17171a;
-	--fhn-gris-7: #111113;
-	--fhn-borde: #26262c;
-	--fhn-texto-invertido: #0a0a0b;
-
-	--fhn-acento: #0b5fff;
-	--fhn-acento-texto: #7ea8ff;
-	--fhn-acento-fuerte: #a9c4ff;
-	--fhn-acento-suave: #0e1a33;
-	--fhn-sobre-acento: #ffffff;
-
-	--fhn-azul: #7ea8ff;
-	--fhn-azul-suave: #0e1a33;
-	--fhn-azul-fuerte: #a9c4ff;
-	--fhn-morado: #b9a3e3;
-	--fhn-morado-suave: #221d30;
-	--fhn-morado-fuerte: #d4c6f0;
-	--fhn-verde: #6fd39f;
-	--fhn-verde-suave: #10251a;
-	--fhn-verde-fuerte: #8fe0b5;
-	--fhn-naranja: #f0c060;
-	--fhn-naranja-suave: #2b220f;
-	--fhn-naranja-fuerte: #f5d38c;
-	--fhn-rojo: #ff8f85;
-	--fhn-rojo-suave: #351a17;
-	--fhn-rojo-fuerte: #ffb3ac;
-	--fhn-neutro: #babac2;
-	--fhn-neutro-suave: #26262c;
 }

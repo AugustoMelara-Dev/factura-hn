@@ -16,16 +16,13 @@
   },
   "devDependencies": {
     "@astrojs/markdown-remark": "7.3.10",
-    "@astrojs/react": "7.1.9",
     "@astrojs/starlight": "0.43.1",
     "@astryxdesign/core": "0.7.17",
     "@astryxdesign/theme-neutral": "0.7.17",
     "@fontsource/ibm-plex-mono": "5.3.0",
     "astro": "7.4.13",
     "github-slugger": "2.0.0",
-    "pagefind": "1.6.0",
-    "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "pagefind": "1.6.0"
   },
   "engines": {
     "node": ">=22.23.4"

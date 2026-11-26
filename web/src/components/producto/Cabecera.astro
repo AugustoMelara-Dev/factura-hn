@@ -1,18 +1,8 @@
 ---
-// Cabecera de las páginas del producto: la marca, la navegación principal (la misma de la documentación), el
-// selector de tema de Starlight y el botón de prueba (la demostración si está en línea; si no, el playground).
-// En el teléfono, la navegación va en un menú <details>, que se abre sin JavaScript; unas líneas de JavaScript lo
-// cierran con Escape, al tocar fuera o al elegir un enlace, y devuelven el foco al botón.
-import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+// Cabecera de la portada: la marca y la navegación principal (Documentación y GitHub), la misma de la
+// documentación. Son dos enlaces: caben también en el teléfono, sin menú.
 import Marca from '../Marca.astro';
-import { PRUEBA } from '../../datos/demo';
 import { conBase, NAV } from '../../datos/navegacion';
-
-interface Props {
-  ruta: string;
-}
-const { ruta } = Astro.props;
-const actual = (r: string) => (r !== '/' && ruta.startsWith(r) ? 'page' : undefined);
 ---
 
 <header class="cab">
@@ -24,45 +14,12 @@ const actual = (r: string) => (r !== '/' && ruta.startsWith(r) ? 'page' : undefi
 					e.externo ? (
 						<a href={e.ruta} rel="noopener">
 							{e.texto}
-							<span class="sr-only"> (sitio externo)</span>
 						</a>
 					) : (
-						<a href={conBase(e.ruta)} aria-current={actual(e.ruta)}>
-							{e.texto}
-						</a>
+						<a href={conBase(e.ruta)}>{e.texto}</a>
 					),
 				)
 			}
 		</nav>
-		<div class="cab-acciones">
-			<div class="cab-tema"><ThemeSelect /></div>
-			<a class="boton boton-primario boton-chico" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
-			<details class="cab-menu">
-				<summary aria-label="Menú">
-					<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
-						><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg
-					>
-				</summary>
-				<nav class="cab-menu-panel" aria-label="Principal (menú)">
-					{NAV.map((e) => <a href={e.externo ? e.ruta : conBase(e.ruta)} aria-current={e.externo ? undefined : actual(e.ruta)}>{e.texto}</a>)}
-					<div class="cab-menu-tema"><ThemeSelect /></div>
-				</nav>
-			</details>
-		</div>
 	</div>
 </header>
-
-<script is:inline>
-	(() => {
-		const menu = document.querySelector('.cab-menu');
-		if (!menu) return;
-		const cerrar = (foco) => {
-			if (!menu.open) return;
-			menu.open = false;
-			if (foco) menu.querySelector('summary').focus();
-		};
-		document.addEventListener('keydown', (e) => e.key === 'Escape' && cerrar(true));
-		document.addEventListener('pointerdown', (e) => !menu.contains(e.target) && cerrar(false));
-		menu.addEventListener('click', (e) => e.target.closest('a') && cerrar(false));
-	})();
-</script>

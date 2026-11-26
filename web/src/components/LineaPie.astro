@@ -1,0 +1,43 @@
+---
+// La única línea del pie, la misma en la portada (producto/PieSitio.astro) y en la documentación (Pie.astro).
+import { PIE } from '../datos/navegacion';
+---
+
+<p class="linea-pie">
+	<span>Proyecto independiente, no afiliado al SAR.</span>
+	{
+		PIE.map((e) => (
+			<a href={e.ruta} rel="noopener">
+				{e.texto}
+			</a>
+		))
+	}
+</p>
+
+<style>
+	.linea-pie {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		column-gap: 1.25rem;
+		margin: 0;
+		color: var(--fhn-gris-3);
+		font-size: 0.875rem;
+		line-height: 1.5;
+	}
+	.linea-pie span {
+		margin-inline-end: auto;
+		padding-block: 0.75rem;
+	}
+	.linea-pie a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+		color: var(--fhn-gris-3);
+		text-decoration: none;
+	}
+	.linea-pie a:hover {
+		color: var(--fhn-texto);
+		text-decoration: underline;
+	}
+</style>

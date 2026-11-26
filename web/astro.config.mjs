@@ -1,13 +1,11 @@
 // Sitio de documentación de factura-hn: Astro Starlight en español, publicado en GitHub Pages.
 // `pnpm sitio` (en la raíz) genera las páginas que salen de los Markdown del repositorio, construye y verifica.
 import { unified } from '@astrojs/markdown-remark';
-import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
 import rehypeBase from './src/plugins/rehype-base.mjs';
-import remarkDemo from './src/plugins/remark-demo.mjs';
 import temaClaroSinJs from './src/plugins/tema-claro.mjs';
-import { API_DEMO, BASE, MENU, META_SOCIAL, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
+import { BASE, MENU, META_SOCIAL, REPO, SALIDA, SITIO_URL } from './sitio.config.mjs';
 
 export default defineConfig({
   site: SITIO_URL,
@@ -27,13 +25,13 @@ export default defineConfig({
   // El sitio casi no tiene imágenes: sin sharp (y sin su script de instalación).
   image: { service: passthroughImageService() },
   markdown: {
-    processor: unified({ remarkPlugins: [[remarkDemo, { api: API_DEMO }]], rehypePlugins: [[rehypeBase, { base: BASE }]] }),
+    processor: unified({ rehypePlugins: [[rehypeBase, { base: BASE }]] }),
   },
   integrations: [
     starlight({
       title: 'factura-hn',
       description:
-        'Facturación según el Acuerdo 481-2017 de Honduras: SDK, API REST y servidor MCP de código abierto. Proyecto independiente, no afiliado al SAR.',
+        'Facturación para Honduras, de código abierto: SDK, CLI, API REST y servidor MCP. Proyecto independiente, no afiliado al SAR.',
       defaultLocale: 'root',
       locales: { root: { label: 'Español', lang: 'es' } },
       favicon: '/favicon.svg',
@@ -46,12 +44,14 @@ export default defineConfig({
         MobileMenuFooter: './src/components/MenuMovilDocs.astro',
         SiteTitle: './src/components/TituloDocs.astro',
         ThemeProvider: './src/components/ProveedorTema.astro',
+        ThemeSelect: './src/components/SinSelectorTema.astro',
       },
       credits: false,
       lastUpdated: false,
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       expressiveCode: {
-        themes: ['github-dark', 'github-light'],
+        // Un solo tema, claro: el sitio no tiene modo oscuro.
+        themes: ['github-light'],
         // Los prompts (`text`) son prosa: se ajustan al ancho en vez de desplazarse.
         defaultProps: { overridesByLang: { text: { wrap: true } } },
         styleOverrides: {
@@ -64,8 +64,6 @@ export default defineConfig({
       },
       sidebar: MENU,
     }),
-    // Solo la isla de /probar/ hidrata React en el navegador; el resto del sitio no lleva JavaScript propio.
-    react(),
     temaClaroSinJs(),
   ],
 });

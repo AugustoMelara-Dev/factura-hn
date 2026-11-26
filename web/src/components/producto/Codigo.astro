@@ -1,0 +1,27 @@
+---
+// Bloque de código de la portada: resaltado en el servidor (Shiki, un solo tema claro) y un botón «Copiar». El
+// botón funciona con el script en línea de layouts/Sitio.astro, que copia el texto del bloque y avisa «Copiado»
+// a los lectores de pantalla. Sin JavaScript, el texto se selecciona y se copia a mano.
+// Las líneas largas se ajustan al ancho: el bloque nunca ensancha la página (a 375 px tampoco).
+import { Code } from 'astro:components';
+import { temaCodigo } from '../../datos/ejemplo.mjs';
+
+interface Props {
+  codigo: string;
+  lang: 'js' | 'bash' | 'json';
+  /** Lo que dice la barra del bloque: un nombre de archivo o «Terminal». */
+  titulo: string;
+  /** Nombre accesible del botón, p. ej. «Copiar el ejemplo». */
+  etiqueta?: string;
+}
+const { codigo, lang, titulo, etiqueta = `Copiar: ${titulo}` } = Astro.props;
+const tema = await temaCodigo();
+---
+
+<div class="codigo" data-codigo>
+	<div class="codigo-barra">
+		<span>{titulo}</span>
+		<button type="button" class="copiar" data-copiar aria-label={etiqueta}>Copiar</button>
+	</div>
+	<Code code={codigo} lang={lang} theme={tema} wrap />
+</div>

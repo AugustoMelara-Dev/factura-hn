@@ -11,9 +11,9 @@
  * 4. El buscador (el índice de Pagefind generado, consultado con su propia API) encuentra «CAI», «nota de
  *    crédito» y «rango».
  * 5. Los comandos de las páginas del producto son los del README (no pueden desincronizarse de los pasos probados).
- * 6. Las páginas del producto (src/pages/): cada una tiene su `.md`, lleva la etiqueta viewport y no carga
- *    JavaScript propio salvo /probar/, que además tiene texto para quien no tiene JavaScript. Su CSS no tiene
- *    anchos fijos de más de 375 px, para que quepan en un teléfono.
+ * 6. La portada (src/pages/): tiene su `.md`, lleva la etiqueta viewport, no carga JavaScript externo (solo el
+ *    script en línea del botón «Copiar») ni estilos de tema oscuro. Su CSS no tiene anchos fijos de más de 375 px,
+ *    para que quepa en un teléfono.
  *
  * Sale con 1 y la lista de problemas si algo falla.
  */
@@ -21,8 +21,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { API_DEMO, BASE, DOCS, MARCADOR_API, PAGINAS_PRODUCTO, RAIZ, REPO, SALIDA, WEB } from '../sitio.config.mjs';
-import { COMANDOS } from '../src/datos/comandos.mjs';
+import { BASE, DOCS, PAGINAS_PRODUCTO, RAIZ, REPO, SALIDA, WEB } from '../sitio.config.mjs';
+import { COMANDOS, MCP_HTTP } from '../src/datos/comandos.mjs';
 
 /**
  * Páginas que escriben las ramas de contenido y que las páginas de esta rama ya enlazan. Mientras no existan, un
@@ -104,8 +104,6 @@ for (const f of archivos.filter((x) => /\.(md|html)$/.test(x) || /(^|\/)llms[^/]
   const texto = readFileSync(join(SALIDA, f), 'utf8');
   if (texto.includes('\u0000')) errores.push(`${f}: contiene U+0000 (NUL)`);
   if (texto.includes('�')) errores.push(`${f}: contiene U+FFFD (carácter de reemplazo)`);
-  // El marcador de la URL de la demostración nunca llega al visitante: se reemplaza por la URL real o se quita.
-  if (texto.includes(MARCADOR_API)) errores.push(`${f}: contiene el marcador ${MARCADOR_API} (falta <!-- con-demo --> o la URL)`);
   // Los avisos de Starlight (:::note) no son Markdown común: en las copias para IA van como cita.
   if (!f.endsWith('.html') && /^:::/m.test(texto)) errores.push(`${f}: contiene un aviso de Starlight (:::) sin convertir`);
 }
@@ -140,10 +138,11 @@ try {
 }
 
 // --- 5. Comandos de las páginas del producto y README ----------------------------------------------------------
-const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8');
+// El README del MCP también cuenta: ahí están los pasos del MCP por HTTP.
+const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8') + readFileSync(join(RAIZ, 'packages', 'mcp', 'README.md'), 'utf8');
 const portadaMd = readFileSync(join(WEB, 'src', 'md', 'portada.md'), 'utf8');
 const lineasPortada = [...portadaMd.replace(/\r\n/g, '\n').matchAll(/```bash\n([\s\S]*?)```/g)].flatMap(([, b]) => b.split('\n'));
-for (const linea of [...COMANDOS, ...lineasPortada].map((l) => l.trim()).filter(Boolean)) {
+for (const linea of [...COMANDOS, ...MCP_HTTP, ...lineasPortada].map((l) => l.trim()).filter(Boolean)) {
   if (!readme.includes(linea)) errores.push(`páginas del producto: el comando «${linea}» no está en el README (deben usar los pasos probados)`);
 }
 
@@ -159,27 +158,14 @@ for (const { ruta } of PAGINAS_PRODUCTO) {
   const contenido = readFileSync(join(SALIDA, pagina), 'utf8');
   if (!/<meta name="viewport" content="width=device-width, initial-scale=1"/.test(contenido)) errores.push(`${pagina}: falta la etiqueta viewport`);
   if (!/<html lang="es"/.test(contenido)) errores.push(`${pagina}: falta lang="es" en <html>`);
-  const isla = /<astro-island\b/.test(contenido);
-  // Lo que el sitio promete de la demostración tiene que coincidir con lo que hay: sin API, nada lleva a crear un
-  // entorno de prueba que no existe; con ella, /probar/ tiene la isla.
-  if (!API_DEMO && /<a class="boton[^"]*" href="[^"]*\/probar\/"/.test(contenido)) errores.push(`${pagina}: un botón lleva a /probar/ y la demostración no está en línea`);
-  if (ruta === 'probar') {
-    const sinJs = /<noscript>[\s\S]*necesita JavaScript[\s\S]*\/v1\/demo\/entornos[\s\S]*<\/noscript>/.test(contenido);
-    const noPublicada = contenido.includes('La demostración pública aún no está en línea');
-    if (isla !== Boolean(API_DEMO)) errores.push(`${pagina}: la isla ${isla ? 'está' : 'falta'} y la demostración ${API_DEMO ? 'está' : 'no está'} en línea`);
-    if (isla ? !sinJs : !noPublicada) {
-      errores.push(`${pagina}: sin JavaScript no dice qué hacer (falta el <noscript> con el curl, o el aviso de demostración no publicada)`);
-    }
-  }
-  if (!isla) {
-    // Sin isla, ni su JavaScript ni sus estilos (astryx.css, unos 300 KB sin comprimir).
-    const css = [...contenido.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
-    const peso = css.reduce((t, href) => t + (href.startsWith(`${BASE}/`) && existsSync(join(SALIDA, href.slice(BASE.length))) ? statSync(join(SALIDA, href.slice(BASE.length))).size : 0), 0);
-    if (peso > 120_000) errores.push(`${pagina}: carga ${Math.round(peso / 1000)} KB de CSS sin isla (¿astryx.css fuera de la isla?)`);
-  }
-  if (ruta !== 'probar' && (isla || /react/i.test(contenido.match(/<script[^>]*src="[^"]*"/g)?.join(' ') ?? ''))) {
-    errores.push(`${pagina}: carga JavaScript propio (solo /probar/ puede)`);
-  }
+  // Sin islas ni scripts propios: el único JavaScript es el script en línea del botón «Copiar» (y el de prefetch de
+  // Astro, `_astro/page.*.js`, que Starlight activa en todo el sitio).
+  const scripts = [...contenido.matchAll(/<script[^>]*\ssrc="([^"]*)"/g)].map((m) => m[1]).filter((src) => !/\/_astro\/page\.[\w-]+\.js$/.test(src));
+  if (/<astro-island\b/.test(contenido) || scripts.length) errores.push(`${pagina}: carga JavaScript externo (solo se permite el script en línea de «Copiar»)`);
+  if (!/<html[^>]*data-theme="light"/.test(contenido)) errores.push(`${pagina}: <html> sin data-theme="light" (el sitio tiene un solo tema, claro)`);
+  const css = [...contenido.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
+  const peso = css.reduce((t, href) => t + (href.startsWith(`${BASE}/`) && existsSync(join(SALIDA, href.slice(BASE.length))) ? statSync(join(SALIDA, href.slice(BASE.length))).size : 0), 0);
+  if (peso > 120_000) errores.push(`${pagina}: carga ${Math.round(peso / 1000)} KB de CSS`);
 }
 // CSS de las páginas del producto: ningún ancho fijo de más de 375 px (en px o rem de 16 px). Los max-width y las
 // condiciones de @media no cuentan.
@@ -188,7 +174,7 @@ const CSS_PRODUCTO = [
   'src/styles/tokens.css',
   'src/styles/astryx-puente.css',
   'src/layouts/Sitio.astro',
-  ...['src/pages', 'src/components/producto', 'src/islas'].flatMap((d) => readdirSync(join(WEB, d)).map((f) => `${d}/${f}`)),
+  ...['src/pages', 'src/components/producto'].flatMap((d) => readdirSync(join(WEB, d)).map((f) => `${d}/${f}`)),
 ];
 for (const archivo of CSS_PRODUCTO) {
   const texto = readFileSync(join(WEB, archivo), 'utf8');

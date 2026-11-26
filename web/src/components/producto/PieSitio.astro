@@ -1,34 +1,10 @@
 ---
-// Pie de las páginas del producto: enlaces por columna y el aviso de independencia, el mismo de la documentación.
-import Marca from '../Marca.astro';
-import { conBase, PIE } from '../../datos/navegacion';
+// Pie de la portada: la misma línea que el pie de la documentación (components/Pie.astro).
+import LineaPie from '../LineaPie.astro';
 ---
 
 <footer class="pie">
 	<div class="contenedor">
-		<div class="pie-rejilla">
-			<div class="pie-marca">
-				<Marca />
-				<p>Facturación para Honduras según el Acuerdo 481-2017. Código abierto con licencia MIT.</p>
-			</div>
-			{
-				PIE.map((col) => (
-					<div>
-						<h2 class="pie-titulo">{col.titulo}</h2>
-						<ul>
-							{col.enlaces.map((e) => (
-								<li>
-									<a href={e.externo ? e.ruta : conBase(e.ruta)}>{e.texto}</a>
-								</li>
-							))}
-						</ul>
-					</div>
-				))
-			}
-		</div>
-		<p class="pie-aviso">
-			Proyecto independiente, no afiliado al SAR. factura-hn no es asesoría fiscal ni un sistema autorizado por el SAR:
-			quien emite sigue siendo responsable de cumplir el Reglamento. Revisa la configuración con tu contador.
-		</p>
+		<LineaPie />
 	</div>
 </footer>
