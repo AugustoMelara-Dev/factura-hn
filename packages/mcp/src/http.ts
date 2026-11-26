@@ -315,9 +315,14 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
   }, Math.min(60_000, Math.max(1000, Math.floor(inactiva / 2))));
   barrido.unref();
 
-  /** La llave de la solicitud: del token de la ruta o de `Authorization: Bearer`. */
-  function llaveDe(req: IncomingMessage, ruta: string): string {
+  /**
+   * La llave de la solicitud: del token de la ruta o de `Authorization: Bearer`. `porToken` dice si vino de un token
+   * `fhnmcp_`, que va en una URL y solo puede ser de una llave de caja.
+   */
+  function llaveDe(req: IncomingMessage, ruta: string): { llave: string; porToken: boolean } {
     const m = /^\/mcp\/([^/]+)$/.exec(ruta);
+    // Otra ruta bajo /mcp/ (p. ej. /mcp/<token>/x) no existe: no se responde como si faltara la llave.
+    if (!m && ruta.startsWith('/mcp/')) throw new ErrorHttp(404, 'No existe esta URL del MCP. Revisa que la copiaste completa.');
     if (m) {
       let token: string;
       try {
@@ -328,7 +333,7 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       const llave = llaveDeTokenMcp(token);
       // Un token que no tiene la forma se responde como una ruta inexistente: no se distingue de un error de tipeo.
       if (!llave) throw new ErrorHttp(404, 'No existe esta URL del MCP. Revisa que la copiaste completa.');
-      return llave;
+      return { llave, porToken: true };
     }
     if (!(o.permitirBearer ?? true)) throw new ErrorHttp(404, 'Ruta no encontrada. Usa la URL del MCP con tu token (/mcp/<token>).');
     const auth = String(req.headers.authorization ?? '');
@@ -337,20 +342,23 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     if (!llave) {
       throw new ErrorHttp(401, 'Falta la llave: usa la URL del MCP con tu token (/mcp/<token>) o la cabecera Authorization: Bearer con tu llave de factura-hn.');
     }
-    return llave;
+    return { llave, porToken: !esLlaveApi(credencial) };
   }
 
   /**
    * Comprueba la llave contra la API antes de abrir una sesión (así el conector falla al agregarlo, no después) y
-   * devuelve su tenant y su caja (si la llave está atada a un punto de emisión). Una dirección que ya mandó muchas llaves rechazadas recibe 429 sin preguntarle a la API.
+   * devuelve su tenant, su rol y su caja (si la llave está atada a un punto de emisión). Una dirección que ya mandó
+   * muchas llaves rechazadas recibe 429 sin preguntarle a la API. Un token `fhnmcp_` (`porToken`) solo vale si es de
+   * una llave de caja: la URL puede filtrarse, así que no puede anular ni administrar.
    */
-  async function validarLlave(llave: string, ip: string, direccion: string): Promise<{ tenant: string; caja: { establecimiento: string; puntoEmision: string } | null }> {
+  async function validarLlave(
+    llave: string, ip: string, direccion: string, porToken: boolean,
+  ): Promise<{ tenant: string; rol: 'admin' | 'caja'; caja: { establecimiento: string; puntoEmision: string } | null }> {
     const espera = rechazos.espera(ip);
     if (espera) throw new ErrorHttp(429, 'Demasiadas llaves o URL del MCP no válidas desde tu dirección. Espera y reintenta.', -32000, { 'retry-after': String(espera) });
+    let s: Awaited<ReturnType<ReturnType<typeof crearCliente>['sesion']>>;
     try {
-      const s = await crearCliente({ url: urlApi, llave, fetch: fetchConCliente(fetchApi, direccion) }).sesion();
-      const { establecimiento, puntoEmision } = s.llave;
-      return { tenant: s.tenant, caja: establecimiento && puntoEmision ? { establecimiento, puntoEmision } : null };
+      s = await crearCliente({ url: urlApi, llave, fetch: fetchConCliente(fetchApi, direccion) }).sesion();
     } catch (e) {
       if (e instanceof ErrorFacturaHN && (e.estado === 401 || e.estado === 403)) {
         rechazos.tomar(ip);
@@ -361,10 +369,20 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       }
       throw new ErrorHttp(502, 'No se pudo conectar con la API de factura-hn. Reintenta en unos segundos.');
     }
+    const { establecimiento, puntoEmision } = s.llave;
+    const rol = s.llave.rol === 'caja' ? 'caja' : 'admin';
+    if (porToken && (rol !== 'caja' || !establecimiento || !puntoEmision)) {
+      throw new ErrorHttp(
+        403,
+        'Esta URL del MCP es de una llave admin, y la URL del MCP solo puede ser de una llave de caja (no anula ni administra). ' +
+          'Revócala y crea otra con: factura-hn-api llave crear <tenant> --rol caja --caja 000-001 --mcp',
+      );
+    }
+    return { tenant: s.tenant, rol, caja: establecimiento && puntoEmision ? { establecimiento, puntoEmision } : null };
   }
 
   async function nuevaSesion(
-    llave: string, huella: string, tenant: string, caja: { establecimiento: string; puntoEmision: string } | null, ip: string, direccion: string,
+    llave: string, huella: string, tenant: string, rol: 'admin' | 'caja', caja: { establecimiento: string; puntoEmision: string } | null, ip: string, direccion: string,
   ): Promise<StreamableHTTPServerTransport> {
     // Cupos por llave, por tenant y por dirección: al pasarse, se cierra la sesión más vieja de esa misma llave,
     // tenant o dirección (los clientes reabren sesión seguido). Así un visitante no llena el cupo global de todos.
@@ -376,8 +394,8 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     }
     // Una llave de caja emite en su caja; el punto del servidor es solo el de las llaves sin caja.
     const punto = caja ?? { establecimiento: o.establecimiento ?? '000', puntoEmision: o.puntoEmision ?? '001' };
-    const backend = new BackendApi({ url: urlApi, llave, ...punto, fetch: fetchConCliente(fetchApi, direccion) });
-    const servidor = crearServidorMCP(backend, { maxResultado: o.maxResultado ?? 64 * 1024 });
+    const backend = new BackendApi({ url: urlApi, llave, ...punto, rol, fetch: fetchConCliente(fetchApi, direccion) });
+    const servidor = crearServidorMCP(backend, { maxResultado: o.maxResultado ?? 64 * 1024, remoto: true });
     const eventos = new EventosEnMemoria(presupuesto, 200, maxBytesSesion);
     const transporte: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -418,7 +436,7 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       throw new ErrorHttp(405, 'Método no permitido: usa POST, GET o DELETE.', -32000, { allow: 'POST, GET, DELETE' });
     }
 
-    const llave = llaveDe(req, ruta);
+    const { llave, porToken } = llaveDe(req, ruta);
     const huella = createHash('sha256').update(llave).digest('hex');
     const esperaLlave = porLlaveMinuto.tomar(huella);
     if (esperaLlave) throw new ErrorHttp(429, 'Demasiadas solicitudes con esta llave. Espera y reintenta.', -32000, { 'retry-after': String(esperaLlave) });
@@ -450,8 +468,8 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     if (req.method !== 'POST' || !isInitializeRequest(cuerpo)) {
       throw new ErrorHttp(400, 'Falta la cabecera Mcp-Session-Id: inicia la sesión con initialize.');
     }
-    const { tenant, caja } = await validarLlave(llave, ip, direccion);
-    const transporte = await nuevaSesion(llave, huella, tenant, caja, ip, direccion);
+    const { tenant, rol, caja } = await validarLlave(llave, ip, direccion, porToken);
+    const transporte = await nuevaSesion(llave, huella, tenant, rol, caja, ip, direccion);
     await transporte.handleRequest(req, res, cuerpo);
   }
 
@@ -495,6 +513,12 @@ export async function servirMcpHttp(o: OpcionesMcpHttp & { puerto?: number; host
       await new Promise<void>((r) => servidor.close(() => r()));
     },
   };
+}
+
+/** Línea del log al arrancar el MCP remoto: dónde escucha, qué rutas acepta y a qué API llama. */
+export function lineaArranqueHttp(o: { host: string; puerto: number; urlApi: string; permitirBearer?: boolean }): string {
+  const rutas = (o.permitirBearer ?? true) ? 'rutas /mcp/<token> y /mcp (Bearer)' : 'ruta /mcp/<token> (solo URL)';
+  return `factura-hn MCP remoto: escucha en ${o.host}:${o.puerto}, ${rutas}; API en ${o.urlApi}.`;
 }
 
 /** Lee la configuración del MCP remoto de las variables de entorno (ver el README). */

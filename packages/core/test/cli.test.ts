@@ -4,7 +4,7 @@
  * nunca corre contra un `dist` viejo.
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -41,7 +41,8 @@ function distViejo(): boolean {
 beforeAll(() => {
   if (distViejo()) execSync('pnpm run build', { cwd: NUCLEO, stdio: 'pipe' });
   expect(distViejo()).toBe(false);
-  dir = mkdtempSync(join(tmpdir(), 'fhn-cli-'));
+  // realpath: en macOS tmpdir() es /var/folders/…, un enlace a /private/var/…, que es lo que imprime init.
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'fhn-cli-')));
 }, 180_000);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -247,5 +248,76 @@ describe('npx factura-hn', () => {
     expect(r.codigo).toBe(1);
     expect(r.error).toContain('Comando desconocido: «facturar»');
     expect(r.error).toContain('demo, init (o iniciar), ayuda y version');
+  });
+});
+
+describe('hallazgos de la auditoría de la CLI', () => {
+  /** Un proyecto con factura-hn instalado (enlace al núcleo compilado) y lo que crea init. */
+  function proyectoConInit(nombre: string) {
+    const p = join(dir, nombre);
+    mkdirSync(join(p, 'node_modules'), { recursive: true });
+    symlinkSync(NUCLEO, join(p, 'node_modules', 'factura-hn'), 'junction');
+    expect(correr(['init'], p).codigo).toBe(0);
+    return p;
+  }
+  const emitir = (p: string) => spawnSync(process.execPath, ['emitir.mjs'], { cwd: p, encoding: 'utf8', timeout: 60_000 });
+
+  it('CLI-1: emitir.mjs con emisor.json incompleto o ausente: mensaje en español y código 1, sin la pila', () => {
+    const p = proyectoConInit('emisor-incompleto');
+    writeFileSync(join(p, 'emisor.json'), '{"rtn": "1"}\n');
+    const incompleto = emitir(p);
+    expect(incompleto.status).toBe(1);
+    expect(incompleto.stderr).toMatch(/^No se emitió: /);
+    expect(incompleto.stderr).toMatch(/rtn/i);
+    expect(incompleto.stderr).toContain('npx factura-hn init --forzar');
+    rmSync(join(p, 'emisor.json'));
+    const ausente = emitir(p);
+    expect(ausente.status).toBe(1);
+    expect(ausente.stderr.trim()).toBe('No está emisor.json en esta carpeta: créalo con npx factura-hn init (y cambia sus datos por los de tu negocio).');
+    for (const r of [incompleto, ausente]) {
+      expect(r.stderr).not.toMatch(/^\s+at /m);
+      expect(r.stderr).not.toContain('node_modules');
+      expect(r.stderr).not.toContain('ENOENT');
+    }
+    expect(existsSync(join(p, 'factura.html'))).toBe(false);
+  });
+
+  // Como root (contenedores de CI) el modo 444 no impide escribir: la prueba no aplica.
+  it.skipIf(process.getuid?.() === 0)('CLI-2: init --forzar con un archivo de solo lectura no reemplaza ninguno', () => {
+    const p = join(dir, 'solo-lectura');
+    mkdirSync(p);
+    writeFileSync(join(p, 'emitir.mjs'), '// mío\n');
+    writeFileSync(join(p, 'emisor.json'), '{"mio": true}\n');
+    chmodSync(join(p, 'emisor.json'), 0o444);
+    try {
+      const r = correr(['init', '--forzar'], p);
+      expect(r.codigo).toBe(1);
+      expect(r.error).toContain(`No se pudo escribir ${join(p, 'emisor.json')}: no hay permiso`);
+      expect(r.error).toContain('No se cambió ningún archivo.');
+      expect(readFileSync(join(p, 'emitir.mjs'), 'utf8')).toBe('// mío\n');
+      expect(readFileSync(join(p, 'emisor.json'), 'utf8')).toBe('{"mio": true}\n');
+    } finally {
+      chmodSync(join(p, 'emisor.json'), 0o644);
+    }
+  });
+
+  it('CLI-3: ayuda por comando y --ayuda, con código 0 y sin escribir nada', () => {
+    const p = join(dir, 'ayuda-comando');
+    mkdirSync(p);
+    for (const args of [['init', '--help'], ['iniciar', '-h'], ['init', '--ayuda'], ['ayuda', 'init'], ['init', '--forzar', '--help']]) {
+      const r = correr(args, p);
+      expect(r.codigo, args.join(' ')).toBe(0);
+      expect(r.salida, args.join(' ')).toContain('Uso: npx factura-hn init [--forzar]');
+    }
+    for (const args of [['demo', '--help'], ['--help', 'demo']]) {
+      const r = correr(args, p);
+      expect(r.codigo, args.join(' ')).toBe(0);
+      expect(r.salida).toContain('Uso: npx factura-hn demo');
+    }
+    const general = correr(['--ayuda'], p);
+    expect(general.codigo).toBe(0);
+    expect(general.salida).toContain('Uso: npx factura-hn <comando>');
+    expect(readdirSync(p)).toEqual([]);
+    expect(correr(['ayuda', 'facturar'], p).codigo).toBe(1);
   });
 });

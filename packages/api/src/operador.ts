@@ -58,7 +58,15 @@ export async function crearTenant(
   if (TENANTS_RESERVADOS.includes(o.tenant)) {
     throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
   }
-  return crearTenantSinReserva(pool, o);
+  try {
+    return await crearTenantSinReserva(pool, o);
+  } catch (e) {
+    // 23505: el tenant ya existe (clave primaria de api_tenants).
+    if ((e as { code?: string }).code === '23505' && (e as { constraint?: string }).constraint === 'api_tenants_pkey') {
+      throw new Error(`El tenant «${o.tenant}» ya existe. Para otra llave: llave crear ${o.tenant} --rol admin`);
+    }
+    throw e;
+  }
 }
 
 async function crearTenantSinReserva(
@@ -77,11 +85,16 @@ async function crearTenantSinReserva(
   return { tenant: o.tenant, llaveAdmin: llave, modo };
 }
 
+/** Mensaje cuando se pide un token del MCP por URL que no es de una llave de caja. */
+export const ERROR_TOKEN_MCP_SOLO_CAJA =
+  'El token del MCP por URL solo puede ser de una llave de caja (emite, pero no anula ni administra): usa --rol caja --caja 000-001 con --mcp. Para anular o registrar CAI, usa una llave admin desde la API.';
+
 /**
  * Llave adicional desde la consola del operador (p. ej. si se perdió la única llave admin). Lleva la marca del
  * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción. Con `mcp`, devuelve en su
- * lugar un token del MCP por HTTP (`fhnmcp_…`) y guarda la llave que se deriva de él, con el mismo rol y caja:
- * revocar esa llave (`DELETE /v1/llaves/{prefijo}`) apaga el token.
+ * lugar un token del MCP por HTTP (`fhnmcp_…`) y guarda la llave que se deriva de él, con la misma caja: revocar
+ * esa llave (`DELETE /v1/llaves/{prefijo}`) apaga el token. El token va en una URL, así que solo puede ser de una
+ * llave de caja: quien tenga la URL emite en esa caja, pero no anula ni administra.
  */
 export async function crearLlaveOperador(
   pool: pg.Pool,
@@ -89,6 +102,7 @@ export async function crearLlaveOperador(
 ): Promise<string> {
   const est = o.establecimiento || null;
   const pto = o.puntoEmision || null;
+  if (o.mcp && (o.rol !== 'caja' || !est || !pto)) throw new Error(ERROR_TOKEN_MCP_SOLO_CAJA);
   const tresDigitos = /^[0-9]{3}$/;
   if (Boolean(est) !== Boolean(pto) || (o.rol === 'caja' && !est) || (est && !tresDigitos.test(est)) || (pto && !tresDigitos.test(pto))) {
     throw new Error('Una llave de caja se ata a un establecimiento y punto de emisión: --caja 000-001.');

@@ -48,7 +48,7 @@ const SOLUCIONES: Record<string, string> = {
   NOTA_SUPERA_ORIGINAL: 'La nota acredita más de lo que queda por acreditar del original. Revisa las líneas con el usuario.',
   NOTA_TASA_DISTINTA: 'Usa en la nota la misma tarifa de ISV que tenía la línea en el original.',
   YA_ANULADO: 'El documento ya estaba anulado: no hay nada más que hacer.',
-  NO_ENCONTRADO: 'Verifica el número con el usuario (16 dígitos, p. ej. 000-001-01-00000001), o búscalo en libro_ventas.',
+  NO_ENCONTRADO: 'Verifica el número con el usuario (16 dígitos, p. ej. 000-001-01-00000001), o búscalo con listar_documentos (lista los de un período, también los de prueba).',
   CONSUMIDOR_FINAL_IDENTIFICACION:
     'La venta pasa del umbral para consumidor final: pide al usuario la identificación o el RTN del comprador.',
   LINEA_PRECIO: 'Revisa el precio: un decimal positivo, mejor como texto (p. ej. "57.50").',
@@ -58,10 +58,9 @@ const SOLUCIONES: Record<string, string> = {
   OPERADOR: 'El nombre del operador no puede llevar caracteres de control. Escríbelo como texto simple.',
   OPERADOR_REQUERIDO: 'Para imprimir «Atendido por», indica en `operador` quién atiende.',
   SOLO_ADMIN: 'La llave de API de este servidor es de caja. Esta operación la hace un administrador con una llave admin.',
-  NO_AUTENTICADO: 'La llave de API (FHN_LLAVE) no es válida o fue revocada. Pide una nueva al administrador.',
+  NO_AUTENTICADO: 'La llave de API o la URL del MCP no es válida o fue revocada. Pide una nueva al administrador.',
   SIN_EMISOR: 'La API no tiene los datos del emisor. El administrador los registra con POST /v1/emisores.',
   API_INACCESIBLE: 'No se pudo conectar con la API de factura-hn. Revisa que esté en marcha y que FHN_API_URL sea correcta.',
-  SOLICITUD_INVALIDA: 'Corrige el argumento de `campo` según el mensaje y vuelve a llamar la herramienta. Si el dato viene del usuario, pregúntaselo.',
   CONFIRMACION_NO_DISPONIBLE:
     'Esta herramienta pide la confirmación del usuario en el cliente MCP (elicitación) y este cliente no la ofrece. Díselo al ' +
     'usuario: un CAI lo puede registrar él con `npx -y @factura-hn/mcp registrar-cai` y, si acepta que el asistente anule o registre CAI sin esa confirmación, ' +
@@ -87,6 +86,10 @@ const SOLUCION_CAMPO: Record<string, string> = {
 export function solucionPara(p: Pick<Problema, 'codigo' | 'campo'>): string {
   const delCampo = p.codigo === 'SOLICITUD_INVALIDA' && p.campo ? SOLUCION_CAMPO[p.campo.split('.')[0]!] : undefined;
   if (delCampo) return delCampo;
+  if (p.codigo === 'SOLICITUD_INVALIDA') {
+    const que = p.campo ? `Corrige ${p.campo}` : 'Corrige los argumentos';
+    return `${que} según el mensaje y vuelve a llamar la herramienta. Si el dato viene del usuario, pregúntaselo.`;
+  }
   const propia = SOLUCIONES[p.codigo];
   if (propia) return propia;
   if (p.codigo.startsWith('EMISOR_')) return 'Corrige ese dato en emisor.json (FHN_EMISOR) y reinicia el servidor MCP.';

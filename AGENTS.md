@@ -204,6 +204,6 @@ CAI ficticio, y `docker compose exec -T api factura-hn-api demo llave --solo-lla
 ## Con el MCP
 
 Para que el asistente opere la facturación (no para integrarla): `@factura-hn/mcp`, con las herramientas
-`emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `anular_documento`, `estado_cai`,
+`emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `listar_documentos`, `anular_documento`, `estado_cai`,
 `libro_ventas` y `registrar_cai`. Prueba: `npx -y @factura-hn/mcp init --demo`. Con datos reales:
 `npx -y @factura-hn/mcp init` y `npx -y @factura-hn/mcp registrar-cai`.

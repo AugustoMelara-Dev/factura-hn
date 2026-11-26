@@ -16,7 +16,7 @@ import { BackendApi, BackendLocal, type Backend } from './backend';
 import { abrirBase, ejecutarComando } from './comandos';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { leerEmisor } from './emisor';
-import { opcionesMcpHttpDesdeEntorno, servirMcpHttp } from './http';
+import { lineaArranqueHttp, opcionesMcpHttpDesdeEntorno, servirMcpHttp } from './http';
 import { problemaDeNode } from './requisitos';
 import { crearServidorMCP } from './servidor';
 
@@ -84,7 +84,7 @@ try {
   } else if (r === 'http') {
     const opciones = opcionesMcpHttpDesdeEntorno(process.env);
     const { cerrar } = await servirMcpHttp(opciones);
-    console.error(`factura-hn MCP remoto: escucha en ${opciones.host}:${opciones.puerto}, rutas /mcp/<token> y /mcp; API en ${opciones.urlApi}.`);
+    console.error(lineaArranqueHttp(opciones));
     const salir = () => void cerrar().finally(() => process.exit(0));
     process.once('SIGTERM', salir);
     process.once('SIGINT', salir);

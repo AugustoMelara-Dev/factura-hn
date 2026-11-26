@@ -181,7 +181,7 @@ describe('documentación para agentes', () => {
   it('las herramientas MCP que se listan son las que el servidor registra', () => {
     const servidor = readFileSync(join(RAIZ, 'packages', 'mcp', 'src', 'servidor.ts'), 'utf8');
     const registradas = [...servidor.matchAll(/registerTool\(\s*'(\w+)'/g)].map((m) => m[1]).sort();
-    expect(registradas).toHaveLength(7);
+    expect(registradas).toHaveLength(8);
     for (const archivo of ['llms.txt', 'packages/mcp/README.md']) {
       const texto = readFileSync(join(RAIZ, archivo), 'utf8');
       for (const h of registradas) expect(texto.includes(h!), `${archivo}: ${h}`).toBe(true);
