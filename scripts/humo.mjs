@@ -123,14 +123,14 @@ function crearProyecto(dir, tarballs) {
 
 /**
  * El ejemplo mínimo del README de factura-hn (el que se ve en npm), guardado como factura.mjs y corrido con node.
- * Es el bloque que sigue a «En cada venta» (el mismo que comprueba packages/core/test/readme.test.ts).
+ * Es el bloque ```js con `crearFacturadorDemo` (el mismo que comprueba packages/core/test/readme.test.ts).
  */
 async function caminoSDK({ proyecto, tarballs }) {
   const readme = leerDeTgz(tarballs.core, 'package/README.md').replace(/\r\n/g, '\n');
-  const bloque = [...readme.matchAll(/```(?:ts|js)\n([\s\S]*?)```/g)].map((m) => m[1]).find((c) => c.includes('// En cada venta'));
-  if (!bloque) throw new Error('El README de factura-hn no trae el ejemplo mínimo (bloque con «// En cada venta»).');
-  const variable = /const (\w+) = await emitir\(/.exec(bloque)?.[1];
-  if (!variable) throw new Error('El ejemplo mínimo no guarda el resultado de emitir en una constante.');
+  const bloque = [...readme.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]).find((c) => c.includes('crearFacturadorDemo'));
+  if (!bloque) throw new Error('El README de factura-hn no trae el ejemplo mínimo (bloque ```js con «crearFacturadorDemo»).');
+  if (!/const factura = await /.test(bloque)) throw new Error('El ejemplo mínimo no guarda el documento emitido en «factura».');
+  const variable = 'factura';
   const archivo = join(proyecto, 'factura.mjs');
   writeFileSync(archivo, `${bloque}\nconsole.log(JSON.stringify({ numero: ${variable}.numero, total: ${variable}.totales.total }));\n`);
   const salida = correr(process.execPath, [archivo], { cwd: proyecto }).trim().split('\n').at(-1);

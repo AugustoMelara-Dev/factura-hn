@@ -97,8 +97,8 @@ export async function crearLlaveOperador(
   if (!modo) {
     throw new Error(`El tenant «${o.tenant}» no existe: arranca la API una vez (crea «${TENANT_LOCAL}») o créalo con «tenant crear».`);
   }
-  const nueva = o.mcp ? generarTokenMcp(modo) : generarLlave(modo);
-  const { prefijo, hash } = nueva;
+  const mcp = o.mcp ? generarTokenMcp(modo) : null;
+  const { llave, prefijo, hash } = mcp ?? generarLlave(modo);
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -106,7 +106,7 @@ export async function crearLlaveOperador(
     );
     await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo })]);
   });
-  return 'token' in nueva ? nueva.token : nueva.llave;
+  return mcp ? mcp.token : llave;
 }
 
 /**
