@@ -568,16 +568,14 @@ moneda: la mayoría de estos errores desaparecen.
   disponible (por tasa, si es el tope de una tasa).
 - **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
   línea la misma tasa que en el original.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente). Ningún artículo fija
-  un tope numérico: el Reglamento no lo dice de forma literal y es la lectura que aplica factura-hn (no se puede
-  devolver o descontar más de lo vendido, ni a otra tasa).
+- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente): no se devuelve ni se
+  descuenta más de lo vendido, ni a otra tasa.
 
 ### NOTA_TASA_DISTINTA
 
 - **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
 - **Solución:** usa en cada línea el mismo tratamiento de ISV que en el original.
-- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente). El Reglamento no lo dice de
-  forma literal: es la lectura que aplica factura-hn.
+- **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente).
 
 ## SDK: anulación y consulta
 
@@ -600,8 +598,7 @@ moneda: la mayoría de estos errores desaparecen.
 - **Solución:** anula primero las notas de crédito y débito vigentes que indica el mensaje (con su propio motivo) y
   después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.
 - **Base:** Reglamento, Art. 41 (anulación) y Art. 4 num. 32 (la nota respalda un ajuste sobre el comprobante
-  correspondiente). Es la regla inversa de [`REFERENCIA_ANULADA`](#referencia_anulada). Ningún artículo la dice
-  así: es la lectura que aplica factura-hn.
+  correspondiente). Es la regla inversa de [`REFERENCIA_ANULADA`](#referencia_anulada).
 
 ### DOCUMENTO_NO_ENCONTRADO
 
@@ -660,8 +657,7 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** el original se emitió sin RTN del adquirente (por ejemplo, a CONSUMIDOR FINAL). La nota se
   emite con el RTN que indiques, que el original no tenía.
 - **Qué hacer:** confirma que la nota corresponde al mismo cliente.
-- **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente). Aceptar un RTN que el original no tiene
-  no lo dice el Reglamento de forma literal: es la lectura que aplica factura-hn.
+- **Base:** Reglamento, Arts. 26 y 28 (la nota identifica al adquirente).
 
 ### AVISO_NOTA_EXONERACION_DISTINTA
 
@@ -671,7 +667,7 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué hacer:** si el original es exonerado, copia su `exoneracion` en la nota; si no lo es, quita `exoneracion`
   de la nota. El aviso trae esa `solucion`.
 - **Base:** Reglamento, Art. 4 num. 32 (la nota ajusta el comprobante correspondiente) y Art. 11 num. 4 (datos del
-  adquirente exonerado). Es un aviso de factura-hn, no un requisito literal del Reglamento.
+  adquirente exonerado).
 
 ### AVISO_VENCIMIENTO
 
@@ -816,7 +812,7 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 
 ### CUERPO_DEMASIADO_GRANDE
 
-- **Qué significa (413):** el cuerpo supera 512 KB (32 KB en la demostración pública, `FHN_DEMO_MAX_CUERPO`).
+- **Qué significa (413):** el cuerpo supera 512 KB.
 - **Solución:** divide la operación.
 
 ### CUERPO_NO_UTF8
@@ -908,14 +904,14 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, busca en el log del servidor la línea con el
   id de `error.solicitud` (o de la cabecera `Solicitud-Id`).
 
-## API REST: demostración pública
+## API REST: modo `demo`
 
-Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Todos traen el mismo cuerpo
+Solo en un servidor con `FHN_MODO=demo`, que crea entornos de prueba temporales. Todos traen el mismo cuerpo
 `{ "error": { "codigo", "mensaje" } }` y, los 429 y 503, la cabecera `Retry-After`.
 
 ### DEMO_PAUSADO
 
-- **Qué significa (503):** quien opera la demostración la puso en pausa (`demo pausar` o `FHN_DEMO_PAUSADO=1`):
+- **Qué significa (503):** quien opera el servidor lo puso en pausa (`demo pausar` o `FHN_DEMO_PAUSADO=1`):
   no se crean entornos y los que hay no atienden.
 - **Solución:** reintenta más tarde, después de los segundos de `Retry-After`.
 
@@ -923,7 +919,7 @@ Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](https://github.com/August
 
 - **Qué significa (403):** `POST /v1/demo/entornos` llegó desde una página de otro sitio (su `Origin` no está en
   `FHN_DEMO_ORIGENES`). Una solicitud sin `Origin` (curl, el SDK) se atiende.
-- **Solución:** crea el entorno desde la página «Pruébalo ahora» del sitio de factura-hn o con curl.
+- **Solución:** crea el entorno desde un origen permitido o sin `Origin` (curl, el SDK).
 
 ### DEMO_LIMITE_ENTORNOS
 
@@ -934,8 +930,8 @@ Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](https://github.com/August
 
 ### DEMO_SOLO_PRUEBA
 
-- **Qué significa (403):** la llave no es de un entorno creado con `POST /v1/demo/entornos`. El servidor de
-  demostración no atiende otras.
+- **Qué significa (403):** la llave no es de un entorno creado con `POST /v1/demo/entornos`. En modo `demo` el
+  servidor no atiende otras.
 - **Solución:** crea un entorno con `POST /v1/demo/entornos` y usa su llave.
 
 ### ENTORNO_VENCIDO
@@ -946,8 +942,8 @@ Solo en un servidor con `FHN_MODO=demo` (ver [demo.md](https://github.com/August
 
 ### DEMO_NO_DISPONIBLE
 
-- **Qué significa (403):** la operación no existe en la demostración pública: webhooks (la demostración no hace
-  solicitudes salientes), cambiar el emisor ficticio o crear llaves.
+- **Qué significa (403):** la operación no existe en modo `demo`: webhooks (no hace solicitudes salientes),
+  cambiar el emisor ficticio o crear llaves.
 - **Solución:** pruébala en tu propia instalación ([autoalojamiento](autoalojamiento.md)).
 
 ### DEMO_LIMITE_SOLICITUDES

@@ -4,7 +4,7 @@
 //
 //   FHN_PG_URL=postgres://postgres@127.0.0.1:54329/factura_hn_pruebas pnpm calidad:owasp
 //
-// El informe está en docs/calidad/owasp.md.
+// El resumen sale en la consola; no se escribe en el repositorio.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
