@@ -1,0 +1,762 @@
+{
+  "GET /salud": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "ok": true,
+      "version": "0.4.0",
+      "modo": "local"
+    }
+  },
+  "GET /v1/sesion": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "sesion": {
+        "tenant": "demo",
+        "modoTenant": "prueba",
+        "modo": "local",
+        "demo": true,
+        "llave": {
+          "id": "11a3d333-ef23-4f00-b072-2022d02a60b1",
+          "prefijo": "c9d91afb9baa",
+          "nombre": "Caja demo (consola)",
+          "rol": "caja",
+          "establecimiento": "000",
+          "puntoEmision": "001"
+        },
+        "emisor": {
+          "registrado": true,
+          "rtn": "99990000000000",
+          "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)"
+        },
+        "puntos": [
+          {
+            "establecimiento": "000",
+            "puntoEmision": "001",
+            "tipos": [
+              {
+                "tipoDocumento": "01",
+                "listo": true,
+                "siguienteNumero": "000-001-01-00000001",
+                "autorizaciones": [
+                  {
+                    "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+                    "rangoInicial": 1,
+                    "rangoFinal": 5000,
+                    "fechaLimiteEmision": "2027-05-25",
+                    "diasRestantes": 180,
+                    "correlativosRestantes": 5000,
+                    "alertas": []
+                  }
+                ],
+                "problema": null
+              },
+              {
+                "tipoDocumento": "06",
+                "listo": true,
+                "siguienteNumero": "000-001-06-00000001",
+                "autorizaciones": [
+                  {
+                    "cai": "DEMO00-NO-VALIDO-0000-0000-0000-06",
+                    "rangoInicial": 1,
+                    "rangoFinal": 5000,
+                    "fechaLimiteEmision": "2027-05-25",
+                    "diasRestantes": 180,
+                    "correlativosRestantes": 5000,
+                    "alertas": []
+                  }
+                ],
+                "problema": null
+              },
+              {
+                "tipoDocumento": "07",
+                "listo": true,
+                "siguienteNumero": "000-001-07-00000001",
+                "autorizaciones": [
+                  {
+                    "cai": "DEMO00-NO-VALIDO-0000-0000-0000-07",
+                    "rangoInicial": 1,
+                    "rangoFinal": 5000,
+                    "fechaLimiteEmision": "2027-05-25",
+                    "diasRestantes": 180,
+                    "correlativosRestantes": 5000,
+                    "alertas": []
+                  }
+                ],
+                "problema": null
+              }
+            ]
+          }
+        ],
+        "documentosDelMes": null,
+        "limiteMensual": null,
+        "puedeEmitir": true,
+        "pendientes": []
+      }
+    }
+  },
+  "GET /v1/emisores": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "emisores": [
+        {
+          "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+          "rtn": "99990000000000",
+          "correo": "demo@ejemplo.example",
+          "telefono": "0000-0001",
+          "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+          "nombreComercial": "Pulpería Demostración",
+          "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+          "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "GET /v1/emisores/{id}": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "emisor": {
+        "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+        "rtn": "99990000000000",
+        "correo": "demo@ejemplo.example",
+        "telefono": "0000-0001",
+        "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+        "nombreComercial": "Pulpería Demostración",
+        "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+        "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+      }
+    }
+  },
+  "PATCH /v1/emisores/{id}": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "emisor": {
+        "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+        "rtn": "99990000000000",
+        "correo": "demo@ejemplo.example",
+        "telefono": "0000-0002",
+        "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+        "nombreComercial": "Pulpería Demostración",
+        "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+        "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+      }
+    }
+  },
+  "POST /v1/emisores": {
+    "codigo": 409,
+    "tipo": "application/json",
+    "cuerpo": {
+      "error": {
+        "codigo": "EMISOR_EXISTE",
+        "mensaje": "Este tenant ya tiene emisor (id c34f95db-d4e4-418d-a201-216f69be3e61): usa PATCH /v1/emisores/c34f95db-d4e4-418d-a201-216f69be3e61.",
+        "solicitud": "9e2615d4-842a-49a7-9084-b37bb0a77e63"
+      },
+      "id": "c34f95db-d4e4-418d-a201-216f69be3e61"
+    }
+  },
+  "GET /v1/autorizaciones": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "autorizaciones": [
+        {
+          "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+          "tipoDocumento": "01",
+          "establecimiento": "000",
+          "puntoEmision": "001",
+          "rangoInicial": 1,
+          "rangoFinal": 5000,
+          "fechaLimiteEmision": "2027-05-25",
+          "prueba": true
+        },
+        {
+          "cai": "DEMO00-NO-VALIDO-0000-0000-0000-06",
+          "tipoDocumento": "06",
+          "establecimiento": "000",
+          "puntoEmision": "001",
+          "rangoInicial": 1,
+          "rangoFinal": 5000,
+          "fechaLimiteEmision": "2027-05-25",
+          "prueba": true
+        },
+        {
+          "cai": "DEMO00-NO-VALIDO-0000-0000-0000-07",
+          "tipoDocumento": "07",
+          "establecimiento": "000",
+          "puntoEmision": "001",
+          "rangoInicial": 1,
+          "rangoFinal": 5000,
+          "fechaLimiteEmision": "2027-05-25",
+          "prueba": true
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "POST /v1/autorizaciones": {
+    "codigo": 201,
+    "tipo": "application/json",
+    "cuerpo": {
+      "autorizacion": {
+        "cai": "DEMO00-NO-VALIDO-0000-0000-0000-02",
+        "tipoDocumento": "01",
+        "establecimiento": "000",
+        "puntoEmision": "002",
+        "rangoInicial": 1,
+        "rangoFinal": 1000,
+        "fechaLimiteEmision": "2027-12-31"
+      },
+      "advertencias": []
+    }
+  },
+  "GET /v1/autorizaciones/{cai}/estado": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "autorizacion": {
+        "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+        "tipoDocumento": "01",
+        "establecimiento": "000",
+        "puntoEmision": "001",
+        "rangoInicial": 1,
+        "rangoFinal": 5000,
+        "fechaLimiteEmision": "2027-05-25",
+        "prueba": true
+      },
+      "estado": {
+        "vigente": true,
+        "diasRestantes": 180,
+        "correlativosRestantes": 5000,
+        "siguienteCorrelativo": 1,
+        "porcentajeUsado": 0,
+        "alertas": [],
+        "retirada": false
+      }
+    }
+  },
+  "POST /v1/documentos": {
+    "codigo": 201,
+    "tipo": "application/json",
+    "cuerpo": {
+      "documento": {
+        "tipoDocumento": "01",
+        "nombreDocumento": "Factura",
+        "numero": "000-001-01-00000001",
+        "correlativo": 1,
+        "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+        "rangoAutorizado": "000-001-01-00000001 al 000-001-01-00005000",
+        "fechaLimiteEmision": "2027-05-25",
+        "fechaEmision": "2026-11-26",
+        "emisor": {
+          "rtn": "99990000000000",
+          "correo": "demo@ejemplo.example",
+          "telefono": "0000-0002",
+          "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+          "nombreComercial": "Pulpería Demostración",
+          "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+          "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+        },
+        "cliente": {
+          "nombreImpreso": "CONSUMIDOR FINAL"
+        },
+        "moneda": "HNL",
+        "preciosIncluyenISV": true,
+        "lineas": [
+          {
+            "descripcion": "Café molido 1 lb",
+            "cantidad": 2,
+            "precioUnitario": 115,
+            "isv": "ISV15",
+            "descuento": 0,
+            "importe": 230
+          }
+        ],
+        "totales": {
+          "descuentos": 0,
+          "subtotal": 200,
+          "importeExonerado": 0,
+          "importeExento": 0,
+          "importeGravado0": 0,
+          "importeGravado15": 200,
+          "importeGravado18": 0,
+          "baseCreditoFiscal": 200,
+          "isv15": 30,
+          "isv18": 0,
+          "total": 230,
+          "ajustePorRedondeo": 0,
+          "totalEnLetras": "DOSCIENTOS TREINTA LEMPIRAS CON 00/100"
+        },
+        "destinoEjemplares": "Original: Cliente / Copia: Emisor",
+        "advertencias": [],
+        "estado": "EMITIDO",
+        "modo": "prueba"
+      },
+      "enlaces": {
+        "pdf": "/v1/documentos/000-001-01-00000001.pdf",
+        "html": "/v1/documentos/000-001-01-00000001.html",
+        "txt": "/v1/documentos/000-001-01-00000001.txt"
+      }
+    }
+  },
+  "GET /v1/documentos": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "documentos": [
+        {
+          "tipoDocumento": "01",
+          "nombreDocumento": "Factura",
+          "numero": "000-001-01-00000001",
+          "correlativo": 1,
+          "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+          "rangoAutorizado": "000-001-01-00000001 al 000-001-01-00005000",
+          "fechaLimiteEmision": "2027-05-25",
+          "fechaEmision": "2026-11-26",
+          "emisor": {
+            "rtn": "99990000000000",
+            "correo": "demo@ejemplo.example",
+            "telefono": "0000-0002",
+            "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+            "nombreComercial": "Pulpería Demostración",
+            "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+            "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+          },
+          "cliente": {
+            "nombreImpreso": "CONSUMIDOR FINAL"
+          },
+          "moneda": "HNL",
+          "preciosIncluyenISV": true,
+          "lineas": [
+            {
+              "descripcion": "Café molido 1 lb",
+              "cantidad": 2,
+              "precioUnitario": 115,
+              "isv": "ISV15",
+              "descuento": 0,
+              "importe": 230
+            }
+          ],
+          "totales": {
+            "descuentos": 0,
+            "subtotal": 200,
+            "importeExonerado": 0,
+            "importeExento": 0,
+            "importeGravado0": 0,
+            "importeGravado15": 200,
+            "importeGravado18": 0,
+            "baseCreditoFiscal": 200,
+            "isv15": 30,
+            "isv18": 0,
+            "total": 230,
+            "ajustePorRedondeo": 0,
+            "totalEnLetras": "DOSCIENTOS TREINTA LEMPIRAS CON 00/100"
+          },
+          "destinoEjemplares": "Original: Cliente / Copia: Emisor",
+          "advertencias": [],
+          "estado": "EMITIDO",
+          "modo": "prueba"
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "GET /v1/documentos/{archivo}": {
+    "codigo": 200,
+    "tipo": "text/plain",
+    "cuerpo": "******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n          Pulpería Demostración\nNEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO\n                 VÁLIDO)\n          RTN: 9999-0000-000000\n     Barrio El Centro, Ciudad Ejemplo\n  Casa matriz: Barrio El Centro, Ciudad\n                 Ejemplo\n             Tel.: 0000-0002\n           demo@ejemplo.example\n------------------------------------------\n                 FACTURA\n          N° 000-001-01-00000001\nCAI: DEMO00-NO-VALIDO-0000-0000-0000-01\nRango: 000-001-01-00000001 al\n000-001-01-00005000\nFecha límite de emisión: 25/05/2027\nFecha: 26/11/2026\n------------------------------------------\nCliente: CONSUMIDOR FINAL\n------------------------------------------\nCafé molido 1 lb\n  2 x 115.00                      230.00 G\n------------------------------------------\nDescuentos y rebajas otorgados      L 0.00\nSub-total                         L 200.00\nImporte exonerado                   L 0.00\nImporte exento                      L 0.00\nImporte gravado 15%               L 200.00\nImporte gravado 18%                 L 0.00\nI.S.V. 15%                         L 30.00\nI.S.V. 18%                          L 0.00\nTOTAL A PAGAR                     L 230.00\n------------------------------------------\nDOSCIENTOS TREINTA LEMPIRAS CON 00/100\nPrecios incluyen ISV.\nG=gravado 15% G18=gravado 18% E=exento\n------------------------------------------\n    Original: Cliente / Copia: Emisor\n******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n"
+  },
+  "GET /v1/series/{identificador}/no-utilizados": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "rangos": [],
+      "aviso": "Una autorización de prueba (CAI ficticio) de esta serie no se reporta al SAR: sus números no aparecen aquí. DOCUMENTO DE PRUEBA — SIN VALOR FISCAL."
+    }
+  },
+  "POST /v1/series/{identificador}/corregir-fecha": {
+    "codigo": 422,
+    "tipo": "application/json",
+    "cuerpo": {
+      "error": {
+        "codigo": "VALIDACION",
+        "mensaje": "000-001-01 no tiene documentos emitidos con fecha posterior a hoy (2026-11-26).",
+        "solucion": "Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta.",
+        "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#validacion",
+        "solicitud": "646f0d90-3b83-4f78-affc-79581c77521f"
+      },
+      "errores": [
+        {
+          "codigo": "SIN_DOCUMENTOS_ADELANTADOS",
+          "mensaje": "000-001-01 no tiene documentos emitidos con fecha posterior a hoy (2026-11-26).",
+          "campo": "identificador",
+          "solucion": "No hay nada que corregir: esa serie no tiene documentos con fecha posterior a hoy. Sigue emitiendo con normalidad.",
+          "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_documentos_adelantados"
+        }
+      ],
+      "advertencias": []
+    }
+  },
+  "GET /v1/libro-ventas": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "filas": [],
+      "resumen": {
+        "documentos": 0,
+        "importeExonerado": 0,
+        "importeExento": 0,
+        "importeGravado0": 0,
+        "importeGravado15": 0,
+        "importeGravado18": 0,
+        "isv15": 0,
+        "isv18": 0,
+        "total": 0
+      },
+      "excluidos": 1,
+      "aviso": "Un documento de prueba quedó fuera (DOCUMENTO DE PRUEBA — SIN VALOR FISCAL)."
+    }
+  },
+  "GET /v1/exportacion": {
+    "codigo": 200,
+    "tipo": "text/csv",
+    "cuerpo": "﻿numero,tipo,fecha,hora,cai,estado,emisorRTN,clienteRTN,clienteNombre,moneda,exonerado,exento,gravado0,gravado15,gravado18,isv15,isv18,descuentos,total,referencia,motivoAnulacion,tipoCambio,fechaAnulacion\n"
+  },
+  "GET /v1/bitacora": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "eventos": [
+        {
+          "tipo": "DOCUMENTO_EMITIDO",
+          "instante": "2026-11-26T22:39:21.335Z",
+          "fecha": "2026-11-26",
+          "detalle": {
+            "tipoDocumento": "01",
+            "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+            "total": 230
+          },
+          "identificador": "000-001-01",
+          "numero": "000-001-01-00000001",
+          "actor": "llave:11a3d333-ef23-4f00-b072-2022d02a60b1 (caja: Caja demo (consola))"
+        },
+        {
+          "tipo": "AUTORIZACION_REGISTRADA",
+          "instante": "2026-11-26T22:39:19.327Z",
+          "fecha": "2026-11-26",
+          "detalle": {
+            "cai": "DEMO00-NO-VALIDO-0000-0000-0000-02",
+            "rangoInicial": 1,
+            "rangoFinal": 1000,
+            "fechaLimiteEmision": "2027-12-31",
+            "advertencias": []
+          },
+          "identificador": "000-002-01",
+          "actor": "llave:2857a310-0eac-431b-8ef6-60ef283d30a3 (admin: Admin demo (consola))"
+        }
+      ],
+      "hayMas": true,
+      "siguiente": "IjQi"
+    }
+  },
+  "POST /v1/llaves": {
+    "codigo": 201,
+    "tipo": "application/json",
+    "cuerpo": {
+      "llave": {
+        "id": "982fa98b-680a-4246-9884-a4b93179afb2",
+        "prefijo": "903ef024e72f",
+        "nombre": "Caja 2",
+        "rol": "caja",
+        "establecimiento": "000",
+        "puntoEmision": "002",
+        "creada": "2026-11-26T22:39:26.044Z",
+        "revocada": null,
+        "ultimoUso": null
+      },
+      "secreto": "fhn_test_9…"
+    }
+  },
+  "GET /v1/llaves": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "llaves": [
+        {
+          "id": "da0ff517-f590-4a6e-bc0f-df5a34f286c3",
+          "prefijo": "fce2335088dc",
+          "nombre": "admin inicial",
+          "rol": "admin",
+          "establecimiento": null,
+          "puntoEmision": null,
+          "creada": "2026-11-26T22:38:59.660Z",
+          "revocada": null,
+          "ultimoUso": null
+        },
+        {
+          "id": "493d80f6-be6d-4c8d-9a51-91854f514fb5",
+          "prefijo": "11db297701ae",
+          "nombre": "Caja 1 (demo)",
+          "rol": "caja",
+          "establecimiento": "000",
+          "puntoEmision": "001",
+          "creada": "2026-11-26T22:39:00.104Z",
+          "revocada": null,
+          "ultimoUso": null
+        },
+        {
+          "id": "11a3d333-ef23-4f00-b072-2022d02a60b1",
+          "prefijo": "c9d91afb9baa",
+          "nombre": "Caja demo (consola)",
+          "rol": "caja",
+          "establecimiento": "000",
+          "puntoEmision": "001",
+          "creada": "2026-11-26T22:39:12.267Z",
+          "revocada": null,
+          "ultimoUso": "2026-11-26T22:39:15.835Z"
+        },
+        {
+          "id": "2857a310-0eac-431b-8ef6-60ef283d30a3",
+          "prefijo": "85241d2c1ed1",
+          "nombre": "Admin demo (consola)",
+          "rol": "admin",
+          "establecimiento": null,
+          "puntoEmision": null,
+          "creada": "2026-11-26T22:39:14.800Z",
+          "revocada": null,
+          "ultimoUso": "2026-11-26T22:39:16.141Z"
+        },
+        {
+          "id": "982fa98b-680a-4246-9884-a4b93179afb2",
+          "prefijo": "903ef024e72f",
+          "nombre": "Caja 2",
+          "rol": "caja",
+          "establecimiento": "000",
+          "puntoEmision": "002",
+          "creada": "2026-11-26T22:39:26.044Z",
+          "revocada": null,
+          "ultimoUso": null
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "DELETE /v1/llaves/{prefijo}": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "llave": {
+        "id": "982fa98b-680a-4246-9884-a4b93179afb2",
+        "prefijo": "903ef024e72f",
+        "nombre": "Caja 2",
+        "rol": "caja",
+        "establecimiento": "000",
+        "puntoEmision": "002",
+        "creada": "2026-11-26T22:39:26.044Z",
+        "revocada": "2026-11-26T22:39:26.558Z",
+        "ultimoUso": null
+      }
+    }
+  },
+  "POST /v1/webhooks": {
+    "codigo": 201,
+    "tipo": "application/json",
+    "cuerpo": {
+      "webhook": {
+        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
+        "eventos": [
+          "documento.emitido",
+          "documento.anulado"
+        ],
+        "activo": true,
+        "creado": "2026-11-26T22:39:26.881Z",
+        "graciaHasta": null
+      },
+      "secreto": "whsec_I089…"
+    }
+  },
+  "GET /v1/webhooks": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "webhooks": [
+        {
+          "id": "954790c5-1b35-481b-95ab-062419107d94",
+          "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
+          "eventos": [
+            "documento.emitido",
+            "documento.anulado"
+          ],
+          "activo": true,
+          "creado": "2026-11-26T22:39:26.881Z",
+          "graciaHasta": null
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "POST /v1/webhooks/{id}/probar": {
+    "codigo": 202,
+    "tipo": "application/json",
+    "cuerpo": {
+      "entrega": {
+        "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
+        "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+        "evento": "webhook.prueba",
+        "estado": "PENDIENTE",
+        "intentos": 0,
+        "proximoIntento": "2026-11-26T22:39:27.659Z",
+        "ultimoCodigo": null,
+        "ultimoError": null,
+        "creada": "2026-11-26T22:39:27.659Z"
+      }
+    }
+  },
+  "GET /v1/webhooks/{id}/entregas": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "entregas": [
+        {
+          "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
+          "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+          "evento": "webhook.prueba",
+          "estado": "PENDIENTE",
+          "intentos": 0,
+          "proximoIntento": "2026-11-26T22:39:27.659Z",
+          "ultimoCodigo": null,
+          "ultimoError": null,
+          "creada": "2026-11-26T22:39:27.659Z"
+        }
+      ],
+      "hayMas": false,
+      "siguiente": null
+    }
+  },
+  "POST /v1/webhooks/{id}/entregas/{entrega}/reenviar": {
+    "codigo": 202,
+    "tipo": "application/json",
+    "cuerpo": {
+      "entrega": {
+        "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
+        "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+        "evento": "webhook.prueba",
+        "estado": "PENDIENTE",
+        "intentos": 0,
+        "proximoIntento": "2026-11-26T22:39:28.319Z",
+        "ultimoCodigo": null,
+        "ultimoError": null,
+        "creada": "2026-11-26T22:39:27.659Z"
+      }
+    }
+  },
+  "POST /v1/webhooks/{id}/rotar-secreto": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "webhook": {
+        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
+        "eventos": [
+          "documento.emitido",
+          "documento.anulado"
+        ],
+        "activo": true,
+        "creado": "2026-11-26T22:39:26.881Z",
+        "graciaHasta": "2026-11-27T22:39:28.742Z"
+      },
+      "secreto": "whsec_-hf2…"
+    }
+  },
+  "DELETE /v1/webhooks/{id}": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "webhook": {
+        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
+        "eventos": [
+          "documento.emitido",
+          "documento.anulado"
+        ],
+        "activo": false,
+        "creado": "2026-11-26T22:39:26.881Z",
+        "graciaHasta": "2026-11-27T22:39:28.742Z"
+      }
+    }
+  },
+  "POST /v1/documentos/{numero}/anular": {
+    "codigo": 200,
+    "tipo": "application/json",
+    "cuerpo": {
+      "documento": {
+        "tipoDocumento": "01",
+        "nombreDocumento": "Factura",
+        "numero": "000-001-01-00000001",
+        "correlativo": 1,
+        "cai": "DEMO00-NO-VALIDO-0000-0000-0000-01",
+        "rangoAutorizado": "000-001-01-00000001 al 000-001-01-00005000",
+        "fechaLimiteEmision": "2027-05-25",
+        "fechaEmision": "2026-11-26",
+        "emisor": {
+          "rtn": "99990000000000",
+          "correo": "demo@ejemplo.example",
+          "telefono": "0000-0002",
+          "razonSocial": "NEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO VÁLIDO)",
+          "nombreComercial": "Pulpería Demostración",
+          "direccionCasaMatriz": "Barrio El Centro, Ciudad Ejemplo",
+          "direccionEstablecimiento": "Barrio El Centro, Ciudad Ejemplo"
+        },
+        "cliente": {
+          "nombreImpreso": "CONSUMIDOR FINAL"
+        },
+        "moneda": "HNL",
+        "preciosIncluyenISV": true,
+        "lineas": [
+          {
+            "descripcion": "Café molido 1 lb",
+            "cantidad": 2,
+            "precioUnitario": 115,
+            "isv": "ISV15",
+            "descuento": 0,
+            "importe": 230
+          }
+        ],
+        "totales": {
+          "descuentos": 0,
+          "subtotal": 200,
+          "importeExonerado": 0,
+          "importeExento": 0,
+          "importeGravado0": 0,
+          "importeGravado15": 200,
+          "importeGravado18": 0,
+          "baseCreditoFiscal": 200,
+          "isv15": 30,
+          "isv18": 0,
+          "total": 230,
+          "ajustePorRedondeo": 0,
+          "totalEnLetras": "DOSCIENTOS TREINTA LEMPIRAS CON 00/100"
+        },
+        "destinoEjemplares": "Original: Cliente / Copia: Emisor",
+        "advertencias": [],
+        "estado": "ANULADO",
+        "modo": "prueba",
+        "anulacion": {
+          "motivo": "Error en el precio",
+          "fecha": "2026-11-26",
+          "hora": "16:39"
+        }
+      }
+    }
+  }
+}
