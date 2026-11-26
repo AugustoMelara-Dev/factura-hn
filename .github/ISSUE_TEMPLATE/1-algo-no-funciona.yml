@@ -1,0 +1,54 @@
+name: Algo no funciona
+description: Un error, un mensaje confuso o algo que no hace lo que dice la documentación.
+labels: [error]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. Con un ejemplo pequeño lo arreglamos más rápido.
+        Usa datos ficticios (RTN `99990000000001`, CAI `DEMO00-NO-VALIDO-…`), nunca los de un negocio real.
+        ¿Es una vulnerabilidad? No la cuentes aquí: repórtala en privado (pestaña **Security**).
+  - type: dropdown
+    id: paquete
+    attributes:
+      label: ¿Dónde pasó?
+      options:
+        - factura-hn (SDK)
+        - CLI (npx factura-hn)
+        - "@factura-hn/sqlite"
+        - "@factura-hn/postgres"
+        - "@factura-hn/pdf"
+        - "@factura-hn/cliente"
+        - "@factura-hn/mcp"
+        - API REST (Docker)
+        - Ejemplos
+        - Documentación
+        - No sé
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: ¿Qué hiciste?
+      description: El código, el comando o la solicitud más corta que lo muestra.
+      placeholder: |
+        import { crearFacturadorDemo } from 'factura-hn/demo';
+        const caja = await crearFacturadorDemo();
+        await caja.emitir({ lineas: [{ descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' }] });
+      render: js
+    validations:
+      required: true
+  - type: textarea
+    id: resultado
+    attributes:
+      label: ¿Qué esperabas y qué pasó?
+      placeholder: |
+        Esperaba que emitiera la factura.
+        Salió el error VALIDACION con el mensaje «…».
+    validations:
+      required: true
+  - type: input
+    id: entorno
+    attributes:
+      label: Versión y entorno
+      placeholder: factura-hn 0.4.0, Node 22, Windows 11

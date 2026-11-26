@@ -1,0 +1,32 @@
+name: Una regla fiscal que no cuadra
+description: Una regla del SAR que falta, sobra o factura-hn aplica distinto.
+labels: [regla-fiscal]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias: estas son las que más ayudan a los negocios que usan factura-hn.
+        Cada regla del proyecto cita su artículo, así que lo más útil es la fuente exacta.
+  - type: input
+    id: articulo
+    attributes:
+      label: Artículo y norma
+      placeholder: 'Reglamento del Régimen de Facturación (Acuerdo 481-2017), Art. 10 num. 1'
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: ¿Qué hace factura-hn hoy?
+      description: Si sale un error, pega su código y su mensaje.
+      placeholder: 'Al emitir una nota de crédito sale el error NOTA_SUPERA_ORIGINAL: «…».'
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: ¿Qué debería hacer, según la norma?
+      description: Una cita breve y, si puedes, el enlace a la publicación oficial (La Gaceta, sar.gob.hn).
+      placeholder: 'El Art. … dice que «…». Entonces esa nota sí se puede emitir.'
+    validations:
+      required: true
