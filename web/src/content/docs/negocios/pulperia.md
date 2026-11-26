@@ -30,10 +30,10 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   Art. 4 num. 43). Un sistema emite una Factura (01) a «CONSUMIDOR FINAL» (Art. 11 num. 2 a), aunque se imprima en
   un rollo de 80 mm.
 - **Un documento por cada venta**, aunque sea de pocos lempiras. La exención de L 50 diarios no aplica a los
-  sistemas computarizados (Art. 9, C L.559-566). factura-hn no tiene una función para juntar las ventas del día.
+  sistemas computarizados (Art. 9). factura-hn no tiene una función para juntar las ventas del día.
 - **Arriba de L 10,000**, la venta a consumidor final lleva el nombre y la identificación del cliente (Art. 11,
   párrafo final). factura-hn lo exige (`CONSUMIDOR_FINAL_IDENTIFICACION`).
-- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn). Por eso se cobra siempre
+- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Por eso se cobra siempre
   `totales.total` y se calcula antes con `cotizar`. Para evitar el ajuste, `sugerirPrecioSinAjuste` propone precios
   que no lo necesitan.
 - **Papel térmico.** Antes de imprimir en papel térmico, el Art. 38 pide la certificación del proveedor del papel

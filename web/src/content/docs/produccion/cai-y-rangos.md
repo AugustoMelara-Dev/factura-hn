@@ -9,9 +9,7 @@ El CAI (Código de Autorización de Impresión) es la autorización del SAR para
 de documento, en un punto de emisión, hasta una fecha límite. Esta página cubre el ciclo completo: pedirlo,
 registrarlo, pasar de la demo al real, renovarlo y reportar lo que no se usó.
 
-Los artículos son del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus reformas). Las citas
-«C L.n» remiten a la línea del texto consolidado con el que trabaja el proyecto (ver
-[Normativa](/referencia/normativa/)).
+Los artículos son del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus reformas).
 
 ## Solicitar el CAI
 
@@ -22,19 +20,17 @@ por sistema computarizado (Art. 47), y de presentar la Declaración Jurada del A
 Lo que dice el Reglamento:
 
 - La autorización se solicita **electrónicamente**, **por punto de emisión y por tipo de documento**, con su rango
-  (Art. 59, C L.2245-2260).
-- El autoimpresor por sistema la pide **por cada sistema** y tipo de documento (Art. 61, C L.2279-2295).
-- La vigencia máxima es de **1 año**. Vencida, el documento pierde validez (Art. 62, C L.2297-2303).
-- Si la solicitud se rechaza, el negocio se presenta dentro de 10 días hábiles o pide una verificación (Art. 64,
-  C L.2347-2355).
+  (Art. 59).
+- El autoimpresor por sistema la pide **por cada sistema** y tipo de documento (Art. 61).
+- La vigencia máxima es de **1 año**. Vencida, el documento pierde validez (Art. 62).
+- Si la solicitud se rechaza, el negocio se presenta dentro de 10 días hábiles o pide una verificación (Art. 64).
 
 En la práctica, un negocio con una caja que emite facturas y notas de crédito necesita dos autorizaciones: una
 para el tipo 01 y otra para el 06 en el mismo punto de emisión. Con tres cajas, una por tipo en cada caja.
 
 ## Qué trae la resolución y dónde va cada dato
 
-Cada documento impreso debe llevar el CAI, la fecha límite de emisión y el rango autorizado (Art. 10 num. 3-5,
-C L.600-605). Por eso factura-hn los guarda en la autorización y los copia en cada documento.
+Cada documento impreso debe llevar el CAI, la fecha límite de emisión y el rango autorizado (Art. 10 num. 3-5). Por eso factura-hn los guarda en la autorización y los copia en cada documento.
 
 | Dato de la resolución | Campo en factura-hn | Nota |
 |---|---|---|
@@ -142,8 +138,7 @@ await registrarAutorizacion(almacen, {
 });
 ```
 
-En la API es el mismo campo; en el MCP, `--ultimo-emitido-antes 120`. El Reglamento no regula la migración de una
-serie: es la lectura que aplica factura-hn. Confírmala con tu contador.
+En la API es el mismo campo; en el MCP, `--ultimo-emitido-antes 120`.
 
 ## Pasar de la demo al CAI real
 
@@ -151,7 +146,7 @@ La demo (`crearFacturadorDemo`, el tenant `demo` de la API o `init --demo` del M
 `DEMO00-NO-VALIDO-…`. Todo lo que emite lleva la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y queda fuera del
 libro de ventas y de la exportación.
 
-**Lo recomendado: una base nueva para producción.** Prueba en un almacén y emite de verdad en otro. Así la serie
+**Usa una base nueva para producción.** Prueba en un almacén y emite de verdad en otro. Así la serie
 real empieza en el primer número de tu resolución y no comparte historia con la demo.
 
 Si aun así registras el CAI real en el almacén donde probaste, estas son las reglas:
@@ -173,14 +168,14 @@ base SQLite nueva con `npx -y @factura-hn/mcp init`.
 ## Renovar antes de vencer o de agotar
 
 El Reglamento pide solicitar la nueva autorización **dentro de los dos meses previos** a la fecha límite, con una
-sola solicitud por punto hasta agotar (Art. 59, C L.2263-2266). La vigencia máxima es de 1 año (Art. 62).
+sola solicitud por punto hasta agotar (Art. 59). La vigencia máxima es de 1 año (Art. 62).
 
 factura-hn avisa en estos casos:
 
 | Alerta | Cuándo | Fuente |
 |---|---|---|
-| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59 («dentro de los dos (2) meses previos»); contarlos como meses de calendario es la lectura de factura-hn |
-| `AVISO_RANGO` | Al usar el 90 % del rango (configurable con `porcentajeAviso`) | Decisión operativa, no fiscal |
+| `AVISO_VENCIMIENTO` | Desde la misma fecha, dos meses de calendario antes de la fecha límite | Art. 59 («dentro de los dos (2) meses previos»), en meses de calendario |
+| `AVISO_RANGO` | Al usar el 90 % del rango (configurable con `porcentajeAviso`) | factura-hn |
 | `AUTORIZACION_VENCIDA` | Pasó la fecha límite: no se emite más con ese CAI | Art. 62 |
 | `RANGO_AGOTADO` | Se usó el último número del rango | Art. 59 |
 
@@ -219,7 +214,7 @@ por identificador `NNN-NNN-TT`, no por CAI, y rechaza rangos que se solapan.
 ## Rangos no utilizados
 
 Los números que quedan sin usar se comunican al SAR **dentro de los diez días hábiles del mes siguiente** al
-acontecimiento (Art. 42, C L.1958-1990). El Art. 42 enumera doce causales; entre ellas, el vencimiento de la
+acontecimiento (Art. 42). El Art. 42 enumera doce causales; entre ellas, el vencimiento de la
 autorización, la baja del punto de emisión, el cese de operaciones y las fallas técnicas del sistema.
 
 factura-hn calcula qué rangos quedaron sin usar, la causal y la fecha límite del aviso, pero **no envía el aviso**:

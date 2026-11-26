@@ -42,8 +42,7 @@ console.log(resumen, `${excluidos} documentos de prueba fuera del libro`);
 - Los documentos anulados salen con su número y los montos en cero: el número existe y no se puede saltar.
 - Los documentos de prueba (CAI `DEMO00-…`) quedan fuera.
 - Un documento en moneda extranjera se convierte a lempiras con el tipo de cambio que imprime, campo por campo.
-  Por eso la suma de las partes puede diferir del total en 1 centavo. El Reglamento no dice en qué moneda va el
-  libro: es la lectura que aplica factura-hn. Confírmala con tu contador.
+  Por eso la suma de las partes puede diferir del total en 1 centavo.
 
 Con la API: `GET /v1/libro-ventas?desde=2026-11-01&hasta=2026-11-30&formato=csv` (llave de caja o admin). Con el
 MCP: la herramienta `libro_ventas`.
@@ -75,7 +74,7 @@ Los formatos de factura-hn son propios.
 ## Documentos no utilizados
 
 Los números que quedan sin usar se comunican al SAR **dentro de los diez días hábiles del mes siguiente** al
-acontecimiento (Art. 42, C L.1958-1990). Las causales más comunes:
+acontecimiento (Art. 42). Las causales más comunes:
 
 - el vencimiento de la autorización (causal 1);
 - el cambio de los datos del obligado tributario (2);
@@ -105,12 +104,11 @@ for (const r of rangos) {
 const porBaja = await noUtilizadosDelAlmacen(almacen, '000-001-01', { evento: { causal: 5, fecha: '2026-11-30' } });
 ```
 
-Cómo cuenta los plazos, y qué decisiones hay detrás:
+Cómo cuenta los plazos:
 
 - Sin `evento`, solo reporta las autorizaciones **vencidas** con números libres. Una autorización vigente todavía
   se puede usar.
-- Para el vencimiento, el acontecimiento es la fecha límite misma. Es la lectura conservadora: el aviso nunca queda
-  tarde.
+- Para el vencimiento, el acontecimiento es la fecha límite misma: así el aviso nunca queda tarde.
 - Solo descuenta sábados y domingos. Los feriados de Honduras cambian por decreto y el SDK no los trae: pásalos en
   `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real.
 - No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR.
@@ -120,7 +118,7 @@ Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).
 ## Anulaciones del mes
 
 Un documento con errores se anula: lleva la leyenda «ANULADA», conserva su número y se resguarda el original y la
-copia en orden cronológico (Art. 41, C L.1943-1955). En factura-hn se anula con `anular`, con un motivo
+copia en orden cronológico (Art. 41). En factura-hn se anula con `anular`, con un motivo
 obligatorio. Nada se borra. Ver [Anular](/guias/anular/).
 
 Al cerrar el mes, revisa las anulaciones con su motivo y quién las hizo:

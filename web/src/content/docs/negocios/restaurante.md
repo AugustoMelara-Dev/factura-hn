@@ -33,7 +33,7 @@ SQLite en el equipo de la caja.
 - **Momento de emisión.** El documento se emite con lo primero que ocurra entre la entrega y el pago o el crédito;
   en servicios, al pago o al crédito (Reglamento, Art. 14). factura-hn no lo decide: tu sistema llama a la emisión
   en el momento que corresponda.
-- **Un documento por venta** (Art. 9, C L.559-566). No se agrupan las cuentas del día en un solo documento.
+- **Un documento por venta** (Art. 9). No se agrupan las cuentas del día en un solo documento.
 - **El Ticket (09) no lo emite un sistema**, solo una máquina registradora (Art. 4 num. 43). Lo que sale en el
   rollo de 80 mm es una Factura (01).
 - **Consumidor final** sin datos, salvo que el cliente pida factura con RTN (Art. 11 num. 1 a-c y num. 2 a).

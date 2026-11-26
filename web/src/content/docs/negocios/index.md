@@ -27,7 +27,7 @@ consumidor final, RTN, fecha, anulación, tipos no emitibles); el momento de emi
 tu sistema.
 
 - **Un documento por venta**, aunque sea pequeña. La exención de L 50 diarios no aplica a los sistemas
-  computarizados (Reglamento, Art. 9, C L.559-566).
+  computarizados (Reglamento, Art. 9).
 - **Momento de emisión**: lo primero que ocurra entre la entrega del bien y el pago o el otorgamiento del crédito;
   en servicios, al pago o al crédito (Art. 14). factura-hn no decide cuándo emitir: lo decide el sistema que lo
   integra.

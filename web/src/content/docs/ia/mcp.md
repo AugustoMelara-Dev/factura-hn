@@ -218,4 +218,5 @@ En Windows el bloque usa `"command": "cmd"` porque `npx` es un `.cmd`. En macOS 
 | *(ninguno)* | Arranca el servidor MCP por stdio. Lo hace tu cliente MCP |
 | `init` (o `iniciar`) | Crea la base y el emisor e imprime el bloque `mcpServers`. Opciones: `--demo`, `--dir`, `--establecimiento`, `--punto`, `--forzar` |
 | `registrar-cai` | Registra el CAI de una resolución, en la base SQLite o vía la API |
+| `http` | Arranca el servidor por Streamable HTTP, contra la API (ver [Por HTTP](#por-http)) |
 | `ayuda` | La ayuda |
