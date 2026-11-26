@@ -643,6 +643,13 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** no existe un documento con ese número en el almacén.
 - **Solución:** revisa el número: 16 dígitos con guiones, por ejemplo `'000-001-01-00000001'`.
 
+### IDENTIFICADOR
+
+- **Qué significa:** `noUtilizadosDelAlmacen` recibió un identificador de serie que no tiene la forma
+  `NNN-NNN-TT` o un tipo que no existe (por ejemplo `'000-1-01'`). No se toma como una serie vacía: eso diría que
+  no hay números que reportar.
+- **Solución:** escribe la serie con los ceros: establecimiento, punto de emisión y tipo, p. ej. `'000-001-01'`.
+
 ### OPERADOR
 
 - **Qué significa:** el nombre del operador (cajero) está vacío, pasa de 80 caracteres o tiene caracteres de

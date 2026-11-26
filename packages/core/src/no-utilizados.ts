@@ -11,7 +11,9 @@
  */
 import { diasEntre, esFechaValida, fechaHonduras } from './autorizacion';
 import { identificadorDe, type AlmacenFiscal } from './almacen';
+import { ErrorValidacion } from './documento';
 import { esAutorizacionDePrueba } from './modo';
+import { TIPOS_DOCUMENTO } from './numeracion';
 import { correlativosDe } from './paginas';
 import type { AutorizacionCAI } from './tipos';
 
@@ -157,7 +159,18 @@ export async function noUtilizadosDelAlmacen(
   identificador: string,
   opciones: OpcionesNoUtilizados = {},
 ): Promise<RangoNoUtilizado[]> {
+  // Un identificador mal escrito no es una serie vacía: daría «nada que avisar» al SAR cuando sí hay números.
+  if (typeof identificador !== 'string' || !/^\d{3}-\d{3}-\d{2}$/.test(identificador) || !(identificador.slice(8) in TIPOS_DOCUMENTO)) {
+    throw new ErrorValidacion([{
+      codigo: 'IDENTIFICADOR',
+      mensaje: `El identificador de la serie debe ser NNN-NNN-TT (establecimiento, punto de emisión y tipo), p. ej. 000-001-01, no ${JSON.stringify(identificador) ?? String(identificador)}.`,
+      campo: 'identificador',
+    }]);
+  }
   return almacen.transaccion(async (tx) => {
+    // Una consulta no crea series: sin autorizaciones no hay nada que reportar ni que bloquear.
+    const autorizaciones = await tx.autorizaciones(identificador);
+    if (autorizaciones.length === 0) return [];
     await tx.bloquearSerie(identificador);
     // Último emitido dentro de cada autorización: la serie puede haber saltado los números de una vencida
     // (Arts. 42 y 62) y seguir en la siguiente; esos números saltados son los que hay que reportar. Solo se leen
@@ -168,6 +181,6 @@ export async function noUtilizadosDelAlmacen(
       for (const c of correlativos) if (c >= a.rangoInicial && c <= a.rangoFinal && (max === null || c > max)) max = c;
       return max;
     };
-    return documentosNoUtilizados(await tx.autorizaciones(identificador), ultimoEn, opciones);
+    return documentosNoUtilizados(autorizaciones, ultimoEn, opciones);
   });
 }

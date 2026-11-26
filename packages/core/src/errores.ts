@@ -137,6 +137,7 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   DOCUMENTO_CON_NOTAS:
     'Anula primero las notas de crédito y débito vigentes que indica el mensaje (con su propio motivo) y después el documento. Si la venta era real, emite el documento correcto y, si hace falta, sus notas.',
   YA_ANULADO: 'El documento ya está anulado: no hay que hacer nada. Si la venta era real, emite un documento nuevo.',
+  IDENTIFICADOR: "Escribe la serie como NNN-NNN-TT, con los ceros: establecimiento, punto de emisión y tipo, p. ej. '000-001-01'.",
   DOCUMENTO_NO_ENCONTRADO: "Revisa el número: debe tener 16 dígitos con guiones (p. ej. '000-001-01-00000001') y estar en este almacén.",
 
   // Varios
