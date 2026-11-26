@@ -660,7 +660,6 @@ tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas; también los nombres con punto final, como `localhost.`), y la conexión va a la misma IP que se
   validó (sin DNS rebinding) y sin redirecciones. De la respuesta del receptor solo se guarda el código de estado.
-- Las pruebas de `packages/api/test/owasp/` recorren el OWASP API Security Top 10 (2023) contra la API.
 - Con un `FHN_MODO` mal escrito, la API no arranca. Sin definir, avisa en el log; en
   modo local, una base con tenants de otros negocios no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión
