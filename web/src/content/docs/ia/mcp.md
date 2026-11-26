@@ -204,6 +204,31 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer fhn_…" --method tools/list
 ```
 
+Variables de entorno del comando `http` (todas opcionales salvo `FHN_API_URL`):
+
+| Variable | Por defecto | |
+|---|---|---|
+| `FHN_API_URL` | (obligatoria) | URL de tu API |
+| `FHN_MCP_PUERTO` (o `PORT`) | `8788` | Puerto donde escucha. Si están las dos, gana `FHN_MCP_PUERTO` |
+| `FHN_MCP_HOST` | `0.0.0.0` | Interfaz donde escucha. En tu equipo, `127.0.0.1` |
+| `FHN_MCP_SOLO_URL` | — | `1`: acepta solo `/mcp/<token>`, sin Bearer |
+| `FHN_ESTABLECIMIENTO` / `FHN_PUNTO` | `000` / `001` | Dónde emite una llave sin caja (admin) |
+| `FHN_MCP_ORIGENES` | `https://claude.ai,https://claude.com,https://chatgpt.com,https://chat.openai.com` | Orígenes aceptados cuando la solicitud trae `Origin`, separados por comas, sin ruta ni `*`. Sin `Origin` (un cliente de escritorio, curl), se acepta |
+| `FHN_PROXIES_DE_CONFIANZA` | `0` | Como en la API: el número de proxies delante, o sus direcciones separadas por comas |
+| `FHN_IP_CLIENTE_CABECERA` | — | Cabecera con la dirección del cliente que pone tu proxy (p. ej. `X-Real-IP`) |
+| `FHN_MCP_MAX_SESIONES` | `100` | Sesiones abiertas a la vez en el proceso |
+| `FHN_MCP_SESIONES_POR_LLAVE` | `3` | Sesiones a la vez por llave; al abrir otra se cierra la más vieja |
+| `FHN_MCP_SESIONES_POR_TENANT` | `3` | Sesiones a la vez por tenant |
+| `FHN_MCP_SESIONES_POR_IP` | `6` | Sesiones a la vez por dirección del cliente |
+| `FHN_MCP_SESION_INACTIVA_MIN` | `15` | Minutos sin solicitudes tras los que se cierra una sesión |
+| `FHN_MCP_SOLICITUDES_POR_MINUTO` | `60` | Solicitudes por minuto por llave |
+| `FHN_MCP_SOLICITUDES_POR_MINUTO_IP` | `60` | Solicitudes por minuto por dirección |
+| `FHN_MCP_RECHAZOS_POR_MINUTO_IP` | `10` | Llaves rechazadas por minuto por dirección; después, 429 |
+| `FHN_MCP_MAX_CUERPO` | `65536` | Bytes de un cuerpo de solicitud |
+| `FHN_MCP_MAX_RESULTADO` | `65536` | Caracteres del resultado de una herramienta |
+| `FHN_MCP_MAX_BYTES_EVENTOS_SESION` | `1048576` | Bytes de eventos guardados por sesión, para reconectar |
+| `FHN_MCP_MAX_BYTES_EVENTOS` | `67108864` | Bytes de eventos guardados en todo el proceso |
+
 ### ChatGPT
 
 ChatGPT agrega un servidor MCP solo por su URL, sin cabeceras. Para usarlo con tu propia API:
