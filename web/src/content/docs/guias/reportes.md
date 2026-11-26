@@ -46,8 +46,9 @@ Una fila por documento, con estas reglas:
   (Art. 41).
 - **Todo en lempiras.** Un documento en dólares se convierte con el tipo de cambio que el propio documento imprime
   (Art. 11, párrafo final), campo por campo. La fila trae además la moneda, el tipo de cambio y el total en la
-  moneda original. Por convertir cada campo por separado, la suma de las partes puede diferir del total en un
-  centavo.
+  moneda original. El total en lempiras es la suma de las columnas convertidas: cada fila cuadra al centavo, y el
+  equivalente impreso, el tope de las notas de crédito y la nota misma usan la misma conversión, así que una nota
+  por el total deja el neto en 0.
 - **Texto seguro en hojas de cálculo.** Un nombre de cliente que empieza con `=`, `+`, `-` o `@` lleva un
   apóstrofo delante para que la hoja no lo ejecute como fórmula.
 

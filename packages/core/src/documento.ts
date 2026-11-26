@@ -2,6 +2,8 @@
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
 import { congelar } from './inmutable';
+import { totalesALempiras } from './conversion';
+import { centavosEnLetras } from './letras';
 import {
   advertenciasDeCalculo,
   calcularCentavos,
@@ -577,13 +579,13 @@ export function validarEntrada(
  */
 function calcularEquivalenteLempiras(doc: DocumentoFiscal): EquivalenteLempiras | null {
   if (doc.tipoCambio === undefined) return null; // solo un documento en moneda extranjera lleva tipo de cambio
-  const tc = parsearDecimal(doc.tipoCambio, 6);
-  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
+  // La misma conversión que el libro de ventas: el total es la suma de las columnas convertidas.
+  const L = totalesALempiras(doc.totales, parsearDecimal(doc.tipoCambio, 6));
   const t = doc.totales;
   return {
-    ...(t.isv15 > 0 ? { isv15: L(t.isv15) } : {}),
-    ...(t.isv18 > 0 ? { isv18: L(t.isv18) } : {}),
-    total: L(t.total),
+    ...(t.isv15 > 0 ? { isv15: deCentavos(L.isv15) } : {}),
+    ...(t.isv18 > 0 ? { isv18: deCentavos(L.isv18) } : {}),
+    total: deCentavos(L.total),
   };
 }
 
@@ -619,16 +621,33 @@ export function construirDocumento(
     });
   }
   if (errores.length) throw new ErrorValidacion(errores, advertencias);
+  // Las líneas de una nota sobre un original en moneda extranjera vienen en esa moneda.
+  const lineasMonedaOriginal = entrada.lineas;
   entrada = notaEnLempiras(entrada).entrada;
 
   const tipo = entrada.tipoDocumento ?? '01';
   const moneda = entrada.moneda ?? 'HNL';
   const preciosIncluyenISV = entrada.preciosIncluyenISV ?? false;
-  const { lineas, totales } = calcularDocumento(entrada.lineas, {
-    preciosIncluyenISV,
-    exonerado: Boolean(entrada.exoneracion),
-    moneda,
-  });
+  const opcionesCalculo = { preciosIncluyenISV, exonerado: Boolean(entrada.exoneracion), moneda };
+  const calculado = calcularDocumento(entrada.lineas, opcionesCalculo);
+  const lineas = calculado.lineas;
+  let totales = calculado.totales;
+  const tcOriginal = entrada.referencia?.moneda && entrada.referencia.moneda !== 'HNL' ? leerTipoCambio(entrada.referencia.tipoCambio) : null;
+  if ((tipo === '06' || tipo === '07') && tcOriginal !== null) {
+    // Nota sobre un original en moneda extranjera: sus importes se calculan en esa moneda y se convierten columna
+    // por columna (`totalesALempiras`), igual que el libro de ventas y el tope convierten el original. Así una nota
+    // con las mismas líneas acredita exactamente lo que el libro registró de la venta. Las líneas se imprimen con
+    // el precio convertido.
+    const t = totalesALempiras(calcularCentavos(lineasMonedaOriginal, opcionesCalculo).totales, tcOriginal);
+    totales = {
+      descuentos: deCentavos(t.descuentos), subtotal: deCentavos(t.subtotal), importeExonerado: deCentavos(t.importeExonerado),
+      importeExento: deCentavos(t.importeExento), importeGravado0: deCentavos(t.importeGravado0),
+      importeGravado15: deCentavos(t.importeGravado15), importeGravado18: deCentavos(t.importeGravado18),
+      baseCreditoFiscal: deCentavos(t.baseCreditoFiscal), isv15: deCentavos(t.isv15), isv18: deCentavos(t.isv18),
+      total: deCentavos(t.total), ajustePorRedondeo: deCentavos(t.ajustePorRedondeo),
+      totalEnLetras: centavosEnLetras(t.total, 'HNL'),
+    };
+  }
 
   const c = entrada.cliente ?? {};
   const cliente: DocumentoFiscal['cliente'] = {

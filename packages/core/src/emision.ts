@@ -13,9 +13,10 @@ import {
   type TipoEventoAuditoria,
   type TransaccionFiscal,
 } from './almacen';
-import { deCentavos, formatearMonto, redondearDecimal } from './dinero';
-import { calcularCentavos, type TotalesCentavos } from './calculo';
-import { construirDocumento, ErrorValidacion, hoyHonduras, notaEnLempiras, problemaDeOperador, problemaDeTipo, problemasDeForma } from './documento';
+import { deCentavos, formatearMonto, parsearDecimal, redondearDecimal } from './dinero';
+import { ESCALA_TIPO_CAMBIO, totalesALempiras } from './conversion';
+import type { TotalesCentavos } from './calculo';
+import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeOperador, problemaDeTipo, problemasDeForma } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
 import { esAutorizacionDePrueba, esDocumentoDePrueba } from './modo';
@@ -711,34 +712,13 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
 }
 
 /**
- * Totales en centavos de lempira del original, por el mismo camino que una nota sobre él: si está en moneda
- * extranjera, sus propias líneas pasan por `notaEnLempiras` (precio × tipo de cambio) y `calcularCentavos`. Así una
- * nota idéntica al original da exactamente sus totales. En lempiras son los totales guardados.
+ * Totales en centavos de lempira del original. En lempiras son los totales guardados; en moneda extranjera, sus
+ * totales convertidos columna por columna (`totalesALempiras`), la misma conversión del libro de ventas y de una
+ * nota sobre él. Así una nota con las mismas líneas lo acredita entero y el neto del libro queda en 0.
  */
 function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
-  const t = original.totales;
-  const c = (v: number) => redondearDecimal(v, 2);
-  if (original.moneda === 'HNL' || original.tipoCambio === undefined) {
-    return {
-      descuentos: c(t.descuentos), subtotal: c(t.subtotal), importeExonerado: c(t.importeExonerado),
-      importeExento: c(t.importeExento), importeGravado15: c(t.importeGravado15), importeGravado18: c(t.importeGravado18),
-      importeGravado0: c(t.importeGravado0), baseCreditoFiscal: c(t.baseCreditoFiscal), isv15: c(t.isv15), isv18: c(t.isv18),
-      total: c(t.total), ajustePorRedondeo: c(t.ajustePorRedondeo),
-    };
-  }
-  const { entrada } = notaEnLempiras({
-    tipoDocumento: '06',
-    emisor: original.emisor,
-    referencia: { cai: original.cai, numero: original.numero, fecha: original.fechaEmision, moneda: original.moneda, tipoCambio: original.tipoCambio },
-    lineas: original.lineas.map((l) => ({
-      descripcion: l.descripcion,
-      cantidad: String(l.cantidad),
-      precioUnitario: String(l.precioUnitario),
-      isv: l.isv,
-      ...(l.descuento ? { descuento: String(l.descuento) } : {}),
-    })),
-  });
-  return calcularCentavos(entrada.lineas, { preciosIncluyenISV: original.preciosIncluyenISV, exonerado: Boolean(original.exoneracion) }).totales;
+  const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6) : ESCALA_TIPO_CAMBIO;
+  return totalesALempiras(original.totales, tc);
 }
 
 /**

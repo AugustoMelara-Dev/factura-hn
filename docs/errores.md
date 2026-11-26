@@ -604,9 +604,9 @@ moneda: la mayoría de estos errores desaparecen.
 ### NOTA_SUPERA_ORIGINAL
 
 - **Qué significa:** la nota de crédito, sumada a las notas vigentes sobre el mismo documento, supera su total o,
-  a una tasa (15 % o 18 %), su importe gravado o su ISV, o su importe exento o gravado al 0 %. Todo se compara en lempiras; un original en moneda
-  extranjera se convierte por el mismo camino que la nota (sus líneas, al tipo de cambio). El mensaje da el saldo
-  disponible (por tasa, si es el tope de una tasa).
+  a una tasa (15 % o 18 %), su importe gravado o su ISV, o su importe exento o gravado al 0 %. Todo se compara en
+  lempiras; un original en moneda extranjera se convierte columna por columna con su tipo de cambio, igual que en
+  el libro de ventas y en la nota misma. El mensaje da el saldo disponible (por tasa, si es el tope de una tasa).
 - **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
   línea la misma tasa que en el original.
 - **Base:** regla de factura-hn: las notas no devuelven ni descuentan más de lo vendido, ni a otra tasa. La nota

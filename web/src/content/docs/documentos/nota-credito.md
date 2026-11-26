@@ -161,7 +161,9 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 ## Moneda extranjera
 
 La nota se emite en lempiras (Art. 26 num. 9). Si el original está en dólares, escribe las líneas de la nota en
-dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Con el original
+dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Sus importes se
+convierten igual que el libro de ventas convierte el original (columna por columna), así que una nota con las
+mismas líneas lo acredita entero. Con el original
 en el almacén, la moneda y el tipo de cambio se toman de él. Con un original externo, indica
 `referencia.moneda` y `referencia.tipoCambio`.
 
