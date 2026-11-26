@@ -7,8 +7,8 @@ import { esFechaValida } from 'factura-hn';
 
 /**
  * Entero de `min` a `max` (o desde `min`) con un mensaje propio en español para cualquier falla de tipo, decimal o
- * rango: «Debe ser un número entero de 0 a 168». Sin él, Zod traduce «Demasiado grande: se esperaba que número
- * fuera <=168». Un campo que falta conserva el mensaje de campo obligatorio. Con `texto`, el valor llega como texto
+ * rango: «Debe ser un número entero de 0 a 168». Sin él, cada falla daría su propio mensaje («debe ser menor o igual que
+ * 168», «debe ser un número entero…»). Un campo que falta conserva el mensaje de campo obligatorio. Con `texto`, el valor llega como texto
  * (parámetros de la consulta) y se convierte.
  */
 export function Entero(min: number, max?: number, o: { texto?: boolean } = {}) {

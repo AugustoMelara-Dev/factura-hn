@@ -95,24 +95,8 @@ import {
 // La versión sale de packages/api/package.json (el empaquetador la incrusta; `pnpm run version` la sube con los
 // paquetes publicados). Va en `FacturaHN-Version`, `/salud` y `info.version` de `/openapi.json`.
 import { version as VERSION_PAQUETE } from '../package.json';
+import { mensajeEnEspanol } from './mensajes-forma';
 export const VERSION_API: string = VERSION_PAQUETE;
-
-const LOCALE_ES = z.locales.es().localeError;
-const LOCALE_EN = z.locales.en().localeError;
-const textoDe = (m: unknown): string | undefined => (typeof m === 'string' ? m : (m as { message?: string } | null | undefined)?.message);
-
-/**
- * Mensaje en español de un problema de forma (400), solo para la respuesta de la API: no cambia la configuración
- * global de Zod (otra biblioteca del mismo proceso sigue con sus mensajes). Zod ya no trae la entrada en el
- * problema; se toma de `datos` (lo que se validó) por su ruta. Un mensaje propio del esquema se respeta: solo se
- * traduce el que coincide con el mensaje por omisión de Zod.
- */
-function mensajeEnEspanol(issue: z.core.$ZodIssue, datos: unknown): string {
-  const input = issue.path.reduce<unknown>((v, k) => (v !== null && typeof v === 'object' ? (v as Record<PropertyKey, unknown>)[k as PropertyKey] : undefined), datos);
-  const conEntrada = { ...issue, input } as Parameters<typeof LOCALE_ES>[0];
-  if (textoDe(LOCALE_EN(conEntrada)) !== issue.message) return issue.message;
-  return textoDe(LOCALE_ES(conEntrada)) ?? issue.message;
-}
 
 export interface ConfigApi {
   pool: pg.Pool;

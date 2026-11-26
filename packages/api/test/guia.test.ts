@@ -77,7 +77,7 @@ conBase('errores con solución', () => {
     expect(cuerpo.error).toMatchObject({
       codigo: 'SOLICITUD_INVALIDA',
       campo: 'documento',
-      mensaje: 'La solicitud no tiene la forma esperada. documento: Entrada inválida: se esperaba objeto, recibido indefinido',
+      mensaje: 'La solicitud no tiene la forma esperada. documento: falta este dato (es obligatorio)',
       solucion: expect.stringContaining('error.campo'),
       documentacion: documentacionDe('SOLICITUD_INVALIDA'),
     });
@@ -85,12 +85,19 @@ conBase('errores con solución', () => {
 
     const vacia = await json(await emitir(admin, { documento: { lineas: [] } }));
     expect(vacia.error.campo).toBe('documento.lineas');
-    expect(vacia.error.mensaje).toMatch(/Demasiado pequeño/);
+    expect(vacia.error.mensaje).toBe('La solicitud no tiene la forma esperada. documento.lineas: debe tener al menos un elemento');
     expect(JSON.stringify(vacia)).not.toMatch(/Invalid input|Too small|expected/);
 
     // El tipo recibido sale de lo que se mandó, y un mensaje propio del esquema se respeta.
     const texto = await json(await emitir(admin, { documento: 'hola' }));
-    expect(texto.error.mensaje).toBe('La solicitud no tiene la forma esperada. documento: Entrada inválida: se esperaba objeto, recibido texto');
+    expect(texto.error.mensaje).toBe('La solicitud no tiene la forma esperada. documento: debe ser un objeto (llegó texto)');
+    // Formatos: en español natural, sin «Inválido UUID» ni el patrón de la expresión regular.
+    const uuid = await json(await admin('PATCH', '/v1/emisores/x', { telefono: '0000-0000' }));
+    expect(uuid.error).toMatchObject({ codigo: 'SOLICITUD_INVALIDA', campo: 'id', mensaje: 'La solicitud no tiene la forma esperada. id: UUID inválido' });
+    const url = await json(await admin('POST', '/v1/webhooks', { url: 'notaurl', eventos: ['documento.emitido'] }));
+    expect(url.error).toMatchObject({ codigo: 'SOLICITUD_INVALIDA', campo: 'url', mensaje: 'La solicitud no tiene la forma esperada. url: URL inválida' });
+    const fecha = await json(await admin('GET', '/v1/documentos?desde=hoy&hasta=2026-01-31'));
+    expect(fecha.error).toMatchObject({ codigo: 'SOLICITUD_INVALIDA', campo: 'desde', mensaje: 'La solicitud no tiene la forma esperada. desde: debe tener el formato AAAA-MM-DD' });
     const periodo = await json(await admin('GET', '/v1/libro-ventas?desde=2026-01-01&hasta=2027-06-01'));
     expect(JSON.stringify(periodo)).toContain('El período no puede pasar de 366 días.');
   });
