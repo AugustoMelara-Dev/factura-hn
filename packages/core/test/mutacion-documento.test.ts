@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de documento.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de documento.ts (pnpm mutacion).
 // Cada validación de la entrada con su código, mensaje y campo; la conversión de notas en moneda extranjera
 // (Arts. 26 num. 9 y 28 num. 8); los textos con caracteres no permitidos; y lo que construirDocumento copia.
 import { describe, expect, it } from 'vitest';

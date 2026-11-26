@@ -63,7 +63,7 @@ function leer(valor: LineaEntrada[keyof LineaEntrada], escala: number, campo: st
     return parsearDecimal(valor as string | number, escala, campo);
   } catch (e) {
     // Siempre es ErrorMonto (parsearDecimal solo lanza ErrorMonto, también con un objeto que no se puede
-    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
+    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo.
     if (e instanceof ErrorMonto) return e.message;
     throw e;
   }
@@ -92,7 +92,7 @@ function leerLinea(l: LineaEntrada, i: number, problemas: Problema[]): LineaLeid
   }
   if (typeof descuento === 'string' || descuento < 0n) {
     problemas.push({ codigo: 'LINEA_DESCUENTO', mensaje: `Línea ${n}: ${typeof descuento === 'string' ? descuento : 'el descuento no puede ser negativo.'}`, campo });
-    // `false` → `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): el problema ya se
+    // `false` → `true` es un mutante equivalente que se deja vivo: el problema ya se
     // registró, y con cantidad y precio válidos la comparación de abajo no lanza ni agrega otro.
     ok = false;
   }
@@ -155,12 +155,12 @@ export function impuestoArt9(baseCentavos: bigint, tasa: number): bigint {
  * de 1 centavo por tasa.
  */
 export function baseDesdePrecioConISV(totalCentavos: bigint, tasa: number): { base: bigint; isv: bigint; ajuste: bigint } {
-  // `<= 0n` → `< 0n` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con T = 0 el ciclo de abajo llega a base 0, ISV 0 y ajuste 0.
+  // `<= 0n` → `< 0n` es un mutante equivalente que se deja vivo: con T = 0 el ciclo de abajo llega a base 0, ISV 0 y ajuste 0.
   if (totalCentavos <= 0n) return { base: 0n, isv: 0n, ajuste: 0n };
   // Cota superior: f(b) ≥ b·(100+tasa)/100 − ½, así que b ≤ (T + ½)·100/(100+tasa). Cambiar el «+ 1n» de adentro
-  // por «- 1n» es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): mueve la cota menos de 1 y el «+ 1n» final la compensa.
+  // por «- 1n» es un mutante equivalente que se deja vivo: mueve la cota menos de 1 y el «+ 1n» final la compensa.
   let base = ((totalCentavos * 2n + 1n) * 100n) / (BigInt(100 + tasa) * 2n) + 1n;
-  // `base > 0n` → `base >= 0n` o `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con T > 0, en base 0 vale 0 + ISV(0) = 0 ≤ T
+  // `base > 0n` → `base >= 0n` o `true` es un mutante equivalente que se deja vivo: con T > 0, en base 0 vale 0 + ISV(0) = 0 ≤ T
   // y el ciclo para.
   while (base > 0n && base + impuestoArt9(base, tasa) > totalCentavos) base -= 1n;
   const isv = impuestoArt9(base, tasa);
@@ -300,7 +300,7 @@ export function sugerirPrecioSinAjuste(
   const cant = parsearDecimal(opciones.cantidad ?? 1, ESCALA_CANTIDAD, 'La cantidad');
   const exacto = (c: bigint) => c >= 0n && baseDesdePrecioConISV(dividirRedondeando(c * cant, 10_000n), tasa).ajuste === 0n;
   let abajo = p;
-  // `abajo > 0n` → `>= 0n` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): el precio 0 siempre es exacto y el ciclo para ahí.
+  // `abajo > 0n` → `>= 0n` es un mutante equivalente que se deja vivo: el precio 0 siempre es exacto y el ciclo para ahí.
   while (abajo > 0n && !exacto(abajo)) abajo -= 1n;
   let arriba = p;
   while (!exacto(arriba)) arriba += 1n;

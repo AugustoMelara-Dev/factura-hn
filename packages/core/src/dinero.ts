@@ -102,7 +102,7 @@ export function textoSeguroCSV(s: string): string {
  */
 export function dividirRedondeando(numerador: bigint, denominador: bigint): bigint {
   if (denominador === 0n) throw new ErrorMonto('División por cero');
-  // `< 0n` → `<= 0n` en estas tres líneas es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con numerador 0 el cociente es 0n
+  // `< 0n` → `<= 0n` en estas tres líneas es un mutante equivalente que se deja vivo: con numerador 0 el cociente es 0n
   // (y -0n === 0n), y un denominador 0 ya se rechazó arriba.
   const negativo = numerador < 0n !== denominador < 0n;
   const n = numerador < 0n ? -numerador : numerador;
@@ -120,7 +120,7 @@ export function parsearDecimal(valor: Monto, escala: number, campo = 'monto'): b
   const { negativo, digitos, exp } = descomponer(valor);
   const desplazamiento = exp + escala;
   let r: bigint;
-  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con desplazamiento 0 la otra rama divide entre 10^0 = 1.
+  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo: con desplazamiento 0 la otra rama divide entre 10^0 = 1.
   if (desplazamiento >= 0) r = digitos * potencia10(desplazamiento);
   else {
     const div = potencia10(-desplazamiento);
@@ -136,7 +136,7 @@ export function parsearDecimal(valor: Monto, escala: number, campo = 'monto'): b
 export function redondearDecimal(valor: Monto, escala: number): bigint {
   const { negativo, digitos, exp } = descomponer(valor);
   const desplazamiento = exp + escala;
-  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): dividirRedondeando(d, 10^0) = d.
+  // `>= 0` → `> 0` es un mutante equivalente que se deja vivo: dividirRedondeando(d, 10^0) = d.
   const r = desplazamiento >= 0 ? digitos * potencia10(desplazamiento) : dividirRedondeando(digitos, potencia10(-desplazamiento));
   return negativo ? -r : r;
 }

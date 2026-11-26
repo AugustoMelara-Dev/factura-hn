@@ -12,7 +12,7 @@ fiscales las aplica el SDK o la API, no el asistente.
 Requiere Node 22.13 o más reciente. La referencia completa está en el
 [README del paquete en npm](https://www.npmjs.com/package/@factura-hn/mcp).
 
-## Pruébalo en 3 pasos
+## Empieza en 3 pasos
 
 **1.** En una carpeta vacía:
 

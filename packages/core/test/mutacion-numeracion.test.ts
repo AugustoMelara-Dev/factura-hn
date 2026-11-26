@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de numeracion.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de numeracion.ts (pnpm mutacion).
 // Número NNN-NNN-TT-NNNNNNNN: límites del correlativo, anclas de los patrones, mensajes de error y pertenencia
 // exacta a una autorización (cada parte del número y los dos extremos del rango).
 import { describe, expect, it } from 'vitest';

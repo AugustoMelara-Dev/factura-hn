@@ -11,7 +11,7 @@ const PATRON_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
 export function esFechaValida(fecha: string): boolean {
   // El patrón hace falta: sin él, «+010000-01» y «-000001-01» (años extendidos) pasan la comparación con
-  // toISOString(). Quitarle las anclas es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con
+  // toISOString(). Quitarle las anclas es un mutante equivalente que se deja vivo: con
   // algo de más, el texto ya no es igual a toISOString().slice(0, 10).
   if (!PATRON_FECHA.test(fecha)) return false;
   const d = new Date(`${fecha}T00:00:00Z`);
@@ -192,7 +192,7 @@ export function estadoAutorizacion(
   const total = aut.rangoFinal - aut.rangoInicial + 1;
   // Una serie que viene de un CAI anterior puede tener su último número antes de este rango: entonces sigue en el
   // primero del rango, sin números usados (y no más restantes que el rango ni un porcentaje negativo).
-  // La condición `=== null` → `false` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): en JS
+  // La condición `=== null` → `false` es un mutante equivalente que se deja vivo: en JS
   // `null + 1` es 1 y `rangoInicial` es ≥ 1, así que `Math.max` da el mismo `rangoInicial`.
   const siguiente = ultimoCorrelativoEmitido === null ? aut.rangoInicial : Math.max(aut.rangoInicial, ultimoCorrelativoEmitido + 1);
   const restantes = Math.max(0, aut.rangoFinal - siguiente + 1);

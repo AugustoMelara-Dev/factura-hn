@@ -35,7 +35,7 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
     return tc > 0n ? tc : null;
   } catch (e) {
     // Siempre es ErrorMonto (parsearDecimal solo lanza ErrorMonto, también con un objeto que no se puede
-    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
+    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo.
     if (e instanceof ErrorMonto) return null;
     throw e;
   }
@@ -82,7 +82,7 @@ export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoE
     };
   } catch (e) {
     // Siempre es ErrorMonto (parsearDecimal solo lanza ErrorMonto, también con un objeto que no se puede
-    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
+    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo.
     if (e instanceof ErrorMonto) return { entrada, problemas: [] };
     throw e;
   }

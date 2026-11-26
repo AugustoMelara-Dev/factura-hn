@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de autorizacion.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de autorizacion.ts (pnpm mutacion).
 // Cada problema estructural de una autorización con su código, mensaje y campo; el aviso del Art. 62 (vigencia
 // de hasta un año); y el estado operativo: consumo del rango, ventana de aviso del Art. 59 y bordes de cada alerta.
 import { describe, expect, it } from 'vitest';

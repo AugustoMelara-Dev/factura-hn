@@ -13,7 +13,7 @@ quedan en tu base, en la misma transacción que el resto de la venta si lo neces
 **Úsalo si** tu sistema está en JavaScript o TypeScript (Node 20 o más reciente) y tiene su propia base. Si tu
 sistema está en otro lenguaje, o varias cajas deben compartir un servidor, mira la [API REST](/guias/api/).
 
-## Pruébalo en un minuto
+## En un minuto
 
 Sin CAI real ni base de datos, en una carpeta nueva o en tu proyecto:
 

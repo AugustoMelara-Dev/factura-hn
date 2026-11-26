@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de dinero.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de dinero.ts (pnpm mutacion).
 // Lectura exacta de montos (texto o number), separador de miles, topes de magnitud, signos y la regla de
 // redondeo del Art. 9 de la Ley del ISV (mitad lejos de cero) en cada combinación de signos.
 import { describe, expect, it } from 'vitest';

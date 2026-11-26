@@ -4,7 +4,7 @@ Servidor MCP de factura-hn para asistentes de IA (Claude Desktop, Claude Code, C
 consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Documentación completa:
 [guía del MCP](https://augustomelara-dev.github.io/factura-hn/guias/mcp/).
 
-## Pruébalo en 3 pasos
+## Empieza en 3 pasos
 
 Requiere Node 22.13 o más reciente (la base local usa `node:sqlite`).
 

@@ -23,7 +23,7 @@ npx -y @factura-hn/mcp init --demo
 
 Crea una base SQLite de prueba con un emisor y un CAI ficticios e imprime el bloque `mcpServers`. Pégalo en la
 configuración de tu cliente MCP, reinícialo y pide: «emite una factura de prueba». Dónde va el bloque en cada
-cliente: [Servidor MCP](/ia/mcp/#pruébalo-en-3-pasos).
+cliente: [Servidor MCP](/ia/mcp/#empieza-en-3-pasos).
 
 ## Por HTTP
 

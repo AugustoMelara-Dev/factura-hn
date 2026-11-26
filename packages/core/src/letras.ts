@@ -58,7 +58,7 @@ export function enteroALetras(n: number): string {
   if (n >= 1e15) throw new RangeError('Monto demasiado grande para convertir a letras');
 
   // Escala larga del español: un billón es un millón de millones (10^12). Antes, de 10^12 en adelante salía
-  // «UN MILLÓN MILLONES» (lo encontraron las pruebas de mutación, docs/calidad/mutacion.md).
+  // «UN MILLÓN MILLONES» (lo encontraron las pruebas de mutación).
   const billones = Math.floor(n / 1_000_000_000_000);
   const millones = Math.floor((n % 1_000_000_000_000) / 1_000_000);
   const miles = Math.floor((n % 1_000_000) / 1000);

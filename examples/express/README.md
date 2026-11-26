@@ -20,7 +20,7 @@ $env:FHN_LLAVE = 'fhn_test_…'; pnpm --filter @factura-hn/ejemplo-express start
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
 crea otra: `docker compose exec api factura-hn-api demo llave`.
 
-Pruébalo en otra terminal (en PowerShell, escribe `curl.exe` en lugar de `curl`):
+Prueba en otra terminal (en PowerShell, escribe `curl.exe` en lugar de `curl`):
 
 ```bash
 curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201 la primera vez (200 si el pedido ya se facturó)
