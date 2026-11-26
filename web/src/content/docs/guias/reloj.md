@@ -15,14 +15,12 @@ equivocada. Esta guía explica cómo lo previene el SDK y cómo se corrige sin b
 - **Archivo cronológico.** Los documentos se archivan «de forma ordenada, cronológica» (Art. 43). Los anulados
   también se resguardan en orden cronológico (Art. 41).
 
-A partir de ahí, el proyecto adopta tres reglas:
+De ahí salen tres reglas del SDK:
 
 1. **La fecha la pone el reloj.** Enviar una `fechaEmision` distinta de la de hoy es `FECHA_EMISION_NO_ES_HOY`.
-2. **Un documento válido no tiene fecha anterior al último válido de su serie**: `FECHA_ANTERIOR_AL_ULTIMO`. El
-   Reglamento no dice «bloquear la emisión»; es la forma en que el SDK mantiene el archivo en orden cronológico
-   sin depender de que alguien lo ordene después. Los anulados no cuentan.
-3. **Un salto grande del reloj se confirma**: `RELOJ_ADELANTADO_SOSPECHOSO`. El umbral de 7 días es una decisión
-   operativa, no una regla fiscal.
+2. **Un documento válido no tiene fecha anterior al último válido de su serie**: `FECHA_ANTERIOR_AL_ULTIMO`. Así
+   el archivo queda en orden cronológico desde la emisión. Los anulados no cuentan.
+3. **Un salto grande del reloj se confirma**: `RELOJ_ADELANTADO_SOSPECHOSO`, con un umbral de 7 días.
 
 ## Los dos casos
 
@@ -105,8 +103,7 @@ Con la API: `POST /v1/series/{identificador}/corregir-fecha` con `{ "motivo": "�
 ## Lo que no cubre
 
 Un reloj **atrasado** en la primera emisión de una serie (por ejemplo, la batería del equipo que vuelve a 2000) no
-tiene un documento previo con el que compararse, y la autorización no trae una fecha de inicio que sirva de piso.
-El SDK no tiene con qué detectarlo: revisa el reloj de una caja nueva antes de su primera venta.
+tiene un documento previo con el que compararse. Revisa el reloj de una caja nueva antes de su primera venta.
 
 ## En las pruebas
 
@@ -130,4 +127,3 @@ Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y 
   [cumplimiento](/referencia/cumplimiento/), filas 14, 41 y 43.
 - `corregirFechaAdelantada` y `eventosAuditoria` en el núcleo; sección «Reloj del dispositivo» de
   `AGENTS.md`.
-- El umbral de 7 días y el procedimiento ante un reloj adelantado son decisiones de diseño de factura-hn.

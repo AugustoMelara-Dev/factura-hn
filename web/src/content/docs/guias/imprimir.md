@@ -78,9 +78,7 @@ Node, en funciones serverless y en el navegador.
 
 Un documento emitido con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva `modo: 'prueba'`. El HTML, el texto y el
 PDF imprimen `LEYENDA_PRUEBA`, «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL», al inicio y al final; el PDF agrega una
-marca de agua PRUEBA. El texto es fijo: no se traduce ni se personaliza. Es una marca del producto, no una regla
-fiscal: evita que un documento de demostración pase por uno real. Un documento real se imprime
-sin ella.
+marca de agua PRUEBA. El texto es fijo: no se traduce ni se personaliza. Un documento real se imprime sin ella.
 
 ### Documento anulado
 

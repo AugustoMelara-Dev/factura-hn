@@ -157,5 +157,3 @@ Detalle en la [referencia de la API](/referencia/api/).
 - Reglamento, Arts. 11, 41, 42 y 53: matriz de [cumplimiento](/referencia/cumplimiento/), filas 41, 42 y 53.
 - `reportes.ts`, `exportacion.ts` y `no-utilizados.ts` del núcleo; [referencia de la API](/referencia/api/),
   «Reportes de período».
-- Los formatos de exportación y los feriados que pasa el integrador son decisiones de diseño de factura-hn. El
-  libro en lempiras es una lectura de factura-hn: ver [Estado legal](/produccion/estado-legal/).

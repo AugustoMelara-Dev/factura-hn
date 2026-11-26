@@ -22,8 +22,7 @@ docker compose up -d --build --wait     # API en http://127.0.0.1:8787
 ```
 
 Los pasos para obtener la llave de caja del tenant de prueba y emitir con curl están en
-[Tu primera factura](/empezar/primera-factura/#api-rest-docker). Sin instalar nada, [Pruébalo ahora](/probar/)
-crea un entorno de prueba en la demostración pública, cuando está en línea.
+[Tu primera factura](/empezar/primera-factura/#api-rest-docker).
 
 ## Lo esencial
 
