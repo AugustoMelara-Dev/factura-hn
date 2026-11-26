@@ -34,6 +34,13 @@ describe('consola: ayuda y uso', () => {
     }
   });
 
+  it('version, --version y -v imprimen la versión del paquete con código 0; la ayuda lo lista', async () => {
+    const { version } = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as { version: string };
+    for (const a of ['version', '--version', '-v']) expect(await correr([a])).toMatchObject({ codigo: 0, log: version });
+    expect((await correr(['ayuda'])).log).toMatch(/^ {2}version$/m);
+    expect((await correr(['version', 'extra'])).codigo).toBe(1);
+  });
+
   it('ayuda de un subcomando, también con --help', async () => {
     const a = await correr(['ayuda', 'llave', 'crear']);
     expect(a.codigo).toBe(0);

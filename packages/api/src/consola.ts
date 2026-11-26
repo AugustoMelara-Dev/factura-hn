@@ -6,7 +6,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type pg from 'pg';
-import { crearApp } from './app';
+import { crearApp, VERSION_API } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import {
   bloqueLlavesDemo,
@@ -136,6 +136,7 @@ export function textoTokenMcp(caja: string, token: string): string {
 }
 
 const AYUDA = new Set(['ayuda', '--ayuda', '--help', '-h', 'help']);
+const VERSION = new Set(['version', '--version', '-v']);
 
 function ayudaGeneral(consola: string): string {
   return [
@@ -147,6 +148,8 @@ function ayudaGeneral(consola: string): string {
     ...COMANDOS.map((c) => `  ${c.uso}\n      ${c.descripcion}`),
     '  ayuda [comando]',
     '      Muestra esta ayuda o la de un comando (también --help).',
+    '  version',
+    '      Muestra la versión (también --version).',
     '',
     'Conexión: FHN_MIGRAR_URL (dueño de las tablas) si está definida; si no, DATABASE_URL.',
     'Las llaves se muestran una sola vez, solo en esta terminal.',
@@ -203,6 +206,10 @@ export async function ejecutarConsola(
   if (args.length === 0) {
     salida.error(ayudaGeneral(consola));
     return 1;
+  }
+  if (VERSION.has(args[0]!) && args.length === 1) {
+    salida.log(VERSION_API);
+    return 0;
   }
   if (AYUDA.has(args[0]!)) {
     const tema = args.slice(1);
