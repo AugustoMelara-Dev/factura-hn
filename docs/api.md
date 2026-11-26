@@ -147,14 +147,23 @@ Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea 
 **Python.** `clientes/python/` genera un cliente con
 [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) y lo prueba emitiendo una
 factura de prueba (correlativo, idempotencia, total, desglose del ISV y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
-FISCAL»). El código generado no
-se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual dentro del repositorio:
+FISCAL»). El código generado no se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual
+dentro del repositorio y `FHN_LLAVE` exportada, en Linux y macOS:
 
 ```bash
 python -m venv .venv-python
-.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt   # Windows: .venv-python\Scripts\pip
+.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt
 .venv-python/bin/python clientes/python/generar.py
-FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python   # con FHN_LLAVE exportada
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python
+```
+
+En Windows (Git Bash), el entorno virtual pone los programas en `Scripts` en lugar de `bin`:
+
+```bash
+python -m venv .venv-python
+.venv-python/Scripts/pip install --require-hashes -r clientes/python/requirements.txt
+.venv-python/Scripts/python clientes/python/generar.py
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/Scripts/python -m pytest clientes/python
 ```
 
 En tu proyecto, `from factura_hn_api import AuthenticatedClient` y
@@ -203,12 +212,18 @@ aparece la forma de Docker Compose; los mensajes del servidor usan la de su desp
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
 docker compose exec api factura-hn-api migrar
-docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # modo alojado: imprime la llave admin (fhn_live_…)
-docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # modo alojado, sandbox: llaves fhn_test_…, solo CAI ficticios
-docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
+docker compose exec api factura-hn-api llave crear local --rol caja --nombre "Caja 2" --caja 000-002
 docker compose exec api factura-hn-api llave crear local --rol caja --caja 000-001 --mcp   # token y URL del MCP por HTTP (ChatGPT)
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
-docker compose exec api factura-hn-api openapi openapi.json
+docker compose exec -T api factura-hn-api openapi > openapi.json # la especificación, en tu equipo
+```
+
+Solo en modo alojado (`FHN_MODO=alojado`, varios tenants), con un `docker-compose.yml` propio:
+
+```bash
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin (fhn_live_…)
+docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # sandbox: llaves fhn_test_…, solo CAI ficticios
+docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
 ```
 
 `ayuda <comando>` (o `<comando> --help`) muestra el uso de cada uno. Un error de uso sale en español, con el uso
@@ -412,12 +427,13 @@ antes a centavos.
 {
   "error": {
     "codigo": "VALIDACION",
-    "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).",
-    "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: POST /v1/autorizaciones …",
+    "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Factura, serie 000-009-01) (Arts. 59-61).",
+    "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: `POST /v1/autorizaciones` con el CAI, el rango y la fecha límite de la resolución del SAR. `GET /v1/sesion` dice qué falta para emitir.",
     "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion",
-    "solicitud": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
+    "solicitud": "744161c4-1b32-4172-ab06-958492845d20"
   },
-  "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "…", "solucion": "…", "documentacion": "…#sin_autorizacion" }]
+  "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "No hay autorización (CAI) registrada …", "solucion": "…", "documentacion": "…#sin_autorizacion" }],
+  "advertencias": []
 }
 ```
 
