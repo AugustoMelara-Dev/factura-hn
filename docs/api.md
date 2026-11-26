@@ -490,10 +490,10 @@ Solo lee datos del tenant de la llave (RLS).
   `Retry-After` hasta el primer día del mes siguiente a las 00:00 de Honduras. El documento no se emite y el
   número no se consume.
 - **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
-  (opción `limiteIntentos`). Cada consulta en curso reserva una ficha: sin fichas libres, 429
-  `DEMASIADOS_INTENTOS` **sin consultar la base**, aunque lleguen muchas a la vez. Una llave que resulta válida
-  no gasta su ficha, y las solicitudes simultáneas con la misma llave hacen una sola consulta. Una llave que ya
-  autenticó en este proceso no pasa por este límite, aunque su dirección lo agote, y un secreto equivocado con
+  (opción `limiteIntentos`). Cada llave inexistente gasta una ficha, y sin fichas libres la respuesta es 429
+  `DEMASIADOS_INTENTOS` **sin consultar la base**, lleguen seguidas o muchas a la vez (con cola, cada consulta en
+  curso reserva además una ficha). Una llave que resulta válida no gasta su ficha, y las solicitudes simultáneas
+  con la misma llave hacen una sola consulta. Una llave que ya autenticó en este proceso no pasa por este límite, aunque su dirección lo agote, y un secreto equivocado con
   su prefijo no la saca de memoria.
 - **Fallos de una llave que existe** (secreto equivocado, llave revocada o tenant inactivo): se cobran a esa
   llave, con las mismas tasas, y no a la dirección. Así, una caja que sigue usando su llave revocada se frena
@@ -503,8 +503,8 @@ Solo lee datos del tenant de la llave (RLS).
   (`limiteIntentos.consultasSimultaneas`); las demás esperan su turno en cola. Esto acota la carga sobre
   Postgres sin dar 429 a nadie.
 - **Después de reiniciar la API** el proceso no recuerda ninguna llave validada. Si más de unas 20 cajas detrás de
-  la misma dirección (una NAT, la puerta de enlace de Docker) llegan a la vez con la cola de consultas llena, las
-  que pasan de la ráfaga reciben 429 `DEMASIADOS_INTENTOS` con un `Retry-After` de pocos segundos, aunque sus llaves sean válidas:
+  la misma dirección (una NAT, la puerta de enlace de Docker) llegan a la vez con la cola de consultas llena, o si
+  esa dirección gastó sus fichas con llaves inexistentes, las que pasan de la ráfaga reciben 429 `DEMASIADOS_INTENTOS` con un `Retry-After` de pocos segundos, aunque sus llaves sean válidas:
   la API todavía no sabe si lo son (eso es lo que protege contra la fuerza bruta). Al reintentar después de
   `Retry-After` entran, y desde ahí ya no pasan por este límite. Un cliente que reintenta después de `Retry-After`
   no tiene que hacer nada más; uno que arranca muchas cajas a la vez puede validar cada llave
