@@ -239,6 +239,16 @@ export async function registrarAutorizacionConAvisos(
     };
     await tx.guardarAutorizacion(normalizada);
     const advertencias = validarAutorizacion(normalizada).filter(esAdvertencia);
+    // Aviso, no error: registrar un CAI ya vencido sirve para cargar el historial y reportar sus números no
+    // utilizados (Art. 42), pero con él no se puede emitir (Art. 62).
+    const hoy = fechaHonduras(ahora);
+    if (normalizada.fechaLimiteEmision < hoy) {
+      advertencias.push({
+        codigo: 'AVISO_AUTORIZACION_VENCIDA',
+        mensaje: `La fecha límite de emisión (${normalizada.fechaLimiteEmision}) ya pasó (hoy es ${hoy}): con este CAI no se puede emitir (Art. 62). Sirve para el historial y para reportar sus números no utilizados (Art. 42).`,
+        campo: 'fechaLimiteEmision',
+      });
+    }
     await tx.registrarEvento(
       evento('AUTORIZACION_REGISTRADA', ahora, {
         identificador: id,

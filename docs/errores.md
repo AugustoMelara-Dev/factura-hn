@@ -732,6 +732,13 @@ moneda: la mayoría de estos errores desaparecen.
 - **Qué significa:** alerta de `estadoAutorizacion`: se usó el 90 % o más del rango.
 - **Qué hacer:** solicita un nuevo rango antes de que se agote.
 
+### AVISO_AUTORIZACION_VENCIDA
+
+- **Qué significa:** `registrarAutorizacionConAvisos` registró un CAI cuya fecha límite de emisión ya pasó. Se
+  guarda (sirve para el historial y para reportar sus números no utilizados), pero no se puede emitir con él.
+- **Qué hacer:** si querías emitir, revisa la fecha límite contra la resolución o registra el CAI vigente.
+- **Base:** Reglamento, Arts. 42 y 62.
+
 ### AVISO_VIGENCIA_MAYOR_1_ANIO
 
 - **Qué significa:** la fecha límite está a más de un año de la fecha de la resolución.

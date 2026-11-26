@@ -161,10 +161,26 @@ describe('registrarAutorizacionConAvisos', () => {
   });
 
   const larga = { ...AUT, fechaAutorizacion: '2026-01-15', fechaLimiteEmision: '2027-06-30' };
+  // Un reloj fijo: con el reloj real, desde el 2027-07-01 estas autorizaciones ya estarían vencidas.
+  const antesDelLimite = () => new Date('2026-11-19T15:00:00Z');
+
+  it('un CAI ya vencido se registra con AVISO_AUTORIZACION_VENCIDA (no es error) y queda en la bitácora', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    const vencida = { ...AUT, tipoDocumento: '07' as const, cai: 'VENCIDA-1', fechaLimiteEmision: '2020-01-01' };
+    const r = await registrarAutorizacionConAvisos(almacen, vencida, { reloj: antesDelLimite });
+    expect(r.autorizacion.cai).toBe('VENCIDA-1');
+    expect(r.advertencias.map((p) => p.codigo)).toEqual(['AVISO_AUTORIZACION_VENCIDA']);
+    expect(r.advertencias[0]!.mensaje).toContain('2020-01-01');
+    const [ev] = await eventosAuditoria(almacen, { tipo: 'AUTORIZACION_REGISTRADA' });
+    expect(ev!.detalle.advertencias).toEqual(['AVISO_AUTORIZACION_VENCIDA']);
+    // El último día de vigencia todavía no avisa: vence al terminar ese día en Honduras.
+    const hoy = await registrarAutorizacionConAvisos(new AlmacenFiscalMemoria(), { ...vencida, fechaLimiteEmision: '2026-11-19' }, { reloj: antesDelLimite });
+    expect(hoy.advertencias).toEqual([]);
+  });
 
   it('devuelve AVISO_VIGENCIA_MAYOR_1_ANIO (Art. 62) y lo deja en la bitácora', async () => {
     const almacen = new AlmacenFiscalMemoria();
-    const r = await registrarAutorizacionConAvisos(almacen, larga, { actor: 'prueba' });
+    const r = await registrarAutorizacionConAvisos(almacen, larga, { actor: 'prueba', reloj: antesDelLimite });
     expect(r.autorizacion).toMatchObject({ cai: AUT.cai, fechaLimiteEmision: '2027-06-30' });
     expect(r.advertencias).toHaveLength(1);
     expect(r.advertencias[0]).toMatchObject({ codigo: 'AVISO_VIGENCIA_MAYOR_1_ANIO', campo: 'fechaLimiteEmision' });
@@ -174,7 +190,7 @@ describe('registrarAutorizacionConAvisos', () => {
   });
 
   it('sin aviso, advertencias vacía; registrarAutorizacion conserva su firma (devuelve la autorización)', async () => {
-    const sinAviso = await registrarAutorizacionConAvisos(new AlmacenFiscalMemoria(), { ...AUT, fechaAutorizacion: '2026-07-01' });
+    const sinAviso = await registrarAutorizacionConAvisos(new AlmacenFiscalMemoria(), { ...AUT, fechaAutorizacion: '2026-07-01' }, { reloj: antesDelLimite });
     expect(sinAviso.advertencias).toEqual([]);
     const a = await registrarAutorizacion(new AlmacenFiscalMemoria(), larga);
     expect(a).not.toHaveProperty('advertencias');
