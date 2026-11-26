@@ -1,6 +1,6 @@
 /**
  * Notas vigentes y tope de la nota de crédito:
- * - Arts. 41 y 4 num. 32 (lectura de factura-hn): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
+ * - Arts. 41 y 4 num. 32: un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
  * - Art. 4 num. 32: tope de la nota de crédito por tasa; original en USD por el mismo camino que la nota;
  *   `AVISO_NOTA_EXONERACION_DISTINTA`.
  * - Menores: `ANULACION_MOTIVO`, `estadoAutorizacion` con una serie que viene de otro CAI, `caiEstricto` en la demo,

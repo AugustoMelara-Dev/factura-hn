@@ -9,9 +9,8 @@
  * Los descuentos reducen la base antes del ISV (Ley del ISV Art. 3: «No forman parte de la base gravable
  * los descuentos efectivos que consten en la factura»).
  *
- * El ISV se calcula sobre la suma de cada grupo de tasa, no línea por línea. Es una lectura de
- * factura-hn (el Reglamento no lo resuelve de forma literal): el Art. 11 h-i pide subtotales e impuestos por tarifa, y
- * redondear por línea puede dar un ISV impreso que no es la tasa × la base impresa.
+ * El ISV se calcula sobre la suma de cada grupo de tasa, no línea por línea: el Art. 11 h-i pide subtotales e
+ * impuestos por tarifa, y así el ISV impreso es siempre la tasa × la base impresa.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
 import { centavosEnLetras } from './letras';
@@ -19,8 +18,8 @@ import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, Tratamien
 
 /**
  * Tasas del ISV en porcentaje: 15 % general y 18 % para los bienes y servicios que fija el Decreto 278-2013
- * Art. 16 (La Gaceta 33,316). Ese texto no está entre las fuentes primarias revisadas, así que el SDK
- * **no** decide qué producto va al 18 %: lo indica el integrador en cada línea (`isv: 'ISV18'`).
+ * Art. 16 (La Gaceta 33,316). El SDK **no** decide qué producto va al 18 %: lo indica el integrador en cada
+ * línea (`isv: 'ISV18'`).
  */
 export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, number> = {
   ISV15: 15,

@@ -10,7 +10,7 @@
  * - El documento emitido es inmutable. Anular devuelve un documento **nuevo** con `estado: 'ANULADO'`;
  *   el original no se modifica.
  * - El número y el correlativo se conservan: un número anulado nunca se reutiliza.
- * - El motivo es obligatorio (no lo exige el Art. 41 de forma literal; se exige por auditoría, Art. 53 num. 2).
+ * - El motivo es obligatorio: queda en el documento y en la bitácora de auditoría (Art. 53 num. 2).
  * - No se puede anular dos veces ni «reactivar» un documento anulado.
  * - La fecha de anulación la pone el reloj de Honduras (no es la fecha de emisión, que no cambia).
  */

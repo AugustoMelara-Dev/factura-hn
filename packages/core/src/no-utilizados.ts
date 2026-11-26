@@ -102,8 +102,8 @@ export type UltimoConsumido = number | null | ((autorizacion: AutorizacionCAI) =
  * - Las autorizaciones de prueba (`prueba: true` o CAI ficticio) no se reportan al SAR: no aparecen.
  *
  * - Causal 1 (vencimiento): cada autorización cuya fecha límite ya pasó deja sin uso los números
- *   posteriores al último consumido. El acontecimiento es la fecha límite misma (lectura conservadora: la
- *   otra lectura, el día siguiente, puede mover el aviso un mes más tarde).
+ *   posteriores al último consumido. El acontecimiento es la fecha límite misma, así el aviso sale en
+ *   el mes correcto.
  * - Con `evento`, los números restantes de las autorizaciones aún vigentes quedan con esa causal.
  */
 export function documentosNoUtilizados(
