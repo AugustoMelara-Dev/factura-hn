@@ -105,6 +105,11 @@ conBase('modo demo', () => {
     const llaveMcp = llaveDeTokenMcp(e.mcp.url.split('/').pop())!;
     const s = await json(await cliente(app, llaveMcp)('GET', '/v1/sesion'));
     expect(s.sesion?.tenant ?? s.tenant).toBe(e.entorno.id);
+    // El token va en una URL: es de una llave de caja en 000-001, que emite pero no anula.
+    expect(s.sesion.llave).toMatchObject({ rol: 'caja', establecimiento: '000', puntoEmision: '001' });
+    const anular = await cliente(app, llaveMcp)('POST', `/v1/documentos/${documento.numero}/anular`, { motivo: 'Prueba desde la URL del MCP' });
+    expect(anular.status).toBe(403);
+    expect((await json(anular)).error.codigo).toBe('SOLO_ADMIN');
   });
 
   it('aísla a dos visitantes: datos, llaves y tokens', async () => {

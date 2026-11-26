@@ -16,6 +16,7 @@ import {
   datosRealesEnBase,
   errorDatosRealesEnDemo,
   errorTenantEnModoLocal,
+  ERROR_TOKEN_MCP_SOLO_CAJA,
   LEYENDA_PRUEBA,
   pausarDemo,
   purgarEntornosDemo,
@@ -67,7 +68,7 @@ const COMANDOS: Comando[] = [
     nombre: ['llave', 'crear'],
     uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002] [--mcp]',
     descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración. ' +
-      'Con --mcp imprime en su lugar un token del MCP por HTTP y la URL para conectarlo (p. ej. a ChatGPT); se revoca como cualquier llave.',
+      'Con --mcp (solo con --rol caja --caja 000-001) imprime en su lugar un token del MCP por HTTP y la URL para conectarlo (p. ej. a ChatGPT): emite en esa caja, pero no anula ni administra. Se revoca como cualquier llave.',
     posicionales: { obligatorios: ['tenant'] },
     opciones: ['rol', 'nombre', 'caja'],
     banderas: ['mcp'],
@@ -125,11 +126,11 @@ const COMANDOS: Comando[] = [
 ];
 
 /** Lo que imprime `llave crear … --mcp`: el token, la URL de ejemplo y que esa URL es secreta. */
-export function textoTokenMcp(rol: string, token: string): string {
+export function textoTokenMcp(caja: string, token: string): string {
   return [
-    `Token MCP ${rol} (solo se muestra ahora): ${token}`,
+    `Token MCP de la caja ${caja} (solo se muestra ahora): ${token}`,
     `URL del MCP por HTTP: https://<tu-servidor>/mcp/${token}`,
-    'Esa URL es secreta como una llave: quien la tenga usa tu API con este rol.',
+    'Trata esa URL como una contraseña: quien la tenga emite en esta caja (no puede anular ni administrar).',
   ].join('\n');
 }
 
@@ -248,6 +249,7 @@ export async function ejecutarConsola(
       if (opciones.rol !== 'admin' && opciones.rol !== 'caja') throw new ErrorUso('--rol debe ser admin o caja.', comando);
       if (opciones.rol === 'caja' && !opciones.caja) throw new ErrorUso('Una llave de caja se ata a su punto de emisión: agrega --caja 000-001.', comando);
       if (opciones.caja && !/^\d{3}-\d{3}$/.test(opciones.caja)) throw new ErrorUso('--caja va como establecimiento-punto de emisión, p. ej. 000-001.', comando);
+      if (banderas.has('mcp') && opciones.rol !== 'caja') throw new ErrorUso(ERROR_TOKEN_MCP_SOLO_CAJA, comando);
     }
     if (clave === 'demo llave' && opciones.rol !== undefined && opciones.rol !== 'admin' && opciones.rol !== 'caja') {
       throw new ErrorUso('--rol debe ser admin o caja.', comando);
@@ -298,7 +300,7 @@ export async function ejecutarConsola(
           tenant: posicionales[0]!, rol: rolLlave, nombre: opciones.nombre ?? (banderas.has('mcp') ? 'MCP' : rolLlave),
           establecimiento: caja?.[0], puntoEmision: caja?.[1], mcp: banderas.has('mcp'),
         });
-        salida.log(banderas.has('mcp') ? textoTokenMcp(rolLlave, llave) : `Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
+        salida.log(banderas.has('mcp') ? textoTokenMcp(opciones.caja!, llave) : `Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
         return 0;
       }
       case 'demo limpiar': {

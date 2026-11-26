@@ -58,6 +58,9 @@ describe('consola: ayuda y uso', () => {
       [['tenant', 'crear', 'x', '--color', 'azul'], 'Opción desconocida: --color'],
       [['migrar', 'ya'], 'Sobra el argumento «ya»'],
       [['demo', 'llave', '--rol', 'jefe'], '--rol debe ser admin o caja'],
+      // El token del MCP va en una URL: solo de caja, y lo dice con qué hacer.
+      [['llave', 'crear', 'local', '--rol', 'admin', '--mcp'], 'solo puede ser de una llave de caja'],
+      [['llave', 'crear', 'local', '--rol', 'admin', '--caja', '000-001', '--mcp'], 'usa --rol caja --caja 000-001 con --mcp'],
     ] as const) {
       const r = await correr([...args]);
       expect(r.codigo, args.join(' ')).toBe(1);
@@ -80,9 +83,10 @@ describe('consola: ayuda y uso', () => {
   it('llave crear --mcp: la ayuda lo dice y el texto lleva el token, la URL y el aviso', async () => {
     expect((await correr(['ayuda', 'llave', 'crear'])).log).toContain('[--mcp]');
     const t = generarTokenMcp('produccion');
-    const texto = textoTokenMcp('admin', t.token);
+    const texto = textoTokenMcp('000-001', t.token);
     expect(texto).toContain(`https://<tu-servidor>/mcp/${t.token}`);
-    expect(texto).toMatch(/secreta como una llave/);
+    expect(texto).toMatch(/Trata esa URL como una contraseña/);
+    expect(texto).toMatch(/no puede anular/);
     // La llave que se guarda es la que el servidor MCP deriva del token impreso.
     const derivada = llaveDeTokenMcp(t.token)!;
     expect(derivada).toBe(t.llave);
@@ -111,9 +115,29 @@ conBase('consola: llave crear --mcp', () => {
     expect(creado.codigo).toBe(0);
     const admin = /Llave admin \(solo se muestra ahora\): (fhn_\S+)/.exec(creado.log)![1]!;
 
+    // Con --rol admin se niega y no guarda ninguna llave.
+    const contar = async () => {
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+        const n = (await c.query<{ n: number }>('SELECT count(*)::int AS n FROM api_llaves WHERE tenant = $1', [tenant])).rows[0]!.n;
+        await c.query('COMMIT');
+        return n;
+      } finally {
+        c.release();
+      }
+    };
+    const antes = await contar();
+    const negada = await correr(['llave', 'crear', tenant, '--rol', 'admin', '--mcp'], env);
+    expect(negada.codigo).toBe(1);
+    expect(negada.error).toContain('solo puede ser de una llave de caja');
+    expect(negada.log).not.toMatch(/fhnmcp_/);
+    expect(await contar()).toBe(antes);
+
     const r = await correr(['llave', 'crear', tenant, '--rol', 'caja', '--caja', '000-001', '--mcp'], env);
     expect(r.codigo).toBe(0);
-    const token = /Token MCP caja \(solo se muestra ahora\): (fhnmcp_\S+)/.exec(r.log)?.[1];
+    const token = /Token MCP de la caja 000-001 \(solo se muestra ahora\): (fhnmcp_\S+)/.exec(r.log)?.[1];
     expect(token).toMatch(/^fhnmcp_live_[0-9a-f]{12}_/);
     expect(r.log).toContain(`https://<tu-servidor>/mcp/${token}`);
     expect(r.log).not.toMatch(/fhn_live_/);

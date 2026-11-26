@@ -4,7 +4,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
-import { cerrarPool, cliente, crearCaja, tenantListo, URL_PG, venta } from './ayuda';
+import { crearLlaveOperador, crearTenant } from '../src/operador';
+import { cerrarPool, cliente, crearCaja, nombreTenant, poolPrueba, tenantListo, URL_PG, venta } from './ayuda';
 
 afterAll(cerrarPool);
 const json = async (r: Response) => (await r.json()) as Record<string, any>;
@@ -80,5 +81,26 @@ describe.skipIf(!URL_PG)('actor y operador en la bitácora (operador opcional)',
     // Ningún error consumió número.
     const sig = await json(await caja('POST', '/v1/documentos', venta('10.00'), { 'idempotency-key': randomUUID() }));
     expect(sig.documento.correlativo).toBe(a.documento.correlativo + 1);
+  });
+});
+
+describe.skipIf(!URL_PG)('crearLlaveOperador con mcp', () => {
+  it('el token del MCP por URL solo puede ser de una llave de caja: admin o sin caja se rechaza sin guardar nada', async () => {
+    const pool = await poolPrueba();
+    const { tenant } = await crearTenant(pool, { tenant: nombreTenant('mcp-op'), nombre: 'MCP operador' });
+    for (const o of [{ rol: 'admin' as const }, { rol: 'admin' as const, establecimiento: '000', puntoEmision: '001' }, { rol: 'caja' as const }]) {
+      await expect(crearLlaveOperador(pool, { tenant, nombre: 'MCP', mcp: true, ...o }), JSON.stringify(o)).rejects.toThrow(/solo puede ser de una llave de caja/);
+    }
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      expect((await c.query('SELECT rol FROM api_llaves WHERE tenant = $1', [tenant])).rows).toEqual([{ rol: 'admin' }]);
+      await c.query('COMMIT');
+    } finally {
+      c.release();
+    }
+    // De caja, sí: devuelve el token fhnmcp_.
+    expect(await crearLlaveOperador(pool, { tenant, nombre: 'MCP', mcp: true, rol: 'caja', establecimiento: '000', puntoEmision: '001' })).toMatch(/^fhnmcp_live_/);
   });
 });

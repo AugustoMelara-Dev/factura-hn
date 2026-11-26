@@ -612,10 +612,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         )).rows[0]!;
         if (cupo.estado !== 'ok') return cupo;
         await tx.consulta('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [tenant, JSON.stringify(EMISOR_DEMO)]);
-        const insertarLlave = (k: { prefijo: string; hash: Buffer }, nombre: string) =>
-          tx.consulta("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', $4)", [k.prefijo, tenant, k.hash, nombre]);
-        await insertarLlave(llave, 'Visitante (demo)');
-        if (mcp) await insertarLlave(mcp, 'MCP remoto (demo)');
+        await tx.consulta("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', 'Visitante (demo)')", [llave.prefijo, tenant, llave.hash]);
+        // El token del MCP va en una URL: solo puede ser de una llave de caja (emite en 000-001, no anula ni administra).
+        if (mcp) {
+          await tx.consulta(
+            "INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, 'caja', 'MCP remoto (demo)', '000', '001')",
+            [mcp.prefijo, tenant, mcp.hash],
+          );
+        }
         // Los CAI ficticios, en la misma transacción: un entorno nunca queda a medias.
         const enEstaTx = { transaccion: <T>(fn: (x: TransaccionFiscal) => Promise<T>) => fn(t) } as unknown as AlmacenPostgres;
         for (const tipoDocumento of ['01', '06', '07'] as const) {
