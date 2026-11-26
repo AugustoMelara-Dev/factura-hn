@@ -47,7 +47,7 @@ describe('factura-hn-mcp por stdio', () => {
     } catch (e) {
       salida = String((e as { stderr: string }).stderr);
     }
-    expect(salida).toMatch(/debe ser un archivo/);
+    expect(salida).toMatch(/debe ser la ruta de un archivo .*Cambia FHN_SQLITE en la configuración de tu cliente MCP/);
     // Un emisor.json que falta o está incompleto se informa al arrancar, con qué corregir.
     const arrancar = (emisor: string) => {
       try {

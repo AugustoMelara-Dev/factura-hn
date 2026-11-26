@@ -53,7 +53,7 @@ function opciones(args: string[], definicion: NonNullable<NonNullable<Parameters
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e);
     const opcion = /'([^']+)'/.exec(m)?.[1];
-    if (/Unknown option/i.test(m)) throw new ErrorUso(`Opción desconocida: ${opcion ?? m}.`);
+    if (/Unknown option/i.test(m)) throw new ErrorUso(`Opción desconocida: ${opcion ?? m}.${opcion === '--force' ? ' ¿Quisiste decir --forzar?' : ''}`);
     if (/argument missing/i.test(m)) throw new ErrorUso(`Falta el valor de ${opcion ?? 'una opción'}.`);
     if (/does not take an argument/i.test(m)) throw new ErrorUso(`${opcion ?? 'Esa opción'} no lleva valor.`);
     if (/Unexpected argument/i.test(m)) throw new ErrorUso(`Argumento inesperado: ${opcion ?? m}. Las opciones van con «--».`);
@@ -103,8 +103,8 @@ Comandos:
                      --punto             Código de punto de emisión (por defecto 001).
                      --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real).
                                          Con --demo, también recrea la base de prueba. Nunca borra la base real.
-  http             Arranca el MCP remoto (Streamable HTTP) para conectores de Claude, ChatGPT u otros clientes.
-                     Llama a la API en FHN_API_URL; cada conexión trae su llave (URL personal o Bearer).
+  http             Arranca el MCP por HTTP (Streamable HTTP) sobre tu propia API (FHN_API_URL). Cada
+                     conexión manda su llave de API en la cabecera Authorization: Bearer.
   registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
                      --cai --tipo (01, 06 o 07) --establecimiento --punto --desde --hasta
                      --fecha-limite AAAA-MM-DD  [--fecha-autorizacion AAAA-MM-DD]
@@ -137,7 +137,10 @@ function listaProblemas(e: ErrorBackend): string {
 function exigirBasePrueba(db: Parameters<typeof caisDeBase>[0], ruta: string) {
   const { reales } = caisDeBase(db);
   if (reales.length) {
-    throw new ErrorUso(`${ruta} tiene un CAI real (${reales[0]}): no es una base de prueba. No se modifica ni se borra.`);
+    throw new ErrorUso(
+      `${ruta} tiene un CAI real (${reales[0]}): no es una base de prueba, así que no se modifica ni se borra. ` +
+        `Para probar, crea la base de prueba en otra carpeta: npx -y ${PAQUETE} init --demo --dir ./prueba`,
+    );
   }
 }
 
@@ -165,7 +168,10 @@ async function prepararBase(ruta: string, o: { demo: boolean; establecimiento: s
           continue;
         }
         const problemas = validarNuevaAutorizacion(existentes, a);
-        if (problemas.length) throw new ErrorUso(`No se pudo registrar el CAI ficticio en ${identificadorDe(a)}: ${problemas.map((p) => p.mensaje).join(' ')}`);
+        if (problemas.length) throw new ErrorUso(
+            `No se pudo registrar el CAI ficticio en ${identificadorDe(a)}: ${problemas.map((p) => p.mensaje).join(' ')} ` +
+              `Recrea la base de prueba con: npx -y ${PAQUETE} init --demo --forzar`,
+          );
         pendientes.push(a);
       }
       for (const a of pendientes) registrados.push(await registrarAutorizacion(almacen, a, { actor: 'mcp:init-demo', reloj: o.reloj }));
@@ -236,17 +242,19 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
     hechos.push(`Registrado el CAI ficticio ${a.cai} (${identificadorDe(a)}, rango ${a.rangoInicial}–${a.rangoFinal}, fecha límite ${a.fechaLimiteEmision}).`);
   }
   if (demo && !registrados.length && !vencidos.length) hechos.push('El CAI ficticio ya estaba registrado.');
-  for (const a of vencidos) hechos.push(`Aviso: el CAI ficticio de ${identificadorDe(a)} venció el ${a.fechaLimiteEmision}. Usa «init --demo --forzar» para recrear la base de prueba.`);
+  for (const a of vencidos) hechos.push(`Aviso: el CAI ficticio de ${identificadorDe(a)} venció el ${a.fechaLimiteEmision}. Para recrear la base de prueba, corre: npx -y ${PAQUETE} init --demo --forzar`);
 
   const bloque = bloqueMcpServers({ FHN_SQLITE: base, FHN_EMISOR: emisor, FHN_ESTABLECIMIENTO: establecimiento, FHN_PUNTO: puntoEmision }, plataforma);
   const pasos = demo
     ? [
-        `Modo de prueba: el asistente marcará cada documento como «${LEYENDA_PRUEBA}».`,
+        `Listo: modo de prueba en ${dir}. Cada documento sale con la leyenda «${LEYENDA_PRUEBA}».`,
         '',
-        'Paso 2. Pega este bloque en la configuración de tu cliente MCP:',
+        'Pega este bloque en la configuración de tu cliente MCP:',
       ]
     : [
-        'Antes de emitir:',
+        `¿Solo quieres probar? Corre: npx -y ${PAQUETE} init --demo (emisor y CAI ficticios, listo para emitir).`,
+        '',
+        'Para emitir de verdad, antes de arrancar el servidor:',
         `1. Llena ${emisor} con los datos de tu negocio. El servidor los valida al arrancar y dice qué falta.`,
         '2. Registra el CAI de tu resolución del SAR, una vez por tipo de documento, copiando los datos de la resolución:',
         `   npx -y ${PAQUETE} registrar-cai --base "${base}" --cai CAI_DE_LA_RESOLUCION --tipo 01 --establecimiento ${establecimiento} --punto ${puntoEmision} --desde PRIMER_NUMERO --hasta ULTIMO_NUMERO --fecha-limite AAAA-MM-DD`,
@@ -263,7 +271,7 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
     '',
     DONDE_PEGAR(),
     '',
-    demo ? 'Paso 3. Reinicia el cliente y pídele al asistente: «emite una factura de prueba».' : 'Después, reinicia el cliente y pídele al asistente que emita una factura.',
+    demo ? 'Después, reinicia el cliente y pídele al asistente: «emite una factura de prueba».' : 'Después, reinicia el cliente y pídele al asistente que emita una factura.',
   ].join('\n'));
   return 0;
 }
@@ -310,7 +318,7 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
   try {
     if (url) {
       const llave = v.llave ?? c.env.FHN_LLAVE;
-      if (!llave) throw new ErrorUso('Falta la llave de API: --llave o FHN_LLAVE (debe ser una llave admin).');
+      if (!llave) throw new ErrorUso('Falta la llave de API: pásala con --llave o en FHN_LLAVE. Tiene que ser una llave admin.');
       r = await new BackendApi({ url, llave, operador }).registrarCAI(autorizacion);
       donde = `la API (${url})`;
     } else {

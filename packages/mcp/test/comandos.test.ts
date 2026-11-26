@@ -53,6 +53,11 @@ describe('init --demo', () => {
     expect(b).toEqual({ command: 'npx', args: ['-y', expect.stringMatching(/^@factura-hn\/mcp@\d+\.\d+\.\d+/)], env: { FHN_SQLITE: base, FHN_EMISOR: emisor, FHN_ESTABLECIMIENTO: '000', FHN_PUNTO: '001' } });
     expect(r.out).toMatch(/Claude Desktop[\s\S]*Claude Code[\s\S]*Cursor[\s\S]*VS Code/);
     expect(r.out).toContain('«emite una factura de prueba»');
+    // Sin preguntas ni pasos sueltos: dice que quedó listo y qué pegar.
+    expect(r.out).toContain(`Listo: modo de prueba en ${dir}. Cada documento sale con la leyenda «${LEYENDA_PRUEBA}».`);
+    expect(r.out).toContain('Pega este bloque en la configuración de tu cliente MCP:');
+    expect(r.out).not.toMatch(/Paso \d/);
+    expect(r.err).toBe('');
   });
 
   it('es idempotente: la segunda vez conserva todo y no registra otro CAI', async () => {
@@ -101,6 +106,7 @@ describe('init --demo', () => {
   it('opciones mal escritas: error en español y código 1', async () => {
     expect(await correr(['init', '--demoo'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Opción desconocida: --demoo\./) });
     expect(await correr(['init', '--punto', 'abcd'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/--punto debe tener hasta 3 dígitos/) });
+    expect(await correr(['init', '--demo', '--force'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Opción desconocida: --force\. ¿Quisiste decir --forzar\?\nAyuda: npx -y @factura-hn\/mcp ayuda$/) });
   });
 });
 
@@ -118,7 +124,7 @@ describe('init --demo no toca una base con CAI reales', () => {
   it('--forzar no la borra', async () => {
     const { dir, base } = await baseConCAIReal();
     const r = await correr(['init', '--demo', '--forzar'], { cwd: dir });
-    expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/tiene un CAI real \(A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4\): no es una base de prueba\. No se modifica ni se borra\./) });
+    expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/tiene un CAI real \(A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4\): no es una base de prueba, así que no se modifica ni se borra\. Para probar, crea la base de prueba en otra carpeta: npx -y @factura-hn\/mcp init --demo --dir \.\/prueba/) });
     expect(autorizaciones(base)).toBe(1);
   });
 
@@ -151,6 +157,9 @@ describe('init sin --demo', () => {
     expect(r.out).toContain('registrar_cai');
     expect(r.out).not.toContain(LEYENDA_PRUEBA);
     expect(bloqueDe(r.out).mcpServers['factura-hn'].env.FHN_SQLITE).toBe(base);
+    // Quien solo quiere probar ve el camino corto antes de los pasos del CAI real.
+    expect(r.out).toContain('¿Solo quieres probar? Corre: npx -y @factura-hn/mcp init --demo');
+    expect(r.out.indexOf('init --demo')).toBeLessThan(r.out.indexOf('registrar-cai'));
   });
 
   it('--forzar reescribe la plantilla pero nunca borra la base real', async () => {
