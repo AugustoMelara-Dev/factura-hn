@@ -58,7 +58,15 @@ export async function crearTenant(
   if (TENANTS_RESERVADOS.includes(o.tenant)) {
     throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
   }
-  return crearTenantSinReserva(pool, o);
+  try {
+    return await crearTenantSinReserva(pool, o);
+  } catch (e) {
+    // 23505: el tenant ya existe (clave primaria de api_tenants).
+    if ((e as { code?: string }).code === '23505' && (e as { constraint?: string }).constraint === 'api_tenants_pkey') {
+      throw new Error(`El tenant «${o.tenant}» ya existe. Para otra llave: llave crear ${o.tenant} --rol admin`);
+    }
+    throw e;
+  }
 }
 
 async function crearTenantSinReserva(

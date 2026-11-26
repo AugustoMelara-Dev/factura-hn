@@ -165,6 +165,11 @@ conBase('consola: llave crear --mcp', () => {
     const creado = await correr(['tenant', 'crear', tenant], env);
     expect(creado.codigo).toBe(0);
     const admin = /Llave admin \(solo se muestra ahora\): (fhn_\S+)/.exec(creado.log)![1]!;
+    // Otra vez el mismo tenant: error en español que lo nombra, no el de Postgres.
+    const repetido = await correr(['tenant', 'crear', tenant], env);
+    expect(repetido.codigo).toBe(1);
+    expect(repetido.error).toContain(`El tenant «${tenant}» ya existe. Para otra llave: llave crear ${tenant} --rol admin`);
+    expect(repetido.error).not.toMatch(/duplicate key/);
 
     // Con --rol admin se niega y no guarda ninguna llave.
     const contar = async () => {
