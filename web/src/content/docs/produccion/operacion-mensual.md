@@ -60,7 +60,7 @@ declare const docs: DocumentoFiscal[];
 import { exportarTexto, separarDocumentosDePrueba } from 'factura-hn';
 
 const archivo = exportarTexto(docs, { formato: 'csv' }); // también 'jsonl' o 'txt'; sin los documentos de prueba
-const { excluidos } = separarDocumentosDePrueba(docs);   // cuántos de prueba quedaron fuera
+const dePrueba = separarDocumentosDePrueba(docs).excluidos; // cuántos de prueba quedaron fuera
 ```
 
 A diferencia del libro de ventas, el archivo conserva los importes de los documentos anulados junto con su estado

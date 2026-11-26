@@ -130,16 +130,16 @@ antes de pasar a factura-hn:
 
 ```js
 await registrarAutorizacion(almacen, {
-  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
+  cai: 'B1C2D3-E4F5A6-B1C2D3-E4F5A6-B1C2D3-E4',
   tipoDocumento: '01',
   establecimiento: '000',
-  puntoEmision: '001',
+  puntoEmision: '002',
   rangoInicial: 1,
   rangoFinal: 5000,
   fechaLimiteEmision: '2027-06-30',
   ultimoEmitidoAntes: 1250, // lo emitido fuera de este sistema
 });
-// La siguiente factura de la serie es la 000-001-01-00001251.
+// La siguiente factura de la serie 000-002-01 es la 000-002-01-00001251.
 ```
 
 Con eso:

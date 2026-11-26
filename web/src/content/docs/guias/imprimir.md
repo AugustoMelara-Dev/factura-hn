@@ -103,8 +103,8 @@ declare const almacen: AlmacenFiscal;
 ```ts
 import { buscarDocumento, renderizarTexto } from 'factura-hn';
 
-const doc = await buscarDocumento(almacen, '000-001-01-00000001');
-if (doc) console.log(renderizarTexto(doc, { ancho: 42 }));
+const guardado = await buscarDocumento(almacen, '000-001-01-00000001');
+if (guardado) console.log(renderizarTexto(guardado, { ancho: 42 }));
 ```
 
 No vuelvas a llamar a `emitir` ni a `calcularDocumento` para reimprimir: eso sería otro documento, con otro

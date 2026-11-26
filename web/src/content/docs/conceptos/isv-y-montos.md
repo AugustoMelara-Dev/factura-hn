@@ -63,14 +63,14 @@ La mayoría de los POS guardan el precio de góndola, que ya trae el ISV. Indíc
 en el documento (o en `crearFacturador`). El SDK separa la base y el impuesto:
 
 ```js
-const { totales } = calcularDocumento(
+const conISV = calcularDocumento(
   [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
   { preciosIncluyenISV: true },
-);
+).totales;
 
-totales.subtotal; // 200
-totales.isv15;    // 30
-totales.total;    // 230
+conISV.subtotal; // 200
+conISV.isv15;    // 30
+conISV.total;    // 230
 ```
 
 Sin la opción (el valor por defecto es `false`), los precios se toman sin ISV y el impuesto se suma encima.
@@ -87,12 +87,12 @@ de L 0.27 al 15 %. En ese caso el SDK toma la mayor base cuyo total no supera el
 ```js
 import { calcularDocumento, sugerirPrecioSinAjuste } from 'factura-hn';
 
-const { totales } = calcularDocumento(
+const dulce = calcularDocumento(
   [{ descripcion: 'Dulce', cantidad: '1', precioUnitario: '0.27' }],
   { preciosIncluyenISV: true },
-);
-totales.total;             // 0.26
-totales.ajustePorRedondeo; // 0.01
+).totales;
+dulce.total;             // 0.26
+dulce.ajustePorRedondeo; // 0.01
 
 sugerirPrecioSinAjuste('0.27'); // { requiereAjuste: true, anterior: 0.26, siguiente: 0.28 }
 ```

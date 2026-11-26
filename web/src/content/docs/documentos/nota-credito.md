@@ -78,7 +78,7 @@ declare const original: DocumentoFiscal;
 ```ts
 import { emitir } from 'factura-hn';
 
-const nota = await emitir(
+const devolucion = await emitir(
   {
     tipoDocumento: '06',
     emisor,
@@ -137,7 +137,7 @@ declare const caja: Facturador;
 -->
 ```ts
 // El original es la factura 57 de otra caja, emitida en papel. Sus datos se copian del documento.
-const nota = await caja.notaCredito({
+const descuento = await caja.notaCredito({
   original: '000-002-01-00000057',
   referencia: { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', fecha: '2026-11-02' },
   cliente: { nombre: 'Ferretería Ejemplo S. de R.L.', rtn: '99990000000002' },
@@ -145,7 +145,7 @@ const nota = await caja.notaCredito({
   preciosIncluyenISV: true,
   lineas: [{ descripcion: 'Descuento por pronto pago', cantidad: '1', precioUnitario: '50.00' }],
 });
-nota.advertencias.map((a) => a.codigo); // ['AVISO_ORIGINAL_EXTERNO']
+descuento.advertencias.map((a) => a.codigo); // ['AVISO_ORIGINAL_EXTERNO']
 ```
 
 Con un original externo no se puede comprobar el saldo ni la tasa.

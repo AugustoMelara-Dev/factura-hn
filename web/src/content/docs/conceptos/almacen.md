@@ -103,7 +103,8 @@ const caja = crearFacturador({ almacen, emisor, actor: 'caja-1' });
 await caja.emitir(venta, { operador: 'María' });
 
 const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' });
-// [{ tipo: 'DOCUMENTO_EMITIDO', numero: '000-001-01-00000001', actor: 'caja-1', operador: 'María', … }]
+// [{ tipo: 'AUTORIZACION_REGISTRADA', identificador: '000-001-01', … },
+//  { tipo: 'DOCUMENTO_EMITIDO', numero: '000-001-01-00000001', actor: 'caja-1', operador: 'María', … }]
 ```
 
 ## Conservación y respaldos
