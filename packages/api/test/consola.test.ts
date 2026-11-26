@@ -6,7 +6,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { crearApp } from '../src/app';
 import { ejecutarConsola, textoTokenMcp } from '../src/consola';
 import { generarTokenMcp, hashLlave, llaveDeTokenMcp, prefijoDe } from '../src/llaves';
@@ -102,6 +102,22 @@ describe('consola: ayuda y uso', () => {
     const r = await correr(['openapi']);
     expect(r.codigo).toBe(0);
     expect(JSON.parse(r.log).paths['/v1/sesion']).toBeDefined();
+  });
+
+  it('una conexión que vence por tiempo (pg-pool, sin code) da el mensaje de conexión, no el texto en inglés', async () => {
+    const corte = new Error('Connection terminated due to connection timeout');
+    const conectar = vi.spyOn(pg.Pool.prototype, 'connect').mockRejectedValue(corte as never);
+    const consultar = vi.spyOn(pg.Pool.prototype, 'query').mockRejectedValue(corte as never);
+    try {
+      const r = await correr(['demo', 'limpiar'], { DATABASE_URL: 'postgres://nadie@127.0.0.1:1/x' });
+      expect(r.codigo).toBe(1);
+      expect(r.error).toContain('no se pudo conectar a la base (tiempo de espera agotado)');
+      expect(r.error).toContain('DATABASE_URL');
+      expect(r.error).not.toContain('Connection terminated');
+    } finally {
+      conectar.mockRestore();
+      consultar.mockRestore();
+    }
   });
 
   it('openapi <archivo>: lo escribe; si no puede (carpeta inexistente o sin permiso), lo dice en español y sugiere redirigir', async () => {

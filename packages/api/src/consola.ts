@@ -355,9 +355,11 @@ export async function ejecutarConsola(
       salida.error(`Error: ${e.message}${e.comando ? `\n\n${ayudaDe(e.comando, consola)}` : ''}`);
     } else {
       const codigo = (e as { code?: string }).code;
-      const sinConexion = codigo === 'ECONNREFUSED' || codigo === 'ENOTFOUND' || codigo === 'ETIMEDOUT';
+      // pg-pool corta la conexión por tiempo con un error sin `code`: se reconoce por su texto.
+      const porTiempo = e instanceof Error && /connection (terminated due to connection )?timeout|timeout exceeded when trying to connect/i.test(e.message);
+      const sinConexion = codigo === 'ECONNREFUSED' || codigo === 'ENOTFOUND' || codigo === 'ETIMEDOUT' || porTiempo;
       salida.error(sinConexion
-        ? `Error: no se pudo conectar a la base (${codigo}). Revisa FHN_MIGRAR_URL o DATABASE_URL y que Postgres esté en marcha.`
+        ? `Error: no se pudo conectar a la base (${codigo ?? 'tiempo de espera agotado'}). Revisa FHN_MIGRAR_URL o DATABASE_URL y que Postgres esté en marcha; si está ocupada, reintenta.`
         : `Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     return 1;
