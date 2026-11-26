@@ -104,7 +104,7 @@ export async function crearLlaveOperador(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [prefijo, o.tenant, hash, o.rol, o.nombre, est, pto],
     );
-    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo })]);
+    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo, ...(mcp ? { mcp: true } : {}) })]);
   });
   return mcp ? mcp.token : llave;
 }

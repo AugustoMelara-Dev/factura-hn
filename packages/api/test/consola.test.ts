@@ -124,6 +124,18 @@ conBase('consola: llave crear --mcp', () => {
     expect(sesion.status).toBe(200);
     expect(((await sesion.json()) as { sesion: unknown }).sesion).toMatchObject({ tenant, llave: { rol: 'caja', establecimiento: '000', puntoEmision: '001' } });
 
+    // La bitácora dice que la llave es la de una URL del MCP.
+    const bit = await pool.connect();
+    try {
+      await bit.query('BEGIN');
+      await bit.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      const fila = await bit.query("SELECT detalle FROM api_bitacora WHERE tenant = $1 AND accion = 'llave.creada' AND detalle->>'prefijo' = $2", [tenant, prefijoDe(llave)]);
+      await bit.query('COMMIT');
+      expect(fila.rows[0]?.detalle).toMatchObject({ rol: 'caja', mcp: true });
+    } finally {
+      bit.release();
+    }
+
     const revocada = await cliente(app, admin)('DELETE', `/v1/llaves/${prefijoDe(llave)}`);
     expect(revocada.status).toBeLessThan(300);
     expect((await cliente(app, llave)('GET', '/v1/sesion')).status).toBe(401);
