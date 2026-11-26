@@ -15,7 +15,7 @@ import {
 } from './almacen';
 import { deCentavos, formatearMonto, redondearDecimal } from './dinero';
 import { calcularCentavos, type TotalesCentavos } from './calculo';
-import { construirDocumento, ErrorValidacion, hoyHonduras, notaEnLempiras, problemaDeOperador, problemaDeTipo } from './documento';
+import { construirDocumento, ErrorValidacion, hoyHonduras, notaEnLempiras, problemaDeOperador, problemaDeTipo, problemasDeForma } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
 import { esAutorizacionDePrueba, esDocumentoDePrueba } from './modo';
@@ -62,6 +62,23 @@ export function exigirAlmacen(almacen: unknown, operacion: string): asserts alma
       'almacen',
     );
   }
+}
+
+/**
+ * Establecimiento y punto de emisión de la caja: hasta 3 dígitos (se completan con ceros), como en
+ * `registrarAutorizacion`. Un punto `'0001'` no es la serie `000-001`: se rechaza aquí con su código en lugar de
+ * buscar una autorización que no puede existir.
+ */
+export function problemasDeCaja(establecimiento: unknown, puntoEmision: unknown): Problema[] {
+  const problemas: Problema[] = [];
+  const valido = (v: unknown) => (typeof v === 'string' || typeof v === 'number') && /^\d{1,3}$/.test(String(v).trim());
+  if (!valido(establecimiento)) {
+    problemas.push({ codigo: 'ESTABLECIMIENTO', mensaje: `Establecimiento debe tener hasta 3 dígitos, no ${JSON.stringify(establecimiento) ?? String(establecimiento)}.`, campo: 'establecimiento' });
+  }
+  if (!valido(puntoEmision)) {
+    problemas.push({ codigo: 'PUNTO_EMISION', mensaje: `Punto de emisión debe tener hasta 3 dígitos, no ${JSON.stringify(puntoEmision) ?? String(puntoEmision)}.`, campo: 'puntoEmision' });
+  }
+  return problemas;
 }
 
 /** Establecimiento y punto de emisión de una autorización, p. ej. `000-001`. */
@@ -350,6 +367,11 @@ function esNota(tipo: string): boolean {
  */
 export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision): Promise<DocumentoFiscal> {
   exigirAlmacen(config?.almacen, 'emitir');
+  // Antes de abrir la transacción: con un tipo equivocado (un texto por cliente, una línea null) no hay qué validar.
+  const forma = problemasDeForma(entrada);
+  if (forma.length) throw new ErrorValidacion(forma);
+  const caja = problemasDeCaja(config.establecimiento, config.puntoEmision);
+  if (caja.length) throw new ErrorValidacion(caja);
   const tipo = entrada.tipoDocumento ?? '01';
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
@@ -532,7 +554,7 @@ export async function corregirFechaAdelantada(
 ): Promise<DocumentoFiscal[]> {
   exigirAlmacen(almacen, 'corregirFechaAdelantada');
   exigirOperador(config.operador);
-  const motivo = config.motivo?.trim();
+  const motivo = typeof config.motivo === 'string' ? config.motivo.trim() : '';
   if (!motivo) {
     throw error('ANULACION_MOTIVO', 'La corrección requiere un motivo (por ejemplo, qué pasó con el reloj).', 'motivo');
   }

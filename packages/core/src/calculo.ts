@@ -135,8 +135,13 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
   let leidas = true;
   lineas.forEach((l, i) => {
     const campo = `lineas[${i}]`;
-    if (!l.descripcion || !l.descripcion.trim())
-      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: falta la descripción.`, campo });
+    if (typeof l !== 'object' || l === null || Array.isArray(l)) {
+      problemas.push({ codigo: 'LINEA', mensaje: `Línea ${i + 1}: debe ser un objeto con descripcion, cantidad y precioUnitario.`, campo });
+      leidas = false;
+      return;
+    }
+    if (typeof l.descripcion !== 'string' || !l.descripcion.trim())
+      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: ${typeof l.descripcion === 'string' || l.descripcion === undefined ? 'falta la descripción.' : 'la descripción debe ser texto.'}`, campo });
     if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
     const leida = leerLinea(l, i, problemas);

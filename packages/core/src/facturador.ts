@@ -8,7 +8,7 @@
 import { calcularDocumento, problemaDeMoneda, problemaDePreciosIncluyenISV } from './calculo';
 import { congelar } from './inmutable';
 import { ErrorValidacion, validarEmisor } from './documento';
-import { anular, buscarDocumento, emitir, exigirAlmacen, registrarAutorizacion } from './emision';
+import { anular, buscarDocumento, emitir, exigirAlmacen, problemasDeCaja, registrarAutorizacion } from './emision';
 import { esNumeroValido, formatearNumero, parsearNumero } from './numeracion';
 import type { LibroContable } from './exportacion';
 import type { AlmacenFiscal, FiltroDocumentos, TransaccionFiscal } from './almacen';
@@ -125,6 +125,7 @@ export function crearFacturador(config: ConfigFacturador): Facturador {
   const problemas = validarEmisor(config.emisor);
   const problemaPrecios = problemaDePreciosIncluyenISV(config.preciosIncluyenISV);
   if (problemaPrecios) problemas.push(problemaPrecios);
+  problemas.push(...problemasDeCaja(config.establecimiento ?? '000', config.puntoEmision ?? '001'));
   if (problemas.length) throw new ErrorValidacion(problemas);
   const almacen = config.almacen;
   const emisor = congelar(structuredClone(config.emisor));

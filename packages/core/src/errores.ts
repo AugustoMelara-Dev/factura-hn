@@ -50,7 +50,7 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   CAI_FORMATO: `Quita espacios y signos del CAI: solo letras, dígitos y guiones. ${RESOLUCION}`,
   TIPO_DOCUMENTO: "Usa un código de tipo vigente: '01' factura, '06' nota de crédito o '07' nota de débito.",
   ESTABLECIMIENTO: "Usa el código de establecimiento de 3 dígitos de la resolución (casa matriz = '000').",
-  PUNTO_EMISION: "Usa el código de punto de emisión de 3 dígitos de la resolución (p. ej. '001').",
+  PUNTO_EMISION: "Usa el código de punto de emisión de hasta 3 dígitos de la resolución (p. ej. '001' o 1), el mismo en la autorización y al emitir.",
   RANGO: `El rango inicial y el final deben ser enteros entre 1 y 99999999, y el inicial no puede ser mayor que el final. ${RESOLUCION}`,
   FECHA_LIMITE: 'Escribe la fecha límite de emisión como AAAA-MM-DD, p. ej. 2027-06-30.',
   FECHA_AUTORIZACION: 'Escribe la fecha de la resolución como AAAA-MM-DD, u omite el campo.',
@@ -69,6 +69,9 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
     'Revisa el reloj del dispositivo. Si la fecha es correcta (p. ej. el negocio estuvo cerrado), vuelve a emitir con `confirmarSaltoDeFecha: true`.',
   SIN_DOCUMENTOS_ADELANTADOS: 'No hay nada que corregir: esa serie no tiene documentos con fecha posterior a hoy. Sigue emitiendo con normalidad.',
 
+  // Forma de la entrada
+  ENTRADA: 'Pasa la venta como un objeto: `emitir({ emisor, lineas: [...] }, { almacen, establecimiento, puntoEmision })`.',
+
   // Emisor
   EMISOR: 'Pasa los datos del emisor: rtn, razonSocial, nombreComercial, direccionCasaMatriz, direccionEstablecimiento, telefono y correo.',
   EMISOR_RTN: 'Usa el RTN del emisor de 14 dígitos, con o sin guiones.',
@@ -80,14 +83,17 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
   EMISOR_CORREO: 'Indica el correo del emisor registrado en el contrato de adhesión, con la forma nombre@dominio.',
 
   // Cliente
+  CLIENTE: "Pasa el cliente como objeto: `cliente: { nombre: 'Juan Pérez', rtn: '08011999123456' }`, con textos en cada campo, u omítelo (CONSUMIDOR FINAL).",
   CLIENTE_RTN: 'Usa el RTN del cliente de 14 dígitos, con o sin guiones, o quita el campo si el cliente no lo pidió.',
   CLIENTE_DNI: 'Usa el DNI del cliente de 13 dígitos, con o sin guiones.',
-  CLIENTE_IDENTIFICACION: 'Indica el número de identificación del cliente, o quita `identificacion`.',
+  CLIENTE_IDENTIFICACION:
+    "Pasa `identificacion: { tipo, numero }` con `tipo` 'DNI', 'RTN', 'PASAPORTE', 'CARNET_RESIDENTE' u 'OTRO' y el número como texto, o quita `identificacion`.",
   CLIENTE_NOMBRE: 'Indica el nombre o la razón social del cliente.',
   CONSUMIDOR_FINAL_IDENTIFICACION:
     "Pide al cliente su nombre y su identificación: `cliente: { nombre, identificacion: { tipo: 'DNI', numero } }`, o su RTN.",
 
   // Líneas y montos
+  LINEA: 'Pasa cada línea como objeto: `{ descripcion, cantidad, precioUnitario }`, con `codigo` y `unidad` como texto si los usas.',
   SIN_LINEAS: 'Agrega al menos una línea con descripción, cantidad y precio unitario.',
   LINEA_DESCRIPCION: 'Escribe la descripción del producto o servicio de esa línea.',
   LINEA_CANTIDAD: "Usa una cantidad mayor que 0, como texto con punto decimal (p. ej. '1.5'), hasta 4 decimales.",
