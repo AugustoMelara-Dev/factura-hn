@@ -161,7 +161,7 @@ export function ejemplosDemo(o: { urlApi: string; llave: string; urlMcp: string 
         'Claude (web o escritorio): Customize > Connectors > + > Add custom connector; pega la URL y deja la',
         'autenticación vacía. El conector queda también en la app móvil. ChatGPT: agrega un servidor MCP personalizado',
         'con la URL y sin autenticación. Después pide: «Emite una factura de prueba por 2 cafés de L 57.50, con el ISV incluido».',
-        'Guía completa: https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/',
+        'Guía completa: https://augustomelara-dev.github.io/factura-hn/ia/mcp/#por-http',
       ].join('\n')
     : 'Este servidor no tiene MCP remoto configurado. Con el MCP local: FHN_API_URL=' + o.urlApi + ' FHN_LLAVE=' + o.llave + ' npx -y @factura-hn/mcp';
   return { curl, sdk, mcp };

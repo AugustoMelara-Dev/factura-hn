@@ -386,7 +386,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return { registrado: r.rows[0]?.registrado === true };
     });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
-  // --- Modo demo: estado en memoria de este proceso (una sola réplica; ver docs/demo.md) ---
+  // --- Modo demo: estado en memoria de este proceso (una sola réplica) ---
   const demo = cfg.modo === 'demo' ? (cfg.demo ?? configDemo()) : null;
   const ipDe = (c: Context<Env>) => ipDeSolicitud(c, proxies, cfg.cabeceraIpCliente);
   const maxCuerpo = demo?.maxCuerpo ?? 512 * 1024;

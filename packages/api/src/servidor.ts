@@ -7,7 +7,7 @@
  * - FHN_MIGRAR_AL_ARRANCAR: `1` (por defecto) migra al arrancar; `0` no (la migración corre aparte con «migrar»). Con `0` y
  *   sin FHN_MIGRAR_URL, el proceso no tiene credenciales de dueño (no sirve en modo local).
  * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (la demostración pública: solo entornos
- *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*, ver docs/demo.md)
+ *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*)
  * - FHN_IP_CLIENTE_CABECERA: cabecera con la dirección del cliente que pone el proxy de confianza (p. ej.
  *   Fly-Client-IP en Fly.io). Sin definir, ninguna se cree.
  * - PUERTO: por defecto 8787; FHN_HOST: por defecto 0.0.0.0
@@ -95,7 +95,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     if (!env.FHN_PROXIES_DE_CONFIANZA?.trim() && !env.FHN_IP_CLIENTE_CABECERA?.trim()) {
       throw new Error(
         'FHN_MODO=demo necesita saber la dirección de cada visitante para sus límites: define FHN_PROXIES_DE_CONFIANZA ' +
-          '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. Fly-Client-IP en Fly.io). Ver docs/demo.md.',
+          '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. X-Real-IP o CF-Connecting-IP).',
       );
     }
   }

@@ -509,7 +509,7 @@ export function opcionesMcpHttpDesdeEntorno(env: NodeJS.ProcessEnv): OpcionesMcp
     }
   }
   const cabecera = env.FHN_IP_CLIENTE_CABECERA?.trim().toLowerCase() || undefined;
-  if (cabecera && !/^[a-z0-9-]{1,64}$/.test(cabecera)) throw new Error('FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera, p. ej. Fly-Client-IP.');
+  if (cabecera && !/^[a-z0-9-]{1,64}$/.test(cabecera)) throw new Error('FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera, p. ej. X-Real-IP.');
   const origenes = env.FHN_MCP_ORIGENES?.trim() ? env.FHN_MCP_ORIGENES.split(',').map((s) => s.trim()).filter(Boolean) : [...ORIGENES_MCP_POR_DEFECTO];
   if (origenes.some((x) => x === '*' || !/^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(x))) {
     throw new Error('FHN_MCP_ORIGENES: cada origen va como https://sitio.ejemplo, sin ruta ni «*».');

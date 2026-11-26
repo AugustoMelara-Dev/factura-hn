@@ -413,7 +413,7 @@ export function esDeConfianza(lista: readonly string[], ip: string): boolean {
 export function leerCabeceraIpCliente(texto: string | undefined): string | undefined {
   const t = (texto ?? '').trim().toLowerCase();
   if (!t) return undefined;
-  if (!/^[a-z0-9-]{1,64}$/.test(t)) throw new Error(`FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera HTTP, p. ej. Fly-Client-IP (no "${texto}").`);
+  if (!/^[a-z0-9-]{1,64}$/.test(t)) throw new Error(`FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera HTTP, p. ej. X-Real-IP (no "${texto}").`);
   return t;
 }
 
