@@ -4,7 +4,7 @@
  * nunca corre contra un `dist` viejo.
  */
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -41,7 +41,8 @@ function distViejo(): boolean {
 beforeAll(() => {
   if (distViejo()) execSync('pnpm run build', { cwd: NUCLEO, stdio: 'pipe' });
   expect(distViejo()).toBe(false);
-  dir = mkdtempSync(join(tmpdir(), 'fhn-cli-'));
+  // realpath: en macOS tmpdir() es /var/folders/…, un enlace a /private/var/…, que es lo que imprime init.
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'fhn-cli-')));
 }, 180_000);
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
