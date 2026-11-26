@@ -30,10 +30,7 @@ No incluyas datos reales de contribuyentes. Usa los ficticios de [Contribuir](/a
 
 ## Versiones con soporte
 
-| Versión | Soporte |
-|---|---|
-| La más reciente (0.4.x) | Sí |
-| Anteriores | No |
+Recibe correcciones de seguridad la versión más reciente publicada (0.x). Actualiza a ella antes de reportar.
 
 ## Qué nos interesa especialmente
 

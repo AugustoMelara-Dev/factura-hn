@@ -4,10 +4,7 @@ Gracias por cuidar a quienes facturan con factura-hn.
 
 ## Versiones con soporte
 
-| Versión | Soporte |
-|---|---|
-| 0.4.x (la más reciente) | ✅ |
-| Anteriores | ❌ |
+Recibe correcciones de seguridad la versión más reciente publicada (0.x). Actualiza a ella antes de reportar.
 
 ## Reportar una vulnerabilidad
 

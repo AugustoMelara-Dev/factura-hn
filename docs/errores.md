@@ -194,8 +194,9 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### TIPO_NO_SOPORTADO
 
-- **Qué significa:** el tipo existe pero esta versión no lo emite.
-- **Solución:** esta versión emite `'01'`, `'06'` y `'07'`.
+- **Qué significa:** el tipo existe, pero factura-hn no lo emite.
+- **Solución:** emite con `tipoDocumento` `'01'` (factura), `'06'` (nota de crédito) o `'07'` (nota de débito): son los que
+  emite factura-hn.
 
 ### ESTABLECIMIENTO
 
@@ -251,8 +252,8 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 - **Qué significa:** se pidió construir un documento con un correlativo fuera del rango de la autorización.
 - **Causa:** se usó `construirDocumento` con un número calculado a mano.
-- **Solución:** usa `emitir`: elige el correlativo dentro del rango vigente, en la misma transacción que guarda el
-  documento.
+- **Solución:** usa `emitir`, que toma el siguiente número del rango vigente por ti, en la misma transacción que
+  guarda el documento.
 
 ## SDK: fecha y reloj
 
