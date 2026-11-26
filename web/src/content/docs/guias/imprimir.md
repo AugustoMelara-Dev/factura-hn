@@ -50,7 +50,8 @@ Una leyenda como «La factura es beneficio de todos, exíjala» es opcional: el 
 ## Ticket de 42 columnas
 
 `renderizarTexto` arma el documento en texto plano con el ancho que le pidas. El ancho típico es de 32, 42 o 48
-columnas; por defecto, 42, el de una impresora de 80 mm. Ninguna línea pasa del ancho: las largas se parten.
+columnas; por defecto, 42, el de una impresora de 80 mm. Acepta un entero de 32 a 120. Ninguna línea pasa del
+ancho: las largas se parten.
 
 El texto sirve para una impresora ESC/POS en modo texto. La librería no envía comandos a la impresora: el corte
 de papel, la apertura del cajón y la codificación de caracteres los pone tu sistema o el controlador de la

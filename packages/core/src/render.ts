@@ -234,9 +234,21 @@ ${doc.tipoDocumento === '06' ? `<section class="bloque"><h3>Recibido por (Art. 2
 </div></body></html>`;
 }
 
-/** Texto plano para impresoras térmicas (ESC/POS en modo texto). Ancho típico: 32, 42 o 48 columnas. */
+/** Anchos de ticket que acepta `renderizarTexto`, en columnas (el mismo rango que la API). */
+export const ANCHO_TEXTO_MINIMO = 32;
+export const ANCHO_TEXTO_MAXIMO = 120;
+
+/**
+ * Texto plano para impresoras térmicas (ESC/POS en modo texto). Ancho típico: 32, 42 o 48 columnas.
+ * @throws RangeError si `ancho` no es un entero entre 32 y 120.
+ */
 export function renderizarTexto(doc: DocumentoFiscal, opciones: { ancho?: number; leyenda?: string | null } = {}): string {
   const W = opciones.ancho ?? 42;
+  if (!Number.isInteger(W) || W < ANCHO_TEXTO_MINIMO || W > ANCHO_TEXTO_MAXIMO) {
+    throw new RangeError(
+      `El ancho del ticket debe ser un entero entre ${ANCHO_TEXTO_MINIMO} y ${ANCHO_TEXTO_MAXIMO} columnas: ${JSON.stringify(W) ?? String(W)}`,
+    );
+  }
   const leyenda = opciones.leyenda ?? null;
   const out: string[] = [];
   const sep = '-'.repeat(W);
