@@ -205,6 +205,7 @@ docker compose exec api factura-hn-api migrar
 docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # modo alojado: imprime la llave admin (fhn_live_…)
 docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # modo alojado, sandbox: llaves fhn_test_…, solo CAI ficticios
 docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
+docker compose exec api factura-hn-api llave crear local --rol caja --caja 000-001 --mcp   # token y URL del MCP por HTTP (ChatGPT)
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
 docker compose exec api factura-hn-api openapi openapi.json
 ```
@@ -220,7 +221,10 @@ local es de un solo negocio (para el tuyo, `llave crear local --rol admin`). Los
 reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
 (el del emisor y el CAI ficticios). `tenant crear --modo prueba|produccion` (por defecto `produccion`) fija el
 modo del tenant, que no cambia después (ver «Tenants de prueba y de producción»). `llave crear` y `demo llave`
-crean la llave con la marca del modo de su tenant.
+crean la llave con la marca del modo de su tenant. `llave crear … --mcp` guarda la misma llave, pero imprime un token
+`fhnmcp_…` y la URL `https://<tu-servidor>/mcp/<token>` para conectar el MCP por HTTP (`@factura-hn/mcp http`)
+desde un cliente que solo acepta una URL, como ChatGPT. Esa URL es secreta como una llave; se revoca con
+`DELETE /v1/llaves/{prefijo}`.
 
 ### Modo local y modo alojado
 

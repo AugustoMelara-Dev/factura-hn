@@ -26,10 +26,15 @@ e imprime el bloque `mcpServers` con las rutas absolutas.
 | Cursor | `~/.cursor/mcp.json` (todos los proyectos) o `.cursor/mcp.json` (uno) |
 | VS Code | `.vscode/mcp.json`, con la clave `"servers"` en vez de `"mcpServers"` |
 
+En Claude Code también sirve `claude mcp add-json factura-hn '<el objeto de "factura-hn">'`, como dice `init`.
+
 En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@<versión>"]`, porque
 `npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió; para
 actualizar, cambia el número. Si el cliente dice que el servidor no respondió a tiempo la primera vez (npx lo
 está descargando), reinícialo.
+
+El binario se llama `factura-hn-mcp`. Si prefieres instalar el paquete en tu proyecto (`npm i @factura-hn/mcp`),
+usa `"command": "node", "args": ["<ruta>/node_modules/@factura-hn/mcp/dist/cli.js"]` en vez de `npx`.
 
 **3.** Pídele al asistente: «emite una factura de prueba».
 
@@ -231,6 +236,10 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 El cliente llama a `/mcp` con `Authorization: Bearer <llave fhn_…>`; sin esa cabecera responde 401. El puerto se
 cambia con `FHN_MCP_PUERTO`. Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Por HTTP,
 anular y registrar CAI piden confirmación por elicitación; sin ella, se niegan sobre datos reales.
+
+Para ChatGPT, que solo agrega un conector por URL y sin cabeceras, crea un token con
+`factura-hn-api llave crear <tenant> --rol caja --caja 000-001 --mcp` y usa la URL que imprime,
+`https://<tu-servidor>/mcp/<token>`, «sin autenticación». Esa URL es secreta como una llave.
 
 ## Comandos
 

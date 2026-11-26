@@ -190,6 +190,7 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 ```
 
 - La ruta es `/mcp`, con la cabecera `Authorization: Bearer fhn_…` (una llave de tu API). Sin ella, responde 401.
+  Para clientes que no mandan cabeceras, `/mcp/<token>` lleva la credencial en la URL (ver [ChatGPT](#chatgpt)).
 - Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor). El puerto se cambia con
   `FHN_MCP_PUERTO`.
 - No guarda datos ni credenciales: llama a la API con la llave de cada conexión. Para que un cliente en internet
@@ -200,6 +201,24 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 ```bash
 npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer fhn_…" --method tools/list
 ```
+
+### ChatGPT
+
+ChatGPT agrega un servidor MCP solo por su URL, sin cabeceras. Para usarlo con tu propia API:
+
+1. Levanta la [API](/referencia/api/) y, a su lado, `FHN_API_URL=<url de tu API> npx -y @factura-hn/mcp http`.
+2. Publica el MCP con HTTPS (un proxy inverso o un túnel hacia el puerto 8788).
+3. Crea el token con la consola del operador:
+
+   ```bash
+   docker compose exec api factura-hn-api llave crear local --rol caja --caja 000-001 --mcp
+   ```
+
+   Imprime el token `fhnmcp_…` y la URL `https://<tu-servidor>/mcp/<token>`. Esa URL es secreta como una llave.
+   Se revoca como cualquier llave (`DELETE /v1/llaves/{prefijo}`).
+4. En ChatGPT, agrega un conector MCP con esa URL y sin autenticación.
+
+Con `--rol caja`, el asistente emite y consulta, pero no anula ni registra CAI.
 
 ## Versión fija
 
