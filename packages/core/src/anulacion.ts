@@ -44,10 +44,14 @@ export function anularDocumento(doc: DocumentoFiscal, opciones: OpcionesAnulacio
       { codigo: 'YA_ANULADO', mensaje: `El documento ${doc.numero} ya está ANULADO (Art. 41). No se puede anular dos veces ni reactivar.`, campo: 'estado' },
     ]);
   }
-  const motivo = opciones.motivo?.trim();
+  const motivo = typeof opciones.motivo === 'string' ? opciones.motivo.trim() : '';
   if (!motivo) {
     throw new ErrorValidacion([
-      { codigo: 'ANULACION_MOTIVO', mensaje: 'La anulación requiere un motivo.', campo: 'motivo' },
+      {
+        codigo: 'ANULACION_MOTIVO',
+        mensaje: opciones.motivo === undefined || typeof opciones.motivo === 'string' ? 'La anulación requiere un motivo.' : 'El motivo de la anulación debe ser texto.',
+        campo: 'motivo',
+      },
     ]);
   }
   // El motivo queda en el documento y en la bitácora: sin caracteres de control (TEXTO_CARACTER_NO_PERMITIDO).

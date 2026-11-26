@@ -200,13 +200,15 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### ESTABLECIMIENTO
 
-- **Qué significa:** el código de establecimiento no tiene 1 a 3 dígitos.
+- **Qué significa:** el código de establecimiento no tiene 1 a 3 dígitos. Lo dicen `registrarAutorizacion`,
+  `emitir` y `crearFacturador`.
 - **Solución:** usa el código de la resolución (casa matriz = `'000'`).
 - **Base:** Reglamento, Art. 10 num. 7 (estructura del número del documento).
 
 ### PUNTO_EMISION
 
-- **Qué significa:** el código de punto de emisión no tiene 1 a 3 dígitos.
+- **Qué significa:** el código de punto de emisión no tiene 1 a 3 dígitos. Lo dicen `registrarAutorizacion`,
+  `emitir` y `crearFacturador` (un `'0001'` no es la serie `001`).
 - **Solución:** usa el código de la resolución (por ejemplo `'001'`).
 - **Base:** Reglamento, Art. 10 num. 7.
 
@@ -262,6 +264,11 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Qué significa:** `fechaEmision` no tiene la forma `AAAA-MM-DD`.
 - **Solución:** omite el campo: la pone el reloj.
 
+### HORA_EMISION
+
+- **Qué significa:** `horaEmision` no es una hora HH:mm de 24 horas (por ejemplo `'99:99'` o `'ayer'`).
+- **Solución:** omítela: la pone el reloj con la hora de Honduras, igual que la fecha. Si la pasas, usa `'14:05'`.
+
 ### FECHA_EMISION_NO_ES_HOY
 
 - **Qué significa:** se envió una fecha de emisión distinta de la de hoy en Honduras.
@@ -290,6 +297,11 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 - **Qué significa:** `corregirFechaAdelantada` no encontró documentos con fecha posterior a hoy en esa serie.
 - **Solución:** no hay nada que corregir.
+
+### ENTRADA
+
+- **Qué significa:** la entrada del documento no es un objeto (por ejemplo `null`).
+- **Solución:** pasa la venta como `{ emisor, lineas: [...] }` (con `crearFacturador`, `{ lineas: [...] }`).
 
 ## SDK: emisor
 
@@ -344,6 +356,12 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ## SDK: cliente
 
+### CLIENTE
+
+- **Qué significa:** `cliente` no es un objeto (por ejemplo, el texto `'Juan'`), o su `direccion` no es texto.
+  No se guarda deformado en el documento: se rechaza.
+- **Solución:** pasa `cliente: { nombre, rtn }` con textos, u omítelo para CONSUMIDOR FINAL.
+
 ### CLIENTE_RTN
 
 - **Qué significa:** el RTN del cliente no tiene 14 dígitos.
@@ -356,12 +374,15 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### CLIENTE_IDENTIFICACION
 
-- **Qué significa:** `cliente.identificacion` no trae número.
-- **Solución:** indica el número, o quita `identificacion`.
+- **Qué significa:** `cliente.identificacion` no trae número, su `tipo` no es uno de `'DNI'`, `'RTN'`,
+  `'PASAPORTE'`, `'CARNET_RESIDENTE'` u `'OTRO'`, o no es un objeto `{ tipo, numero }`. Una identificación así no
+  cuenta para el umbral de consumidor final.
+- **Solución:** indica el tipo y el número, o quita `identificacion`.
 
 ### CLIENTE_NOMBRE
 
-- **Qué significa:** falta el nombre del cliente cuando trae RTN, o en una nota de crédito o débito.
+- **Qué significa:** falta el nombre del cliente cuando trae RTN, o en una nota de crédito o débito, o no es
+  texto.
 - **Solución:** indica el nombre o la razón social.
 - **Base:** Reglamento, Arts. 26 y 28 num. 1 (notas).
 
@@ -375,6 +396,12 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ## SDK: líneas, montos y moneda
 
+### LINEA
+
+- **Qué significa:** una línea no es un objeto (por ejemplo `null`), o su `codigo` o `unidad` no son texto.
+- **Solución:** pasa cada línea como `{ descripcion, cantidad, precioUnitario }`, con `codigo` y `unidad` como
+  texto si los usas.
+
 ### SIN_LINEAS
 
 - **Qué significa:** el documento no tiene líneas.
@@ -382,7 +409,7 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 
 ### LINEA_DESCRIPCION
 
-- **Qué significa:** una línea no tiene descripción.
+- **Qué significa:** una línea no tiene descripción, o no es texto.
 - **Solución:** escribe la descripción del producto o servicio de esa línea.
 - **Base:** Reglamento, Art. 11 num. 1 d (descripción de los bienes o servicios).
 
@@ -421,6 +448,19 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
     documento (el que se guarda en `equivalenteLempiras`) tampoco puede pasar del tope.
 - **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
   centavos, o la cantidad y el precio intercambiados.
+
+### MONEDA
+
+- **Qué significa:** la moneda del documento no es `'HNL'` ni `'USD'` (por ejemplo `'EUR'` o `'usd'` en
+  minúsculas). Lo dicen `emitir`, `validarEntrada`, `cotizar` y `calcularDocumento`.
+- **Solución:** usa `moneda: 'HNL'` (por defecto) o `'USD'` con su `tipoCambio`, en mayúsculas.
+
+### PRECIOS_INCLUYEN_ISV_FORMATO
+
+- **Qué significa:** `preciosIncluyenISV` no es booleano (por ejemplo, el texto `'false'` de un formulario o de
+  una variable de entorno). No se toma como verdadero: el total cambiaría y el impreso diría «Precios incluyen ISV».
+- **Solución:** pon `preciosIncluyenISV: true` o `false`, sin comillas, u omítelo (false). Si el valor llega como
+  texto, conviértelo antes: `valor === 'true'`.
 
 ### TIPO_CAMBIO
 
@@ -544,7 +584,7 @@ moneda: la mayoría de estos errores desaparecen.
 
 ### MOTIVO
 
-- **Qué significa:** una nota no trae `motivo`.
+- **Qué significa:** una nota no trae `motivo`, o no es texto.
 - **Solución:** indica por qué se emite (por ejemplo «Devolución de 1 unidad»).
 
 ### NOTA_CLIENTE_RTN
@@ -564,9 +604,9 @@ moneda: la mayoría de estos errores desaparecen.
 ### NOTA_SUPERA_ORIGINAL
 
 - **Qué significa:** la nota de crédito, sumada a las notas vigentes sobre el mismo documento, supera su total o,
-  a una tasa (15 % o 18 %), su importe gravado o su ISV. Todo se compara en lempiras; un original en moneda
-  extranjera se convierte por el mismo camino que la nota (sus líneas, al tipo de cambio). El mensaje da el saldo
-  disponible (por tasa, si es el tope de una tasa).
+  a una tasa (15 % o 18 %), su importe gravado o su ISV, o su importe exento o gravado al 0 %. Todo se compara en
+  lempiras; un original en moneda extranjera se convierte columna por columna con su tipo de cambio, igual que en
+  el libro de ventas y en la nota misma. El mensaje da el saldo disponible (por tasa, si es el tope de una tasa).
 - **Solución:** reduce la nota al saldo, o revisa las notas ya emitidas. Si el tope es el de una tasa, usa en cada
   línea la misma tasa que en el original.
 - **Base:** regla de factura-hn: las notas no devuelven ni descuentan más de lo vendido, ni a otra tasa. La nota
@@ -574,7 +614,9 @@ moneda: la mayoría de estos errores desaparecen.
 
 ### NOTA_TASA_DISTINTA
 
-- **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
+- **Qué significa:** la nota lleva ISV a una tasa que el original no tenía, importe exento o gravado al 0 % que el
+  original no tenía (por ejemplo, una devolución marcada `EXENTO` de una venta al 15 %), o ISV sobre un original
+  exonerado.
 - **Solución:** usa en cada línea el mismo tratamiento de ISV que en el original.
 - **Base:** regla de factura-hn: la nota no cambia la tasa del original. La nota ajusta el comprobante
   correspondiente (Reglamento, Art. 4 num. 32).
@@ -607,6 +649,13 @@ moneda: la mayoría de estos errores desaparecen.
 
 - **Qué significa:** no existe un documento con ese número en el almacén.
 - **Solución:** revisa el número: 16 dígitos con guiones, por ejemplo `'000-001-01-00000001'`.
+
+### IDENTIFICADOR
+
+- **Qué significa:** `noUtilizadosDelAlmacen` recibió un identificador de serie que no tiene la forma
+  `NNN-NNN-TT` o un tipo que no existe (por ejemplo `'000-1-01'`). No se toma como una serie vacía: eso diría que
+  no hay números que reportar.
+- **Solución:** escribe la serie con los ceros: establecimiento, punto de emisión y tipo, p. ej. `'000-001-01'`.
 
 ### OPERADOR
 
@@ -684,6 +733,13 @@ moneda: la mayoría de estos errores desaparecen.
 
 - **Qué significa:** alerta de `estadoAutorizacion`: se usó el 90 % o más del rango.
 - **Qué hacer:** solicita un nuevo rango antes de que se agote.
+
+### AVISO_AUTORIZACION_VENCIDA
+
+- **Qué significa:** `registrarAutorizacionConAvisos` registró un CAI cuya fecha límite de emisión ya pasó. Se
+  guarda (sirve para el historial y para reportar sus números no utilizados), pero no se puede emitir con él.
+- **Qué hacer:** si querías emitir, revisa la fecha límite contra la resolución o registra el CAI vigente.
+- **Base:** Reglamento, Arts. 42 y 62.
 
 ### AVISO_VIGENCIA_MAYOR_1_ANIO
 

@@ -2,9 +2,20 @@
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
 import { congelar } from './inmutable';
-import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, MONTO_MAXIMO_CENTAVOS, validarLineas } from './calculo';
+import { totalesALempiras } from './conversion';
+import { centavosEnLetras } from './letras';
+import {
+  advertenciasDeCalculo,
+  calcularCentavos,
+  calcularDocumento,
+  ESCALA_PRECIO,
+  MONTO_MAXIMO_CENTAVOS,
+  problemaDeMoneda,
+  problemaDePreciosIncluyenISV,
+  validarLineas,
+} from './calculo';
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
-import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
+import { esAdvertencia, esFechaValida, fechaHonduras, horaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import { conSolucion } from './errores';
@@ -19,6 +30,7 @@ import type {
   Problema,
   ResultadoValidacion,
   TipoDocumentoSoportado,
+  TipoIdentificacion,
 } from './tipos';
 
 export const UMBRAL_CONSUMIDOR_FINAL = 10_000;
@@ -50,7 +62,7 @@ function leerTipoCambio(valor: Monto | undefined): bigint | null {
 export function notaEnLempiras(entrada: DocumentoEntrada): { entrada: DocumentoEntrada; problemas: Problema[] } {
   const r = entrada.referencia;
   const tipo = entrada.tipoDocumento;
-  if ((tipo !== '06' && tipo !== '07') || !r?.moneda || r.moneda === 'HNL') return { entrada, problemas: [] };
+  if ((tipo !== '06' && tipo !== '07') || !r?.moneda || r.moneda === 'HNL' || !Array.isArray(entrada.lineas)) return { entrada, problemas: [] };
   if (r.moneda !== 'USD') {
     return { entrada, problemas: [{ codigo: 'REFERENCIA_MONEDA', mensaje: `Moneda del documento original desconocida: ${String(r.moneda)}.`, campo: 'referencia.moneda' }] };
   }
@@ -125,6 +137,7 @@ export function problemaDeTipo(tipo: string): Problema | null {
   return null;
 }
 
+const PATRON_HORA = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const PATRON_CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** Un problema en una línea de texto: código, mensaje, qué hacer y dónde leer más. */
@@ -170,6 +183,80 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
     return { codigo: 'OPERADOR', mensaje: 'El operador debe ser un nombre de 1 a 80 caracteres, sin caracteres de control.', campo };
   }
   return null;
+}
+
+const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const tipoDe = (v: unknown) => (v === null ? 'null' : Array.isArray(v) ? 'una lista' : typeof v === 'string' ? `el texto ${JSON.stringify(v)}` : `${typeof v} ${String(v)}`);
+
+/** Tipos de identificación del consumidor final (`TipoIdentificacion`). */
+export const TIPOS_IDENTIFICACION: readonly TipoIdentificacion[] = ['DNI', 'RTN', 'PASAPORTE', 'CARNET_RESIDENTE', 'OTRO'];
+
+/**
+ * Problemas de forma de la entrada: que cada parte sea del tipo que espera el SDK (objeto, texto, lista). Se
+ * revisan antes que todo lo demás: con un tipo equivocado, el resto de la validación no tiene qué leer, y un
+ * texto en lugar del cliente no debe guardarse deformado en el documento.
+ */
+export function problemasDeForma(entrada: unknown): Problema[] {
+  if (!esObjeto(entrada)) {
+    return [{ codigo: 'ENTRADA', mensaje: `La entrada del documento debe ser un objeto con emisor y lineas, no ${tipoDe(entrada)}.`, campo: 'entrada' }];
+  }
+  const problemas: Problema[] = [];
+  const texto = (valor: unknown, codigo: string, campo: string) => {
+    if (valor !== undefined && typeof valor !== 'string') problemas.push({ codigo, mensaje: `«${campo}» debe ser texto, no ${tipoDe(valor)}.`, campo });
+  };
+  const c = entrada.cliente;
+  if (c !== undefined && c !== null) {
+    if (!esObjeto(c)) {
+      problemas.push({ codigo: 'CLIENTE', mensaje: `«cliente» debe ser un objeto como { nombre, rtn }, no ${tipoDe(c)}.`, campo: 'cliente' });
+    } else {
+      texto(c.nombre, 'CLIENTE_NOMBRE', 'cliente.nombre');
+      texto(c.rtn, 'CLIENTE_RTN', 'cliente.rtn');
+      texto(c.direccion, 'CLIENTE', 'cliente.direccion');
+      const id = c.identificacion;
+      if (id !== undefined && id !== null) {
+        if (!esObjeto(id)) {
+          problemas.push({ codigo: 'CLIENTE_IDENTIFICACION', mensaje: `«cliente.identificacion» debe ser un objeto { tipo, numero }, no ${tipoDe(id)}.`, campo: 'cliente.identificacion' });
+        } else {
+          if (!(TIPOS_IDENTIFICACION as readonly unknown[]).includes(id.tipo)) {
+            problemas.push({
+              codigo: 'CLIENTE_IDENTIFICACION',
+              mensaje: `Tipo de identificación desconocido: ${tipoDe(id.tipo)}. Usa ${TIPOS_IDENTIFICACION.join(', ')}.`,
+              campo: 'cliente.identificacion.tipo',
+            });
+          }
+          texto(id.numero, 'CLIENTE_IDENTIFICACION', 'cliente.identificacion.numero');
+        }
+      }
+    }
+  }
+  const e = entrada.emisor;
+  if (e !== undefined && e !== null && !esObjeto(e)) {
+    problemas.push({ codigo: 'EMISOR', mensaje: `«emisor» debe ser un objeto con los datos del emisor, no ${tipoDe(e)}.`, campo: 'emisor' });
+  }
+  if (Array.isArray(entrada.lineas)) {
+    entrada.lineas.forEach((l: unknown, i: number) => {
+      const campo = `lineas[${i}]`;
+      if (!esObjeto(l)) {
+        problemas.push({ codigo: 'LINEA', mensaje: `Línea ${i + 1}: debe ser un objeto con descripcion, cantidad y precioUnitario, no ${tipoDe(l)}.`, campo });
+        return;
+      }
+      texto(l.descripcion, 'LINEA_DESCRIPCION', `${campo}.descripcion`);
+      texto(l.codigo, 'LINEA', `${campo}.codigo`);
+      texto(l.unidad, 'LINEA', `${campo}.unidad`);
+    });
+  }
+  const r = entrada.referencia;
+  if (r !== undefined && r !== null) {
+    if (!esObjeto(r)) {
+      problemas.push({ codigo: 'REFERENCIA', mensaje: `«referencia» debe ser un objeto { cai, numero, fecha }, no ${tipoDe(r)}.`, campo: 'referencia' });
+    } else {
+      texto(r.cai, 'REFERENCIA_CAI', 'referencia.cai');
+      texto(r.numero, 'REFERENCIA_NUMERO', 'referencia.numero');
+      texto(r.fecha, 'REFERENCIA_FECHA', 'referencia.fecha');
+    }
+  }
+  texto(entrada.motivo, 'MOTIVO', 'motivo');
+  return problemas;
 }
 
 /**
@@ -245,6 +332,12 @@ export function problemasDeTexto(entrada: unknown): Problema[] {
   return problemas;
 }
 
+const CAMPOS_EMISOR: ReadonlyArray<[keyof Emisor, string]> = [
+  ['rtn', 'EMISOR_RTN'], ['razonSocial', 'EMISOR_NOMBRE'], ['nombreComercial', 'EMISOR_NOMBRE_COMERCIAL'],
+  ['direccionCasaMatriz', 'EMISOR_DIRECCION'], ['direccionEstablecimiento', 'EMISOR_DIRECCION_ESTABLECIMIENTO'],
+  ['telefono', 'EMISOR_TELEFONO'], ['correo', 'EMISOR_CORREO'],
+];
+
 /**
  * Problemas de los datos del emisor: todos son obligatorios (Reglamento Art. 10 num. 1; Arts. 25 y 27 num. 1
  * para las notas). Es la misma comprobación que hace `emitir`; sirve para validar la configuración del negocio
@@ -253,7 +346,13 @@ export function problemasDeTexto(entrada: unknown): Problema[] {
 export function validarEmisor(e: Emisor | undefined): Problema[] {
   const problemas: Problema[] = [];
   if (!e) problemas.push({ codigo: 'EMISOR', mensaje: 'Faltan los datos del emisor.', campo: 'emisor' });
-  else {
+  else if (!esObjeto(e)) problemas.push({ codigo: 'EMISOR', mensaje: `«emisor» debe ser un objeto con los datos del emisor, no ${tipoDe(e)}.`, campo: 'emisor' });
+  else if (CAMPOS_EMISOR.some(([campo]) => e[campo] !== undefined && typeof e[campo] !== 'string')) {
+    for (const [campo, codigo] of CAMPOS_EMISOR) {
+      const v: unknown = e[campo];
+      if (v !== undefined && typeof v !== 'string') problemas.push({ codigo, mensaje: `«emisor.${campo}» debe ser texto, no ${tipoDe(v)}.`, campo: `emisor.${campo}` });
+    }
+  } else {
     if (!e.rtn || !esRTNValido(e.rtn)) problemas.push({ codigo: 'EMISOR_RTN', mensaje: 'RTN del emisor inválido (14 dígitos).', campo: 'emisor.rtn' });
     if (!e.razonSocial?.trim()) problemas.push({ codigo: 'EMISOR_NOMBRE', mensaje: 'Falta el nombre o razón social del emisor.', campo: 'emisor.razonSocial' });
     // Art. 10 num. 1 (y Arts. 25 y 27 num. 1 para las notas): todos los datos de identificación del emisor.
@@ -279,6 +378,8 @@ export function validarEntrada(
   autorizacion: AutorizacionCAI,
   opciones: OpcionesDocumento = {},
 ): ResultadoValidacion {
+  const forma = problemasDeForma(entrada);
+  if (forma.length) return { ok: false, errores: forma.map(conSolucion), advertencias: [] };
   const problemas: Problema[] = [];
   const conversion = notaEnLempiras(entrada);
   problemas.push(...conversion.problemas);
@@ -291,6 +392,8 @@ export function validarEntrada(
   if (problemaTipo) problemas.push(problemaTipo);
   const problemaOperador = problemaDeOperador(entrada.operador);
   if (problemaOperador) problemas.push(problemaOperador);
+  const problemaPrecios = problemaDePreciosIncluyenISV(entrada.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(problemaPrecios);
   problemas.push(...problemasDeTexto(entrada));
 
   // Autorización
@@ -323,6 +426,15 @@ export function validarEntrada(
     });
   }
 
+  // Hora: HH:mm de 24 horas. Si falta, la pone el reloj, como la fecha.
+  if (entrada.horaEmision !== undefined && (typeof entrada.horaEmision !== 'string' || !PATRON_HORA.test(entrada.horaEmision))) {
+    problemas.push({
+      codigo: 'HORA_EMISION',
+      mensaje: `horaEmision debe ser HH:mm de 24 horas (p. ej. 14:05), no ${JSON.stringify(entrada.horaEmision) ?? String(entrada.horaEmision)}.`,
+      campo: 'horaEmision',
+    });
+  }
+
   // Emisor
   problemas.push(...validarEmisor(entrada.emisor));
 
@@ -348,11 +460,12 @@ export function validarEntrada(
     const x = entrada.exoneracion;
     // Art. 11 num. 4: OCE y Constancia del Registro de Exonerados «o» el registro RUPNSA de la SAG, «según
     // corresponda». Con el registro SAG basta; sin él, hacen falta los dos documentos.
-    if (!x.registroSAG?.trim()) {
+    const lleno = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+    if (!lleno(x.registroSAG)) {
       const falta = ' (Art. 11 num. 4: Orden de Compra Exenta y Constancia, o el registro SAG/RUPNSA).';
-      if (!x.ordenCompraExenta?.trim())
+      if (!lleno(x.ordenCompraExenta))
         problemas.push({ codigo: 'EXONERACION_ORDEN', mensaje: `Falta el número de Orden de Compra Exenta${falta}`, campo: 'exoneracion.ordenCompraExenta' });
-      if (!x.constanciaRegistroExonerado?.trim())
+      if (!lleno(x.constanciaRegistroExonerado))
         problemas.push({ codigo: 'EXONERACION_CONSTANCIA', mensaje: `Falta el número de Constancia de Registro de Exonerados${falta}`, campo: 'exoneracion.constanciaRegistroExonerado' });
     }
     if (!c.rtn)
@@ -361,8 +474,10 @@ export function validarEntrada(
 
   // Moneda
   const moneda = entrada.moneda ?? 'HNL';
+  const problemaMoneda = problemaDeMoneda(entrada.moneda);
+  if (problemaMoneda) problemas.push(problemaMoneda);
   const tipoCambio = moneda === 'HNL' ? null : leerTipoCambio(entrada.tipoCambio);
-  if (moneda !== 'HNL' && tipoCambio === null) {
+  if (!problemaMoneda && moneda !== 'HNL' && tipoCambio === null) {
     problemas.push({ codigo: 'TIPO_CAMBIO', mensaje: 'En moneda extranjera se debe indicar el tipo de cambio de la fecha de emisión (mayor que 0, hasta 6 decimales).', campo: 'tipoCambio' });
   }
 
@@ -407,7 +522,7 @@ export function validarEntrada(
   problemas.push(...problemasLineas);
   if (problemasLineas.length === 0) {
     const { totales } = calcularCentavos(entrada.lineas, {
-      preciosIncluyenISV: entrada.preciosIncluyenISV ?? false,
+      preciosIncluyenISV: entrada.preciosIncluyenISV === true,
       exonerado: Boolean(entrada.exoneracion),
       moneda,
     });
@@ -464,13 +579,13 @@ export function validarEntrada(
  */
 function calcularEquivalenteLempiras(doc: DocumentoFiscal): EquivalenteLempiras | null {
   if (doc.tipoCambio === undefined) return null; // solo un documento en moneda extranjera lleva tipo de cambio
-  const tc = parsearDecimal(doc.tipoCambio, 6);
-  const L = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
+  // La misma conversión que el libro de ventas: el total es la suma de las columnas convertidas.
+  const L = totalesALempiras(doc.totales, parsearDecimal(doc.tipoCambio, 6));
   const t = doc.totales;
   return {
-    ...(t.isv15 > 0 ? { isv15: L(t.isv15) } : {}),
-    ...(t.isv18 > 0 ? { isv18: L(t.isv18) } : {}),
-    total: L(t.total),
+    ...(t.isv15 > 0 ? { isv15: deCentavos(L.isv15) } : {}),
+    ...(t.isv18 > 0 ? { isv18: deCentavos(L.isv18) } : {}),
+    total: deCentavos(L.total),
   };
 }
 
@@ -486,7 +601,15 @@ export function construirDocumento(
   /** Problemas que el flujo de emisión detectó fuera de la entrada (p. ej. contra el almacén). */
   adicionales: Problema[] = [],
 ): DocumentoFiscal {
-  entrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(opciones) };
+  const forma = problemasDeForma(entrada);
+  if (forma.length) throw new ErrorValidacion(forma);
+  // Fecha y hora salen del mismo instante del reloj si no vienen en la entrada.
+  const ahora = opciones.reloj?.() ?? new Date();
+  entrada = {
+    ...entrada,
+    fechaEmision: entrada.fechaEmision ?? hoyHonduras({ reloj: () => ahora }),
+    horaEmision: entrada.horaEmision ?? horaHonduras(ahora),
+  };
   const v = validarEntrada(entrada, autorizacion, opciones);
   const errores = [...v.errores, ...adicionales.filter((p) => !esAdvertencia(p))];
   const advertencias = [...v.advertencias, ...adicionales.filter(esAdvertencia)];
@@ -498,16 +621,33 @@ export function construirDocumento(
     });
   }
   if (errores.length) throw new ErrorValidacion(errores, advertencias);
+  // Las líneas de una nota sobre un original en moneda extranjera vienen en esa moneda.
+  const lineasMonedaOriginal = entrada.lineas;
   entrada = notaEnLempiras(entrada).entrada;
 
   const tipo = entrada.tipoDocumento ?? '01';
   const moneda = entrada.moneda ?? 'HNL';
   const preciosIncluyenISV = entrada.preciosIncluyenISV ?? false;
-  const { lineas, totales } = calcularDocumento(entrada.lineas, {
-    preciosIncluyenISV,
-    exonerado: Boolean(entrada.exoneracion),
-    moneda,
-  });
+  const opcionesCalculo = { preciosIncluyenISV, exonerado: Boolean(entrada.exoneracion), moneda };
+  const calculado = calcularDocumento(entrada.lineas, opcionesCalculo);
+  const lineas = calculado.lineas;
+  let totales = calculado.totales;
+  const tcOriginal = entrada.referencia?.moneda && entrada.referencia.moneda !== 'HNL' ? leerTipoCambio(entrada.referencia.tipoCambio) : null;
+  if ((tipo === '06' || tipo === '07') && tcOriginal !== null) {
+    // Nota sobre un original en moneda extranjera: sus importes se calculan en esa moneda y se convierten columna
+    // por columna (`totalesALempiras`), igual que el libro de ventas y el tope convierten el original. Así una nota
+    // con las mismas líneas acredita exactamente lo que el libro registró de la venta. Las líneas se imprimen con
+    // el precio convertido.
+    const t = totalesALempiras(calcularCentavos(lineasMonedaOriginal, opcionesCalculo).totales, tcOriginal);
+    totales = {
+      descuentos: deCentavos(t.descuentos), subtotal: deCentavos(t.subtotal), importeExonerado: deCentavos(t.importeExonerado),
+      importeExento: deCentavos(t.importeExento), importeGravado0: deCentavos(t.importeGravado0),
+      importeGravado15: deCentavos(t.importeGravado15), importeGravado18: deCentavos(t.importeGravado18),
+      baseCreditoFiscal: deCentavos(t.baseCreditoFiscal), isv15: deCentavos(t.isv15), isv18: deCentavos(t.isv18),
+      total: deCentavos(t.total), ajustePorRedondeo: deCentavos(t.ajustePorRedondeo),
+      totalEnLetras: centavosEnLetras(t.total, 'HNL'),
+    };
+  }
 
   const c = entrada.cliente ?? {};
   const cliente: DocumentoFiscal['cliente'] = {

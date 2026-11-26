@@ -136,18 +136,59 @@ interface FilaSerie {
 export class AlmacenSQLite implements AlmacenFiscal {
   private cola: Promise<unknown> = Promise.resolve();
   private readonly esperaMaxima: number;
+  private readonly wal: boolean;
+  /** Se resuelve cuando el esquema está aplicado. Cada transacción la espera antes de empezar. */
+  private apertura: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly db: BaseSQLite,
     opciones: OpcionesAlmacenSQLite = {},
   ) {
     this.esperaMaxima = opciones.esperaMaxima ?? 10_000;
+    this.wal = opciones.wal ?? true;
     // La espera la hace el adaptador de forma asíncrona; una espera síncrona del driver bloquearía el hilo
     // y a la otra caja del mismo proceso que tiene el bloqueo.
     db.exec('PRAGMA busy_timeout = 0');
-    if (opciones.wal ?? true) db.exec('PRAGMA journal_mode = WAL');
-    db.exec('PRAGMA foreign_keys = ON');
-    db.exec(ESQUEMA_SQLITE);
+    try {
+      this.aplicarEsquema();
+    } catch (e) {
+      if (!esOcupada(e)) throw e;
+      // Otra caja tiene la base ocupada: el esquema se aplica en cuanto se libere (hasta `esperaMaxima`), y las
+      // transacciones esperan a que termine. Así abrir el almacén no falla mientras otra caja emite.
+      this.apertura = this.aplicarEsquemaConEspera();
+      this.apertura.catch(() => undefined); // el error lo recibe la primera transacción
+    }
+  }
+
+  /** Modo WAL y esquema, en una transacción: o queda todo aplicado o nada. */
+  private aplicarEsquema(): void {
+    if (this.wal) this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA foreign_keys = ON');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec(ESQUEMA_SQLITE);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        // No había transacción que revertir.
+      }
+      throw e;
+    }
+  }
+
+  private async aplicarEsquemaConEspera(): Promise<void> {
+    const limite = Date.now() + this.esperaMaxima;
+    for (let intento = 0; ; intento++) {
+      await pausa(Math.min(50, 1 + intento) + Math.random() * 3);
+      try {
+        this.aplicarEsquema();
+        return;
+      } catch (e) {
+        if (!esOcupada(e) || Date.now() > limite) throw e;
+      }
+    }
   }
 
   /** Una conexión ejecuta una transacción a la vez; las demás esperan su turno. */
@@ -159,6 +200,7 @@ export class AlmacenSQLite implements AlmacenFiscal {
   }
 
   private async ejecutar<T>(fn: (tx: TransaccionFiscal) => Promise<T>): Promise<T> {
+    await this.apertura;
     const limite = Date.now() + this.esperaMaxima;
     for (let intento = 0; ; intento++) {
       try {

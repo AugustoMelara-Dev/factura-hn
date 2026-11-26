@@ -112,8 +112,8 @@ La suma de las notas de crédito vigentes sobre un documento no puede superar su
 libera su importe; una nota de débito no amplía el saldo. Un original en dólares se compara en lempiras, con su
 tipo de cambio.
 
-La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV sobre un original exonerado
-(`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
+La nota tampoco puede llevar ISV a una tasa que el original no tenía, importe exento o gravado al 0 % que el
+original no tenía, ni ISV sobre un original exonerado (`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
 
 factura-hn no deja que las notas superen el saldo del documento original ni cambien su tasa.
 
@@ -161,7 +161,9 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 ## Moneda extranjera
 
 La nota se emite en lempiras (Art. 26 num. 9). Si el original está en dólares, escribe las líneas de la nota en
-dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Con el original
+dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Sus importes se
+convierten igual que el libro de ventas convierte el original (columna por columna), así que una nota con las
+mismas líneas lo acredita entero. Con el original
 en el almacén, la moneda y el tipo de cambio se toman de él. Con un original externo, indica
 `referencia.moneda` y `referencia.tipoCambio`.
 
@@ -179,7 +181,7 @@ ventas del período. Una nota anulada sale con su número y montos en cero.
 | [`REFERENCIA`](/referencia/errores/#referencia) | Falta la referencia al documento original |
 | [`MOTIVO`](/referencia/errores/#motivo) | Falta el motivo |
 | [`NOTA_SUPERA_ORIGINAL`](/referencia/errores/#nota_supera_original) | La nota, sumada a las anteriores, supera el total del original |
-| [`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta) | La nota lleva ISV a otra tasa, o sobre un original exonerado |
+| [`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta) | La nota lleva ISV a otra tasa, exento o 0 % que el original no tenía, o ISV sobre un original exonerado |
 | [`REFERENCIA_ANULADA`](/referencia/errores/#referencia_anulada) | El original está anulado |
 | [`REFERENCIA_FECHA_NO_COINCIDE`](/referencia/errores/#referencia_fecha_no_coincide) | La fecha de la referencia no es la del original guardado |
 | [`REFERENCIA_TIPO`](/referencia/errores/#referencia_tipo) | El original no es un comprobante fiscal |

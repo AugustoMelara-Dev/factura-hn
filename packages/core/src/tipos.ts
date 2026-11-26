@@ -161,7 +161,7 @@ export interface DocumentoEntrada {
    * cualquier otra es el error `FECHA_EMISION_NO_ES_HOY` (no se permite retrofechar ni adelantar).
    */
   fechaEmision?: string;
-  /** HH:mm opcional. */
+  /** HH:mm de 24 horas. Si se omite, la pone el reloj (hora de Honduras), como la fecha. */
   horaEmision?: string;
   /** true si los precios unitarios ya incluyen ISV (típico en POS). Por defecto false. */
   preciosIncluyenISV?: boolean;

@@ -13,7 +13,7 @@
  * la tasa × la base impresa y cuadra con los subtotales e impuestos por tarifa que pide el Art. 11 h-i.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
-import { centavosEnLetras } from './letras';
+import { centavosEnLetras, MONEDAS } from './letras';
 import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, TratamientoISV } from './tipos';
 
 /**
@@ -105,6 +105,25 @@ function leerLinea(l: LineaEntrada, i: number, problemas: Problema[]): LineaLeid
   return leida;
 }
 
+/**
+ * `preciosIncluyenISV` es booleano. Un texto como `'false'` (de un formulario, una variable de entorno o una query
+ * string) se rechaza: tomarlo como verdadero cobraría de menos e imprimiría «Precios incluyen ISV».
+ */
+export function problemaDePreciosIncluyenISV(valor: unknown, campo = 'preciosIncluyenISV'): Problema | null {
+  if (valor === undefined || typeof valor === 'boolean') return null;
+  return {
+    codigo: 'PRECIOS_INCLUYEN_ISV_FORMATO',
+    mensaje: `«preciosIncluyenISV» debe ser true o false (booleano), no ${JSON.stringify(valor) ?? String(valor)}.`,
+    campo,
+  };
+}
+
+/** Monedas en que se emite: lempiras y dólares. Otra moneda (o `'usd'` en minúsculas) es el error `MONEDA`. */
+export function problemaDeMoneda(valor: unknown, campo = 'moneda'): Problema | null {
+  if (valor === undefined || (typeof valor === 'string' && (MONEDAS as readonly string[]).includes(valor))) return null;
+  return { codigo: 'MONEDA', mensaje: `La moneda debe ser 'HNL' o 'USD', no ${JSON.stringify(valor) ?? String(valor)}.`, campo };
+}
+
 export function validarLineas(lineas: LineaEntrada[]): Problema[] {
   const problemas: Problema[] = [];
   if (!Array.isArray(lineas) || lineas.length === 0) {
@@ -116,8 +135,13 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
   let leidas = true;
   lineas.forEach((l, i) => {
     const campo = `lineas[${i}]`;
-    if (!l.descripcion || !l.descripcion.trim())
-      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: falta la descripción.`, campo });
+    if (typeof l !== 'object' || l === null || Array.isArray(l)) {
+      problemas.push({ codigo: 'LINEA', mensaje: `Línea ${i + 1}: debe ser un objeto con descripcion, cantidad y precioUnitario.`, campo });
+      leidas = false;
+      return;
+    }
+    if (typeof l.descripcion !== 'string' || !l.descripcion.trim())
+      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: ${typeof l.descripcion === 'string' || l.descripcion === undefined ? 'falta la descripción.' : 'la descripción debe ser texto.'}`, campo });
     if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
     const leida = leerLinea(l, i, problemas);
@@ -190,9 +214,12 @@ export function calcularCentavos(
   opciones: OpcionesCalculo = {},
 ): { lineas: Array<{ entrada: LineaEntrada; leida: LineaLeida; importe: bigint }>; totales: TotalesCentavos } {
   const problemas = validarLineas(lineas);
+  // Solo `true` activa los precios con ISV incluido: un texto como 'false' es un error, no un «sí».
+  const problemaPrecios = problemaDePreciosIncluyenISV(opciones.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(problemaPrecios);
   if (problemas.length) throw new ErrorCalculo(problemas);
 
-  const incluye = opciones.preciosIncluyenISV ?? false;
+  const incluye = opciones.preciosIncluyenISV === true;
   const grupos: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, GRAVADO0: 0n, EXENTO: 0n };
   let descuentos = 0n;
 
@@ -242,6 +269,8 @@ export function calcularDocumento(
   lineas: LineaEntrada[],
   opciones: OpcionesCalculo = {},
 ): { lineas: LineaCalculada[]; totales: Totales; advertencias: Problema[] } {
+  const problemaMoneda = problemaDeMoneda(opciones.moneda);
+  if (problemaMoneda) throw new ErrorCalculo([problemaMoneda]);
   const r = calcularCentavos(lineas, opciones);
   const calculadas: LineaCalculada[] = r.lineas.map(({ entrada: l, leida, importe }) => {
     const linea: LineaCalculada = {

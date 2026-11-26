@@ -13,9 +13,10 @@ import {
   type TipoEventoAuditoria,
   type TransaccionFiscal,
 } from './almacen';
-import { deCentavos, formatearMonto, redondearDecimal } from './dinero';
-import { calcularCentavos, type TotalesCentavos } from './calculo';
-import { construirDocumento, ErrorValidacion, hoyHonduras, notaEnLempiras, problemaDeOperador, problemaDeTipo } from './documento';
+import { deCentavos, formatearMonto, parsearDecimal, redondearDecimal } from './dinero';
+import { ESCALA_TIPO_CAMBIO, totalesALempiras } from './conversion';
+import type { TotalesCentavos } from './calculo';
+import { construirDocumento, ErrorValidacion, hoyHonduras, problemaDeOperador, problemaDeTipo, problemasDeForma } from './documento';
 import { limpiarIdentificador, normalizarCAI } from './identificacion';
 import { congelar } from './inmutable';
 import { esAutorizacionDePrueba, esDocumentoDePrueba } from './modo';
@@ -62,6 +63,23 @@ export function exigirAlmacen(almacen: unknown, operacion: string): asserts alma
       'almacen',
     );
   }
+}
+
+/**
+ * Establecimiento y punto de emisión de la caja: hasta 3 dígitos (se completan con ceros), como en
+ * `registrarAutorizacion`. Un punto `'0001'` no es la serie `000-001`: se rechaza aquí con su código en lugar de
+ * buscar una autorización que no puede existir.
+ */
+export function problemasDeCaja(establecimiento: unknown, puntoEmision: unknown): Problema[] {
+  const problemas: Problema[] = [];
+  const valido = (v: unknown) => (typeof v === 'string' || typeof v === 'number') && /^\d{1,3}$/.test(String(v).trim());
+  if (!valido(establecimiento)) {
+    problemas.push({ codigo: 'ESTABLECIMIENTO', mensaje: `Establecimiento debe tener hasta 3 dígitos, no ${JSON.stringify(establecimiento) ?? String(establecimiento)}.`, campo: 'establecimiento' });
+  }
+  if (!valido(puntoEmision)) {
+    problemas.push({ codigo: 'PUNTO_EMISION', mensaje: `Punto de emisión debe tener hasta 3 dígitos, no ${JSON.stringify(puntoEmision) ?? String(puntoEmision)}.`, campo: 'puntoEmision' });
+  }
+  return problemas;
 }
 
 /** Establecimiento y punto de emisión de una autorización, p. ej. `000-001`. */
@@ -222,6 +240,16 @@ export async function registrarAutorizacionConAvisos(
     };
     await tx.guardarAutorizacion(normalizada);
     const advertencias = validarAutorizacion(normalizada).filter(esAdvertencia);
+    // Aviso, no error: registrar un CAI ya vencido sirve para cargar el historial y reportar sus números no
+    // utilizados (Art. 42), pero con él no se puede emitir (Art. 62).
+    const hoy = fechaHonduras(ahora);
+    if (normalizada.fechaLimiteEmision < hoy) {
+      advertencias.push({
+        codigo: 'AVISO_AUTORIZACION_VENCIDA',
+        mensaje: `La fecha límite de emisión (${normalizada.fechaLimiteEmision}) ya pasó (hoy es ${hoy}): con este CAI no se puede emitir (Art. 62). Sirve para el historial y para reportar sus números no utilizados (Art. 42).`,
+        campo: 'fechaLimiteEmision',
+      });
+    }
     await tx.registrarEvento(
       evento('AUTORIZACION_REGISTRADA', ahora, {
         identificador: id,
@@ -350,6 +378,11 @@ function esNota(tipo: string): boolean {
  */
 export async function emitir(entrada: DocumentoEntrada, config: OpcionesEmision): Promise<DocumentoFiscal> {
   exigirAlmacen(config?.almacen, 'emitir');
+  // Antes de abrir la transacción: con un tipo equivocado (un texto por cliente, una línea null) no hay qué validar.
+  const forma = problemasDeForma(entrada);
+  if (forma.length) throw new ErrorValidacion(forma);
+  const caja = problemasDeCaja(config.establecimiento, config.puntoEmision);
+  if (caja.length) throw new ErrorValidacion(caja);
   const tipo = entrada.tipoDocumento ?? '01';
   const problemaTipo = problemaDeTipo(tipo);
   if (problemaTipo) throw new ErrorValidacion([problemaTipo]);
@@ -532,7 +565,7 @@ export async function corregirFechaAdelantada(
 ): Promise<DocumentoFiscal[]> {
   exigirAlmacen(almacen, 'corregirFechaAdelantada');
   exigirOperador(config.operador);
-  const motivo = config.motivo?.trim();
+  const motivo = typeof config.motivo === 'string' ? config.motivo.trim() : '';
   if (!motivo) {
     throw error('ANULACION_MOTIVO', 'La corrección requiere un motivo (por ejemplo, qué pasó con el reloj).', 'motivo');
   }
@@ -679,34 +712,13 @@ async function problemasDeReferencia(tx: TransaccionFiscal, entrada: DocumentoEn
 }
 
 /**
- * Totales en centavos de lempira del original, por el mismo camino que una nota sobre él: si está en moneda
- * extranjera, sus propias líneas pasan por `notaEnLempiras` (precio × tipo de cambio) y `calcularCentavos`. Así una
- * nota idéntica al original da exactamente sus totales. En lempiras son los totales guardados.
+ * Totales en centavos de lempira del original. En lempiras son los totales guardados; en moneda extranjera, sus
+ * totales convertidos columna por columna (`totalesALempiras`), la misma conversión del libro de ventas y de una
+ * nota sobre él. Así una nota con las mismas líneas lo acredita entero y el neto del libro queda en 0.
  */
 function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
-  const t = original.totales;
-  const c = (v: number) => redondearDecimal(v, 2);
-  if (original.moneda === 'HNL' || original.tipoCambio === undefined) {
-    return {
-      descuentos: c(t.descuentos), subtotal: c(t.subtotal), importeExonerado: c(t.importeExonerado),
-      importeExento: c(t.importeExento), importeGravado15: c(t.importeGravado15), importeGravado18: c(t.importeGravado18),
-      importeGravado0: c(t.importeGravado0), baseCreditoFiscal: c(t.baseCreditoFiscal), isv15: c(t.isv15), isv18: c(t.isv18),
-      total: c(t.total), ajustePorRedondeo: c(t.ajustePorRedondeo),
-    };
-  }
-  const { entrada } = notaEnLempiras({
-    tipoDocumento: '06',
-    emisor: original.emisor,
-    referencia: { cai: original.cai, numero: original.numero, fecha: original.fechaEmision, moneda: original.moneda, tipoCambio: original.tipoCambio },
-    lineas: original.lineas.map((l) => ({
-      descripcion: l.descripcion,
-      cantidad: String(l.cantidad),
-      precioUnitario: String(l.precioUnitario),
-      isv: l.isv,
-      ...(l.descuento ? { descuento: String(l.descuento) } : {}),
-    })),
-  });
-  return calcularCentavos(entrada.lineas, { preciosIncluyenISV: original.preciosIncluyenISV, exonerado: Boolean(original.exoneracion) }).totales;
+  const tc = original.moneda !== 'HNL' && original.tipoCambio !== undefined ? parsearDecimal(original.tipoCambio, 6) : ESCALA_TIPO_CAMBIO;
+  return totalesALempiras(original.totales, tc);
 }
 
 /**
@@ -717,7 +729,9 @@ function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
  * - `NOTA_SUPERA_ORIGINAL`: la suma de las notas de crédito vigentes sobre el original, más esta, supera su total o,
  *   en una tasa (15 % o 18 %), su importe gravado o su ISV. Todo en lempiras: un original en moneda extranjera se
  *   convierte por el mismo camino que la nota (`totalesEnLempiras`). El mensaje da el saldo.
- * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
+ * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, importe exento o gravado al 0 % que
+ *   el original no tenía (con la misma exoneración), o ISV sobre un original exonerado.
+ * - `NOTA_SUPERA_ORIGINAL` también si lo exento o lo gravado al 0 % de las notas pasa de lo que tuvo el original.
  * Y un aviso, `AVISO_NOTA_EXONERACION_DISTINTA`, si el original es exonerado y la nota no, o al revés.
  * Con un original externo no hay con qué comparar: queda `AVISO_ORIGINAL_EXTERNO`.
  * La serie del original ya está bloqueada (`bloquearSerieDelOriginal`): dos cajas no emiten a la vez notas que
@@ -740,14 +754,21 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
       // Las notas del otro modo (prueba o real) no cuentan para el saldo.
       esDocumentoDePrueba(d) === esDocumentoDePrueba(nota),
   );
-  const suma = (campo: 'total' | 'importeGravado15' | 'importeGravado18' | 'isv15' | 'isv18') =>
+  const suma = (campo: 'total' | 'importeGravado15' | 'importeGravado18' | 'isv15' | 'isv18' | 'importeExento' | 'importeGravado0') =>
     previas.reduce((s, d) => s + redondearDecimal(d.totales[campo], 2), 0n);
   const L = (c: bigint) => `L ${formatearMonto(deCentavos(c < 0n ? 0n : c))}`;
   const acreditado = suma('total');
   const saldo = o.total - acreditado;
   const estaNota = redondearDecimal(nota.totales.total, 2);
   const n = nota.totales;
-  const tasaNueva = (n.isv15 > 0 && o.importeGravado15 === 0n) || (n.isv18 > 0 && o.importeGravado18 === 0n);
+  // Exento y gravado 0 % se comparan cuando nota y original tienen la misma exoneración; si no, ya hay un aviso
+  // (AVISO_NOTA_EXONERACION_DISTINTA): una nota sin exoneración sobre un original exonerado acredita en exento.
+  const mismaExoneracion = Boolean(original.exoneracion) === Boolean(entrada.exoneracion);
+  const tasaNueva =
+    (n.isv15 > 0 && o.importeGravado15 === 0n) ||
+    (n.isv18 > 0 && o.importeGravado18 === 0n) ||
+    (mismaExoneracion && n.importeExento > 0 && o.importeExento === 0n) ||
+    (mismaExoneracion && n.importeGravado0 > 0 && o.importeGravado0 === 0n);
   const sobreExonerado = o.importeExonerado > 0n && n.isv15 + n.isv18 > 0;
   if (estaNota > saldo) {
     problemas.push({
@@ -776,13 +797,28 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
         break;
       }
     }
+    // Lo mismo con lo exento y lo gravado al 0 %: la nota no acredita más que lo que el original tuvo ahí.
+    for (const [nombre, campo] of [['exento', 'importeExento'], ['gravado al 0 %', 'importeGravado0']] as const) {
+      if (!mismaExoneracion || problemas.some((p) => p.codigo === 'NOTA_SUPERA_ORIGINAL')) break;
+      const saldoGrupo = o[campo] - suma(campo);
+      const notaGrupo = redondearDecimal(n[campo], 2);
+      if (notaGrupo > saldoGrupo) {
+        problemas.push({
+          codigo: 'NOTA_SUPERA_ORIGINAL',
+          mensaje:
+            `Lo ${nombre} de la nota (${L(notaGrupo)}) supera el saldo del documento ${numero} en ese grupo: ${L(o[campo])} en el ` +
+            `original; saldo disponible ${L(saldoGrupo)} (Art. 4 num. 32). Usa en cada línea el mismo tratamiento que en el original.`,
+          campo: 'lineas',
+        });
+      }
+    }
   }
   if (tasaNueva || sobreExonerado) {
     problemas.push({
       codigo: 'NOTA_TASA_DISTINTA',
       mensaje: sobreExonerado
         ? `El documento ${numero} es exonerado: la nota no puede llevar ISV. Usa en cada línea el mismo tratamiento que en el original.`
-        : `La nota lleva ISV a una tasa que el documento ${numero} no tenía. Usa en cada línea la misma tasa que en el original.`,
+        : `La nota lleva un tratamiento de ISV (tasa, exento o gravado 0 %) que el documento ${numero} no tenía. Usa en cada línea el mismo que en el original.`,
       campo: 'lineas',
     });
   }
