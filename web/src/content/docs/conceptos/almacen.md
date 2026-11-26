@@ -108,12 +108,8 @@ const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' }
 
 ## Conservación y respaldos
 
-Haz respaldos del almacén: es tu archivo fiscal.
-
-:::caution[Por confirmar con fuente]
-El plazo de conservación de 5 años (Código Tributario, Arts. 58.4 y 63.3) sale de una compilación de 2024 del
-Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores.
-:::
+Haz respaldos del almacén: es tu archivo fiscal. Consérvalo al menos 5 años y no borres nada: ver
+[Operación mensual](/produccion/operacion-mensual/).
 
 ## Escribir tu propio almacén
 

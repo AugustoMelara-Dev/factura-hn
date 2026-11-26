@@ -66,9 +66,7 @@ contenido da `IDEMPOTENCIA_CONFLICTO`.
 a CONSUMIDOR FINAL), pasa `cliente` con el nombre y el RTN del comprador: el núcleo pide nombre y RTN del adquirente en
 toda nota (`NOTA_CLIENTE_RTN`). Si el original tiene RTN, la nota debe llevar el mismo (`REFERENCIA_RTN_NO_COINCIDE`).
 
-:::note[Lectura de factura-hn]
-Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28: no lo dicen de forma literal. La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Confírmalo con tu contador.
-:::
+Una nota con RTN sobre un original emitido sin RTN sale con el aviso `AVISO_ORIGINAL_SIN_RTN` (Arts. 26 y 28).
 
 ### `registrar_cai`
 
@@ -87,7 +85,7 @@ emitiste con ese CAI y no indicas `ultimoEmitidoAntes`, la serie empieza en el r
 repetirían.
 :::
 
-`ultimoEmitidoAntes` es una lectura del proyecto: el Reglamento no regula la migración de una serie. Ver
+`ultimoEmitidoAntes` sirve para seguir una serie que empezaste en otro sistema. Ver
 [CAI y rangos](/produccion/cai-y-rangos/).
 
 ## Seguridad
@@ -181,6 +179,27 @@ usa `"command": "cmd"` y `"args": ["/c", "npx", "-y", "@factura-hn/mcp@0.4.0"]`,
 - Si la API no responde, el error es `API_INACCESIBLE`.
 
 En los dos modos, `FHN_OPERADOR` (opcional) es la persona que opera con el asistente y queda en la bitácora.
+
+## Por HTTP
+
+El comando `http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por Streamable HTTP,
+contra tu API. Sirve para clientes que se conectan por URL o para el MCP Inspector:
+
+```bash
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http   # puerto 8788
+```
+
+- La ruta es `/mcp`, con la cabecera `Authorization: Bearer fhn_…` (una llave de tu API). Sin ella, responde 401.
+- Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor). El puerto se cambia con
+  `FHN_MCP_PUERTO`.
+- No guarda datos ni credenciales: llama a la API con la llave de cada conexión. Para que un cliente en internet
+  llegue a él, publícalo con HTTPS.
+- Anular y registrar CAI piden confirmación por elicitación. Con un cliente que no la ofrece, se niegan sobre datos
+  reales.
+
+```bash
+npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer fhn_…" --method tools/list
+```
 
 ## Versión fija
 

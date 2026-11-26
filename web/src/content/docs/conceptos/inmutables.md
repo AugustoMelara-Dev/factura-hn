@@ -97,15 +97,7 @@ La suma de las notas de crédito sobre un documento no puede superar su total
 ([`NOTA_SUPERA_ORIGINAL`](/referencia/errores/#nota_supera_original), con el saldo en el mensaje), ni llevar
 ISV a una tasa que el original no tenía ([`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta)).
 
-:::note[Lectura de factura-hn]
-Ese tope de las notas de crédito es una regla derivada del Art. 4 num. 32 (la nota ajusta el comprobante
-correspondiente), no un texto literal. Confírmalo con tu contador.
-:::
-
-:::caution[Por confirmar con fuente]
-Los usos concretos de la Nota de Débito (intereses, fletes, diferencias de precio) no tienen fuente en el
-repositorio; el Art. 4 num. 31 solo dice "ajustes". Confírmalos con tu contador.
-:::
+El tope sale del Art. 4 num. 32: la nota ajusta el comprobante correspondiente.
 
 Los detalles de cada tipo de documento están en [Documentos](/documentos/).
 

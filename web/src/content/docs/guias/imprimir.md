@@ -126,11 +126,6 @@ Antes de imprimir documentos en papel térmico hay que presentar al SAR la certi
 de que la impresión se conserva al menos 5 años (Art. 38). Sin ella, el documento no sustenta gastos ni crédito
 fiscal.
 
-:::caution[Por confirmar con fuente]
-El repositorio no dice quién gestiona esa certificación ni qué son los «resúmenes de ventas» que menciona el
-mismo artículo, ni en qué formato se entregan. Confírmalo con tu contador.
-:::
-
 ## Errores frecuentes
 
 `buscarDocumento` no lanza error si el número no está en el almacén: devuelve `null`. Revisa el número, de 16

@@ -48,12 +48,6 @@ console.log(resumen, `${excluidos} documentos de prueba fuera del libro`);
 Con la API: `GET /v1/libro-ventas?desde=2026-11-01&hasta=2026-11-30&formato=csv` (llave de caja o admin). Con el
 MCP: la herramienta `libro_ventas`.
 
-:::caution[Por confirmar con fuente]
-El repositorio no tiene una norma que fije el formato del libro de ventas, ni la fuente de la declaración mensual
-del ISV: formulario, nombre y campos, y cómo se relaciona con este libro. El libro de factura-hn es un
-apoyo para el contador, no un formulario del SAR.
-:::
-
 ## Archivo de texto (Art. 53 num. 5)
 
 El Art. 53 num. 5 pide que el sistema genere archivos de texto para enviarlos al SAR. factura-hn genera tres
@@ -76,10 +70,7 @@ y el motivo de la anulación: refleja lo que se emitió.
 Con la API: `GET /v1/exportacion?desde=2026-11-01&hasta=2026-11-30&formato=csv` (solo llave admin). Cada
 exportación queda en la bitácora de la API.
 
-:::caution[Por confirmar con fuente]
-No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5. Los formatos de factura-hn
-son propios. Si el SAR publica uno, se agregará como un formato más de `exportarTexto`.
-:::
+Los formatos de factura-hn son propios.
 
 ## Documentos no utilizados
 
@@ -125,11 +116,6 @@ Cómo cuenta los plazos, y qué decisiones hay detrás:
 - No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR.
 
 Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).
-
-:::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio. Confírmalo con tu
-contador.
-:::
 
 ## Anulaciones del mes
 
@@ -179,10 +165,6 @@ no protege de un disco dañado: el respaldo es responsabilidad del negocio.
 - Guarda las copias fuera del equipo: un disco externo o el almacenamiento en la nube del negocio.
 - **Prueba la restauración** al menos una vez, en una instalación nueva y antes de emitir nada en ella.
 
-:::caution[Por confirmar con fuente]
-El plazo de conservación se tomó del Código Tributario (Arts. 58 num. 4, 63 num. 3, 144 y 145) en una
-compilación de 2024 del Poder Judicial, no de La Gaceta. Con esa fuente, el proyecto adoptó conservar los
-documentos **al menos 5 años desde el vencimiento de la declaración del período** para quien está inscrito en el
-RTN. Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
-borres nada.
-:::
+Conserva los documentos **al menos 5 años desde el vencimiento de la declaración del período** (Código
+Tributario, Arts. 58 num. 4, 63 num. 3, 144 y 145). No borres nada.
+

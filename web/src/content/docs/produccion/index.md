@@ -13,13 +13,6 @@ de lo que emite (ver [qué es y qué no es factura-hn](/produccion/estado-legal/
 Los artículos son del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus reformas), salvo que se diga
 otra cosa. La lista de pasos ante el SAR, con sus fuentes, está en [Trámites ante el SAR](/produccion/tramites/).
 
-:::caution[Por confirmar con fuente]
-El repositorio tiene los artículos de cada trámite, pero no el procedimiento actual: qué formulario se usa, por
-qué medio de la Oficina Virtual se presenta y cuánto tarda. Tampoco sabe qué modalidad
-corresponde a cada negocio según su tamaño o giro: sistema, imprenta o máquina registradora. Ambas cosas
-las confirma tu contador.
-:::
-
 ## El orden, de un vistazo
 
 | # | Etapa | Quién | Detalle |
@@ -110,9 +103,5 @@ Antes de entregarla al cliente, los tres revisan el impreso:
   correctos, y empieza en el primer número del rango (Art. 10 num. 7).
 - Los datos del emisor coinciden con el RTN (Art. 10 num. 1).
 - El total cobrado en caja es el `totales.total` impreso. Con precios con ISV incluido, factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn).
-
-:::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
-:::
 
 Desde ahí, la rutina está en [Operación mensual](/produccion/operacion-mensual/).

@@ -31,12 +31,6 @@ Lo que dice el Reglamento:
 En la práctica, un negocio con una caja que emite facturas y notas de crédito necesita dos autorizaciones: una
 para el tipo 01 y otra para el 06 en el mismo punto de emisión. Con tres cajas, una por tipo en cada caja.
 
-:::caution[Por confirmar con fuente]
-El repositorio no tiene el procedimiento actual de la solicitud: el formulario, la pantalla de la Oficina Virtual,
-los anexos y el tiempo de respuesta. Tampoco sabe qué es «un Sistema» para el Art. 61 cuando
-la API está alojada por un tercero para varios negocios. Confírmalo con tu contador.
-:::
-
 ## Qué trae la resolución y dónde va cada dato
 
 Cada documento impreso debe llevar el CAI, la fecha límite de emisión y el rango autorizado (Art. 10 num. 3-5,
@@ -221,10 +215,6 @@ Con la API: `GET /v1/autorizaciones/{cai}/estado`, o los webhooks `autorizacion.
 **Cuando llega la nueva resolución**, se registra igual que la primera. Si el rango nuevo continúa la numeración
 (por ejemplo, del 5001 al 10000), la serie pasa sola de una autorización a la otra: el almacén lleva un contador
 por identificador `NNN-NNN-TT`, no por CAI, y rechaza rangos que se solapan.
-
-:::caution[Por confirmar con fuente]
-No se sabe si hay una fecha mínima para la primera emisión de una serie, por ejemplo la fecha de la resolución. factura-hn no pone piso: la fecha de emisión es siempre la de hoy en Honduras.
-:::
 
 ## Rangos no utilizados
 

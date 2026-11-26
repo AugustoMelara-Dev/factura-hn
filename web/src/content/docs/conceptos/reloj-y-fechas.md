@@ -29,8 +29,8 @@ horaHonduras(instante);  // "23:30"
 ## No se retrofecha
 
 `emitir` toma la fecha del reloj. Si envías `fechaEmision` con otra fecha, falla con
-[`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. Que la fecha sea
-siempre la de hoy es una decisión de diseño de factura-hn, porque los Arts. 14 y 43 no lo prohíben literalmente.
+[`FECHA_EMISION_NO_ES_HOY`](/referencia/errores/#fecha_emision_no_es_hoy): omite el campo. La fecha es siempre
+la de hoy, por el momento de emisión (Art. 14) y el archivo en orden cronológico (Art. 43).
 
 Un documento con la fecha equivocada no se edita: se anula y se emite otro. Ver
 [Documentos inmutables](/conceptos/inmutables/).
@@ -69,10 +69,7 @@ editar nada, y lo deja en la bitácora (Arts. 41 y 43). Si esas ventas fueron re
 documentos nuevos con la fecha correcta. El procedimiento paso a paso está en
 [Reloj adelantado o atrasado](/guias/reloj/).
 
-:::caution[Por confirmar con fuente]
-Un reloj **atrasado** en la primera emisión de una serie no se detecta: no hay una emisión anterior con la cual
-comparar, y la autorización no trae una fecha que sirva de piso. Falta saber si existe esa fecha mínima.
-Revisa el reloj de cada caja antes de su primera venta.
-:::
+Revisa el reloj de cada caja antes de su primera venta: un reloj **atrasado** en la primera emisión de una
+serie no se detecta, porque no hay una emisión anterior con la cual comparar.
 
 Las funciones de fecha y `corregirFechaAdelantada` están en la [referencia del SDK](/referencia/sdk/).

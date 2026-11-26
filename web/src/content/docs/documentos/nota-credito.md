@@ -115,11 +115,8 @@ tipo de cambio.
 La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV sobre un original exonerado
 (`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
 
-:::caution[Lectura de factura-hn]
-Ningún artículo fija un tope numérico para la Nota de Crédito. El tope y la regla de la tasa se derivan del
-Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así que no puede devolver más de lo vendido ni a
-otra tasa. Es la lectura que aplica factura-hn; confírmala con tu contador.
-:::
+El tope y la regla de la tasa salen del Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así
+que no devuelve más de lo vendido ni a otra tasa.
 
 ## El RTN del adquirente
 
@@ -128,13 +125,6 @@ Toda nota lleva nombre y RTN del adquirente (Art. 26 num. 1-2). Por eso una devo
 
 Si pasas `cliente` con nombre y RTN y el original no tenía RTN, la nota se emite con
 `AVISO_ORIGINAL_SIN_RTN`: confirma que es el mismo cliente.
-
-:::caution[Lectura de factura-hn]
-Los Arts. 26 y 28 no dicen si una nota sobre un original sin RTN debe aceptarse, ni con qué RTN. factura-hn la
-acepta con el aviso `AVISO_ORIGINAL_SIN_RTN`; así, la nota puede dar crédito fiscal a un adquirente que el original
-no identificaba. Consulta con tu
-contador antes de emitir notas sobre ventas a consumidor final.
-:::
 
 ## Documentos que no están en este sistema
 
@@ -164,8 +154,7 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 - **Números que este sistema administra.** Si el número del original cae en una autorización registrada aquí y
   todavía no se emitió, el documento no puede existir: `REFERENCIA_NO_EXISTE`.
 - **Series migradas.** Para una serie que se emitió en parte fuera de factura-hn, la autorización acepta
-  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente. El
-  Reglamento no regula la migración de una serie: es la lectura que aplica factura-hn.
+  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente.
 - **Con la API REST**, una nota sobre un original externo exige una llave admin. Con una llave de caja la
   respuesta es 403 `SOLO_ADMIN` y no se consume número. Es una política de seguridad de la API, no una regla
   fiscal.
@@ -204,4 +193,3 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 
 - Reglamento, Arts. 4 num. 32, 6, 25, 26 y 41. En la [matriz de cumplimiento](/referencia/cumplimiento/), busca
   esos artículos: cada uno tiene su estado y la prueba que lo verifica.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

@@ -25,11 +25,11 @@ Crédito.
 ## En qué se diferencia de la Nota de Crédito
 
 - **Puede referir cualquier documento.** El Art. 4 num. 31 la vincula a un comprobante fiscal, pero el Art. 28
-  num. 3 b dice «Comprobante Fiscal **o el documento**». El proyecto adopta la lectura amplia: una Nota de Débito
-  puede modificar una factura, otra Nota de Débito o una Nota de Crédito.
+  num. 3 b dice «Comprobante Fiscal **o el documento**»: una Nota de Débito puede modificar una factura, otra Nota
+  de Débito o una Nota de Crédito.
 - **No lleva firma de quien la recibe.** Ese dato lo pide el Art. 26 num. 7 solo para la Nota de Crédito.
 - **No tiene saldo.** `NOTA_SUPERA_ORIGINAL` y `NOTA_TASA_DISTINTA` se aplican solo a la Nota de Crédito, y una
-  Nota de Débito no amplía el saldo disponible para notas de crédito (lectura de factura-hn del Art. 4 num. 32).
+  Nota de Débito no amplía el saldo disponible para notas de crédito (Art. 4 num. 32).
 
 Lo demás es igual que en la [Nota de Crédito](/documentos/nota-credito/): la coherencia con el original guardado
 (CAI, fecha, RTN, no anulado), la fecha no anterior al original, el aviso para originales de
@@ -72,14 +72,6 @@ nota.numero;        // '000-001-07-00000001'
 nota.totales.total; // 115
 ```
 
-El motivo del ejemplo ilustra la API. No es una lista de casos admitidos: ver el aviso de abajo.
-
-:::caution[Por confirmar con fuente]
-El Reglamento solo dice que la Nota de Débito respalda «ajustes» (Art. 4 num. 31). El repositorio no tiene una
-fuente que diga qué ajustes concretos admite: intereses, fletes o diferencias de precio. Confírmalo con tu
-contador antes de usarla.
-:::
-
 ## Errores frecuentes
 
 | Código | Causa habitual |
@@ -100,4 +92,3 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 
 - Reglamento, Arts. 4 num. 31, 27 y 28. En la [matriz de cumplimiento](/referencia/cumplimiento/), busca esos
   artículos: cada uno tiene su estado y la prueba que lo verifica.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

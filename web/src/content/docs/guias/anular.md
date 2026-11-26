@@ -107,16 +107,7 @@ Los detalles están en [Nota de Crédito](/documentos/nota-credito/).
 
 Anular una Nota de Crédito libera su importe: el saldo del original vuelve a estar disponible para otra nota.
 
-:::caution[Por confirmar con fuente]
-- **Devolución de una venta a consumidor final.** La Nota de Crédito exige el RTN del adquirente, y una factura a
-  «CONSUMIDOR FINAL» no lo tiene. Si en ese caso se emite la nota con los datos que dé el cliente es una
-  lectura de factura-hn de los Arts. 26 y 28, que no lo dicen de forma literal. Anular no es la salida: una devolución no es un error de
-  emisión.
-- **Plazo para anular.** El repositorio no tiene una fuente sobre un plazo máximo para anular un documento ya
-  entregado al cliente.
-
-Consulta los dos casos con tu contador.
-:::
+Una devolución no es un error de emisión: no se anula, se hace con una nota de crédito.
 
 ## Errores frecuentes
 

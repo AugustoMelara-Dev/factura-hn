@@ -14,13 +14,6 @@ Jurada ni un formulario del SAR: es la información técnica que el desarrollado
 Describe lo que el software implementa y prueba; no afirma que una instalación concreta cumpla el Art. 53. Eso
 depende también de la configuración y la operación del negocio, y lo evalúa él con su contador.
 
-:::caution[Por confirmar con fuente]
-El repositorio no tiene el formulario de la Declaración Jurada ni sus anexos técnicos: qué campos pide, por qué
-medio se presenta y en qué plazo. Tampoco sabe si el SAR lleva un registro o certificación de
-proveedores de software, o si el software o su versión deben registrarse. El Reglamento solo
-regula el Registro Fiscal de Imprentas (Arts. 66-70), que no aplica a un software. Confírmalo con tu contador.
-:::
-
 ## Lo que pide el Art. 53, numeral por numeral
 
 Fuente: Art. 53, C L.2161-2188. La [matriz de cumplimiento](/referencia/cumplimiento/) tiene, en la fila 53, el
@@ -48,13 +41,6 @@ encuentra el servidor** y los **puntos de emisión**.
 | Establecimiento donde está el servidor | | La dirección del equipo donde corre la base o la API |
 | Puntos de emisión | | Los que registra ante el SAR (Art. 45 num. 5). En red, una o varias numeraciones según el Art. 48 |
 | Desarrollador o proveedor de la integración | | Quien integró factura-hn en su sistema, si es otro |
-
-:::caution[Por confirmar con fuente]
-Si la API corre en la nube de un tercero para varios negocios, no se sabe qué «establecimiento donde se encuentre
-el servidor» se declara (Art. 47), si es un «sistema en red» (Art. 4 num. 42) ni si una sola API cuenta como «un
-Sistema» por cliente (Art. 61). El Reglamento no lo dice de forma literal; mientras tanto, el modo recomendado es la
-instalación local, en un equipo del negocio y en su establecimiento.
-:::
 
 ## Otros requisitos del Reglamento que el sistema implementa, con su prueba
 

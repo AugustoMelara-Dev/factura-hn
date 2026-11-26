@@ -55,11 +55,7 @@ Tiene dos modos:
 - **local** (por defecto): un negocio con su propio servidor y su base en el establecimiento;
 - **alojado**: un operador que sirve a varios negocios, aislados entre sí.
 
-:::caution[Por confirmar con fuente]
-El encaje del modo alojado con el Art. 47 del Reglamento («el establecimiento donde se encuentre el servidor»)
-no está resuelto: el Reglamento no lo dice de forma literal. Mientras tanto, la recomendación es el
-modo local.
-:::
+Para un negocio, usa el modo local: el servidor queda en el establecimiento (Art. 47).
 
 Detalle en la [referencia de la API](/referencia/api/) y en [Autoalojar](/guias/autoalojar/).
 

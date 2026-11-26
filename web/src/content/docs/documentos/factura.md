@@ -117,20 +117,8 @@ resolución.
   del registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). La exoneración cubre el documento
   completo: si la orden no cubre todos los artículos, emite dos facturas, una exonerada y otra normal.
 - **Moneda extranjera.** `moneda: 'USD'` exige `tipoCambio`. El impreso muestra el tipo de cambio y el
-  equivalente en lempiras del ISV y del total. Ningún texto lo exige: es una decisión de factura-hn.
+  equivalente en lempiras del ISV y del total.
 - **Exportación.** `isv: 'GRAVADO0'` deja la línea en la columna «gravado 0 %», distinta de lo exento.
-
-:::caution[Por confirmar con fuente]
-- **Exportaciones.** El Reglamento (Art. 12) pide factura con tasa cero; la Ley del ISV dice que las
-  exportaciones quedan exentas. El SDK sigue al Reglamento: es la lectura que aplica factura-hn.
-- **Tasa del 18 %.** El repositorio no tiene el texto primario del Decreto 278-2013 ni la lista vigente de
-  bienes al 18 %. Confirma la tasa de cada producto con tu contador.
-- **ISV por grupo de tasa.** El SDK calcula el impuesto por grupo de tasa, no línea por línea.
-- **Entrega del original a distancia.** Si un PDF por correo cumple la entrega del original en una venta por
-  internet no está confirmado (Arts. 5 y 14).
-
-Confírmalo con tu contador.
-:::
 
 ## Errores frecuentes
 
@@ -159,4 +147,3 @@ Un error no consume número: la emisión se revierte entera.
 
 - Reglamento, Arts. 9-14: matriz de [cumplimiento](/referencia/cumplimiento/), filas 9 a 14.
 - Ley del ISV, Arts. 3 y 9: misma matriz, sección «Ley del Impuesto Sobre Ventas».
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

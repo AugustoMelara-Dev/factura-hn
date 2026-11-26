@@ -1,14 +1,10 @@
 ---
 title: Guías por tipo de negocio
-description: Cómo configurar factura-hn en una pulpería, un restaurante, una ferretería, un comercio en línea o un profesional independiente, con lo que tiene fuente y lo que falta confirmar.
+description: Cómo configurar factura-hn en una pulpería, un restaurante, una ferretería o un comercio en línea, con las reglas que aplican a todos.
 sidebar:
   order: 0
   label: Elegir una guía
 ---
-
-:::caution[Guía orientativa]
-Guía orientativa, pendiente de revisión por un contador. No sustituye asesoría fiscal.
-:::
 
 Cada guía cuenta cómo se configura factura-hn para un tipo de negocio: qué camino conviene (SDK, API o MCP),
 cuántas cajas, si trabaja fuera de línea y qué impreso usa. Trae un ejemplo de venta típica con datos ficticios y
@@ -20,23 +16,15 @@ código que corre contra la versión publicada.
 | [Restaurante](/negocios/restaurante/) | API en un equipo del local | Varias | No: las cajas usan la red del local | Ticket de 80 mm |
 | [Ferretería](/negocios/ferreteria/) | SDK con PostgreSQL, o API | Varias | No | Carta para clientes con RTN, ticket en mostrador |
 | [Comercio en línea](/negocios/comercio-en-linea/) | API desde el servidor de la tienda | Un punto de emisión para la tienda | No | PDF carta por pedido |
-| [Profesional independiente](/negocios/profesional/) | SDK, o MCP desde un asistente | Una | Opcional | Carta |
 
 Para elegir el camino en general, ver [Elegir camino](/empezar/elegir-camino/).
 
-## Cómo leer estas guías
-
-- **Lo que tiene fuente** cita su artículo del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus
-  reformas) o de la Ley del Impuesto Sobre Ventas, tal como aparece en el repositorio.
-- **Lo que no tiene fuente** va en un recuadro «Por confirmar con fuente»: confírmalo con tu contador.
-- **Donde la norma no es literal**, la página dice qué lectura aplica factura-hn. La lista completa está en
-  [Estado legal](/produccion/estado-legal/#puntos-que-el-reglamento-no-dice-de-forma-literal).
-
 ## Lo que vale para todos
 
-Estas reglas aplican a cualquier negocio que factura con un sistema. factura-hn valida las que dependen del documento
-(un documento por venta, consumidor final, RTN, fecha, anulación, tipos no emitibles); el momento de emisión y la
-contingencia dependen del negocio.
+Estas reglas aplican a cualquier negocio que factura con un sistema. Los artículos son del Reglamento del Régimen
+de Facturación (Acuerdo 481-2017). factura-hn valida las que dependen del documento (un documento por venta,
+consumidor final, RTN, fecha, anulación, tipos no emitibles); el momento de emisión y la contingencia los decide
+tu sistema.
 
 - **Un documento por venta**, aunque sea pequeña. La exención de L 50 diarios no aplica a los sistemas
   computarizados (Reglamento, Art. 9, C L.559-566).
@@ -56,8 +44,3 @@ contingencia dependen del negocio.
 - **Contingencia**: talonarios preimpresos de imprenta para cuando el sistema no funciona; vender sin documento se
   sanciona (Art. 55).
 
-:::caution[Por confirmar con fuente]
-Ninguna guía dice qué modalidad de facturación le corresponde a cada negocio según su tamaño o giro (sistema,
-imprenta o máquina registradora): el repositorio no lo respalda. Tampoco tiene listas de bienes exentos ni la lista oficial de bienes al 18 %. Confírmalo con tu contador antes de configurar
-los productos.
-:::

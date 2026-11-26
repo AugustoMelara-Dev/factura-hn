@@ -12,18 +12,6 @@ presenta nada ante el SAR.
 Cada paso cita su artículo y la línea del texto consolidado («C L.n») con el que trabaja el proyecto. Las fuentes
 y cómo se citan están en la [matriz de cumplimiento](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/cumplimiento.md#fuentes-y-c%C3%B3mo-se-citan).
 
-:::caution[Por confirmar con fuente]
-Esta página tiene los artículos, no el procedimiento. Falta lo siguiente:
-
-- **Formularios, medio y plazos** de la inscripción como autoimpresor y de la Declaración Jurada del Art. 53: qué
-  pantalla de la Oficina Virtual, qué anexos y cuánto tarda.
-- **Qué modalidad corresponde a cada negocio** según su tamaño o giro: sistema, imprenta o máquina registradora. Los Arts. 46, 47 y 52 mencionan las modalidades, pero el repositorio no dice cuál le toca a cada uno.
-- **Registro de proveedores de software**: el repositorio no encontró uno en el Reglamento, lo que no prueba que no
-  exista.
-
-Confírmalo con tu contador antes de empezar.
-:::
-
 ## Antes de emitir
 
 | # | Paso | Fuente |
@@ -41,11 +29,6 @@ Para el 6, ver [CAI y rangos](/produccion/cai-y-rangos/).
 **Papel térmico.** Si el negocio va a imprimir tickets en papel térmico, el Art. 38 (C L.1879-1889) pide la
 certificación del proveedor del papel de que la impresión dura al menos 5 años, y menciona «resúmenes de ventas».
 
-:::caution[Por confirmar con fuente]
-No se sabe si la certificación del papel térmico la gestiona y presenta el negocio, ni qué son los «resúmenes de
-ventas» del Art. 38, en qué formato ni en qué plazo se entregan.
-:::
-
 ## Mientras emite
 
 | # | Paso | Fuente |
@@ -60,10 +43,6 @@ ventas» del Art. 38, en qué formato ni en qué plazo se entregan.
 
 Los pasos 7, 9 y 13 tienen su rutina en [Operación mensual](/produccion/operacion-mensual/).
 
-:::caution[Por confirmar con fuente]
-El formato del aviso de no utilizados (paso 9) no está publicado en las fuentes del repositorio. factura-hn calcula los rangos y la fecha límite, pero el aviso se hace en el sistema del SAR.
-:::
-
 ## Contingencia: si el sistema no está disponible
 
 El Art. 55 (C L.2200-2209) prevé talonarios preimpresos por una imprenta para cuando el sistema no funciona, y no
@@ -77,15 +56,6 @@ permite vender sin documento. Lo que eso significa en la práctica:
   sale con el aviso `AVISO_ORIGINAL_EXTERNO`, y con la API la emite una llave admin
   (es una política de seguridad de la API, no fiscal).
 
-:::caution[Por confirmar con fuente]
-Cómo se reportan las ventas del talonario en el libro de ventas y en la declaración: confírmalo con tu contador.
-El repositorio no lo trata.
-
-Las sanciones concretas por vender sin documento (montos y tipos de falta) están en el Código Tributario, que el
-repositorio no ha analizado para este fin. Tampoco está la fuente de la declaración mensual (formulario,
-nombre y campos) ni su relación con el libro de ventas. Confírmalo con tu contador.
-:::
-
 ## Lo que hace el proveedor del software
 
 El Reglamento no le asigna obligaciones al proveedor del software: la custodia y la Declaración Jurada son del
@@ -93,9 +63,3 @@ negocio (Arts. 41, 43 y 53). En la práctica, el proveedor le da al negocio lo n
 cómo cumple cada numeral del Art. 53, la versión del software y dónde está el servidor. Es la
 [ficha del Art. 53](/produccion/ficha-art-53/).
 
-:::caution[Por confirmar con fuente]
-Si la API corre en la nube de un tercero, no se sabe cómo encaja con el Art. 47 («el establecimiento donde se
-encuentre el servidor») ni con el Art. 61 («por cada Sistema»). El modo recomendado,
-mientras tanto, es instalar la API en un equipo del negocio. Tampoco se sabe qué normativa de protección de datos
-aplica a los datos del cliente guardados por un tercero.
-:::

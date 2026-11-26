@@ -108,11 +108,6 @@ Un reloj **atrasado** en la primera emisión de una serie (por ejemplo, la bater
 tiene un documento previo con el que compararse, y la autorización no trae una fecha de inicio que sirva de piso.
 El SDK no tiene con qué detectarlo: revisa el reloj de una caja nueva antes de su primera venta.
 
-:::caution[Por confirmar con fuente]
-No se sabe si existe una fecha mínima válida para la primera emisión de una serie, por ejemplo la fecha de la
-resolución que otorga el CAI. factura-hn no pone piso: la fecha es siempre la de hoy. Confírmalo con tu contador.
-:::
-
 ## En las pruebas
 
 Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y en `anular` y

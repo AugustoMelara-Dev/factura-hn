@@ -146,11 +146,6 @@ La tasa cero de las exportaciones de mercancías gravadas (Art. 12). No es lo mi
 discrimina aparte (Art. 11 num. 1 g).
 SDK: `isv: 'GRAVADO0'`, `totales.importeGravado0`. Ver [Factura](/documentos/factura/).
 
-:::caution[Por confirmar con fuente]
-La Ley del ISV dice que las exportaciones quedan «exentas». El proyecto sigue al Reglamento (Art. 12): es la
-lectura que aplica factura-hn. Confírmalo con tu contador.
-:::
-
 ## I
 
 ### Idempotencia
@@ -170,11 +165,6 @@ Ver [Cómo funciona](/conceptos/como-funciona/).
 El Impuesto Sobre Ventas. factura-hn maneja las tasas del 15 % y del 18 %, además de exento, exonerado y gravado
 0 % (Ley del ISV, Art. 6).
 SDK: `isv: 'ISV15' | 'ISV18'`, `totales.isv15`, `totales.isv18`. Ver [ISV y montos](/conceptos/isv-y-montos/).
-
-:::caution[Por confirmar con fuente]
-Las tasas vigentes vienen del Decreto 278-2013, Art. 16, que el proyecto no tiene en texto primario. Falta también
-la lista oficial de bienes y servicios al 18 %. Confírmalo con tu contador.
-:::
 
 ## L
 
@@ -228,11 +218,6 @@ Registro de Exonerados. El sector agroindustrial puede presentar en su lugar el 
 num. 4).
 SDK: `exoneracion.ordenCompraExenta`, `exoneracion.constanciaRegistroExonerado`, `exoneracion.registroSAG`.
 Ver [Exonerado](/conceptos/isv-y-montos/#exonerado).
-
-:::caution[Por confirmar con fuente]
-Si el registro SAG/RUPNSA basta sin OCE ni constancia: el Art. 11 num. 4 no es literal. factura-hn lo acepta;
-confírmalo con tu contador.
-:::
 
 ## P
 

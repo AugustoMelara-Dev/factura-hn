@@ -5,10 +5,6 @@ sidebar:
   order: 1
 ---
 
-:::caution[Guía orientativa]
-Guía orientativa, pendiente de revisión por un contador. No sustituye asesoría fiscal.
-:::
-
 ## Perfil
 
 Una caja, muchas ventas pequeñas, casi siempre a consumidor final. Los precios de la góndola ya incluyen el ISV. La
@@ -44,10 +40,6 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   de que la impresión dura al menos 5 años.
 - **Contingencia.** Si la caja no funciona, se usan talonarios preimpresos de imprenta; vender sin documento se
   sanciona (Art. 55).
-
-:::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
-:::
 
 ## Ejemplo: una venta típica
 
@@ -117,19 +109,6 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
   num. 32). Requiere el CAI de la serie 06. Ver [Nota de Crédito](/documentos/nota-credito/).
 - **El reloj de la caja se adelantó.** factura-hn lo detecta (`RELOJ_ADELANTADO_SOSPECHOSO`). Ver
   [Reloj](/guias/reloj/).
-
-## Por confirmar con fuente
-
-:::caution[Por confirmar con fuente]
-- **Productos exentos.** El repositorio no tiene ninguna lista de bienes exentos (canasta básica u otros). La
-  clasificación de cada producto la decide el negocio con su contador.
-- **Productos al 18 %.** La Ley del ISV, en la copia del repositorio, no trae las tasas vigentes. La de 18 % viene
-  del Decreto 278-2013, Art. 16, que no está en texto primario.
-- **Si una pulpería está obligada a facturar con un sistema** o puede usar talonarios de imprenta, según su tamaño.
-- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos.
-- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas» que menciona.
-Confírmalo con tu contador antes de emitir.
-:::
 
 ## Qué confirmar con tu contador
 

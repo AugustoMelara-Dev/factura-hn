@@ -8,8 +8,7 @@ sidebar:
 El modo de prueba deja emitir, imprimir, anular y hacer notas de crédito sin un CAI real. Todo lo que sale de
 él dice que no tiene valor fiscal, y queda fuera de los reportes.
 
-La leyenda y estas reglas son una marca del producto, no una regla fiscal: ningún artículo del Reglamento las
-exige ni las regula. Sirven para que un documento de demostración nunca pase por uno real.
+La leyenda es una marca de factura-hn: evita que un documento de prueba pase por uno real.
 
 ## El CAI ficticio
 
