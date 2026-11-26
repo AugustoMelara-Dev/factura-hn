@@ -138,12 +138,13 @@ try {
 }
 
 // --- 5. Comandos de las páginas del producto y README ----------------------------------------------------------
-// El README del MCP también cuenta: ahí están los pasos del MCP por HTTP.
-const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8') + readFileSync(join(RAIZ, 'packages', 'mcp', 'README.md'), 'utf8');
+// También cuentan el README del MCP (los pasos del MCP por HTTP) y docs/api.md (los de la API con Docker, que
+// prueba `pnpm humo`).
+const readme = ['README.md', 'packages/mcp/README.md', 'docs/api.md'].map((a) => readFileSync(join(RAIZ, a), 'utf8')).join('\n');
 const portadaMd = readFileSync(join(WEB, 'src', 'md', 'portada.md'), 'utf8');
 const lineasPortada = [...portadaMd.replace(/\r\n/g, '\n').matchAll(/```bash\n([\s\S]*?)```/g)].flatMap(([, b]) => b.split('\n'));
 for (const linea of [...COMANDOS, ...MCP_HTTP, ...lineasPortada].map((l) => l.trim()).filter(Boolean)) {
-  if (!readme.includes(linea)) errores.push(`páginas del producto: el comando «${linea}» no está en el README (deben usar los pasos probados)`);
+  if (!readme.includes(linea)) errores.push(`páginas del producto: el comando «${linea}» no está en el README, el del MCP ni docs/api.md (deben usar los pasos probados)`);
 }
 
 // --- 6. Páginas del producto --------------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 import Sitio from '../layouts/Sitio.astro';
 import Codigo from '../components/producto/Codigo.astro';
 import { conBase, DISCUSIONES, DOCUMENTACION } from '../datos/navegacion';
-import { API_DOCKER, MCP_HTTP, PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
+import { API_DOCKER, PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
 import { EJEMPLO_PORTADA } from '../datos/ejemplo.mjs';
 import { REPO } from '../../sitio.config.mjs';
 
@@ -35,19 +35,6 @@ const formas = [
     ruta: '/guias/mcp/',
   },
 ];
-
-const CURSOR = `{
-  "mcpServers": {
-    "factura-hn": {
-      "command": "npx",
-      "args": ["-y", "@factura-hn/mcp"],
-      "env": {
-        "FHN_SQLITE": "/ruta/a/factura-demo.db",
-        "FHN_EMISOR": "/ruta/a/emisor-demo.json"
-      }
-    }
-  }
-}`;
 
 const ISSUES = `${REPO}/issues/new/choose`;
 const SEGURIDAD = `${REPO}/security/advisories/new`;
@@ -112,36 +99,38 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 		<div class="contenedor">
 			<p class="antetitulo">Conéctalo a tu IA</p>
 			<h2 class="titulo-seccion" id="ia">Factura conversando con tu asistente.</h2>
-			<p class="entrada">El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular.</p>
+			<p class="entrada">
+				El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular. Este comando
+				crea una base de prueba e imprime el bloque listo para pegar:
+			</p>
+			<div class="comando-ia">
+				<Codigo codigo={PRIMEROS.mcp} lang="bash" titulo="Terminal" etiqueta="Copiar el comando del MCP" />
+			</div>
 			<div class="rejilla rejilla-3">
 				<article class="forma">
 					<h3>Claude</h3>
 					<p>
-						Crea una base de prueba e imprime el bloque <code>mcpServers</code>. Pégalo en Claude Desktop (Settings › Developer ›
-						Edit Config) o en <code>.mcp.json</code> con Claude Code, y reinicia.
+						Claude Desktop: Settings › Developer › Edit Config abre <code>claude_desktop_config.json</code>. Claude Code:
+						<code>.mcp.json</code> en la raíz del proyecto, o <code>claude mcp add-json</code>.
 					</p>
-					<Codigo codigo={PRIMEROS.mcp} lang="bash" titulo="Terminal" etiqueta="Copiar el comando para Claude" />
-					<p>Luego pide: «emite una factura de prueba».</p>
 				</article>
 				<article class="forma">
 					<h3>Cursor</h3>
 					<p>
-						El mismo comando imprime este bloque con tus rutas. Pégalo en <code>~/.cursor/mcp.json</code> y reinicia.
+						Pégalo en <code>~/.cursor/mcp.json</code> (todos tus proyectos) o en <code>.cursor/mcp.json</code> (solo
+						uno) y reinicia Cursor.
 					</p>
-					<Codigo codigo={CURSOR} lang="json" titulo="mcp.json" etiqueta="Copiar la configuración para Cursor" />
 				</article>
 				<article class="forma">
 					<h3>ChatGPT</h3>
 					<p>
-						ChatGPT se conecta a un servidor MCP remoto, por URL. Levántalo tú: primero la API REST (arriba), luego el MCP por
-						HTTP.
+						Levanta la API REST y el MCP por HTTP en tu servidor, con HTTPS. Crea su URL con
+						<code>factura-hn-api llave crear … --mcp</code> y agrégala en ChatGPT como conector MCP, sin autenticación.
 					</p>
-					<Codigo codigo={MCP_HTTP.join('\n')} lang="bash" titulo="Terminal" etiqueta="Copiar el comando para ChatGPT" />
-					<p>Publícalo con HTTPS en tu dominio y agrégalo en ChatGPT como servidor MCP propio (Plugins › Add custom MCP server).</p>
-					<a class="enlace flecha" href={conBase('/ia/mcp/#por-http')}>El MCP por HTTP</a>
+					<a class="enlace flecha" href={conBase('/ia/mcp/#chatgpt')}>Pasos para ChatGPT</a>
 				</article>
 			</div>
-			<p class="mas"><a class="enlace flecha" href={conBase('/guias/mcp/')}>Guía del servidor MCP</a></p>
+			<p class="mas">Luego pide: «emite una factura de prueba». <a class="enlace flecha" href={conBase('/guias/mcp/')}>Guía del servidor MCP</a></p>
 		</div>
 	</section>
 

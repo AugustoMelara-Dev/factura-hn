@@ -189,7 +189,7 @@ body {
 }
 .heroe-codigo {
 	width: 100%;
-	max-width: 48rem;
+	max-width: 68rem;
 	margin-top: clamp(2.5rem, 5vw, 3.5rem);
 	text-align: start;
 }
@@ -354,6 +354,12 @@ body {
 	}
 }
 
+/* El comando común de «Conéctalo a tu IA», arriba de las tarjetas de cada asistente. */
+.comando-ia {
+	max-width: 40rem;
+	margin-top: 2rem;
+}
+
 /* --- Bloque de código con «Copiar» (components/producto/Codigo.astro) ----------------------------------------- */
 
 .codigo {
@@ -388,18 +394,23 @@ body {
 .copiar:hover {
 	background: var(--fhn-gris-5);
 }
-/* Las líneas largas se ajustan al ancho del bloque: nunca ensanchan la página. */
+/* Nunca ensancha la página: los comandos se desplazan de lado dentro del bloque; el código se ajusta al ancho. */
 .codigo pre {
 	margin: 0;
 	padding: 1.125rem 1.25rem 1.25rem;
 	background: transparent !important;
 	font-size: 0.875rem;
 	line-height: 1.7;
+	white-space: pre;
+	overflow-x: auto;
+}
+.codigo[data-ajustar] pre {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 }
+/* Desde ~1280 px las tres líneas del ejemplo caben enteras (la más larga tiene 118 caracteres). */
 .heroe .codigo pre {
-	font-size: clamp(0.8125rem, 1.6vw, 0.9375rem);
+	font-size: clamp(0.8125rem, 1.1vw, 0.875rem);
 }
 
 /* --- Pie --------------------------------------------------------------------------------------------------- */

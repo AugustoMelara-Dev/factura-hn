@@ -9,10 +9,11 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 
 ## La primera factura (3 pasos)
 
-Desde la raíz del repositorio, con Docker y Compose v2. Emite en el tenant `demo`, con **CAI ficticio**: el
+Con Docker y Compose v2, desde un clon del repositorio. Emite en el tenant `demo`, con **CAI ficticio**: el
 documento es de prueba y no tiene validez fiscal.
 
 ```bash
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git && cd factura-hn
 docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro puerto: FHN_PUERTO=8788 docker compose …)
 ```
 

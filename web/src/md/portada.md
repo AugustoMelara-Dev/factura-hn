@@ -48,38 +48,24 @@ npx -y @factura-hn/mcp init --demo
 
 ## Conéctalo a tu IA
 
-El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular.
-
-**Claude.** `npx -y @factura-hn/mcp init --demo` crea una base de prueba e imprime el bloque `mcpServers`. Pégalo en
-Claude Desktop (Settings › Developer › Edit Config) o en `.mcp.json` con Claude Code, reinicia y pide: «emite una
-factura de prueba».
-
-**Cursor.** El mismo comando imprime este bloque con tus rutas. Pégalo en `~/.cursor/mcp.json` y reinicia.
-
-```json
-{
-  "mcpServers": {
-    "factura-hn": {
-      "command": "npx",
-      "args": ["-y", "@factura-hn/mcp"],
-      "env": {
-        "FHN_SQLITE": "/ruta/a/factura-demo.db",
-        "FHN_EMISOR": "/ruta/a/emisor-demo.json"
-      }
-    }
-  }
-}
-```
-
-**ChatGPT.** ChatGPT se conecta a un servidor MCP remoto, por URL. Levántalo tú: primero la API REST (arriba), luego
-el MCP por HTTP.
+El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular. Este comando
+crea una base de prueba e imprime el bloque listo para pegar:
 
 ```bash
-FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http
+npx -y @factura-hn/mcp init --demo
 ```
 
-Publícalo con HTTPS en tu dominio y agrégalo en ChatGPT como servidor MCP propio (Plugins › Add custom MCP server).
-Más en [el MCP por HTTP](/ia/mcp/#por-http) y en la [guía del servidor MCP](/guias/mcp/).
+**Claude.** Claude Desktop: Settings › Developer › Edit Config abre `claude_desktop_config.json`. Claude Code:
+`.mcp.json` en la raíz del proyecto, o `claude mcp add-json`.
+
+**Cursor.** Pégalo en `~/.cursor/mcp.json` (todos tus proyectos) o en `.cursor/mcp.json` (solo uno) y reinicia
+Cursor.
+
+**ChatGPT.** Levanta la API REST y el MCP por HTTP en tu servidor, con HTTPS. Crea su URL con
+`factura-hn-api llave crear … --mcp` y agrégala en ChatGPT como conector MCP, sin autenticación.
+[Pasos para ChatGPT](/ia/mcp/#chatgpt).
+
+Luego pide: «emite una factura de prueba». Más en la [guía del servidor MCP](/guias/mcp/).
 
 ## Por qué es confiable
 
