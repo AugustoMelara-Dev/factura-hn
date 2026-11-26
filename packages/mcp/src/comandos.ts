@@ -104,7 +104,9 @@ Comandos:
                      --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real).
                                          Con --demo, también recrea la base de prueba. Nunca borra la base real.
   http             Arranca el MCP por HTTP (Streamable HTTP) sobre tu propia API (FHN_API_URL). Cada
-                     conexión manda su llave de API en la cabecera Authorization: Bearer.
+                     conexión llama a /mcp con su llave en la cabecera Authorization: Bearer, o a
+                     /mcp/<token> (la URL que imprime «llave crear --mcp»). FHN_MCP_SOLO_URL=1 acepta
+                     solo /mcp/<token>, sin Bearer. Una llave de caja emite en su propia caja.
   registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
                      --cai --tipo (01, 06 o 07) --establecimiento --punto --desde --hasta
                      --fecha-limite AAAA-MM-DD  [--fecha-autorizacion AAAA-MM-DD]
@@ -117,7 +119,7 @@ Comandos:
 Variables del servidor:
   FHN_SQLITE, FHN_EMISOR             Modo SQLite: la base y el JSON del emisor.
   FHN_API_URL, FHN_LLAVE             Modo API.
-  FHN_ESTABLECIMIENTO, FHN_PUNTO     Dónde emite (por defecto 000 y 001).
+  FHN_ESTABLECIMIENTO, FHN_PUNTO     Dónde emite (por defecto 000 y 001). Por HTTP, solo con llaves sin caja.
   FHN_OPERADOR                       Persona que opera, para la bitácora (opcional).
   FHN_MCP_PUERTO, FHN_MCP_ORIGENES   Comando http: puerto (por defecto PORT u 8788) y orígenes de navegador
                                      aceptados. Las demás variables FHN_MCP_* están en la guía.

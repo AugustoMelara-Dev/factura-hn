@@ -219,7 +219,7 @@ para imprimir «Atendido por» en el documento.
 | Variable | |
 |---|---|
 | `FHN_SQLITE`, `FHN_EMISOR` | Modo SQLite: la base y el archivo del emisor. |
-| `FHN_ESTABLECIMIENTO`, `FHN_PUNTO` | Dónde emite este servidor (por defecto `000` y `001`). |
+| `FHN_ESTABLECIMIENTO`, `FHN_PUNTO` | Dónde emite este servidor (por defecto `000` y `001`). Por HTTP, solo con llaves sin caja: una llave de caja emite en su caja. |
 | `FHN_API_URL`, `FHN_LLAVE` | Modo API: la dirección de la API y la llave. |
 | `FHN_OPERADOR` | Opcional. Quién opera con el agente, para la bitácora. |
 | `FHN_MCP_PERMITIR_DESTRUCTIVAS` | Opcional. `1` deja anular y registrar CAI con un cliente MCP que no ofrece elicitación (ver «Seguridad»). Sin ella, esas herramientas se niegan en esos clientes. |
@@ -236,6 +236,10 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 El cliente llama a `/mcp` con `Authorization: Bearer <llave fhn_…>`; sin esa cabecera responde 401. El puerto se
 cambia con `FHN_MCP_PUERTO`. Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Por HTTP,
 anular y registrar CAI piden confirmación por elicitación; sin ella, se niegan sobre datos reales.
+
+Una llave de caja emite en su propia caja (la de `GET /v1/sesion`); `FHN_ESTABLECIMIENTO` y `FHN_PUNTO` solo
+aplican a las llaves sin caja. Con `FHN_MCP_SOLO_URL=1`, el servidor acepta solo `/mcp/<token>` y `/mcp` con
+Bearer responde 404.
 
 Para ChatGPT, que solo agrega un conector por URL y sin cabeceras, crea un token con
 `factura-hn-api llave crear <tenant> --rol caja --caja 000-001 --mcp` y usa la URL que imprime,

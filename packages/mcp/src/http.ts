@@ -30,7 +30,10 @@ export const ORIGENES_MCP_POR_DEFECTO = ['https://claude.ai', 'https://claude.co
 export interface OpcionesMcpHttp {
   /** URL de la API de factura-hn (p. ej. la de la red privada del proveedor). */
   urlApi: string;
-  /** Dónde emite cada sesión. Por defecto 000 y 001 (el punto de los entornos de prueba). */
+  /**
+   * Dónde emite una sesión abierta con una llave sin caja (admin). Por defecto 000 y 001. Una llave de caja emite
+   * siempre en su propio punto de emisión, el que devuelve `GET /v1/sesion`.
+   */
   establecimiento?: string;
   puntoEmision?: string;
   /**
@@ -339,13 +342,15 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
 
   /**
    * Comprueba la llave contra la API antes de abrir una sesión (así el conector falla al agregarlo, no después) y
-   * devuelve su tenant. Una dirección que ya mandó muchas llaves rechazadas recibe 429 sin preguntarle a la API.
+   * devuelve su tenant y su caja (si la llave está atada a un punto de emisión). Una dirección que ya mandó muchas llaves rechazadas recibe 429 sin preguntarle a la API.
    */
-  async function validarLlave(llave: string, ip: string, direccion: string): Promise<string> {
+  async function validarLlave(llave: string, ip: string, direccion: string): Promise<{ tenant: string; caja: { establecimiento: string; puntoEmision: string } | null }> {
     const espera = rechazos.espera(ip);
     if (espera) throw new ErrorHttp(429, 'Demasiadas llaves o URL del MCP no válidas desde tu dirección. Espera y reintenta.', -32000, { 'retry-after': String(espera) });
     try {
-      return (await crearCliente({ url: urlApi, llave, fetch: fetchConCliente(fetchApi, direccion) }).sesion()).tenant;
+      const s = await crearCliente({ url: urlApi, llave, fetch: fetchConCliente(fetchApi, direccion) }).sesion();
+      const { establecimiento, puntoEmision } = s.llave;
+      return { tenant: s.tenant, caja: establecimiento && puntoEmision ? { establecimiento, puntoEmision } : null };
     } catch (e) {
       if (e instanceof ErrorFacturaHN && (e.estado === 401 || e.estado === 403)) {
         rechazos.tomar(ip);
@@ -358,7 +363,9 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     }
   }
 
-  async function nuevaSesion(llave: string, huella: string, tenant: string, ip: string, direccion: string): Promise<StreamableHTTPServerTransport> {
+  async function nuevaSesion(
+    llave: string, huella: string, tenant: string, caja: { establecimiento: string; puntoEmision: string } | null, ip: string, direccion: string,
+  ): Promise<StreamableHTTPServerTransport> {
     // Cupos por llave, por tenant y por dirección: al pasarse, se cierra la sesión más vieja de esa misma llave,
     // tenant o dirección (los clientes reabren sesión seguido). Así un visitante no llena el cupo global de todos.
     await hacerLugar((s) => s.huella === huella, porLlave);
@@ -367,9 +374,9 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     if (sesiones.size >= maxSesiones) {
       throw new ErrorHttp(503, 'El servidor MCP tiene demasiadas sesiones abiertas. Reintenta en unos minutos.', -32000, { 'retry-after': '60' });
     }
-    const backend = new BackendApi({
-      url: urlApi, llave, establecimiento: o.establecimiento ?? '000', puntoEmision: o.puntoEmision ?? '001', fetch: fetchConCliente(fetchApi, direccion),
-    });
+    // Una llave de caja emite en su caja; el punto del servidor es solo el de las llaves sin caja.
+    const punto = caja ?? { establecimiento: o.establecimiento ?? '000', puntoEmision: o.puntoEmision ?? '001' };
+    const backend = new BackendApi({ url: urlApi, llave, ...punto, fetch: fetchConCliente(fetchApi, direccion) });
     const servidor = crearServidorMCP(backend, { maxResultado: o.maxResultado ?? 64 * 1024 });
     const eventos = new EventosEnMemoria(presupuesto, 200, maxBytesSesion);
     const transporte: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
@@ -443,8 +450,8 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
     if (req.method !== 'POST' || !isInitializeRequest(cuerpo)) {
       throw new ErrorHttp(400, 'Falta la cabecera Mcp-Session-Id: inicia la sesión con initialize.');
     }
-    const tenant = await validarLlave(llave, ip, direccion);
-    const transporte = await nuevaSesion(llave, huella, tenant, ip, direccion);
+    const { tenant, caja } = await validarLlave(llave, ip, direccion);
+    const transporte = await nuevaSesion(llave, huella, tenant, caja, ip, direccion);
     await transporte.handleRequest(req, res, cuerpo);
   }
 

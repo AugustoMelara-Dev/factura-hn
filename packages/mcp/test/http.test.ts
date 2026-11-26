@@ -7,7 +7,7 @@
 import { randomBytes } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { configDemo, crearApp, generarTokenMcp, migrarApi } from '@factura-hn/api';
+import { configDemo, crearApp, crearLlaveOperador, crearTenant, generarTokenMcp, migrarApi } from '@factura-hn/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { direccionDelCliente, EventosEnMemoria, ipDelCliente, opcionesMcpHttpDesdeEntorno, servirMcpHttp, type OpcionesMcpHttp } from '../src/http';
@@ -445,6 +445,57 @@ describe.skipIf(!URL_PG)('MCP remoto contra la API en modo demo', () => {
       expect((await pedir('203.0.113.91')).status).toBe(401);
     } finally {
       await frena.cerrar();
+    }
+  });
+});
+
+describe.skipIf(!URL_PG)('MCP remoto con una llave de caja', () => {
+  const pool = new pg.Pool({ connectionString: URL_PG, max: 5 });
+  let app: ReturnType<typeof crearApp>;
+  let s: Awaited<ReturnType<typeof servidor>>;
+  let token: string;
+
+  beforeAll(async () => {
+    await migrarApi(pool);
+    app = crearApp({ pool, modo: 'local', registrar: () => undefined });
+    const tenant = `mcp-caja-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+    const { llaveAdmin } = await crearTenant(pool, { tenant, nombre: tenant });
+    const admin = (ruta: string, cuerpo: unknown) =>
+      app.request(ruta, { method: 'POST', headers: { authorization: `Bearer ${llaveAdmin}`, 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
+    const e = await admin('/v1/emisores', {
+      rtn: '99990000000001', razonSocial: 'Ferretería Ejemplo S. de R.L.', nombreComercial: 'Ferretería Ejemplo', direccionCasaMatriz: 'Tegucigalpa, M.D.C.',
+      direccionEstablecimiento: 'San Pedro Sula', telefono: '0000-0003', correo: 'ventas@ejemplo.example',
+    });
+    expect(e.status, await e.clone().text()).toBe(201);
+    const limite = new Date(Date.now() + 300 * 86_400_000).toISOString().slice(0, 10);
+    const hex = (n: number) => randomBytes(n).toString('hex').toUpperCase();
+    const a = await admin('/v1/autorizaciones', {
+      cai: `${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(3)}-${hex(1)}`, tipoDocumento: '01', establecimiento: '001', puntoEmision: '002',
+      rangoInicial: 1, rangoFinal: 100, fechaLimiteEmision: limite,
+    });
+    expect(a.status, await a.clone().text()).toBe(201);
+    // La URL que imprime `llave crear --rol caja --caja 001-002 --mcp`.
+    token = await crearLlaveOperador(pool, { tenant, rol: 'caja', nombre: 'Caja 2 (MCP)', establecimiento: '001', puntoEmision: '002', mcp: true });
+    // El punto del servidor (000-001 por defecto) no aplica a una llave de caja.
+    s = await servidor({ urlApi: 'http://api.local', fetch: ((u: RequestInfo | URL, init?: RequestInit) => app.fetch(new Request(u, init))) as typeof fetch });
+  });
+  afterAll(async () => {
+    await s?.cerrar();
+    await pool.end();
+  });
+
+  it('un token de caja 001-002 emite en su caja, no en la del servidor', async () => {
+    const cliente = new Client({ name: 'asistente', version: '1.0.0' });
+    await cliente.connect(new StreamableHTTPClientTransport(new URL(`${s.url}/mcp/${token}`)));
+    try {
+      const r = (await cliente.callTool({
+        name: 'emitir_factura',
+        arguments: { lineas: [{ descripcion: 'Producto de prueba', cantidad: 1, precioUnitario: '50.00' }], idempotencyKey: `caja-${randomBytes(6).toString('hex')}` },
+      })) as unknown as { isError?: boolean; content: { text: string }[] };
+      expect(r.isError, r.content[0]?.text).toBeFalsy();
+      expect(r.content[0]!.text).toMatch(/^Emitida: Factura 001-002-01-00000001 /);
+    } finally {
+      await cliente.close();
     }
   });
 });

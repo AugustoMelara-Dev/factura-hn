@@ -191,6 +191,8 @@ FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp 
 
 - La ruta es `/mcp`, con la cabecera `Authorization: Bearer fhn_…` (una llave de tu API). Sin ella, responde 401.
   Para clientes que no mandan cabeceras, `/mcp/<token>` lleva la credencial en la URL (ver [ChatGPT](#chatgpt)).
+  Con `FHN_MCP_SOLO_URL=1`, el servidor acepta solo `/mcp/<token>`, sin Bearer.
+- Una llave de caja emite en su propia caja. `FHN_ESTABLECIMIENTO` y `FHN_PUNTO` solo aplican a llaves sin caja.
 - Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor). El puerto se cambia con
   `FHN_MCP_PUERTO`.
 - No guarda datos ni credenciales: llama a la API con la llave de cada conexión. Para que un cliente en internet
