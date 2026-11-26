@@ -33,11 +33,7 @@ const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmisio
 
 El documento se guarda como `json`, no `jsonb`, para que se lea exactamente como se emitió.
 
-## Pruebas
+Pasa la batería de contrato de `factura-hn/pruebas`, incluidas 50 emisiones concurrentes desde 5 pools.
 
-```bash
-pnpm test:pg   # docker compose up -d --wait db + batería de contrato
-```
-
-Sin `FHN_PG_URL`, `pnpm test` omite estas pruebas y lo avisa. La batería incluye 50 emisiones concurrentes
-desde 5 pools distintos. Si quitas el `FOR UPDATE`, esa prueba falla.
+Documentación: [persistencia](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/persistencia.md) y
+[guía del SDK](https://augustomelara-dev.github.io/factura-hn/guias/sdk/).

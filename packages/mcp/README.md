@@ -1,13 +1,12 @@
 # @factura-hn/mcp
 
 Servidor MCP de factura-hn para asistentes de IA (Claude Desktop, Claude Code, Cursor, VS Code…): emite,
-consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR.
+consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Documentación completa:
+[guía del MCP](https://augustomelara-dev.github.io/factura-hn/guias/mcp/).
 
 ## Pruébalo en 3 pasos
 
-Requiere Node 22.13 o más reciente: la base local es SQLite (`node:sqlite`), que llega en esa versión. Con un Node
-anterior, `init`, `registrar-cai` y el servidor en modo SQLite se niegan con «Necesitas Node 22.13 o más reciente
-(tienes …)». Instala la versión LTS de [nodejs.org](https://nodejs.org).
+Requiere Node 22.13 o más reciente (la base local usa `node:sqlite`).
 
 **1.** En una carpeta vacía:
 
@@ -16,8 +15,7 @@ npx -y @factura-hn/mcp init --demo
 ```
 
 Crea `factura-demo.db` (base SQLite) y `emisor-demo.json` (emisor ficticio), registra un CAI ficticio de prueba
-e imprime el bloque `mcpServers` con las rutas absolutas. `npx` descarga el paquete la primera vez: hace falta
-conexión a internet.
+e imprime el bloque `mcpServers` con las rutas absolutas.
 
 **2.** Pega el bloque en la configuración de tu cliente MCP y reinícialo:
 
@@ -29,13 +27,9 @@ conexión a internet.
 | VS Code | `.vscode/mcp.json`, con la clave `"servers"` en vez de `"mcpServers"` |
 
 En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@<versión>"]`, porque
-`npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió: el cliente
-arranca siempre esa, no la última publicada. Para actualizar, vuelve a correr `init` con la versión nueva o
-cambia el número en el bloque.
-
-La primera vez que el cliente arranca el servidor, `npx` lo descarga si no está en la caché de npm: hace falta
-conexión a internet y puede tardar unos segundos. Si el cliente dice que el servidor no respondió a tiempo,
-reinícialo una vez.
+`npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió; para
+actualizar, cambia el número. Si el cliente dice que el servidor no respondió a tiempo la primera vez (npx lo
+está descargando), reinícialo.
 
 **3.** Pídele al asistente: «emite una factura de prueba».
 
@@ -227,37 +221,16 @@ para imprimir «Atendido por» en el documento.
 
 ## MCP remoto (Streamable HTTP)
 
-El comando `http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por HTTP, para
-agregarlo como conector personalizado en Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo con el MCP
-Inspector. Corre aparte de la API y la llama por HTTP con la llave de cada conexión; no guarda datos ni
-credenciales.
-
-Está en el paquete desde la versión siguiente a la 0.3.0 (`npx -y @factura-hn/mcp ayuda` dice si tu versión lo
-tiene). Mientras tanto, desde un clon del repositorio, después de `pnpm install` y `pnpm build`:
+`npx -y @factura-hn/mcp http` sirve el mismo servidor por HTTP, para agregarlo como conector personalizado en
+Claude o ChatGPT. Corre aparte de la API y la llama con la llave de cada conexión; no guarda datos.
 
 ```bash
-FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 node packages/mcp/dist/cli.js http   # puerto 8788
-# con una versión que ya lo trae:
-FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http   # puerto 8788
 ```
 
-Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor); en tu equipo, `127.0.0.1`.
-El puerto se cambia con `FHN_MCP_PUERTO` (o `PORT`).
-
-- `/mcp/<token>`: la URL personal (`fhnmcp_…`) que da `POST /v1/demo/entornos` en la demostración pública. Es la
-  que se pega en Claude o ChatGPT, y la que se prueba sin cabeceras:
-  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp/<token> --transport http --method tools/list`.
-- `/mcp` con `Authorization: Bearer <llave fhn_…>`: para clientes que mandan cabeceras, p. ej.
-  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer <llave>" --method tools/list`.
-  Sin esa cabecera, `/mcp` responde 401.
-
-Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Hay límites por dirección, por llave y de
-sesiones, y un resultado de más de 64 KB se recorta con un aviso. Las variables (`FHN_MCP_*`), el despliegue y
-las notas de seguridad están en [docs/demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md#mcp-remoto);
-cómo agregar el conector, en la [guía del sitio](https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/).
-
-Por HTTP no hay `FHN_MCP_PERMITIR_DESTRUCTIVAS`: anular y registrar CAI piden confirmación por elicitación y, con
-un cliente que no la ofrece, se niegan sobre datos reales (sobre datos de prueba siguen, como por stdio).
+El cliente llama a `/mcp` con `Authorization: Bearer <llave fhn_…>`; sin esa cabecera responde 401. El puerto se
+cambia con `FHN_MCP_PUERTO`. Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Por HTTP,
+anular y registrar CAI piden confirmación por elicitación; sin ella, se niegan sobre datos reales.
 
 ## Comandos
 

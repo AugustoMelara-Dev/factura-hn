@@ -41,3 +41,5 @@ página abierta en el navegador no pueda emitir ni anular, acepta solo `Host` 12
 puerto, `Origin` propio y POST con `application/json`. Una clave reutilizada con otra venta da
 `CLAVE_VENTA_USADA` (no devuelve el ticket anterior). Para varias cajas
 en red usa la API (`docs/api.md`).
+
+Documentación: [fuera de línea](https://augustomelara-dev.github.io/factura-hn/guias/fuera-de-linea/).

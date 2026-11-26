@@ -2,6 +2,7 @@
 
 API REST de factura-hn: alojada multi-tenant o instalada en el local del negocio con Docker (Art. 47).
 
+- Guía: [la API en el sitio](https://augustomelara-dev.github.io/factura-hn/guias/api/).
 - Primera factura en 3 pasos, recursos, errores y seguridad: [`docs/api.md`](../../docs/api.md).
 - Instalación en el negocio, respaldos y llaves: [`docs/autoalojamiento.md`](../../docs/autoalojamiento.md).
 

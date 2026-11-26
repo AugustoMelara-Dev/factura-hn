@@ -39,3 +39,5 @@ Pasa la batería de contrato de `factura-hn/pruebas`, incluidas 50 emisiones con
 
 **Respaldos:** el Código Tributario (Arts. 58.4 y 63.3) pide conservar la información 5 años en el domicilio
 fiscal. Copia `fiscal.db` con `VACUUM INTO` o `.backup`; no copies el archivo mientras está abierto en WAL.
+
+Documentación: [guía del SDK](https://augustomelara-dev.github.io/factura-hn/guias/sdk/).

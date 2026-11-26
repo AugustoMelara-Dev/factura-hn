@@ -36,3 +36,5 @@ volver a emitir sin chocar con lo anterior.
 Variables: `FHN_API_URL` (por defecto `http://127.0.0.1:8787`), `FHN_LLAVE` (llave de **caja**, atada a su
 punto de emisión), `FHN_SECRETO_ENLACES` (32+ caracteres aleatorios, firma los enlaces al PDF) y
 `FHN_SECRETO_WEBHOOK`. Este ejemplo no tiene inicio de sesión: en tu aplicación, protege la página y la acción.
+
+Documentación: [guía de la API](https://augustomelara-dev.github.io/factura-hn/guias/api/).

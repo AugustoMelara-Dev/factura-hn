@@ -49,3 +49,5 @@ CSRF, y haz que `buscarPedido` compruebe que el pedido es del usuario de la sesi
 Para registrar el webhook (llave admin): `POST /v1/webhooks {"url": "https://tu-tienda.hn/webhooks/factura-hn",
 "eventos": ["documento.emitido","documento.anulado","autorizacion.por_vencer","autorizacion.agotada"]}`. El
 secreto viene en la respuesta, una sola vez: guárdalo en `FHN_SECRETO_WEBHOOK`.
+
+Documentación: [guía de la API](https://augustomelara-dev.github.io/factura-hn/guias/api/).
