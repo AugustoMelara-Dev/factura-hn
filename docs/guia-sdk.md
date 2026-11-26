@@ -215,8 +215,9 @@ console.log(nota.numero, nota.advertencias); // 000-001-06-00000001 []
 ```
 
 La suma de las notas de crédito sobre un documento no puede superar su total, ni a cada tasa (15 % y 18 %) su
-importe gravado y su ISV: si lo hace, `emitir` lanza `ErrorValidacion` con `NOTA_SUPERA_ORIGINAL` y el saldo
-disponible en el mensaje. Tampoco puede llevar ISV a una tasa que el original no tenía (`NOTA_TASA_DISTINTA`). En
+importe gravado y su ISV, ni su importe exento o gravado al 0 %: si lo hace, `emitir` lanza `ErrorValidacion` con
+`NOTA_SUPERA_ORIGINAL` y el saldo disponible en el mensaje. Tampoco puede llevar ISV a una tasa, ni importe exento
+o gravado al 0 %, que el original no tenía (`NOTA_TASA_DISTINTA`). En
 ambos casos no se consume número. Si el original es exonerado y la nota no (o al revés), la nota se emite con el
 aviso `AVISO_NOTA_EXONERACION_DISTINTA`.
 

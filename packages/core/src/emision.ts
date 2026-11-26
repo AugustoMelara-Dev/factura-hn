@@ -749,7 +749,9 @@ function totalesEnLempiras(original: DocumentoFiscal): TotalesCentavos {
  * - `NOTA_SUPERA_ORIGINAL`: la suma de las notas de crédito vigentes sobre el original, más esta, supera su total o,
  *   en una tasa (15 % o 18 %), su importe gravado o su ISV. Todo en lempiras: un original en moneda extranjera se
  *   convierte por el mismo camino que la nota (`totalesEnLempiras`). El mensaje da el saldo.
- * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, o ISV sobre un original exonerado.
+ * - `NOTA_TASA_DISTINTA`: la nota lleva ISV a una tasa que el original no tenía, importe exento o gravado al 0 % que
+ *   el original no tenía (con la misma exoneración), o ISV sobre un original exonerado.
+ * - `NOTA_SUPERA_ORIGINAL` también si lo exento o lo gravado al 0 % de las notas pasa de lo que tuvo el original.
  * Y un aviso, `AVISO_NOTA_EXONERACION_DISTINTA`, si el original es exonerado y la nota no, o al revés.
  * Con un original externo no hay con qué comparar: queda `AVISO_ORIGINAL_EXTERNO`.
  * La serie del original ya está bloqueada (`bloquearSerieDelOriginal`): dos cajas no emiten a la vez notas que
@@ -772,14 +774,21 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
       // Las notas del otro modo (prueba o real) no cuentan para el saldo.
       esDocumentoDePrueba(d) === esDocumentoDePrueba(nota),
   );
-  const suma = (campo: 'total' | 'importeGravado15' | 'importeGravado18' | 'isv15' | 'isv18') =>
+  const suma = (campo: 'total' | 'importeGravado15' | 'importeGravado18' | 'isv15' | 'isv18' | 'importeExento' | 'importeGravado0') =>
     previas.reduce((s, d) => s + redondearDecimal(d.totales[campo], 2), 0n);
   const L = (c: bigint) => `L ${formatearMonto(deCentavos(c < 0n ? 0n : c))}`;
   const acreditado = suma('total');
   const saldo = o.total - acreditado;
   const estaNota = redondearDecimal(nota.totales.total, 2);
   const n = nota.totales;
-  const tasaNueva = (n.isv15 > 0 && o.importeGravado15 === 0n) || (n.isv18 > 0 && o.importeGravado18 === 0n);
+  // Exento y gravado 0 % se comparan cuando nota y original tienen la misma exoneración; si no, ya hay un aviso
+  // (AVISO_NOTA_EXONERACION_DISTINTA): una nota sin exoneración sobre un original exonerado acredita en exento.
+  const mismaExoneracion = Boolean(original.exoneracion) === Boolean(entrada.exoneracion);
+  const tasaNueva =
+    (n.isv15 > 0 && o.importeGravado15 === 0n) ||
+    (n.isv18 > 0 && o.importeGravado18 === 0n) ||
+    (mismaExoneracion && n.importeExento > 0 && o.importeExento === 0n) ||
+    (mismaExoneracion && n.importeGravado0 > 0 && o.importeGravado0 === 0n);
   const sobreExonerado = o.importeExonerado > 0n && n.isv15 + n.isv18 > 0;
   if (estaNota > saldo) {
     problemas.push({
@@ -808,13 +817,28 @@ async function problemasDeNotaCredito(tx: TransaccionFiscal, entrada: DocumentoE
         break;
       }
     }
+    // Lo mismo con lo exento y lo gravado al 0 %: la nota no acredita más que lo que el original tuvo ahí.
+    for (const [nombre, campo] of [['exento', 'importeExento'], ['gravado al 0 %', 'importeGravado0']] as const) {
+      if (!mismaExoneracion || problemas.some((p) => p.codigo === 'NOTA_SUPERA_ORIGINAL')) break;
+      const saldoGrupo = o[campo] - suma(campo);
+      const notaGrupo = redondearDecimal(n[campo], 2);
+      if (notaGrupo > saldoGrupo) {
+        problemas.push({
+          codigo: 'NOTA_SUPERA_ORIGINAL',
+          mensaje:
+            `Lo ${nombre} de la nota (${L(notaGrupo)}) supera el saldo del documento ${numero} en ese grupo: ${L(o[campo])} en el ` +
+            `original; saldo disponible ${L(saldoGrupo)} (Art. 4 num. 32). Usa en cada línea el mismo tratamiento que en el original.`,
+          campo: 'lineas',
+        });
+      }
+    }
   }
   if (tasaNueva || sobreExonerado) {
     problemas.push({
       codigo: 'NOTA_TASA_DISTINTA',
       mensaje: sobreExonerado
         ? `El documento ${numero} es exonerado: la nota no puede llevar ISV. Usa en cada línea el mismo tratamiento que en el original.`
-        : `La nota lleva ISV a una tasa que el documento ${numero} no tenía. Usa en cada línea la misma tasa que en el original.`,
+        : `La nota lleva un tratamiento de ISV (tasa, exento o gravado 0 %) que el documento ${numero} no tenía. Usa en cada línea el mismo que en el original.`,
       campo: 'lineas',
     });
   }

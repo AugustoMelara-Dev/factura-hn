@@ -95,7 +95,7 @@ referencia completa y el aviso [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#a
 
 La suma de las notas de crédito sobre un documento no puede superar su total
 ([`NOTA_SUPERA_ORIGINAL`](/referencia/errores/#nota_supera_original), con el saldo en el mensaje), ni llevar
-ISV a una tasa que el original no tenía ([`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta)).
+ISV a una tasa, ni importe exento o gravado al 0 %, que el original no tenía ([`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta)).
 
 Es una regla de factura-hn: las notas no superan el saldo del documento original.
 

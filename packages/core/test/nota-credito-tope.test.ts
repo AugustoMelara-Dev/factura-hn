@@ -133,3 +133,25 @@ describe('nota de crédito contra su original en el almacén (Art. 4 num. 32)', 
     expect((await errorDe(nota(f, MARTILLO(1))))!.map((p) => p.codigo)).toEqual(['NOTA_SUPERA_ORIGINAL']);
   });
 });
+
+describe('la nota no pasa lo gravado a exento ni a tasa cero', () => {
+  const codigos = async (p: Promise<unknown>) => (await errorDe(p))?.map((e) => e.codigo) ?? ['OK'];
+
+  it('original solo al 15 %: una línea EXENTO o GRAVADO0 da NOTA_TASA_DISTINTA sin consumir número', async () => {
+    const f = await factura();
+    expect(await codigos(nota(f, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00', isv: 'EXENTO' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    expect(await codigos(nota(f, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '15.00', isv: 'GRAVADO0' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    // Original al 15 % y al 18 %: tampoco se acredita como exento.
+    const mixta = await factura({ lineas: [...MARTILLO(1), { descripcion: 'Cerveza', cantidad: 1, precioUnitario: '30.00', isv: 'ISV18' }] });
+    expect(await codigos(nota(mixta, [{ descripcion: 'Cerveza', cantidad: 1, precioUnitario: '30.00', isv: 'EXENTO' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    // La nota con la misma tasa sí pasa, y es la primera de la serie 06.
+    expect((await nota(f, MARTILLO(1))).correlativo).toBe(1);
+  });
+
+  it('original con exento: la nota acredita lo exento hasta lo que tuvo el original (tope por grupo)', async () => {
+    const f = await factura({ lineas: [...MARTILLO(1), { descripcion: 'Frijoles', cantidad: 1, precioUnitario: '40.00', isv: 'EXENTO' }] });
+    expect(await codigos(nota(f, [{ descripcion: 'Frijoles', cantidad: 2, precioUnitario: '40.00', isv: 'EXENTO' }]))).toEqual(['NOTA_SUPERA_ORIGINAL']);
+    expect((await nota(f, [{ descripcion: 'Frijoles', cantidad: 1, precioUnitario: '40.00', isv: 'EXENTO' }])).totales.importeExento).toBe(40);
+    expect(await codigos(nota(f, [{ descripcion: 'Frijoles', cantidad: 1, precioUnitario: '0.01', isv: 'EXENTO' }]))).toEqual(['NOTA_SUPERA_ORIGINAL']);
+  });
+});
