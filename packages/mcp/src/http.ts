@@ -330,12 +330,12 @@ export function crearManejadorMcpHttp(o: OpcionesMcpHttp): ManejadorMcpHttp {
       if (!llave) throw new ErrorHttp(404, 'No existe esta URL del MCP. Revisa que la copiaste completa.');
       return llave;
     }
-    if (!(o.permitirBearer ?? true)) throw new ErrorHttp(404, 'Ruta no encontrada. Usa la URL personal del MCP (/mcp/<token>).');
+    if (!(o.permitirBearer ?? true)) throw new ErrorHttp(404, 'Ruta no encontrada. Usa la URL del MCP con tu token (/mcp/<token>).');
     const auth = String(req.headers.authorization ?? '');
     const credencial = /^bearer +(\S+)$/i.exec(auth.trim())?.[1] ?? '';
     const llave = esLlaveApi(credencial) ? credencial : llaveDeTokenMcp(credencial);
     if (!llave) {
-      throw new ErrorHttp(401, 'Falta la llave: usa tu URL personal del MCP (/mcp/<token>) o la cabecera Authorization: Bearer con tu llave de factura-hn.');
+      throw new ErrorHttp(401, 'Falta la llave: usa la URL del MCP con tu token (/mcp/<token>) o la cabecera Authorization: Bearer con tu llave de factura-hn.');
     }
     return llave;
   }

@@ -14,8 +14,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Crea un entorno de prueba propio (solo en el servidor de demostración)
-         * @description Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. curl, se atiende).
+         * Crea un entorno de prueba propio (solo con el modo demo activo)
+         * @description Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el servidor lo tiene, la URL del MCP remoto del entorno. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. curl, se atiende).
          */
         post: operations["crearEntornoDemo"];
         delete?: never;
@@ -464,7 +464,7 @@ export interface components {
                 establecimiento: string;
                 /** @example 001 */
                 puntoEmision: string;
-                /** @description El emisor ficticio del entorno. No se puede cambiar en la demostración. */
+                /** @description El emisor ficticio del entorno. No se puede cambiar en modo demo. */
                 emisor: {
                     rtn: string;
                     razonSocial: string;
@@ -484,7 +484,7 @@ export interface components {
             llave: string;
             /** @description null si este servidor no tiene MCP remoto configurado. */
             mcp: {
-                /** @description URL personal del MCP remoto: pégala como conector personalizado en Claude o ChatGPT, sin autenticación. */
+                /** @description URL del MCP remoto del entorno: pégala como conector personalizado en Claude o ChatGPT, sin autenticación. */
                 url: string;
                 /** @description Prefijo de la llave del MCP: `DELETE /v1/llaves/{prefijo}` con tu llave revoca la URL. */
                 prefijo: string;
@@ -613,7 +613,7 @@ export interface components {
              */
             modoTenant: "prueba" | "produccion";
             /**
-             * @description Modo del servidor: `local` (un negocio en su establecimiento, Art. 47), `alojado` o `demo` (la demostración pública, solo entornos de prueba).
+             * @description Modo del servidor: `local` (un negocio en su establecimiento, Art. 47), `alojado` o `demo` (modo demo: solo entornos de prueba).
              * @enum {string}
              */
             modo: "local" | "alojado" | "demo";

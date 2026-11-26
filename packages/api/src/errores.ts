@@ -126,11 +126,11 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     BASE_NO_DISPONIBLE:
       'La base de datos se está reiniciando o no responde. Reintenta después de los segundos de Retry-After; al emitir, con la ' +
       'misma Idempotency-Key: si el documento alcanzó a emitirse recibes el mismo, y si no, se emite una sola vez.',
-    DEMO_PAUSADO: 'La demostración está en pausa por mantenimiento o por abuso. Vuelve a intentarlo más tarde (cabecera Retry-After).',
+    DEMO_PAUSADO: 'El modo demo de este servidor está en pausa por mantenimiento o por abuso. Vuelve a intentarlo más tarde (cabecera Retry-After).',
     DEMO_NO_DISPONIBLE:
-      'Esta operación no está disponible en la demostración pública (webhooks, cambiar el emisor ficticio o crear llaves). ' +
-      'Pruébala en tu propia instalación: docs/autoalojamiento.md.',
-    DEMO_SOLO_PRUEBA: 'Este servidor de demostración solo atiende entornos de prueba creados con `POST /v1/demo/entornos`.',
+      'Esta operación no está disponible en modo demo (webhooks, cambiar el emisor ficticio o crear llaves). ' +
+      'Úsala en un servidor en modo local o alojado: docs/autoalojamiento.md.',
+    DEMO_SOLO_PRUEBA: 'Este servidor está en modo demo: solo atiende entornos de prueba creados con `POST /v1/demo/entornos`.',
     ENTORNO_VENCIDO: 'Los entornos de prueba duran 24 horas y luego se borran con todos sus datos. Crea otro con `POST /v1/demo/entornos`.',
     DEMO_LIMITE_ENTORNOS:
       'Se alcanzó el límite de entornos de prueba (por dirección por día, o en todo el servicio). Usa el que ya creaste o ' +

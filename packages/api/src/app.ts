@@ -118,7 +118,7 @@ export interface ConfigApi {
   pool: pg.Pool;
   /**
    * - `local`: un solo negocio (Art. 47); `alojado`: varios negocios con RLS;
-   * - `demo`: la demostración pública: solo entornos de prueba que crea cualquiera con `POST /v1/demo/entornos` y que
+   * - `demo`: modo demo: solo entornos de prueba que crea cualquiera con `POST /v1/demo/entornos` y que
    *   se borran a las 24 h. Sin webhooks, sin cambiar el emisor ficticio y con límites estrictos (ver `demo`).
    */
   modo: 'local' | 'alojado' | 'demo';
@@ -411,7 +411,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     demoPausa.hasta = ahora + 5000;
     return demoPausa.valor;
   };
-  const errorPausa = () => new ErrorApi(503, 'DEMO_PAUSADO', 'La demostración está en pausa. Vuelve a intentarlo más tarde.', { reintentarEn: 600 });
+  const errorPausa = () => new ErrorApi(503, 'DEMO_PAUSADO', 'El modo demo está en pausa. Vuelve a intentarlo más tarde.', { reintentarEn: 600 });
   const expiraDe = async (tenant: string): Promise<number | null> => {
     const ya = demoExpira.get(tenant);
     if (ya !== undefined) return ya;
@@ -564,11 +564,11 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
   app.openapi(
     createRoute({
       method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [],
-      summary: 'Crea un entorno de prueba propio (solo en el servidor de demostración)',
+      summary: 'Crea un entorno de prueba propio (solo con el modo demo activo)',
       description:
         'Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para ' +
         'quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el ' +
-        'servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
+        'servidor lo tiene, la URL del MCP remoto del entorno. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
         'entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo ' +
         'el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los ' +
         'orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. ' +
@@ -582,7 +582,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       if (!demo) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Ruta no encontrada.');
-      // Todo entorno de la demostración es de prueba: lo dice también en los errores (403, 429, 503).
+      // Todo entorno del modo demo es de prueba: lo dice también en los errores (403, 429, 503).
       c.header('FacturaHN-Modo', 'prueba');
       // CORS no frena un POST sin cuerpo (es una solicitud «simple»): una página de otro sitio podría crear entornos con
       // la dirección de sus visitantes. Con Origin, solo los de FHN_DEMO_ORIGENES; sin Origin (curl, el SDK), se atiende.
@@ -654,14 +654,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   /**
    * Modo demo, dentro de la autenticación (antes de las cabeceras de la llave): solo entornos de prueba vigentes,
-   * interruptor global, límites por entorno y globales, y fuera lo que no tiene sentido en una demostración pública
+   * interruptor global, límites por entorno y globales, y fuera lo que no tiene sentido en modo demo
    * (webhooks: la red interna del proveedor; cambiar el emisor ficticio; crear llaves). Revocar una llave sí se
    * puede: así se apaga la URL del MCP.
    */
   const exigirDemo = async (c: Context<Env>, tenant: string, modoTenant: ModoTenant) => {
     if (!demo) return;
     if (await demoPausado()) throw errorPausa();
-    const soloPrueba = () => new ErrorApi(403, 'DEMO_SOLO_PRUEBA', 'Este servidor de demostración solo atiende entornos de prueba.');
+    const soloPrueba = () => new ErrorApi(403, 'DEMO_SOLO_PRUEBA', 'Este servidor está en modo demo: solo atiende entornos de prueba.');
     if (modoTenant !== 'prueba') throw soloPrueba();
     const expira = await expiraDe(tenant);
     if (expira === null) throw soloPrueba();
@@ -669,10 +669,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const m = c.req.method;
     const ruta = c.req.path;
     if (ruta.startsWith('/v1/webhooks') || (ruta.startsWith('/v1/emisores') && m !== 'GET') || (ruta === '/v1/llaves' && m === 'POST')) {
-      throw new ErrorApi(403, 'DEMO_NO_DISPONIBLE', 'Esta operación no está disponible en la demostración pública.');
+      throw new ErrorApi(403, 'DEMO_NO_DISPONIBLE', 'Esta operación no está disponible en modo demo.');
     }
     const lleno = (espera: number) => {
-      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en la demostración. Espera y reintenta.', { reintentarEn: espera });
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en modo demo. Espera y reintenta.', { reintentarEn: espera });
     };
     // Primero los límites del entorno y al final el global: un entorno que se pasa de los suyos no gasta el cupo de
     // todos (con sus dos llaves admin podría agotarlo y dejar en 429 a los demás visitantes).

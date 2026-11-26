@@ -1,6 +1,6 @@
 /**
- * Modo demo (`FHN_MODO=demo`): la demostración pública. Cada visitante crea con `POST /v1/demo/entornos` su propio
- * entorno de prueba: un tenant de prueba con emisor y CAI ficticios, una llave `fhn_test_` y una URL personal del MCP
+ * Modo demo (`FHN_MODO=demo`), apagado por defecto. Cada visitante crea con `POST /v1/demo/entornos` su propio
+ * entorno de prueba: un tenant de prueba con emisor y CAI ficticios, una llave `fhn_test_` y la URL del MCP
  * remoto. Nada se comparte entre visitantes, todo lo emitido es DOCUMENTO DE PRUEBA y a las 24 h el entorno se
  * borra con todos sus datos.
  *

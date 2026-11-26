@@ -305,7 +305,7 @@ const TABLAS_CON_TENANT = [
 ] as const;
 
 /**
- * Por qué una base no sirve para el modo demo, o `[]`. La demostración pública no debe compartir base con datos
+ * Por qué una base no sirve para el modo demo, o `[]`. El modo demo no debe compartir base con datos
  * reales, y la revisión falla cerrada: cualquier tenant con filas en cualquier tabla (aunque no tenga llaves) que no
  * sea un entorno de la demostración, cualquier tenant de producción y cualquier CAI real (en autorizaciones o en
  * documentos) la descartan. Corre con el dueño de las tablas. Como varias tablas fuerzan RLS también a su dueño, en
@@ -352,7 +352,7 @@ export async function datosRealesEnBase(pool: pg.Pool): Promise<string[]> {
 export function errorDatosRealesEnDemo(motivos: string[]): string {
   return [
     `FHN_MODO=demo necesita una base solo para la demostración, y esta tiene datos reales: ${motivos.join('; ')}.`,
-    'La demostración pública la usa cualquiera: crea una base aparte para ella (p. ej. factura_hn_demo) y no la compartas',
+    'El modo demo lo usa cualquiera: crea una base aparte para ella (p. ej. factura_hn_demo) y no la compartas',
     'con la de ningún negocio.',
   ].join('\n');
 }

@@ -6,7 +6,7 @@
  *   Sin ella, la API usa DATABASE_URL también para eso y corre como dueño de las tablas (se avisa en el log).
  * - FHN_MIGRAR_AL_ARRANCAR: `1` (por defecto) migra al arrancar; `0` no (la migración corre aparte con «migrar»). Con `0` y
  *   sin FHN_MIGRAR_URL, el proceso no tiene credenciales de dueño (no sirve en modo local).
- * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (la demostración pública: solo entornos
+ * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (modo demo: solo entornos
  *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*)
  * - FHN_IP_CLIENTE_CABECERA: cabecera con la dirección del cliente que pone el proxy de confianza (p. ej.
  *   Fly-Client-IP en Fly.io). Sin definir, ninguna se cree.
@@ -87,7 +87,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     throw new Error(`FHN_MODO debe ser "local", "alojado" o "demo" (no "${modoTexto}").`);
   }
   const modo = modoTexto;
-  // La demostración pública: la base debe ser solo suya y los límites por dirección deben ver la del cliente.
+  // Modo demo: la base debe ser solo suya y los límites por dirección deben ver la del cliente.
   const configDemo = modo === 'demo' ? leerConfigDemo(env) : undefined;
   if (modo === 'demo') {
     if (env.FHN_DEMO === '1') throw new Error('FHN_DEMO=1 es la demostración del modo local; con FHN_MODO=demo no se usa. Quítala.');

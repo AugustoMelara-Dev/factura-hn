@@ -86,7 +86,7 @@ const COMANDOS: Comando[] = [
     nombre: ['demo', 'limpiar'],
     uso: 'demo limpiar',
     descripcion:
-      'Demostración pública (FHN_MODO=demo): borra ya los entornos de prueba vencidos, cada uno con todos sus datos. La API lo ' +
+      'Modo demo (FHN_MODO=demo): borra ya los entornos de prueba vencidos, cada uno con todos sus datos. La API lo ' +
       'hace sola cada minuto; este comando sirve para una tarea programada aparte. Solo toca entornos de prueba con CAI ficticio.',
     posicionales: { obligatorios: [] },
     usaBase: true,
@@ -95,7 +95,7 @@ const COMANDOS: Comando[] = [
     nombre: ['demo', 'pausar'],
     uso: 'demo pausar [--motivo "texto"]',
     descripcion:
-      'Interruptor global de la demostración pública: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO. La API ' +
+      'Interruptor global del modo demo: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO. La API ' +
       'lo nota en a lo sumo 5 segundos. Se deshace con «demo reanudar».',
     posicionales: { obligatorios: [] },
     opciones: ['motivo'],
@@ -104,14 +104,14 @@ const COMANDOS: Comando[] = [
   {
     nombre: ['demo', 'reanudar'],
     uso: 'demo reanudar',
-    descripcion: 'Quita la pausa de la demostración pública (salvo que la API arrancara con FHN_DEMO_PAUSADO=1).',
+    descripcion: 'Quita la pausa del modo demo (salvo que la API arrancara con FHN_DEMO_PAUSADO=1).',
     posicionales: { obligatorios: [] },
     usaBase: true,
   },
   {
     nombre: ['demo', 'estado'],
     uso: 'demo estado',
-    descripcion: 'Entornos de la demostración pública vigentes y vencidos por borrar, y si está en pausa.',
+    descripcion: 'Entornos del modo demo vigentes y vencidos por borrar, y si está en pausa.',
     posicionales: { obligatorios: [] },
     usaBase: true,
   },
@@ -274,7 +274,7 @@ export async function ejecutarConsola(
 
     switch (clave) {
       case 'migrar':
-        // La demostración pública: la misma revisión que hace la API al arrancar con el dueño. Así, con la API
+        // Modo demo: la misma revisión que hace la API al arrancar con el dueño. Así, con la API
         // arrancando sin credenciales de dueño (FHN_MIGRAR_AL_ARRANCAR=0), una base con datos reales no pasa.
         if (env.FHN_MODO === 'demo') {
           const reales = await datosRealesEnBase(pool);
@@ -308,11 +308,11 @@ export async function ejecutarConsola(
       }
       case 'demo pausar':
         await pausarDemo(pool, true, opciones.motivo);
-        salida.log('Demostración en pausa: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO (en a lo sumo 5 s).');
+        salida.log('Modo demo en pausa: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO (en a lo sumo 5 s).');
         return 0;
       case 'demo reanudar':
         await pausarDemo(pool, false);
-        salida.log('Demostración reanudada.');
+        salida.log('Modo demo reanudado.');
         return 0;
       case 'demo estado': {
         const r = await resumenDemo(pool);

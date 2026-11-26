@@ -358,7 +358,7 @@ export const Sesion = z
         'Modo del tenant de la llave: `prueba` (sandbox: solo CAI ficticios, llaves `fhn_test_`, nada tiene validez fiscal) o ' +
         '`produccion` (llaves `fhn_live_`). También va en la cabecera `FacturaHN-Modo` de cada respuesta autenticada.',
     }),
-    modo: z.enum(['local', 'alojado', 'demo']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47), `alojado` o `demo` (la demostración pública, solo entornos de prueba).' }),
+    modo: z.enum(['local', 'alojado', 'demo']).openapi({ description: 'Modo del servidor: `local` (un negocio en su establecimiento, Art. 47), `alojado` o `demo` (modo demo: solo entornos de prueba).' }),
     demo: z.boolean().openapi({ description: 'true en el tenant de demostración (CAI ficticio, sin validez fiscal).' }),
     llave: z.object({
       id: z.string(),
@@ -431,7 +431,7 @@ export const RespuestaEntornoDemo = z
       establecimiento: z.string().openapi({ example: '000' }),
       puntoEmision: z.string().openapi({ example: '001' }),
       emisor: z.object({ rtn: z.string(), razonSocial: z.string(), nombreComercial: z.string().optional() }).openapi({
-        description: 'El emisor ficticio del entorno. No se puede cambiar en la demostración.',
+        description: 'El emisor ficticio del entorno. No se puede cambiar en modo demo.',
       }),
       limites: z.object({
         documentos: z.number().int().openapi({ description: 'Documentos que puede emitir el entorno.' }),
@@ -443,7 +443,7 @@ export const RespuestaEntornoDemo = z
     llave: z.string().openapi({ description: 'Llave admin `fhn_test_…` del entorno, para `Authorization: Bearer`. Solo se muestra esta vez.' }),
     mcp: z
       .object({
-        url: z.string().openapi({ description: 'URL personal del MCP remoto: pégala como conector personalizado en Claude o ChatGPT, sin autenticación.' }),
+        url: z.string().openapi({ description: 'URL del MCP remoto del entorno: pégala como conector personalizado en Claude o ChatGPT, sin autenticación.' }),
         prefijo: z.string().openapi({ description: 'Prefijo de la llave del MCP: `DELETE /v1/llaves/{prefijo}` con tu llave revoca la URL.' }),
       })
       .nullable()
