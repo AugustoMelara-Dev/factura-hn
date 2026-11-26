@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CofreSecretos,
@@ -224,14 +225,14 @@ describe.skipIf(!URL_PG)('entregas', () => {
 
   it('entrega real por HTTP (sin fetch inyectado) a un receptor local, con firma verificable', async () => {
     const http = await import('node:http');
-    let resolver!: (v: { cuerpo: string; firma: string }) => void;
-    const recibido = new Promise<{ cuerpo: string; firma: string }>((r) => (resolver = r));
+    let resolver!: (v: { cuerpo: string; firma: string; agente: string }) => void;
+    const recibido = new Promise<{ cuerpo: string; firma: string; agente: string }>((r) => (resolver = r));
     const srv = http.createServer((req, res) => {
       let cuerpo = '';
       req.on('data', (d) => (cuerpo += d));
       req.on('end', () => {
         res.end('ok');
-        resolver({ cuerpo, firma: String(req.headers['x-facturahn-firma']) });
+        resolver({ cuerpo, firma: String(req.headers['x-facturahn-firma']), agente: String(req.headers['user-agent']) });
       });
     });
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
@@ -242,8 +243,11 @@ describe.skipIf(!URL_PG)('entregas', () => {
       const { secreto } = (await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto}/hook`, eventos: ['documento.emitido'] })).json()) as { secreto: string };
       await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
       await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true });
-      const { cuerpo, firma } = await recibido;
+      const { cuerpo, firma, agente } = await recibido;
       expect(verificarFirmaWebhook(cuerpo, firma, secreto)).toBe(true);
+      // El User-Agent lleva la versión del paquete, no una fija.
+      const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+      expect(agente).toBe(`factura-hn-webhooks/${version}`);
       const e = await pool.query('SELECT estado, ultimo_codigo FROM api_entregas WHERE tenant = $1', [tenant]);
       expect(e.rows).toEqual([{ estado: 'ENTREGADA', ultimo_codigo: 200 }]);
     } finally {

@@ -19,6 +19,7 @@ import https from 'node:https';
 import { isIP } from 'node:net';
 import type pg from 'pg';
 import { AlmacenPostgres, esTransaccionPostgres, type TransaccionPostgres } from '@factura-hn/postgres';
+import { version as VERSION_PAQUETE } from '../package.json';
 
 export const EVENTOS_WEBHOOK = ['documento.emitido', 'documento.anulado', 'autorizacion.por_vencer', 'autorizacion.agotada'] as const;
 export type EventoWebhook = (typeof EVENTOS_WEBHOOK)[number];
@@ -491,7 +492,7 @@ async function entregar(o: OpcionesDespacho, e: Reclamada): Promise<Resultado> {
   }
   const cabeceras = {
     'content-type': 'application/json',
-    'user-agent': 'factura-hn-webhooks/0.2',
+    'user-agent': `factura-hn-webhooks/${VERSION_PAQUETE}`,
     'x-facturahn-evento': e.evento,
     'x-facturahn-entrega': e.entrega,
     // Durante la gracia de una rotación, dos `v1`: primero el del secreto anterior y después el del nuevo. Así un
