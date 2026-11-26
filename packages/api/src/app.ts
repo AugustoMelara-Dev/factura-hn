@@ -544,9 +544,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Demo pública: crear un entorno de prueba (sin llave) ------------------------------------------------------
   // Se registra antes de la autenticación: su manejador responde sin pasar por ella. Fuera del modo demo, 404.
+  // No se publica en la especificación (`hide`, ver OPERACIONES_NO_PUBLICADAS en ./demo).
   app.openapi(
     createRoute({
-      method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [],
+      method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [], hide: true,
       summary: 'Crea un entorno de prueba propio (solo con el modo demo activo)',
       description:
         'Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para ' +
@@ -671,7 +672,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'options', path: RUTA_ENTORNOS_DEMO, operationId: 'preflightEntornoDemo', tags: ['Demostración'], security: [],
+      method: 'options', path: RUTA_ENTORNOS_DEMO, operationId: 'preflightEntornoDemo', tags: ['Demostración'], security: [], hide: true,
       summary: 'Preflight CORS de la creación de entornos',
       description: 'Con `FHN_MODO=demo` y un `Origin` de `FHN_DEMO_ORIGENES`, lleva las cabeceras `Access-Control-*`; si no, ninguna.',
       responses: { 204: { description: 'Sin cuerpo' }, ...respuestasDe(413, 500) },
