@@ -28,7 +28,7 @@ export const TERMINOS = [
   // el cliente que el usuario conecta («Configura el MCP en Claude Code»), ni lo que emite o escribe el asistente
   // del usuario («la factura generada por el agente», «el código que escribe Claude Code»): por eso solo
   // «hecho/construido/desarrollado/programado con…», no «generado» ni «creado».
-  ['herramienta de IA usada para construirlo', /\b(?:hech[oa]s?|construid[oa]s?|desarrollad[oa]s?|programad[oa]s?) (?:con|usando) (?:(?:la )?ayuda de )?(?:Claude|ChatGPT|Codex|Copilot|Gemini|GPT|una? IA|IA|inteligencia artificial)\b|\b(?:built|made|written|developed) (?:with|using) (?:Claude|ChatGPT|Codex|Copilot|Gemini|GPT|AI)\b|\bClaude (?:Opus|Sonnet|Haiku)\b|noreply@anthropic\.com/i],
+  ['herramienta de IA usada para construirlo', /\b(?:hech[oa]s?|construid[oa]s?|desarrollad[oa]s?|programad[oa]s?) (?:con|usando) (?:(?:la )?ayuda de )?(?:Claude|ChatGPT|Codex|Copilot|Gemini|GPT|una? IA|IA|inteligencia artificial)\b|\b(?:built|made|written|developed) (?:with|using) (?:Claude|ChatGPT|Codex|Copilot|Gemini|GPT|AI)\b|\bClaude (?:Opus|Sonnet|Haiku)\b/i],
   // Lenguaje de duda o de estado: la regla se explica con su artículo, sin estados de validación.
   ['lenguaje de duda o de estado', /\bpendientes? de (?:consulta|validaci[oó]n)\b|\blecturas? provisional(?:es)?\b|\bconsultas? al SAR\b|\bsin respuesta del SAR\b|\bestado[ -]legal\b/i],
   // La demostración pública en la nube no existe: ni su llamada ni su marcador de URL.

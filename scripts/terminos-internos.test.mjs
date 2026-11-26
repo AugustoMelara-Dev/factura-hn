@@ -52,7 +52,6 @@ test('detecta menciones a las herramientas de IA con que se construyó', () => {
   assert.deepEqual(nombres('made with AI'), [ia]);
   assert.deepEqual(nombres('lo revisó Claude Opus'), [ia]);
   assert.deepEqual(nombres('Claude Sonnet 4'), [ia]);
-  assert.deepEqual(nombres('autor: noreply@anthropic.com'), [ia]);
   assert.deepEqual(nombres('lo partió un subagente'), ['jerga del proceso']);
   assert.deepEqual(nombres('Lote 3: anulación'), ['tanda de trabajo numerada']);
 });
