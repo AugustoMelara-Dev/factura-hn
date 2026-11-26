@@ -6,7 +6,7 @@ negocio registra (el Art. 47 pide registrar «el establecimiento donde se encuen
 
 Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 
-## Probar en 2 minutos
+## Probar en 5 minutos
 
 ```bash
 git clone https://github.com/AugustoMelara-Dev/factura-hn.git
@@ -69,20 +69,18 @@ variables `DATABASE_URL` y `FHN_MIGRAR_URL`.
        environment:
          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+         FHN_API_PASSWORD: ${FHN_API_PASSWORD}
      api:
        environment:
          DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
          FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
    ```
 
-   La API corre como `fhn_api`, un rol que no es dueño de las tablas; `postgres` solo migra al arrancar. Con
-   contraseñas, crea `fhn_api` con la suya **antes** de arrancar la API (`\password` la pide sin dejarla en el
-   historial; escribe la misma de `FHN_API_PASSWORD`):
+   La API corre como `fhn_api`, un rol que no es dueño de las tablas; `postgres` solo migra al arrancar. Al
+   crear la base, `scripts/db-init/10-rol-api.sh` crea `fhn_api` con la contraseña de `FHN_API_PASSWORD`.
+   Arranca:
 
    ```bash
-   docker compose up -d --wait db
-   docker compose exec db psql -U postgres -d factura_hn \
-     -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
    docker compose up -d --build --wait
    ```
 
@@ -113,10 +111,16 @@ Los documentos fiscales no se borran ni se editan; el respaldo es lo que los pro
 ```bash
 # Respaldo diario (cópialo fuera del equipo: disco externo o nube del negocio)
 docker compose exec -T db pg_dump -U postgres -d factura_hn -Fc > respaldo-$(date +%F).dump
+```
 
-# Restaurar en una instalación nueva, antes de emitir nada
-docker compose up -d --wait db
-docker compose exec -T db pg_restore -U postgres -d factura_hn --clean --if-exists < respaldo-AAAA-MM-DD.dump
+Para restaurar en una instalación nueva, antes de emitir nada: arráncala completa una vez (crea los roles que el
+respaldo necesita), detén la API, restaura y vuelve a arrancar. Si usas contraseñas, pon antes tu `.env` y tu
+`docker-compose.override.yml`. Cambia `respaldo-AAAA-MM-DD.dump` por el nombre de tu respaldo:
+
+```bash
+docker compose up -d --build --wait
+docker compose stop api
+docker compose exec -T db pg_restore -U postgres -d factura_hn --clean --if-exists --single-transaction --exit-on-error < respaldo-AAAA-MM-DD.dump
 docker compose up -d --wait
 ```
 
@@ -133,21 +137,26 @@ docker compose up -d --build --wait   # las migraciones corren solas al arrancar
 `DATABASE_URL: postgres://postgres:…`): desde esta versión el `docker-compose.yml` separa el dueño de las tablas
 (`FHN_MIGRAR_URL`) del rol con el que corre la API (`DATABASE_URL`, `fhn_api`). Antes de actualizar, elige una:
 
-- **Recomendado:** crea `fhn_api` con su contraseña y pon **las dos** URL en tu override, cada una con su
-  contraseña (como en el ejemplo de «Poner en marcha un negocio»):
-
-  ```bash
-  # agrega FHN_API_PASSWORD a tu .env; después:
-  docker compose exec db psql -U postgres -d factura_hn \
-    -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
-  ```
+- **Recomendado:** agrega `FHN_API_PASSWORD` a tu `.env` y pon en tu override esa variable en el servicio `db` y
+  **las dos** URL de la API, cada una con su contraseña (como en el ejemplo de «Poner en marcha un negocio»):
 
   ```yaml
   services:
+    db:
+      environment:
+        FHN_API_PASSWORD: ${FHN_API_PASSWORD}
     api:
       environment:
         DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
         FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
+  ```
+
+  Después crea `fhn_api` con esa contraseña (la base ya existe, así que el script se corre a mano) y actualiza:
+
+  ```bash
+  docker compose up -d --wait db
+  docker compose exec -T db sh -c 'sh /docker-entrypoint-initdb.d/10-rol-api.sh'
+  docker compose up -d --build --wait
   ```
 
 - **Seguir como antes:** en tu override, deja `DATABASE_URL` con `postgres` y anula la nueva variable con

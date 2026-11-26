@@ -17,3 +17,6 @@ export async function temaCodigo() {
 export const EJEMPLO_PORTADA = `import { crearFacturadorDemo } from 'factura-hn/demo';
 const caja = await crearFacturadorDemo();
 const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' }] });`;
+
+/** La línea del ejemplo canónico, la misma que emite el ticket de la portada (components/producto/Ticket.astro). */
+export const LINEA_PORTADA = { descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' };

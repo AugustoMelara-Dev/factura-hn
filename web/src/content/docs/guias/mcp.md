@@ -38,5 +38,5 @@ tu cliente lo permite.
 
 ## Sigue con
 
-- [Servidor MCP](/ia/mcp/): las 7 herramientas, el modo SQLite y el modo API, y la seguridad.
+- [Servidor MCP](/ia/mcp/): las 8 herramientas, el modo SQLite y el modo API, y la seguridad.
 - [IA y agentes](/ia/): prompts, la skill y `llms.txt`.

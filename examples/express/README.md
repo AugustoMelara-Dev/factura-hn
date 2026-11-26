@@ -17,6 +17,9 @@ En PowerShell, el tercer comando es:
 $env:FHN_LLAVE = 'fhn_test_…'; pnpm --filter @factura-hn/ejemplo-express start
 ```
 
+Si el puerto 3001 está ocupado, usa otro con `PUERTO` (`PUERTO=3006 FHN_LLAVE=fhn_test_… pnpm --filter @factura-hn/ejemplo-express start`; en PowerShell,
+`$env:PUERTO = '3006'`) y cámbialo también en los `curl` de abajo.
+
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
 crea otra: `docker compose exec api factura-hn-api demo llave`.
 

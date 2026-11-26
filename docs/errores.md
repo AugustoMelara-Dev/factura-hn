@@ -964,58 +964,53 @@ llega como `422 VALIDACION`, con la lista de problemas del SDK (con sus códigos
 - **Solución:** reintenta con la misma `Idempotency-Key`; si persiste, busca en el log del servidor la línea con el
   id de `error.solicitud` (o de la cabecera `Solicitud-Id`).
 
-## API REST: modo `demo`
+## API REST: servidor de pruebas temporales
 
-Solo en un servidor con `FHN_MODO=demo`, que crea entornos de prueba temporales. Todos traen el mismo cuerpo
-`{ "error": { "codigo", "mensaje" } }` y, los 429 y 503, la cabecera `Retry-After`.
+Solo los devuelve un servidor que crea entornos de prueba temporales (`FHN_MODO=demo`). Con el
+`docker-compose.yml` del repositorio no aparecen. Todos traen `{ "error": { "codigo", "mensaje" } }` y, los 429
+y 503, la cabecera `Retry-After`.
 
 ### DEMO_PAUSADO
 
-- **Qué significa (503):** quien opera el servidor lo puso en pausa (`demo pausar` o `FHN_DEMO_PAUSADO=1`):
-  no se crean entornos y los que hay no atienden.
-- **Solución:** reintenta más tarde, después de los segundos de `Retry-After`.
+- **Qué significa (503):** quien opera el servidor lo puso en pausa: no atiende entornos de prueba.
+- **Solución:** reintenta después de los segundos de `Retry-After`.
 
 ### ORIGEN_NO_PERMITIDO
 
-- **Qué significa (403):** `POST /v1/demo/entornos` llegó desde una página de otro sitio (su `Origin` no está en
-  `FHN_DEMO_ORIGENES`). Una solicitud sin `Origin` (curl, el SDK) se atiende.
-- **Solución:** crea el entorno desde un origen permitido o sin `Origin` (curl, el SDK).
+- **Qué significa (403):** la solicitud llegó desde una página de un sitio que el servidor no acepta.
+- **Solución:** haz la solicitud sin cabecera `Origin` (curl, el SDK) o desde un sitio permitido.
 
 ### DEMO_LIMITE_ENTORNOS
 
-- **Qué significa (429):** se alcanzó el límite de entornos de prueba: por dirección por día
-  (`FHN_DEMO_ENTORNOS_POR_IP`), por minuto en todo el servicio (`FHN_DEMO_CREACIONES_POR_MINUTO`) o vigentes a la vez
-  (`FHN_DEMO_MAX_ENTORNOS`).
-- **Solución:** usa el entorno que ya creaste o reintenta después de los segundos de `Retry-After`.
+- **Qué significa (429):** se alcanzó el límite de entornos de prueba del servidor.
+- **Solución:** usa el entorno que ya tienes o reintenta después de los segundos de `Retry-After`.
 
 ### DEMO_SOLO_PRUEBA
 
-- **Qué significa (403):** la llave no es de un entorno creado con `POST /v1/demo/entornos`. En modo `demo` el
-  servidor no atiende otras.
-- **Solución:** crea un entorno con `POST /v1/demo/entornos` y usa su llave.
+- **Qué significa (403):** el servidor solo atiende llaves de sus entornos de prueba.
+- **Solución:** usa la llave de un entorno de prueba de ese servidor, o tu propia instalación
+  ([autoalojamiento](autoalojamiento.md)).
 
 ### ENTORNO_VENCIDO
 
-- **Qué significa (401):** el entorno de prueba pasó sus 24 horas (`FHN_DEMO_HORAS`). Se borra con todos sus datos
-  en el minuto siguiente.
-- **Solución:** crea otro con `POST /v1/demo/entornos`.
+- **Qué significa (401):** el entorno de prueba venció y se borró con sus datos.
+- **Solución:** crea otro entorno en ese servidor, o usa tu propia instalación.
 
 ### DEMO_NO_DISPONIBLE
 
-- **Qué significa (403):** la operación no existe en modo `demo`: webhooks (no hace solicitudes salientes),
-  cambiar el emisor ficticio o crear llaves.
+- **Qué significa (403):** la operación no existe en un entorno de prueba temporal: webhooks, cambiar el emisor
+  ficticio o crear llaves.
 - **Solución:** pruébala en tu propia instalación ([autoalojamiento](autoalojamiento.md)).
 
 ### DEMO_LIMITE_SOLICITUDES
 
-- **Qué significa (429):** el entorno usó todas sus solicitudes (`FHN_DEMO_SOLICITUDES_POR_ENTORNO`). Por minuto,
-  el límite es `DEMASIADAS_SOLICITUDES`.
-- **Solución:** crea otro entorno.
+- **Qué significa (429):** el entorno usó todas sus solicitudes. Por minuto, el límite es `DEMASIADAS_SOLICITUDES`.
+- **Solución:** crea otro entorno, o usa tu propia instalación.
 
 ### DEMO_LIMITE_DOCUMENTOS
 
-- **Qué significa (429):** el entorno emitió todos los documentos que permite (`FHN_DEMO_DOCUMENTOS`).
-- **Solución:** crea otro entorno.
+- **Qué significa (429):** el entorno emitió todos los documentos que permite.
+- **Solución:** crea otro entorno, o usa tu propia instalación.
 
 ## Servidor MCP
 

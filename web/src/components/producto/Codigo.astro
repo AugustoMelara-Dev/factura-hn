@@ -2,9 +2,11 @@
 // Bloque de código de la portada: resaltado en el servidor (Shiki, un solo tema claro) y un botón «Copiar». El
 // botón funciona con el script en línea de layouts/Sitio.astro, que copia el texto del bloque y avisa «Copiado»
 // a los lectores de pantalla. Sin JavaScript, el texto se selecciona y se copia a mano.
-// El bloque nunca ensancha la página (a 375 px tampoco): en el código las líneas largas se ajustan al ancho; en los
-// comandos (bash) el bloque se desplaza de lado, para no partir una URL o un nombre de paquete.
+// El bloque nunca ensancha la página ni se desplaza de lado (a 375 px tampoco): las líneas largas se ajustan al ancho,
+// primero en los espacios. En el teléfono, los comentarios de los comandos (`# …`) se ocultan para que cada comando
+// quede entero; «Copiar» copia lo que se ve.
 import { Code } from 'astro:components';
+import type { ShikiTransformer } from 'shiki';
 import { temaCodigo } from '../../datos/ejemplo.mjs';
 
 interface Props {
@@ -16,14 +18,27 @@ interface Props {
   etiqueta?: string;
 }
 const { codigo, lang, titulo, etiqueta = `Copiar: ${titulo}` } = Astro.props;
-const ajustar = lang !== 'bash';
 const tema = await temaCodigo();
+
+/** Marca los comentarios de bash y el espacio que los separa del comando, para ocultarlos en el teléfono. */
+const comentarios: ShikiTransformer = {
+  line(linea) {
+    const hijos = linea.children;
+    const i = hijos.findIndex((h) => h.type === 'element' && h.children.some((t) => t.type === 'text' && t.value.trimStart().startsWith('#')));
+    if (i < 0) return;
+    for (const [j, h] of hijos.entries()) {
+      if (h.type !== 'element') continue;
+      const blanco = h.children.every((t) => t.type === 'text' && !t.value.trim());
+      if (j >= i || (j === i - 1 && blanco)) this.addClassToHast(h, 'comentario');
+    }
+  },
+};
 ---
 
-<div class="codigo" data-codigo data-ajustar={ajustar ? '' : undefined}>
+<div class="codigo" data-codigo>
 	<div class="codigo-barra">
 		<span>{titulo}</span>
 		<button type="button" class="copiar" data-copiar aria-label={etiqueta}>Copiar</button>
 	</div>
-	<Code code={codigo} lang={lang} theme={tema} wrap={ajustar} />
+	<Code code={codigo} lang={lang} theme={tema} wrap transformers={lang === 'bash' ? [comentarios] : []} />
 </div>

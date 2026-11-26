@@ -1,11 +1,15 @@
 ---
-// Portada: qué es factura-hn, cómo se integra, cómo se conecta a un asistente de IA, por qué es confiable y dónde
-// encontrar a la comunidad. HTML y CSS estáticos; el único JavaScript es el de los botones «Copiar».
+// Portada: qué es factura-hn, una factura de prueba emitida aquí mismo, por qué es confiable, cómo se integra, cómo
+// se conecta a un asistente de IA y dónde encontrar a la comunidad.
+// JavaScript: el script en línea de los botones «Copiar» y la demo (components/producto/Demo.astro), que empaqueta
+// el SDK del repositorio. El ticket de «Qué es» lo genera el mismo SDK al construir.
 // Su versión para IA es src/md/portada.md (/index.md): si cambias el texto aquí, cámbialo allá.
 import Sitio from '../layouts/Sitio.astro';
 import Codigo from '../components/producto/Codigo.astro';
+import Demo from '../components/producto/Demo.astro';
+import Ticket from '../components/producto/Ticket.astro';
 import { conBase, DISCUSIONES, DOCUMENTACION } from '../datos/navegacion';
-import { API_DOCKER, PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
+import { API_DOCKER, INSTALAR, PRIMEROS, PRIMERA_FACTURA } from '../datos/comandos.mjs';
 import { EJEMPLO_PORTADA } from '../datos/ejemplo.mjs';
 import { REPO } from '../../sitio.config.mjs';
 
@@ -36,6 +40,19 @@ const formas = [
   },
 ];
 
+/** Los asistentes: el nombre y el enlace a sus pasos en la guía del MCP. */
+const asistentes = [
+  { nombre: 'Claude', detalle: 'Claude Desktop y Claude Code', ruta: '/ia/mcp/#empieza-en-3-pasos' },
+  { nombre: 'Cursor', detalle: 'En todos tus proyectos o en uno', ruta: '/ia/mcp/#empieza-en-3-pasos' },
+  { nombre: 'ChatGPT', detalle: 'Por URL, con tu API en tu servidor', ruta: '/ia/mcp/#chatgpt' },
+];
+
+const confianza = [
+  { titulo: 'Numeración sin huecos ni repetidos', texto: 'Cada número se reserva en la misma transacción que guarda el documento.' },
+  { titulo: 'ISV exacto al centavo', texto: 'Sin punto flotante, con el redondeo del Art. 9 de la Ley del ISV.' },
+  { titulo: 'Lo emitido no se edita', texto: 'Se anula (Art. 41) o se corrige con una nota de crédito o de débito.' },
+];
+
 const ISSUES = `${REPO}/issues/new/choose`;
 const SEGURIDAD = `${REPO}/security/advisories/new`;
 ---
@@ -49,28 +66,76 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 		<div class="contenedor heroe-caja">
 			<h1 id="titulo-heroe">Facturación para Honduras, desde tu código.</h1>
 			<p class="heroe-entrada">
-				Emite facturas y notas de crédito y débito que cumplen el Reglamento del SAR. Empieza en modo de prueba, en un
-				minuto.
+				Emite facturas y notas de crédito y débito que cumplen el Reglamento del SAR. Tu primera factura de prueba, en
+				5&nbsp;minutos.
 			</p>
-			<div class="heroe-codigo">
-				<Codigo codigo={EJEMPLO_PORTADA} lang="js" titulo="emitir.mjs" etiqueta="Copiar el ejemplo" />
-			</div>
 			<div class="botones">
 				<a class="boton boton-primario" href={conBase(DOCUMENTACION)}>Empezar</a>
-				<a class="boton boton-secundario" href={REPO} rel="noopener">GitHub</a>
+				<a class="boton boton-secundario" href="#probar">Pruébalo aquí</a>
 			</div>
+			<div class="heroe-instalar">
+				<Codigo codigo={INSTALAR} lang="bash" titulo="Terminal" etiqueta="Copiar el comando de instalación" />
+			</div>
+			<figure class="video">
+				<video
+					controls
+					muted
+					playsinline
+					preload="metadata"
+					width="1920"
+					height="1080"
+					poster={conBase('/video/poster.jpg')}
+					aria-label="Video de factura-hn: de npm install a una factura de prueba impresa"
+				>
+					<source src={conBase('/video/factura-hn-lanzamiento.mp4')} type="video/mp4" />
+				</video>
+			</figure>
 		</div>
 	</section>
 
 	<section class="seccion" aria-labelledby="que-es">
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Qué es</p>
+				<h2 class="titulo-seccion" id="que-es">Lo difícil de facturar, resuelto.</h2>
+				<p class="entrada">
+					factura-hn es una librería de TypeScript, sin dependencias, que lleva la numeración con CAI y rangos, calcula el
+					ISV sin errores de redondeo e imprime en hoja carta o ticket. Es gratis y de código abierto.
+				</p>
+				<div class="bloque">
+					<Codigo codigo={EJEMPLO_PORTADA} lang="js" titulo="emitir.mjs" etiqueta="Copiar el ejemplo" />
+				</div>
+			</div>
+			<Ticket />
+		</div>
+	</section>
+
+	<section class="seccion" id="probar" aria-labelledby="titulo-probar">
 		<div class="contenedor">
-			<p class="antetitulo">Qué es</p>
-			<h2 class="titulo-seccion" id="que-es">Lo difícil de facturar, resuelto.</h2>
-			<p class="entrada">
-				factura-hn es una librería de TypeScript, sin dependencias, que lleva la numeración con CAI y rangos, calcula el
-				ISV sin errores de redondeo e imprime en hoja carta o ticket. Lo emitido no se edita: se anula o se corrige con
-				una nota. Es gratis y de código abierto.
-			</p>
+			<p class="antetitulo">Pruébalo aquí</p>
+			<h2 class="titulo-seccion" id="titulo-probar">Emite una factura de prueba sin instalar nada.</h2>
+			<p class="entrada">El SDK corre en esta página con un emisor y un CAI ficticios. Cada emisión toma el número siguiente.</p>
+			<Demo />
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="confianza">
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Por qué es confiable</p>
+				<h2 class="titulo-seccion" id="confianza">Cumple el Reglamento de Facturación del SAR y cada regla está probada.</h2>
+				<p class="mas"><a class="enlace flecha" href={conBase('/referencia/cumplimiento/')}>Ver cada regla con su prueba</a></p>
+			</div>
+			<ul class="puntos">
+				{
+					confianza.map((c) => (
+						<li>
+							<strong>{c.titulo}</strong>
+							<span>{c.texto}</span>
+						</li>
+					))
+				}
+			</ul>
 		</div>
 	</section>
 
@@ -96,58 +161,50 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 	</section>
 
 	<section class="seccion" aria-labelledby="ia">
-		<div class="contenedor">
-			<p class="antetitulo">Conéctalo a tu IA</p>
-			<h2 class="titulo-seccion" id="ia">Factura conversando con tu asistente.</h2>
-			<p class="entrada">
-				El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular. Este comando
-				crea una base de prueba e imprime el bloque listo para pegar:
-			</p>
-			<div class="comando-ia">
-				<Codigo codigo={PRIMEROS.mcp} lang="bash" titulo="Terminal" etiqueta="Copiar el comando del MCP" />
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Conéctalo a tu IA</p>
+				<h2 class="titulo-seccion" id="ia">Factura conversando con tu asistente.</h2>
+				<p class="entrada">
+					El servidor MCP le da a tu asistente las herramientas para emitir, consultar y anular. Este comando crea una base
+					de prueba e imprime el bloque listo para pegar. Luego pide: «emite una factura de prueba».
+				</p>
+				<div class="bloque">
+					<Codigo codigo={PRIMEROS.mcp} lang="bash" titulo="Terminal" etiqueta="Copiar el comando del MCP" />
+				</div>
 			</div>
-			<div class="rejilla rejilla-3">
-				<article class="forma">
-					<h3>Claude</h3>
-					<p>
-						Claude Desktop: Settings › Developer › Edit Config abre <code>claude_desktop_config.json</code>. Claude Code:
-						<code>.mcp.json</code> en la raíz del proyecto, o <code>claude mcp add-json</code>.
-					</p>
-				</article>
-				<article class="forma">
-					<h3>Cursor</h3>
-					<p>
-						Pégalo en <code>~/.cursor/mcp.json</code> (todos tus proyectos) o en <code>.cursor/mcp.json</code> (solo
-						uno) y reinicia Cursor.
-					</p>
-				</article>
-				<article class="forma">
-					<h3>ChatGPT</h3>
-					<p>
-						Levanta la API REST y el MCP por HTTP en tu servidor, con HTTPS. Crea su URL con
-						<code>factura-hn-api llave crear … --mcp</code> y agrégala en ChatGPT como conector MCP, sin autenticación.
-					</p>
-					<a class="enlace flecha" href={conBase('/ia/mcp/#chatgpt')}>Pasos para ChatGPT</a>
-				</article>
-			</div>
-			<p class="mas">Luego pide: «emite una factura de prueba». <a class="enlace flecha" href={conBase('/guias/mcp/')}>Guía del servidor MCP</a></p>
-		</div>
-	</section>
-
-	<section class="seccion" aria-labelledby="confianza">
-		<div class="contenedor">
-			<p class="antetitulo">Por qué es confiable</p>
-			<h2 class="titulo-confianza" id="confianza">Cumple el Reglamento de Facturación del SAR y cada regla está probada.</h2>
-			<p class="mas"><a class="enlace flecha" href={conBase('/referencia/cumplimiento/')}>Ver cada regla con su prueba</a></p>
+			<ul class="asistentes">
+				{
+					asistentes.map((a) => (
+						<li>
+							<a class="asistente" href={conBase(a.ruta)}>
+								<span class="asistente-icono" aria-hidden="true">
+									<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5z" />
+										<path d="M8.5 9.5h7" />
+									</svg>
+								</span>
+								<span class="asistente-texto">
+									<span class="asistente-nombre">{a.nombre}</span>
+									<span class="asistente-detalle">{a.detalle}</span>
+								</span>
+								<span class="asistente-ver">Ver cómo →</span>
+							</a>
+						</li>
+					))
+				}
+			</ul>
 		</div>
 	</section>
 
 	<section class="seccion" aria-labelledby="comunidad">
-		<div class="contenedor">
-			<p class="antetitulo">Comunidad</p>
-			<h2 class="titulo-seccion" id="comunidad">Hecho en abierto.</h2>
-			<p class="entrada">Pregunta, propón mejoras y contribuye con código, pruebas o documentación.</p>
-			<ul class="rejilla rejilla-3 lista-tarjetas">
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Comunidad</p>
+				<h2 class="titulo-seccion" id="comunidad">Hecho en abierto.</h2>
+				<p class="entrada">Pregunta, propón mejoras y contribuye con código, pruebas o documentación.</p>
+			</div>
+			<ul class="lista-tarjetas">
 				<li>
 					<a class="tarjeta" href={REPO} rel="noopener">
 						<span class="tarjeta-titulo">GitHub</span>
@@ -171,9 +228,12 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 	</section>
 
 	<section class="seccion" aria-labelledby="contacto">
-		<div class="contenedor">
-			<p class="antetitulo">Contacto</p>
-			<h2 class="titulo-seccion" id="contacto">Escríbenos en GitHub.</h2>
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Contacto</p>
+				<h2 class="titulo-seccion" id="contacto">Escríbenos en GitHub.</h2>
+				<p class="entrada">No incluyas datos reales de contribuyentes en ningún reporte.</p>
+			</div>
 			<dl class="contacto">
 				<div>
 					<dt>Preguntas e ideas</dt>
@@ -188,7 +248,6 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 					<dd><a class="enlace flecha" href={SEGURIDAD} rel="noopener">Repórtala en privado</a>, nunca en un issue público</dd>
 				</div>
 			</dl>
-			<p class="nota">No incluyas datos reales de contribuyentes en ningún reporte.</p>
 		</div>
 	</section>
 </Sitio>

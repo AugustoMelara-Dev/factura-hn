@@ -13,9 +13,9 @@ export interface Enlace {
 export const DOCUMENTACION = '/empezar/primera-factura/';
 export const DISCUSIONES = `${REPO}/discussions`;
 
-/** Cabecera: la documentación y el repositorio. */
+/** Cabecera: la documentación («Docs») y el repositorio. */
 export const NAV: Enlace[] = [
-  { texto: 'Documentación', ruta: DOCUMENTACION },
+  { texto: 'Docs', ruta: DOCUMENTACION },
   { texto: 'GitHub', ruta: REPO, externo: true },
 ];
 

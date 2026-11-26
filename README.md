@@ -19,7 +19,7 @@ const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cant
 
 Emite con un CAI ficticio: todo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
 
-## Arranque rápido
+## Tu primera factura en 5 minutos
 
 ```bash
 npx factura-hn init     # crea emitir.mjs y emisor.json

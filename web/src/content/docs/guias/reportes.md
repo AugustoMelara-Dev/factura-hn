@@ -74,7 +74,7 @@ declare const docs: DocumentoFiscal[];
 import { exportarTexto, separarDocumentosDePrueba } from 'factura-hn';
 
 const txt = exportarTexto(docs, { formato: 'txt' });
-const { excluidos } = separarDocumentosDePrueba(docs); // cuántos de prueba quedaron fuera
+const dePrueba = separarDocumentosDePrueba(docs).excluidos; // cuántos de prueba quedaron fuera
 ```
 
 Al revés que el libro, la exportación conserva los anulados **con sus importes originales** y `estado = ANULADO`:

@@ -36,7 +36,8 @@ sigue con el [SDK](/guias/sdk/). `init` genera un `.mjs` para que Node lo trate 
 
 - **MCP:** `npx -y @factura-hn/mcp init --demo` prepara una base de prueba para un asistente de IA. Ver la
   [guía del MCP](/guias/mcp/).
-- **API:** la imagen de Docker trae la consola del operador (`factura-hn-api`), para tenants, llaves y CAI. Ver la
+- **API:** la imagen de Docker trae la consola del operador (`factura-hn-api`), para tenants y llaves. Los CAI
+  se registran con la API (`POST /v1/autorizaciones`) o con `npx -y @factura-hn/mcp registrar-cai`. Ver la
   [guía de la API](/guias/api/).
 
 ## Sigue con

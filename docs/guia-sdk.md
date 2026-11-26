@@ -7,7 +7,7 @@ central, usa la [API REST](api.md).
 > Los datos de esta guía son ficticios: el CAI, los RTN (prefijo 9999) y los correos (`.example`). Usa los de
 > tu resolución del SAR.
 
-## 0. Prueba en un minuto
+## 0. Prueba en 5 minutos
 
 Sin CAI real ni base de datos, para ver una factura antes de configurar nada:
 
