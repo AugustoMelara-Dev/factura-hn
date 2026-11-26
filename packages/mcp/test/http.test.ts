@@ -10,7 +10,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { configDemo, crearApp, crearLlaveOperador, crearTenant, generarTokenMcp, migrarApi } from '@factura-hn/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { direccionDelCliente, EventosEnMemoria, ipDelCliente, opcionesMcpHttpDesdeEntorno, servirMcpHttp, type OpcionesMcpHttp } from '../src/http';
+import { direccionDelCliente, EventosEnMemoria, ipDelCliente, lineaArranqueHttp, opcionesMcpHttpDesdeEntorno, servirMcpHttp, type OpcionesMcpHttp } from '../src/http';
 import { esLlaveApi, llaveDeTokenMcp } from '../src/token';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,6 +43,13 @@ describe('token del MCP remoto', () => {
 });
 
 describe('configuración del MCP remoto', () => {
+  it('el log de arranque dice qué rutas acepta: con FHN_MCP_SOLO_URL=1, solo /mcp/<token>', () => {
+    const base = { host: '127.0.0.1', puerto: 8788, urlApi: 'http://api.local' };
+    expect(lineaArranqueHttp({ ...base, permitirBearer: true })).toBe('factura-hn MCP remoto: escucha en 127.0.0.1:8788, rutas /mcp/<token> y /mcp (Bearer); API en http://api.local.');
+    expect(lineaArranqueHttp({ ...base, permitirBearer: false })).toBe('factura-hn MCP remoto: escucha en 127.0.0.1:8788, ruta /mcp/<token> (solo URL); API en http://api.local.');
+    expect(lineaArranqueHttp(opcionesMcpHttpDesdeEntorno({ FHN_API_URL: 'http://a', FHN_MCP_SOLO_URL: '1' }))).toContain('(solo URL)');
+  });
+
   it('valores por defecto estrictos y errores claros en español', () => {
     const o = opcionesMcpHttpDesdeEntorno({ FHN_API_URL: 'http://api.interna:8787' });
     expect(o).toMatchObject({ puerto: 8788, host: '0.0.0.0', proxiesDeConfianza: 0, cabeceraIpCliente: undefined, maxSesiones: 100, sesionesPorLlave: 3, maxCuerpo: 65536, maxResultado: 65536, permitirBearer: true });
@@ -106,6 +113,8 @@ describe('solicitudes mal formadas o no permitidas: errores claros, nunca 500', 
   const token = generarTokenMcp('prueba').token;
 
   const casos: Array<[string, string, RequestInit, number, RegExp]> = [
+    ['ruta de más tras el token', `/mcp/${token}/x`, { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 404, /No existe esta URL del MCP/],
+    ['/mcp/ sin token', '/mcp/', { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 404, /No existe esta URL del MCP/],
     ['token mal formado', '/mcp/fhnmcp_test_x', { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 404, /No existe esta URL/],
     ['token con escape inválido', '/mcp/%E0%A4%A', { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 404, /No existe/],
     ['sin llave', '/mcp', { method: 'POST', headers: ACEPTA, body: JSON.stringify(INIT) }, 401, /Falta la llave/],
@@ -454,12 +463,14 @@ describe.skipIf(!URL_PG)('MCP remoto con una llave de caja', () => {
   let app: ReturnType<typeof crearApp>;
   let s: Awaited<ReturnType<typeof servidor>>;
   let token: string;
+  let tenant: string;
+  let llaveAdmin: string;
 
   beforeAll(async () => {
     await migrarApi(pool);
     app = crearApp({ pool, modo: 'local', registrar: () => undefined });
-    const tenant = `mcp-caja-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
-    const { llaveAdmin } = await crearTenant(pool, { tenant, nombre: tenant });
+    tenant = `mcp-caja-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+    ({ llaveAdmin } = await crearTenant(pool, { tenant, nombre: tenant }));
     const admin = (ruta: string, cuerpo: unknown) =>
       app.request(ruta, { method: 'POST', headers: { authorization: `Bearer ${llaveAdmin}`, 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
     const e = await admin('/v1/emisores', {
@@ -498,4 +509,28 @@ describe.skipIf(!URL_PG)('MCP remoto con una llave de caja', () => {
       await cliente.close();
     }
   });
+
+  it('un token fhnmcp_ de una llave admin (creado antes de la regla) no abre sesión: 403 por URL y por Bearer', async () => {
+    // Como lo dejaba la consola antes: la llave derivada del token, con rol admin.
+    const t = generarTokenMcp('produccion');
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      await c.query("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', 'MCP admin viejo')", [t.prefijo, tenant, t.hash]);
+      await c.query('COMMIT');
+    } finally {
+      c.release();
+    }
+    for (const [ruta, cabeceras] of [[`/mcp/${t.token}`, {}], ['/mcp', { authorization: `Bearer ${t.token}` }]] as const) {
+      const r = await fetch(`${s.url}${ruta}`, { method: 'POST', headers: { ...ACEPTA, ...cabeceras }, body: JSON.stringify(INIT) });
+      expect(r.status, ruta).toBe(403);
+      expect(((await r.json()) as Cualquiera).error.message).toMatch(/solo puede ser de una llave de caja.*--rol caja --caja 000-001 --mcp/);
+    }
+    expect(s.servidor.listening).toBe(true);
+    // La llave admin (fhn_…) por Bearer sí abre sesión: solo el token de URL está limitado a caja.
+    const admin = await fetch(`${s.url}/mcp`, { method: 'POST', headers: { ...ACEPTA, authorization: `Bearer ${llaveAdmin}` }, body: JSON.stringify(INIT) });
+    expect(admin.status).toBe(200);
+  });
 });
+
