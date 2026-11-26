@@ -1,65 +1,38 @@
 # Cómo contribuir
 
-Gracias por ayudar. factura-hn emite documentos fiscales: un error aquí le cuesta dinero o una sanción a un
-negocio. Por eso las reglas de abajo no son opcionales.
+¡Gracias por venir! Toda ayuda cuenta: un error reportado, un ejemplo, una prueba o una regla fiscal mejor
+explicada. Si es tu primer aporte, busca los issues con la etiqueta
+[`good first issue`](https://github.com/AugustoMelara-Dev/factura-hn/labels/good%20first%20issue).
 
-## Reglas del proyecto
+## Levantar el proyecto
 
-1. **No se inventan reglas fiscales.** Cada validación cita su artículo (Reglamento del Régimen de
-   Facturación, Acuerdo 481-2017, u otra norma) en un comentario y tiene una prueba. Si el texto no lo dice de
-   forma literal y la regla es una lectura, el comentario y la documentación lo dicen así, y el PR explica la
-   interpretación. La matriz de cumplimiento (`docs/cumplimiento.md`) es la fuente de verdad.
-2. **Sin punto flotante en dinero.** Montos como texto decimal o enteros escalados.
-3. **Correlativos atómicos y sin huecos.** Un número nunca se borra ni se reutiliza. Si algo falla, se revierte
-   la transacción o el documento se anula.
-4. **Documentos inmutables.** Solo se anulan (Art. 41) o se corrigen con notas 06/07.
-5. **Fechas en America/Tegucigalpa.**
-6. **Cambios incompatibles** en una versión menor mientras sea 0.x, con su entrada en `CHANGELOG.md`.
-7. **Datos de ejemplo ficticios** (abajo). `pnpm auditar:datos` lo comprueba en el CI.
-
-## Preparar el entorno
+Necesitas Node 22 o más reciente y pnpm (`corepack enable`).
 
 ```bash
-pnpm install            # pnpm 12 (corepack enable), Node 22.13 o más reciente
+pnpm install
 pnpm build
-pnpm test               # núcleo, SQLite, PDF y lo que no necesita base
-pnpm test:ejemplos
-pnpm test:pg            # PostgreSQL en Docker (docker-compose.dev.yml) o en FHN_PG_URL
-pnpm typecheck
-pnpm mutacion           # pruebas de mutación del núcleo (Stryker, ~15 min con 8 procesos; corre cada noche), ver docs/calidad/mutacion.md
-pnpm verificar:dist     # lo que se publicaría en npm
-pnpm sitio              # sitio de documentación (web/, Astro Starlight) en sitio/
-pnpm sitio:ver          # el sitio construido en http://localhost:4321/factura-hn/
+pnpm test
 ```
 
-## Antes de abrir un PR
+## Dónde está cada cosa
 
-- Pruebas nuevas para lo que cambias. Una regla fiscal nueva va con su caso positivo y negativo, y la fila de
-  la matriz (`docs/cumplimiento.md`) se actualiza. En la columna «Prueba», cita el archivo y el título de la
-  prueba entre comillas latinas (`matriz.test.ts` «Art. 9 …»): `pnpm sitio` falla si una fila cubierta o parcial
-  no tiene prueba o cita una que no existe.
-- `pnpm changeset` si el cambio afecta a un paquete publicado. Describe el cambio en español, para quien lo
-  usa.
-- Documentación al día. Los bloques ```ts de README, AGENTS.md y `docs/guia-sdk.md` se compilan en las
-  pruebas: si cambias una firma, cambia el ejemplo.
-- Commits pequeños, con las pruebas en verde.
+- `packages/core`: el SDK `factura-hn` y la CLI (`npx factura-hn`). Aquí viven las reglas fiscales.
+- `packages/sqlite`, `packages/postgres`: dónde se guardan los documentos. `packages/pdf`: el PDF.
+- `packages/api`: la API REST. `packages/cliente`: su cliente tipado. `packages/mcp`: el servidor MCP.
+- `examples/`: proyectos de ejemplo. `docs/` y `web/`: la documentación y el sitio.
 
-## Datos de ejemplo
+## Proponer un cambio
 
-Nunca uses datos de personas o negocios reales, ni de tu propia empresa:
+1. Si es grande, abre primero un issue o una [discusión](https://github.com/AugustoMelara-Dev/factura-hn/discussions) y lo conversamos.
+2. Haz tu cambio con su prueba. Una regla fiscal cita su artículo (por ejemplo, Art. 41) en un comentario.
+3. Si afecta a un paquete publicado, corre `pnpm changeset` y describe el cambio en español, para quien lo usa.
+4. Abre el PR. Te respondemos pronto.
 
-| Dato | Usa |
-|---|---|
-| RTN | `99990000000001`, `99990000000002`… (no existe el departamento 99) |
-| DNI | `9999000000001` |
-| CAI | `A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4` o `DEMO00-NO-VALIDO-…` |
-| Correo | `algo@ejemplo.example` (dominio reservado, RFC 2606) |
-| Teléfono | `0000-0001` |
-| Dirección | `Barrio El Centro, Ciudad Ejemplo` |
+Dinero siempre como texto decimal (`'115.00'`), nunca con punto flotante. Fechas en America/Tegucigalpa.
+En ejemplos y pruebas, solo datos ficticios: RTN `99990000000001`, DNI `9999000000001`, CAI
+`DEMO00-NO-VALIDO-…`, correo `algo@ejemplo.example`, teléfono `0000-0001`. `pnpm auditar:datos` lo revisa.
 
-## Reportar un problema
+## Tono
 
-- **Regla fiscal:** usa la plantilla «Regla fiscal» y cita el artículo y la fuente.
-- **Vulnerabilidad:** no abras un reporte público (issue). Sigue `SECURITY.md`.
-
-Al participar aceptas el [código de conducta](CODE_OF_CONDUCT.md).
+Escribimos en español, de tú, claro y amable. Aquí nadie sabe todo: preguntar está bien. Al participar aceptas
+el [código de conducta](CODE_OF_CONDUCT.md). Para una vulnerabilidad, sigue [SECURITY.md](SECURITY.md).

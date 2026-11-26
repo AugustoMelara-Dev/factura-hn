@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Vulnerabilidad de seguridad
+  - name: Una pregunta o una duda de uso
+    url: https://github.com/AugustoMelara-Dev/factura-hn/discussions
+    about: Pregunta en Discussions. Ahí te ayuda la comunidad y la respuesta le sirve a alguien más.
+  - name: Una vulnerabilidad de seguridad
     url: https://github.com/AugustoMelara-Dev/factura-hn/security/advisories/new
-    about: Repórtala en privado (no en un issue público).
+    about: Repórtala en privado. Solo la ven quienes mantienen el proyecto.
   - name: Documentación
     url: https://augustomelara-dev.github.io/factura-hn/
-    about: Guías del SDK, la API y el autoalojamiento.
+    about: Guías del SDK, la CLI, la API, el MCP y el autoalojamiento.

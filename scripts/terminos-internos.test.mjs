@@ -41,6 +41,39 @@ test('detecta los términos internos, con su línea', () => {
   assert.deepEqual(nombres('la auditoría de agentes'), ['jerga del proceso']);
 });
 
+test('detecta menciones a las herramientas de IA con que se construyó', () => {
+  const ia = 'herramienta de IA usada para construirlo';
+  assert.deepEqual(nombres('Proyecto hecho con Claude Code.'), [ia]);
+  assert.deepEqual(nombres('El SDK fue construido con ayuda de IA'), [ia]);
+  assert.deepEqual(nombres('El SDK fue construido con la ayuda de Claude'), [ia]);
+  assert.deepEqual(nombres('desarrollado usando inteligencia artificial'), [ia]);
+  assert.deepEqual(nombres('programada con una IA'), [ia]);
+  assert.deepEqual(nombres('Built with Claude'), [ia]);
+  assert.deepEqual(nombres('made with AI'), [ia]);
+  assert.deepEqual(nombres('lo revisó Claude Opus'), [ia]);
+  assert.deepEqual(nombres('Claude Sonnet 4'), [ia]);
+  assert.deepEqual(nombres('lo partió un subagente'), ['jerga del proceso']);
+  assert.deepEqual(nombres('Lote 3: anulación'), ['tanda de trabajo numerada']);
+});
+
+test('detecta lenguaje de duda o de estado y la demostración en la nube', () => {
+  const duda = 'lenguaje de duda o de estado';
+  const nube = 'demostración en la nube';
+  assert.deepEqual(nombres('Regla pendiente de consulta.'), [duda]);
+  assert.deepEqual(nombres('pendiente de validación con el contador'), [duda]);
+  assert.deepEqual(nombres('Pendiente de validacion'), [duda]);
+  assert.deepEqual(nombres('Es una lectura provisional del Art. 10.'), [duda]);
+  assert.deepEqual(nombres('lecturas provisionales'), [duda]);
+  assert.deepEqual(nombres('Ver la consulta al SAR.'), [duda]);
+  assert.deepEqual(nombres('las consultas al SAR'), [duda]);
+  assert.deepEqual(nombres('Todavía sin respuesta del SAR.'), [duda]);
+  assert.deepEqual(nombres('## Estado legal'), [duda]);
+  assert.deepEqual(nombres('[aquí](/produccion/estado-legal/)'), [duda]);
+  assert.deepEqual(nombres('Pruébalo ahora'), [nube]);
+  assert.deepEqual(nombres('PRUEBALO AHORA'), [nube]);
+  assert.deepEqual(nombres('curl https://API_DE_LA_DEMO/v1'), [nube]);
+});
+
 test('no confunde el texto del producto con términos internos', () => {
   const muestra = [
     // RTN, CAI de demostración, números de documento y montos.
@@ -62,6 +95,15 @@ test('no confunde el texto del producto con términos internos', () => {
     'Hallazgos y correcciones: un hallazgo corregido en el límite de solicitudes.',
     // Auditoría fiscal (la bitácora) y agentes de IA del usuario.
     'La auditoría de la bitácora; instrucciones para agentes de IA.',
+    // Documentos y entregas pendientes, y el estado de un documento.
+    'Documentos pendientes de envío; webhooks pendientes de entrega; 3 documentos pendientes.',
+    'El estado del documento (emitido, anulado); el estado de la entrega; un lote de documentos.',
+    'Validación pendiente del formulario; la consulta de un documento; consultar el CAI en el portal del SAR.',
+    // Lo que el asistente del usuario emite o escribe, y el modo de prueba local.
+    'La factura generada por el agente; el código que escribe Claude Code; creado con Claude Desktop.',
+    'Pídele a Claude Code que lo integre: hecho con el SDK; construido con factura-hn.',
+    'Pruébalo en tu equipo con npx factura-hn demo; ahora emite la factura.',
+    'Modelo de datos; el modelo de la factura; Sonnet de Shakespeare; el Opus Dei.',
   ].join('\n');
   assert.deepEqual(buscarTerminos(muestra), []);
 });

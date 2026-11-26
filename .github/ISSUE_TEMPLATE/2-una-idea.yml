@@ -1,0 +1,28 @@
+name: Una idea
+description: Algo que te haría más fácil facturar o integrar factura-hn.
+labels: [idea]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ¡Qué bueno que la compartas! Cuéntanos el problema primero; la solución la pensamos juntos.
+        Si es una pregunta o quieres conversarla antes, abre una [discusión](https://github.com/AugustoMelara-Dev/factura-hn/discussions).
+  - type: textarea
+    id: problema
+    attributes:
+      label: ¿Qué quieres lograr?
+      placeholder: Quiero mandarle al cliente el PDF de la factura por correo justo después de emitirla.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: ¿Cómo te imaginas que funcione?
+      description: Opcional. Un ejemplo de código o de uso ayuda mucho.
+      placeholder: "await caja.emitir(datos, { enviarA: 'cliente@ejemplo.example' })"
+  - type: checkboxes
+    id: ayuda
+    attributes:
+      label: ¿Te animas a ayudar?
+      options:
+        - label: Me gustaría intentar hacerlo yo, con un poco de guía.
