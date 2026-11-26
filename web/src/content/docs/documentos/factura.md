@@ -144,5 +144,5 @@ Un error no consume número: la emisión se revierte entera.
 
 ## Fuentes
 
-- Reglamento, Arts. 9-14: matriz de [cumplimiento](/referencia/cumplimiento/), filas 9 a 14.
+- Reglamento, Arts. 9-14: matriz de [cumplimiento](/referencia/cumplimiento/), filas de los Arts. 9 a 13.
 - Ley del ISV, Arts. 3 y 9: misma matriz, sección «Ley del Impuesto Sobre Ventas».

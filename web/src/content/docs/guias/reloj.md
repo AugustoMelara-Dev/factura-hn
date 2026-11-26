@@ -124,6 +124,7 @@ Inyecta el reloj: `reloj` en `crearFacturador`, en las `opciones` de `emitir` y 
 ## Fuentes
 
 - Reglamento, Arts. 14 y 43; matriz de
-  [cumplimiento](/referencia/cumplimiento/), filas 14, 41 y 43.
+  [cumplimiento](/referencia/cumplimiento/), filas 41 (documentos con errores) y 43 (custodia ordenada y
+  cronológica).
 - `corregirFechaAdelantada` y `eventosAuditoria` en el núcleo; sección «Reloj del dispositivo» de
   `AGENTS.md`.
