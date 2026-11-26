@@ -78,9 +78,7 @@ Node, en funciones serverless y en el navegador.
 
 Un documento emitido con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva `modo: 'prueba'`. El HTML, el texto y el
 PDF imprimen `LEYENDA_PRUEBA`, «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL», al inicio y al final; el PDF agrega una
-marca de agua PRUEBA. El texto es fijo: no se traduce ni se personaliza. Es una marca del producto, no una regla
-fiscal: evita que un documento de demostración pase por uno real. Un documento real se imprime
-sin ella.
+marca de agua PRUEBA. El texto es fijo: no se traduce ni se personaliza. Un documento real se imprime sin ella.
 
 ### Documento anulado
 
@@ -125,11 +123,6 @@ Con `@factura-hn/cliente`: `fhn.descargar(numero, 'pdf', { papel: 'ticket' })`. 
 Antes de imprimir documentos en papel térmico hay que presentar al SAR la certificación del proveedor del papel
 de que la impresión se conserva al menos 5 años (Art. 38). Sin ella, el documento no sustenta gastos ni crédito
 fiscal.
-
-:::caution[Por confirmar con fuente]
-El repositorio no dice quién gestiona esa certificación ni qué son los «resúmenes de ventas» que menciona el
-mismo artículo, ni en qué formato se entregan. Confírmalo con tu contador.
-:::
 
 ## Errores frecuentes
 

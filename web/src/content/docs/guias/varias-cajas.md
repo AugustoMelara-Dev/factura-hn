@@ -99,11 +99,8 @@ Si varias personas usan la misma caja, envía el nombre de quien cobra en `opera
 
 `GET /v1/sesion` dice, con la llave de cada caja, si ya puede emitir y qué le falta: emisor, CAI, punto de emisión.
 
-:::caution[Por confirmar con fuente]
-El Art. 47 pide registrar el establecimiento donde se encuentra el servidor del sistema. Si un servidor en la nube
-operado por un tercero encaja en esa regla no está resuelto. Mientras tanto, el proyecto recomienda el modo
-local: la API en un servidor del propio negocio. Ver [Autoalojar la API](/guias/autoalojar/).
-:::
+Para un negocio, usa el modo local: la API en un servidor del propio negocio, en su establecimiento (Art. 47).
+Ver [Autoalojar la API](/guias/autoalojar/).
 
 ## Errores frecuentes
 

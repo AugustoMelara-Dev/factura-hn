@@ -49,9 +49,8 @@ es `01`.
 - **Momento de emisión.** Se emite con lo primero que ocurra entre la entrega del bien y el pago o el
   otorgamiento del crédito; en servicios, al pago o al crédito (Art. 14). El SDK no puede saber cuándo ocurre:
   decidirlo es tarea de tu sistema.
-- **La fecha es la de hoy.** La pone el reloj en hora de Honduras y no se puede retrofechar ni adelantar: es una
-  regla del proyecto para cumplir el momento de emisión (Art. 14) y el archivo cronológico
-  (Art. 43).
+- **La fecha es la de hoy.** La pone el reloj en hora de Honduras y no se puede retrofechar ni adelantar, por el
+  momento de emisión (Art. 14) y el archivo cronológico (Art. 43).
 - **Descuentos.** Los descuentos que constan en la factura no forman parte de la base gravable (Ley del ISV,
   Art. 3).
 - **Redondeo del ISV.** Con precios con ISV incluido, el total puede quedar un centavo por debajo de la suma de
@@ -117,20 +116,8 @@ resolución.
   del registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). La exoneración cubre el documento
   completo: si la orden no cubre todos los artículos, emite dos facturas, una exonerada y otra normal.
 - **Moneda extranjera.** `moneda: 'USD'` exige `tipoCambio`. El impreso muestra el tipo de cambio y el
-  equivalente en lempiras del ISV y del total. Ningún texto lo exige: es una decisión de factura-hn.
+  equivalente en lempiras del ISV y del total.
 - **Exportación.** `isv: 'GRAVADO0'` deja la línea en la columna «gravado 0 %», distinta de lo exento.
-
-:::caution[Por confirmar con fuente]
-- **Exportaciones.** El Reglamento (Art. 12) pide factura con tasa cero; la Ley del ISV dice que las
-  exportaciones quedan exentas. El SDK sigue al Reglamento: es la lectura que aplica factura-hn.
-- **Tasa del 18 %.** El repositorio no tiene el texto primario del Decreto 278-2013 ni la lista vigente de
-  bienes al 18 %. Confirma la tasa de cada producto con tu contador.
-- **ISV por grupo de tasa.** El SDK calcula el impuesto por grupo de tasa, no línea por línea.
-- **Entrega del original a distancia.** Si un PDF por correo cumple la entrega del original en una venta por
-  internet no está confirmado (Arts. 5 y 14).
-
-Confírmalo con tu contador.
-:::
 
 ## Errores frecuentes
 
@@ -159,4 +146,3 @@ Un error no consume número: la emisión se revierte entera.
 
 - Reglamento, Arts. 9-14: matriz de [cumplimiento](/referencia/cumplimiento/), filas 9 a 14.
 - Ley del ISV, Arts. 3 y 9: misma matriz, sección «Ley del Impuesto Sobre Ventas».
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

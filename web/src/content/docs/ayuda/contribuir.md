@@ -6,29 +6,21 @@ sidebar:
 ---
 
 factura-hn emite documentos fiscales: un error le cuesta dinero o una sanción a un negocio. Por eso las reglas
-de abajo no son opcionales. Las contribuciones son bienvenidas, sobre todo de contadores y de desarrolladores con
-sistemas ya autorizados.
+de abajo no son opcionales. Las contribuciones son bienvenidas.
 
 La guía completa está en
 [CONTRIBUTING.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/CONTRIBUTING.md). Al participar
 aceptas el
 [código de conducta](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/CODE_OF_CONDUCT.md).
 
-## Si eres contador o conoces la norma
+## Si conoces la norma
 
-La forma más útil de ayudar es aportar la fuente de una regla. Abre un issue con la plantilla **«Regla fiscal»**
-y cita el artículo y la fuente exacta. Sirve para:
-
-- una regla que falta, sobra o se interpreta mal;
-- un aviso «Por confirmar con fuente» de este sitio;
-- uno de los [puntos que el Reglamento no dice de forma literal](/produccion/estado-legal/#puntos-que-el-reglamento-no-dice-de-forma-literal).
-
-No hace falta escribir código.
+Si una regla falta, sobra o está mal aplicada, abre un issue con la plantilla **«Regla fiscal»** y cita el
+artículo y la fuente exacta. No hace falta escribir código.
 
 ## Reglas del proyecto
 
-1. **No se inventan reglas fiscales.** Cada validación cita su artículo en un comentario y tiene una prueba. Donde
-   la norma no es literal, la documentación dice qué lectura aplica factura-hn y por qué.
+1. **No se inventan reglas fiscales.** Cada validación cita su artículo en un comentario y tiene una prueba.
 2. **Sin punto flotante en dinero.** Montos como texto decimal o enteros escalados.
 3. **Correlativos atómicos y sin huecos.** Un número nunca se borra ni se reutiliza.
 4. **Documentos inmutables.** Solo se anulan (Art. 41) o se corrigen con notas 06 y 07.

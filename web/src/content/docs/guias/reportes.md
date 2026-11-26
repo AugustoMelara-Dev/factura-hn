@@ -51,19 +51,8 @@ Una fila por documento, con estas reglas:
 - **Texto seguro en hojas de cálculo.** Un nombre de cliente que empieza con `=`, `+`, `-` o `@` lleva un
   apóstrofo delante para que la hoja no lo ejecute como fórmula.
 
-:::caution[Lectura de factura-hn]
-El repositorio no tiene una norma que fije el formato del libro de ventas ni cómo convertir los documentos en
-moneda extranjera. La conversión a lempiras es la lectura que aplica factura-hn; confírmala con tu contador.
-:::
-
 `resumenVentas(filas)` da los totales del período: exonerado, exento, gravado al 0 %, al 15 % y al 18 %, ISV 15 %,
 ISV 18 % y total. Sirve de apoyo para la declaración mensual del ISV, pero factura-hn no la presenta.
-
-:::caution[Por confirmar con fuente]
-El repositorio no tiene la fuente del formulario de la declaración mensual ni de su relación con el libro de
-ventas. Confírmalo
-con tu contador.
-:::
 
 ## Exportación a texto (Art. 53 num. 5)
 
@@ -91,10 +80,7 @@ Al revés que el libro, la exportación conserva los anulados **con sus importes
 el archivo refleja lo emitido, y quien lo procese decide cómo contarlo. `VERSION_EXPORTACION` versiona las
 columnas.
 
-:::caution[Por confirmar con fuente]
-No se encontró un formato oficial para estos archivos. Los tres formatos son propios del proyecto. Si el SAR
-publica uno, se agregará como un formato más.
-:::
+Los tres formatos son propios de factura-hn.
 
 TXT y JSONL son archivos de traslado: no se protegen contra fórmulas. No los abras con el asistente de importación
 de una hoja de cálculo.
@@ -129,11 +115,6 @@ Cada rango trae el CAI, los números sin usar, la causal del Art. 42 (`CAUSALES_
 - **Feriados.** Solo se descuentan sábados y domingos. Sin `feriados`, la fecha límite puede quedar uno o dos días
   después de la real.
 - **La comunicación la haces tú**, en el sistema que establezca el SAR. El SDK no la envía.
-
-:::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados tampoco está publicado en las fuentes revisadas. Confírmalo con tu
-contador.
-:::
 
 ## Los documentos de prueba quedan fuera
 
@@ -176,5 +157,3 @@ Detalle en la [referencia de la API](/referencia/api/).
 - Reglamento, Arts. 11, 41, 42 y 53: matriz de [cumplimiento](/referencia/cumplimiento/), filas 41, 42 y 53.
 - `reportes.ts`, `exportacion.ts` y `no-utilizados.ts` del núcleo; [referencia de la API](/referencia/api/),
   «Reportes de período».
-- Los formatos de exportación y los feriados que pasa el integrador son decisiones de diseño de factura-hn. El
-  libro en lempiras es una lectura de factura-hn: ver [Estado legal](/produccion/estado-legal/).

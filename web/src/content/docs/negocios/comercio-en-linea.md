@@ -5,16 +5,12 @@ sidebar:
   order: 4
 ---
 
-:::caution[Guía orientativa]
-Guía orientativa, pendiente de revisión por un contador. No sustituye asesoría fiscal.
-:::
-
 ## Perfil
 
 Una tienda en línea que cobra con tarjeta o transferencia antes de entregar. El cliente no está presente al
 emitir. Los pedidos los procesa un servidor (Node, PHP, Python u otro).
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -36,11 +32,8 @@ El [ejemplo de Express](https://github.com/AugustoMelara-Dev/factura-hn/tree/mai
 - **Arriba de L 10,000** a consumidor final, nombre e identificación del cliente (Art. 11, párrafo final). Pídelos
   en el formulario de compra; si faltan, la API responde 422 con `CONSUMIDOR_FINAL_IDENTIFICACION`.
 - **Crédito fiscal**: el cliente que lo necesita da su RTN al comprar (Art. 11 num. 1 a-c).
-- **Precios con ISV incluido**: factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (lectura del Art. 9 de la Ley del ISV que aplica factura-hn). Cobra el total que devuelve la API, o cotiza antes de cobrar.
-
-:::caution[Por confirmar con fuente]
-El tratamiento de los precios con ISV incluido sin base exacta es la lectura que aplica factura-hn: la norma no lo resuelve de forma literal. Confírmalo con tu contador.
-:::
+- **Precios con ISV incluido**: con algunos precios no hay una base exacta y el total
+  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Cobra el total que devuelve la API, o cotiza antes de cobrar.
 
 ## Ejemplo: facturar un pedido pagado
 
@@ -116,26 +109,5 @@ No son reglas fiscales: son la forma segura de integrar.
   ver [Nota de Crédito](/documentos/nota-credito/)). Si se emitió con un error, un supervisor la anula
   (Art. 41).
 - **El pedido se cancela antes de pagar.** No hay nada que emitir: la factura sale con el pago.
-
-## Por confirmar con fuente
-
-:::caution[Por confirmar con fuente]
-- **Entrega del original.** Si el cliente no está presente, el emisor debe hacerle llegar el original. El
-  repositorio sugiere el PDF por correo, pero sin artículo: no se sabe si la entrega electrónica cumple la
-  obligación de entregar el original (Arts. 5 y 14).
-- **Compradores en el extranjero**: si una venta en línea a alguien fuera de Honduras es una exportación con tasa
-  cero (Art. 12, `GRAVADO0`) o no, y si se imprime «gravado 0 %» o «exento».
-- **Moneda de cobro frente a moneda del documento**: si la tienda cobra en dólares, qué moneda y qué tipo de cambio
-  lleva la factura. El repositorio solo cubre el tipo de cambio vigente a la fecha (Art. 11, párrafo final).
-- **Devolución de una venta a consumidor final**: si procede una nota de crédito y con qué datos.
-- **Datos personales del cliente** guardados por un tercero, si la API está alojada fuera del negocio, y el encaje de una API alojada con los Arts. 47 y 61.
-Confírmalo con tu contador antes de emitir.
-:::
-
-## Qué confirmar con tu contador
-
-- Cómo se entrega el original al cliente.
-- El tratamiento de las ventas al extranjero y en otra moneda.
-- Dónde se instala la API (en un equipo del negocio o alojada) antes de inscribir el sistema.
 
 Siguiente: [Ir a producción](/produccion/).

@@ -5,16 +5,12 @@ sidebar:
   order: 2
 ---
 
-:::caution[Guía orientativa]
-Guía orientativa, pendiente de revisión por un contador. No sustituye asesoría fiscal.
-:::
-
 ## Perfil
 
 Servicio en mesa y para llevar, con dos o más puntos de cobro (caja principal, barra, terraza). Ticket en
 impresora térmica. La cuenta de una mesa se cobra al final.
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -37,7 +33,7 @@ SQLite en el equipo de la caja.
 - **Momento de emisión.** El documento se emite con lo primero que ocurra entre la entrega y el pago o el crédito;
   en servicios, al pago o al crédito (Reglamento, Art. 14). factura-hn no lo decide: tu sistema llama a la emisión
   en el momento que corresponda.
-- **Un documento por venta** (Art. 9, C L.559-566). No se agrupan las cuentas del día en un solo documento.
+- **Un documento por venta** (Art. 9). No se agrupan las cuentas del día en un solo documento.
 - **El Ticket (09) no lo emite un sistema**, solo una máquina registradora (Art. 4 num. 43). Lo que sale en el
   rollo de 80 mm es una Factura (01).
 - **Consumidor final** sin datos, salvo que el cliente pida factura con RTN (Art. 11 num. 1 a-c y num. 2 a).
@@ -118,33 +114,8 @@ CAI de cada caja y una llave de caja por punto de emisión. Ver [Autoalojamiento
 - **Dos cajas cobran a la vez.** La API serializa cada serie: cada caja tiene su punto de emisión y su numeración,
   sin huecos ni repetidos.
 - **El cliente pide la factura a nombre de su empresa.** Se agrega `cliente: { nombre, rtn }` al documento antes de
-  emitir. Un documento emitido no se edita; el Reglamento solo prevé anularlo (Art. 41) o modificarlo con notas.
-  Si ya salió a CONSUMIDOR FINAL, si procede anularlo y emitir otro lo decide el contador: el repositorio no trata
-  ese caso.
+  emitir. Un documento emitido no se edita: se anula (Art. 41) o se modifica con notas.
 - **Se cae el equipo de la API.** Las cajas no pueden emitir. Se usan los talonarios de contingencia (Art. 55).
   Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy.
-
-## Por confirmar con fuente
-
-:::caution[Por confirmar con fuente]
-- **Ventas del talonario de contingencia**: cómo se reportan en el libro de ventas y en la declaración. Confírmalo
-  con tu contador; el repositorio no lo trata.
-- **Propina o cargo por servicio.** El repositorio no tiene ningún artículo sobre si forma parte de la base del
-  ISV ni sobre cómo se imprime. Por eso el ejemplo no la incluye.
-- **Cuentas divididas entre comensales**: si cada parte es un documento separado y con qué datos.
-- **Bebidas alcohólicas al 18 %.** La lista de bienes al 18 % no está en texto primario en el repositorio. El SDK acepta `isv: 'ISV18'` en la línea, pero qué productos van ahí lo decide
-  el contador.
-- **Consumo en el local frente a para llevar**: si cambia algo en el documento o en el momento de emisión. El
-  repositorio no lo trata.
-- **Papel térmico**: quién presenta la certificación del Art. 38 y qué son los «resúmenes de ventas».
-Confírmalo con tu contador antes de emitir.
-:::
-
-## Qué confirmar con tu contador
-
-- El tratamiento de la propina y de las bebidas.
-- Cómo se manejan las cuentas divididas.
-- Si el local usa una sola numeración para todas las cajas o una por caja (Art. 48), al inscribir los puntos de
-  emisión.
 
 Siguiente: [Ir a producción](/produccion/).

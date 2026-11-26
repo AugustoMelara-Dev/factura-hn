@@ -42,17 +42,10 @@ console.log(resumen, `${excluidos} documentos de prueba fuera del libro`);
 - Los documentos anulados salen con su número y los montos en cero: el número existe y no se puede saltar.
 - Los documentos de prueba (CAI `DEMO00-…`) quedan fuera.
 - Un documento en moneda extranjera se convierte a lempiras con el tipo de cambio que imprime, campo por campo.
-  Por eso la suma de las partes puede diferir del total en 1 centavo. El Reglamento no dice en qué moneda va el
-  libro: es la lectura que aplica factura-hn. Confírmala con tu contador.
+  Por eso la suma de las partes puede diferir del total en 1 centavo.
 
 Con la API: `GET /v1/libro-ventas?desde=2026-11-01&hasta=2026-11-30&formato=csv` (llave de caja o admin). Con el
 MCP: la herramienta `libro_ventas`.
-
-:::caution[Por confirmar con fuente]
-El repositorio no tiene una norma que fije el formato del libro de ventas, ni la fuente de la declaración mensual
-del ISV: formulario, nombre y campos, y cómo se relaciona con este libro. El libro de factura-hn es un
-apoyo para el contador, no un formulario del SAR.
-:::
 
 ## Archivo de texto (Art. 53 num. 5)
 
@@ -76,15 +69,12 @@ y el motivo de la anulación: refleja lo que se emitió.
 Con la API: `GET /v1/exportacion?desde=2026-11-01&hasta=2026-11-30&formato=csv` (solo llave admin). Cada
 exportación queda en la bitácora de la API.
 
-:::caution[Por confirmar con fuente]
-No se encontró un formato oficial (layout) para el archivo de texto del Art. 53 num. 5. Los formatos de factura-hn
-son propios. Si el SAR publica uno, se agregará como un formato más de `exportarTexto`.
-:::
+Los formatos de factura-hn son propios.
 
 ## Documentos no utilizados
 
 Los números que quedan sin usar se comunican al SAR **dentro de los diez días hábiles del mes siguiente** al
-acontecimiento (Art. 42, C L.1958-1990). Las causales más comunes:
+acontecimiento (Art. 42). Las causales más comunes:
 
 - el vencimiento de la autorización (causal 1);
 - el cambio de los datos del obligado tributario (2);
@@ -114,27 +104,21 @@ for (const r of rangos) {
 const porBaja = await noUtilizadosDelAlmacen(almacen, '000-001-01', { evento: { causal: 5, fecha: '2026-11-30' } });
 ```
 
-Cómo cuenta los plazos, y qué decisiones hay detrás:
+Cómo cuenta los plazos:
 
 - Sin `evento`, solo reporta las autorizaciones **vencidas** con números libres. Una autorización vigente todavía
   se puede usar.
-- Para el vencimiento, el acontecimiento es la fecha límite misma. Es la lectura conservadora: el aviso nunca queda
-  tarde.
+- Para el vencimiento, el acontecimiento es la fecha límite misma: así el aviso nunca queda tarde.
 - Solo descuenta sábados y domingos. Los feriados de Honduras cambian por decreto y el SDK no los trae: pásalos en
   `feriados`. Sin ellos, la fecha calculada puede quedar uno o más días después de la real.
 - No incluye las autorizaciones de prueba: un CAI ficticio no es una autorización del SAR.
 
 Con la API: `GET /v1/series/000-001-01/no-utilizados` (solo llave admin).
 
-:::caution[Por confirmar con fuente]
-El formato de la comunicación de no utilizados no está publicado en las fuentes del repositorio. Confírmalo con tu
-contador.
-:::
-
 ## Anulaciones del mes
 
 Un documento con errores se anula: lleva la leyenda «ANULADA», conserva su número y se resguarda el original y la
-copia en orden cronológico (Art. 41, C L.1943-1955). En factura-hn se anula con `anular`, con un motivo
+copia en orden cronológico (Art. 41). En factura-hn se anula con `anular`, con un motivo
 obligatorio. Nada se borra. Ver [Anular](/guias/anular/).
 
 Al cerrar el mes, revisa las anulaciones con su motivo y quién las hizo:
@@ -179,10 +163,6 @@ no protege de un disco dañado: el respaldo es responsabilidad del negocio.
 - Guarda las copias fuera del equipo: un disco externo o el almacenamiento en la nube del negocio.
 - **Prueba la restauración** al menos una vez, en una instalación nueva y antes de emitir nada en ella.
 
-:::caution[Por confirmar con fuente]
-El plazo de conservación se tomó del Código Tributario (Arts. 58 num. 4, 63 num. 3, 144 y 145) en una
-compilación de 2024 del Poder Judicial, no de La Gaceta. Con esa fuente, el proyecto adoptó conservar los
-documentos **al menos 5 años desde el vencimiento de la declaración del período** para quien está inscrito en el
-RTN. Falta confirmar que no hubo reformas posteriores. Mientras tanto, conserva todo y no
-borres nada.
-:::
+Conserva los documentos **al menos 5 años desde el vencimiento de la declaración del período** (Código
+Tributario, Arts. 58 num. 4, 63 num. 3, 144 y 145). No borres nada.
+

@@ -6,15 +6,11 @@ sidebar:
 ---
 
 Cuatro caminos, cada uno en unos pocos pasos. Todos empiezan en **modo de prueba**: un CAI ficticio
-(`DEMO00-NO-VALIDO-…`) y un emisor ficticio con RTN `9999…`. Todo lo que se imprime lleva la leyenda
-**«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**.
+(`DEMO00-NO-VALIDO-…`), un emisor ficticio con RTN `9999…` y la leyenda
+**«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Para facturar de verdad, registras el CAI de tu resolución:
+ver [Pasar al CAI real](/empezar/modo-de-prueba/#pasar-al-cai-real).
 
-:::caution[Sin valor fiscal]
-Estas facturas no sirven ante la autoridad tributaria. Para facturar de verdad necesitas el CAI de tu propia
-resolución: ver [Modo de prueba](/empezar/modo-de-prueba/#pasar-al-cai-real).
-:::
-
-¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Para verlo sin instalar nada, abre el
+¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Sin instalar nada: el
 [playground](/empezar/playground/).
 
 ## SDK (Node 20 o más reciente)
