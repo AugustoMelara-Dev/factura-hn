@@ -3,7 +3,7 @@
 // La fuente son las tablas de docs/cumplimiento.md: cada fila cita, en la columna «Prueba», el archivo de
 // prueba y el título de la prueba entre comillas latinas («…»; los puntos suspensivos abrevian el título). Este
 // módulo lee esas referencias, las busca en el código de las pruebas y genera la tabla requisito → artículo →
-// prueba (enlace a la línea en GitHub) → estado. Si una fila cubierta o parcial se queda sin prueba, o cita un
+// prueba (enlace a la línea en GitHub), solo de lo implementado. Si una fila cubierta o parcial se queda sin prueba, o cita un
 // archivo o un título que ya no existe, `verificarMatriz` lo reporta y `pnpm sitio` falla.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -170,52 +170,35 @@ export function verificarMatriz(texto) {
   return r;
 }
 
-const PALABRA = Object.fromEntries(Object.entries(ESTADOS).map(([s, e]) => [s, `(${e.texto.toLowerCase()})`]));
-const sinSimbolos = (s) => s.replace(new RegExp(Object.keys(ESTADOS).join('|'), 'gu'), (m) => PALABRA[m]).replace(/\s+/g, ' ').trim();
-const celda = (s) => s.replace(/\|/g, '\\|');
+const sinSimbolos = (s) => s.replace(new RegExp(Object.keys(ESTADOS).join('|'), 'gu'), '').replace(/\s+/g, ' ').trim();
+const celda = (s) => s.replace(/\|/g, '\|');
 
-/** La página: Markdown con la leyenda y una tabla por sección. */
+/**
+ * La página: una tabla por sección con lo que factura-hn implementa (filas cubiertas), cada requisito con su
+ * artículo y la prueba que lo verifica.
+ */
 export function matrizMarkdown({ tablas }) {
-  const total = tablas.flatMap((t) => t.filas);
-  const cuenta = Object.values(ESTADOS).map((e) => `${total.filter((f) => f.estado === e).length} ${e.texto.toLowerCase()}`);
-  let md = `Cada fila es un requisito del Reglamento del Régimen de Facturación (Acuerdo 481-2017, texto consolidado) o de la
-Ley del Impuesto Sobre Ventas, con su artículo, cómo lo cumple factura-hn y la prueba que lo verifica. La tabla se
-genera al construir el sitio desde [docs/cumplimiento.md](${REPO}/blob/main/docs/cumplimiento.md)
-y desde el código de las pruebas: si una regla cubierta pierde su prueba, la construcción falla.
+  let md = `Cada fila es un requisito del Reglamento del Régimen de Facturación o de la Ley del Impuesto Sobre Ventas que
+factura-hn implementa, con su artículo y la prueba que lo verifica. La tabla se genera al construir el sitio desde
+[docs/cumplimiento.md](${REPO}/blob/main/docs/cumplimiento.md) y desde el código de las pruebas: si una regla pierde
+su prueba, la construcción falla.
 
-Filas: ${total.length} (${cuenta.join(', ')}).
-
-**Estados.** <span class="fhn-estado cubierto">Cubierto</span> cubierto y probado ·
-<span class="fhn-estado parcial">Parcial</span> cubierto en parte ·
-<span class="fhn-estado ausente">Ausente</span> no implementado ·
-<span class="fhn-estado documental">Documental</span> se cumple con documentación o trámite, sin cálculo que probar ·
-<span class="fhn-estado no-aplica">No aplica</span> obligación del contribuyente, de la API o de la operación.
-
-**Artículo.** «10.7» es el Art. 10, numeral 7. La fuente «C L.n» es la línea del texto consolidado del Reglamento e
-«ISV L.n», la de la Ley del ISV; ver [normativa](/referencia/normativa/). «Contrato» es la batería
-\`ejecutarContratoAlmacen\` de \`factura-hn/pruebas\`, que corre en memoria, SQLite y PostgreSQL.
-
-:::note
-factura-hn no es un sistema autorizado por el SAR. La matriz muestra cómo el código implementa cada requisito.
-Donde el Reglamento no es literal, la fila dice qué lectura aplica factura-hn; el resumen está en
-[estado legal](/produccion/estado-legal/).
-:::
+**Artículo.** «10.7» es el Art. 10, numeral 7. «Contrato» es la batería \`ejecutarContratoAlmacen\` de
+\`factura-hn/pruebas\`, que corre en memoria, SQLite y PostgreSQL. Las fuentes están en [normativa](/referencia/normativa/).
 `;
   for (const { titulo, filas } of tablas) {
-    md += `\n## ${titulo}\n\n| Artículo | Requisito | Estado | Prueba |\n|---|---|---|---|\n`;
-    for (const f of filas) {
-      const pruebas = f.pruebas.length
-        ? f.pruebas
-            .map((p) => {
-              const url = `${REPO}/blob/main/${p.ruta}${p.linea ? `#L${p.linea}` : ''}`;
-              const nombre = p.archivo === 'contrato' ? 'contrato' : p.ruta.split('/').at(-1);
-              return `[\`${nombre}\`${p.titulo ? ` «${p.titulo}»` : ''}](${url})`;
-            })
-            .join('<br>')
-        : f.notaPrueba
-          ? `— (${f.notaPrueba.replace(/^\(|\)$/g, '')})`
-          : '—';
-      md += `| ${celda(`${f.numero}<br><small>${f.fuente}</small>`)} | ${celda(sinSimbolos(f.requisito))} | ${celda(`<span class="fhn-estado ${f.estado.clase}">${f.estado.texto}</span>${f.detalle ? ` ${sinSimbolos(f.detalle)}` : ''}`)} | ${celda(pruebas)} |\n`;
+    const implementadas = filas.filter((f) => f.estado.clase === 'cubierto' && f.pruebas.length);
+    if (!implementadas.length) continue;
+    md += `\n## ${titulo}\n\n| Artículo | Requisito | Prueba |\n|---|---|---|\n`;
+    for (const f of implementadas) {
+      const pruebas = f.pruebas
+        .map((p) => {
+          const url = `${REPO}/blob/main/${p.ruta}${p.linea ? `#L${p.linea}` : ''}`;
+          const nombre = p.archivo === 'contrato' ? 'contrato' : p.ruta.split('/').at(-1);
+          return `[\`${nombre}\`${p.titulo ? ` «${p.titulo}»` : ''}](${url})`;
+        })
+        .join('<br>');
+      md += `| ${celda(f.numero)} | ${celda(sinSimbolos(f.requisito))} | ${celda(pruebas)} |\n`;
     }
   }
   return md;

@@ -38,7 +38,7 @@ export const PAGINAS = [
     titulo: 'Matriz de cumplimiento',
     menu: 'Matriz completa de cumplimiento',
     orden: 5,
-    descripcion: 'Cada requisito del Acuerdo 481-2017 y de la Ley del ISV, su artículo, su estado en factura-hn y la prueba que lo verifica.',
+    descripcion: 'Cada requisito del Reglamento de Facturación y de la Ley del ISV que implementa factura-hn, con su artículo y la prueba que lo verifica.',
     generar: 'matriz',
   },
   {

@@ -1,7 +1,7 @@
 // Pruebas del verificador de la matriz de cumplimiento (scripts/lib/matriz.mjs).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { construirMatriz, lineaDelTitulo, referencias } from './lib/matriz.mjs';
+import { construirMatriz, lineaDelTitulo, matrizMarkdown, referencias } from './lib/matriz.mjs';
 
 const matriz = (filas) => `# Matriz de cumplimiento
 
@@ -59,4 +59,19 @@ test('falla si una regla cubierta pierde su prueba', () => {
     'Reglamento, fila 3: packages/core/test/matriz.test.ts no tiene una prueba titulada «Art. 999 …»',
     'Reglamento, fila 6: la columna de estado no empieza por ✅ 🟡 ❌ 📄 ➖',
   ]);
+});
+
+test('la página muestra solo lo implementado: artículo, requisito y prueba, sin estados', () => {
+  const md = matrizMarkdown(
+    construirMatriz(
+      matriz([
+        '| 4 | Bien | C L.4 | ✅ Cubierto | `matriz.test.ts` «Art. 9 …» |',
+        '| 5 | No aplica | C L.5 | ➖ | — |',
+        '| 7 | A medias | C L.7 | 🟡 Parcial | `matriz.test.ts` «Art. 9 …» |',
+      ]),
+    ),
+  );
+  assert.match(md, /\| Artículo \| Requisito \| Prueba \|/);
+  assert.match(md, /\| 4 \| Bien \| \[`matriz\.test\.ts` «Art\. 9 …»\]/);
+  assert.doesNotMatch(md, /No aplica|A medias|Estado|Parcial|pendiente|lectura/i);
 });
