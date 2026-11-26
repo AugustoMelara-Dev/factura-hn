@@ -35,3 +35,5 @@ packages/api/carga/resultados/
 # Pruebas de mutación (Stryker): copia aislada e informes locales.
 .stryker-tmp/
 packages/core/reports/
+# Salida local de los scripts de calidad (propiedades, carga, resiliencia, OWASP, mutación).
+.calidad/

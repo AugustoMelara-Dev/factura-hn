@@ -1,6 +1,6 @@
 # Mediciones largas: lo que tarda más de unos 2 minutos y no cabe en ci.yml. Cada noche y a mano.
 # Las acciones van fijadas por SHA (con la versión en el comentario), como en ci.yml.
-# Un trabajo por tema; cada uno con su informe en docs/calidad/.
+# Un trabajo por tema.
 name: Nocturno
 
 on:
@@ -19,7 +19,7 @@ jobs:
   # ── Sección: propiedades, contrato OpenAPI y fuzzing ──────────────────────────────────────────
   # El CI corre lo mismo con 200 casos por propiedad y 300 casos de fuzz de la API; aquí, 20 000 de cada uno.
   # El fuzz del CI usa una semilla fija; aquí cambia cada noche. Un fallo imprime la semilla de fast-check:
-  # FHN_PROP_SEMILLA=<semilla> lo reproduce (docs/calidad/propiedades.md).
+  # FHN_PROP_SEMILLA=<semilla> lo reproduce.
   propiedades:
     name: Propiedades, contrato OpenAPI y fuzzing (20 000 casos)
     runs-on: ubuntu-latest
@@ -101,7 +101,7 @@ jobs:
         run: pnpm resiliencia --larga
   # --- fin de carga y resiliencia ---------------------------------------------------------------------------
 
-  # --- Sección: pruebas de mutación del núcleo (docs/calidad/mutacion.md) ---
+  # --- Sección: pruebas de mutación del núcleo ---
   mutacion:
     name: Mutación del núcleo (Stryker, ≥ 85 % por módulo)
     runs-on: ubuntu-latest
