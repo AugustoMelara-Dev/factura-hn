@@ -99,6 +99,8 @@ esos números se repetirían.
   nueva: si la ruta no existe, lo dice.
 - No acepta el CAI ficticio (`CAI_DEMO`) ni registra un CAI real en una base de prueba, en ninguna serie
   (`BASE_DEMO`).
+- El CAI debe tener el formato de la resolución (`XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-XX`, hexadecimal) y una
+  fecha límite que no haya pasado (`CAI_FORMATO`, `AUTORIZACION_VENCIDA`).
 - Un CAI registrado no se puede quitar: revisa los datos antes.
 
 También puedes pedirle al asistente que lo registre con la herramienta `registrar_cai`, dándole los datos de la
@@ -114,6 +116,7 @@ resolución: la herramienta le exige no inventarlos, preguntarte si ya emitiste 
 | `emitir_factura` | Factura (01) con el siguiente número autorizado; `idempotencyKey` para reintentos |
 | `emitir_nota_credito` | Nota de crédito (06) sobre un documento por su número; `cliente` opcional |
 | `consultar_documento` | Resumen, JSON o representación impresa (texto) |
+| `listar_documentos` | Documentos de un período (por omisión, los últimos 31 días; hasta 100), también los de prueba |
 | `anular_documento` | Art. 41 (marcada como destructiva) |
 | `registrar_cai` | Registra una autorización del SAR con los datos de la resolución (irreversible: marcada como destructiva) |
 | `estado_cai` | Vigencia, restantes y alertas de cada autorización |
@@ -158,7 +161,10 @@ VALOR FISCAL» y `structuredContent.prueba` es `true`.
 - **Clientes sin elicitación.** Si tu cliente MCP no la ofrece, esas dos herramientas se niegan con
   `CONFIRMACION_NO_DISPONIBLE`. Si aceptas que el asistente anule y registre CAI sin esa ventana (con la confirmación
   de tu cliente como única barrera), agrega `"FHN_MCP_PERMITIR_DESTRUCTIVAS": "1"` al `env` del servidor y
-  reinícialo. Con una llave admin de la API, piénsalo dos veces.
+  reinícialo. Con una llave admin de la API, piénsalo dos veces. Por HTTP esa variable no tiene efecto: usa un
+  cliente que pida confirmación, o anula y registra con una llave admin desde la API.
+- Antes de pedir confirmación, el servidor revisa lo que puede revisar: con una llave de caja, anular responde
+  `SOLO_ADMIN` sin preguntar; un CAI que se solapa o es ficticio se rechaza sin preguntar.
 - **Datos de prueba.** Sin elicitación, anular un documento de prueba y registrar el CAI ficticio
   (`DEMO00-NO-VALIDO-…`) funcionan sin esa variable: no tienen valor fiscal. Con elicitación, también preguntan.
 - Si un argumento no tiene la forma esperada (p. ej. falta `idempotencyKey` o tiene menos de 8 caracteres), el
@@ -233,17 +239,26 @@ Claude o ChatGPT. Corre aparte de la API y la llama con la llave de cada conexi�
 FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http   # puerto 8788
 ```
 
+En PowerShell:
+
+```powershell
+$env:FHN_API_URL="http://127.0.0.1:8787"; $env:FHN_MCP_HOST="127.0.0.1"; npx -y @factura-hn/mcp http
+```
+
 El cliente llama a `/mcp` con `Authorization: Bearer <llave fhn_…>`; sin esa cabecera responde 401. El puerto se
 cambia con `FHN_MCP_PUERTO`. Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Por HTTP,
 anular y registrar CAI piden confirmación por elicitación; sin ella, se niegan sobre datos reales.
 
 Una llave de caja emite en su propia caja (la de `GET /v1/sesion`); `FHN_ESTABLECIMIENTO` y `FHN_PUNTO` solo
 aplican a las llaves sin caja. Con `FHN_MCP_SOLO_URL=1`, el servidor acepta solo `/mcp/<token>` y `/mcp` con
-Bearer responde 404.
+Bearer responde 404. Una ruta que no es exactamente `/mcp/<token>` (p. ej. `/mcp/<token>/x`) responde 404.
 
 Para ChatGPT, que solo agrega un conector por URL y sin cabeceras, crea un token con
 `factura-hn-api llave crear <tenant> --rol caja --caja 000-001 --mcp` y usa la URL que imprime,
-`https://<tu-servidor>/mcp/<token>`, «sin autenticación». Esa URL es secreta como una llave.
+`https://<tu-servidor>/mcp/<token>`, «sin autenticación». Trata esa URL como una contraseña: quien la tenga emite
+en esa caja. Por eso el token solo puede ser de una llave de caja: `--mcp` rechaza `--rol admin`, y el servidor
+responde 403 a un token de una llave admin (por URL o por Bearer). Para anular o registrar CAI, usa una llave
+admin desde la API.
 
 ## Comandos
 
@@ -255,8 +270,10 @@ Todos en español. `npx -y @factura-hn/mcp ayuda` los lista.
 | `init` (o `iniciar`) | Crea la base y el emisor e imprime el bloque `mcpServers`. Opciones: `--demo`, `--dir`, `--establecimiento`, `--punto`, `--forzar`. |
 | `http` | Arranca el MCP remoto por Streamable HTTP (ver «MCP remoto»). Se configura con variables de entorno. |
 | `registrar-cai` | Registra el CAI de una resolución del SAR, en la base SQLite o vía la API. Opciones: `--cai`, `--tipo`, `--establecimiento`, `--punto`, `--desde`, `--hasta`, `--fecha-limite`, `--fecha-autorizacion`, `--ultimo-emitido-antes`, `--base`, `--api-url`, `--llave`. |
-| `ayuda` | La ayuda. |
+| `ayuda [comando]` | La ayuda general, o la de un comando (también `<comando> --help`). |
+| `version` | La versión (también `--version`). |
 
 `init` no sobrescribe nada sin `--forzar`, y repetirlo da el mismo resultado. `--forzar` reescribe el archivo del
-emisor (del `emisor.json` real guarda antes una copia, `emisor.json.bak`) y, con `--demo`, recrea la base de
-prueba si no tiene ningún CAI real. La base real no se borra nunca.
+emisor (del `emisor.json` real guarda antes una copia, `emisor.json.bak`; si esa ya tiene otro contenido,
+`emisor.json.bak-2` y así, sin pisar ninguna) y, con `--demo`, recrea la base de prueba si no tiene ningún CAI real
+o si está dañada. La base real no se borra nunca: si está dañada, el error lo dice con su ruta.
