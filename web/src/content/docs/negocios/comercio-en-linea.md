@@ -10,7 +10,7 @@ sidebar:
 Una tienda en línea que cobra con tarjeta o transferencia antes de entregar. El cliente no está presente al
 emitir. Los pedidos los procesa un servidor (Node, PHP, Python u otro).
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -32,7 +32,8 @@ El [ejemplo de Express](https://github.com/AugustoMelara-Dev/factura-hn/tree/mai
 - **Arriba de L 10,000** a consumidor final, nombre e identificación del cliente (Art. 11, párrafo final). Pídelos
   en el formulario de compra; si faltan, la API responde 422 con `CONSUMIDOR_FINAL_IDENTIFICACION`.
 - **Crédito fiscal**: el cliente que lo necesita da su RTN al comprar (Art. 11 num. 1 a-c).
-- **Precios con ISV incluido**: factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Cobra el total que devuelve la API, o cotiza antes de cobrar.
+- **Precios con ISV incluido**: con algunos precios no hay una base exacta y el total
+  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Cobra el total que devuelve la API, o cotiza antes de cobrar.
 
 ## Ejemplo: facturar un pedido pagado
 
@@ -108,11 +109,5 @@ No son reglas fiscales: son la forma segura de integrar.
   ver [Nota de Crédito](/documentos/nota-credito/)). Si se emitió con un error, un supervisor la anula
   (Art. 41).
 - **El pedido se cancela antes de pagar.** No hay nada que emitir: la factura sale con el pago.
-
-## Qué confirmar con tu contador
-
-- Cómo se entrega el original al cliente.
-- El tratamiento de las ventas al extranjero y en otra moneda.
-- Dónde se instala la API (en un equipo del negocio o alojada) antes de inscribir el sistema.
 
 Siguiente: [Ir a producción](/produccion/).

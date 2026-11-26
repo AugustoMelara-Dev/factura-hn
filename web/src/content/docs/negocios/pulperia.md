@@ -10,7 +10,7 @@ sidebar:
 Una caja, muchas ventas pequeñas, casi siempre a consumidor final. Los precios de la góndola ya incluyen el ISV. La
 conexión a internet puede fallar.
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -33,7 +33,8 @@ venta para no duplicar y una cola para sincronizar cuando vuelve la conexión. P
   sistemas computarizados (Art. 9). factura-hn no tiene una función para juntar las ventas del día.
 - **Arriba de L 10,000**, la venta a consumidor final lleva el nombre y la identificación del cliente (Art. 11,
   párrafo final). factura-hn lo exige (`CONSUMIDOR_FINAL_IDENTIFICACION`).
-- **Precios con ISV incluido y el centavo.** factura-hn calcula el ISV sobre la base impresa con el redondeo del Art. 9 de la Ley del ISV; con algunos precios de góndola no existe una base exacta y toma la mayor base cuyo total no supera el precio: el total queda 1 centavo por debajo, el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Por eso se cobra siempre
+- **Precios con ISV incluido y el centavo.** Con algunos precios no hay una base exacta y el total
+  queda 1 centavo abajo: el cliente paga un centavo menos, nunca más (Art. 9 de la Ley del ISV). Por eso se cobra siempre
   `totales.total` y se calcula antes con `cotizar`. Para evitar el ajuste, `sugerirPrecioSinAjuste` propone precios
   que no lo necesitan.
 - **Papel térmico.** Antes de imprimir en papel térmico, el Art. 38 pide la certificación del proveedor del papel
@@ -91,7 +92,7 @@ console.log(renderizarTexto(factura, { ancho: 42 })); // ticket de 80 mm
 
 Cobra L 135.50 y emite `000-001-01-00000001`. Cada vez que lo corres, la numeración sigue en el archivo
 `pulperia-prueba.db`. Las líneas sin `isv` van gravadas al 15 %; si un producto tiene otro tratamiento, se indica
-en la línea (`isv: 'ISV18'`, `'EXENTO'`), según lo que diga tu contador.
+en la línea (`isv: 'ISV18'`, `'EXENTO'`).
 
 **Para producción**, usa otra base (por ejemplo `pulperia.db`), cambia `crearFacturadorDemo` por `crearFacturador`
 con los mismos datos y registra el CAI de tu resolución una sola vez, con `caja.registrarAutorizacion({ … })`. No
@@ -109,11 +110,5 @@ registres el CAI real en la base de prueba: los números de prueba no se repiten
   num. 32). Requiere el CAI de la serie 06. Ver [Nota de Crédito](/documentos/nota-credito/).
 - **El reloj de la caja se adelantó.** factura-hn lo detecta (`RELOJ_ADELANTADO_SOSPECHOSO`). Ver
   [Reloj](/guias/reloj/).
-
-## Qué confirmar con tu contador
-
-- El tratamiento de ISV de cada producto del inventario.
-- Si el negocio debe inscribirse como autoimpresor por sistema y qué documentos necesita.
-- Los talonarios de contingencia y el papel térmico.
 
 Siguiente: [Ir a producción](/produccion/).

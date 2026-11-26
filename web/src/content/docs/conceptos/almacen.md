@@ -16,7 +16,7 @@ calcula el siguiente número ni guarda el documento por su cuenta.
 
 | Proyecto | Almacén |
 |---|---|
-| PostgreSQL (Supabase, Neon, RDS…), un servidor con varias cajas | `@factura-hn/postgres`: `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
+| PostgreSQL (Neon, RDS, un servidor propio…), un servidor con varias cajas | `@factura-hn/postgres`: `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
 | Una caja sin internet, Electron, una instalación local | `@factura-hn/sqlite`: `new AlmacenSQLite(db)` (Node 20+ con `better-sqlite3`; Node 22.13+ con `node:sqlite`) |
 | Pruebas y demos | `AlmacenFiscalMemoria`, incluido en `factura-hn`. Se pierde al reiniciar |
 | Otra base (MySQL, SQL Server, IndexedDB…) | Implementa `AlmacenFiscal` y hazlo pasar la batería de contrato |

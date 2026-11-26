@@ -4,8 +4,7 @@ description: Vocabulario fiscal y técnico de factura-hn, con el artículo que l
 ---
 
 Los artículos citados sin otra indicación son del Reglamento del Régimen de Facturación (Acuerdo 481-2017 y sus
-reformas). Solo se incluyen términos con respaldo en el repositorio del proyecto. Los términos técnicos van
-marcados como tales: no son reglas del SAR.
+reformas). Los términos técnicos van marcados como tales: no son reglas del SAR.
 
 ## A
 
@@ -40,7 +39,7 @@ Ver [Pasos ante la autoridad tributaria](/produccion/tramites/).
 ### CAEE
 
 Código único por documento electrónico, generado por algoritmo, que se obtiene interactuando con el SAR (Art. 4
-num. 9 y Art. 54). No hay especificación técnica pública conocida: factura-hn no lo implementa.
+num. 9 y Art. 54). factura-hn no lo implementa.
 Ver [Normativa](/referencia/normativa/).
 
 ### CAI
@@ -114,7 +113,7 @@ SDK: `establecimiento`. Ver [Cómo funciona](/conceptos/como-funciona/).
 ### Exento
 
 Una venta que no causa ISV. El documento la discrimina aparte de lo gravado (Art. 11 num. 1 g). Qué productos son
-exentos lo decide el negocio con su contador: el proyecto no tiene esa lista.
+exentos lo decide el negocio: factura-hn no trae listas de productos.
 SDK: `isv: 'EXENTO'`, `totales.importeExento`. Ver [ISV y montos](/conceptos/isv-y-montos/).
 
 ### Exonerado
@@ -178,7 +177,7 @@ Ver [Referencia de la API](/referencia/api/).
 
 ### Modo de prueba
 
-Término técnico, no una regla fiscal. Lo que se emite con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva
+Término técnico. Lo que se emite con un CAI ficticio (`DEMO00-NO-VALIDO-…`) lleva
 `modo: 'prueba'`, la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» y queda fuera del libro de ventas y de la
 exportación.
 SDK: `factura-hn/demo`, `esDocumentoDePrueba`. Ver [Tu primera factura](/empezar/primera-factura/).
@@ -256,8 +255,7 @@ Ver [Preguntas frecuentes](/ayuda/preguntas-frecuentes/#el-proveedor-del-softwar
 
 ### RTN
 
-El Registro Tributario Nacional. factura-hn valida el RTN con 14 dígitos y el DNI con 13. El Reglamento no fija
-esas longitudes: son una decisión del proyecto.
+El Registro Tributario Nacional. factura-hn valida el RTN con 14 dígitos y el DNI con 13.
 SDK: `esRTNValido`, `esDNIValido`, `formatearRTN`, `formatearDNI`.
 
 ## S

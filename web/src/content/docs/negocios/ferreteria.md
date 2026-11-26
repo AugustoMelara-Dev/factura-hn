@@ -10,7 +10,7 @@ sidebar:
 Mostrador con dos o más cajas. Muchos clientes son empresas o constructoras que piden la factura con su RTN, compran
 al crédito y devuelven material. Algunos son exonerados. Ciertos productos se cotizan en dólares.
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -18,7 +18,7 @@ al crédito y devuelven material. Algunos son exonerados. Ciertos productos se c
 | **Cajas** | Varias, contra el mismo almacén central. Un punto de emisión por caja (`000-001`, `000-002`…) |
 | **Fuera de línea** | No: las cajas emiten contra la base o la API del negocio por la red local |
 | **Impreso** | Carta (`renderizarHTML` o el PDF carta) para clientes con RTN y ventas al crédito; ticket en el mostrador |
-| **Documentos** | Factura (01), Nota de Crédito (06) y, si el contador lo indica, Nota de Débito (07). Cada tipo tiene su propia autorización y su serie en cada caja |
+| **Documentos** | Factura (01), Nota de Crédito (06) y Nota de Débito (07) para ajustes. Cada tipo tiene su propia autorización y su serie en cada caja |
 
 Ver [Varias cajas](/guias/varias-cajas/), [exonerados](/conceptos/isv-y-montos/#exonerado) y [Factura](/documentos/factura/) para
 la moneda extranjera.
@@ -34,17 +34,15 @@ la moneda extranjera.
   lleva `condicionPago: 'CREDITO'`.
 - **Exonerados.** El documento lleva la Orden de Compra Exenta **y** la Constancia del Registro de Exonerados, **o**
   el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4). Si la Orden de Compra Exenta no cubre
-  todos los artículos, se emiten dos facturas: una exonerada con los cubiertos y otra normal con el resto: la
-  exoneración aplica al documento completo (lectura del proyecto: el Reglamento no regula una exoneración
-  parcial).
+  todos los artículos, se emiten dos facturas: una exonerada con los cubiertos y otra normal con el resto. La
+  exoneración aplica al documento completo.
 - **Devoluciones.** Una venta correcta con una devolución posterior se corrige con Nota de Crédito (06) sobre la
   factura (Art. 4 num. 32). La nota lleva el nombre y el RTN del adquirente (Arts. 26 y 28) y el CAI, el número y
   la fecha del documento que modifica (Art. 26 num. 3). factura-hn rechaza una nota de crédito que, sumada a las
-  anteriores, supere el original o cambie su tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`). Ningún artículo
-  fija ese tope: es una lectura de factura-hn derivada del Art. 4 num. 32 (la nota ajusta el comprobante
-  correspondiente). Confírmala con tu contador.
+  anteriores, supere el original o cambie su tasa (`NOTA_SUPERA_ORIGINAL`, `NOTA_TASA_DISTINTA`): la nota ajusta
+  el comprobante correspondiente (Art. 4 num. 32).
 - **Precios en dólares.** Un documento en moneda extranjera lleva la tasa de cambio vigente a la fecha (Art. 11,
-  párrafo final; `tipoCambio`). factura-hn imprime además el equivalente en lempiras, aunque ningún texto lo exige. Las notas
+  párrafo final; `tipoCambio`). factura-hn imprime además el equivalente en lempiras. Las notas
   se emiten solo en lempiras, con el tipo de cambio de la factura original (Arts. 26 num. 9 y 28 num. 8).
 
 ## Ejemplo: venta al crédito y devolución
@@ -148,11 +146,5 @@ registra el CAI de cada tipo (01 y 06) en cada caja, una sola vez. Ver [CAI y ra
 - **El cliente exonerado no trae la constancia.** `EXONERACION_*`: hay que pedir la Orden de Compra Exenta y la
   constancia, o el registro SAG/RUPNSA.
 - **Un error en la cantidad antes de entregar.** Se anula el documento y se emite otro (Art. 41).
-
-## Qué confirmar con tu contador
-
-- El tratamiento de ISV de cada producto.
-- Los documentos que necesita además de la factura y la nota de crédito.
-- Cómo se manejan los exonerados y las retenciones de sus clientes.
 
 Siguiente: [Ir a producción](/produccion/).

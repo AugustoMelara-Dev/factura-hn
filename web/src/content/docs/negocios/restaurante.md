@@ -10,7 +10,7 @@ sidebar:
 Servicio en mesa y para llevar, con dos o más puntos de cobro (caja principal, barra, terraza). Ticket en
 impresora térmica. La cuenta de una mesa se cobra al final.
 
-## Configuración recomendada
+## Configuración
 
 | | |
 |---|---|
@@ -114,17 +114,8 @@ CAI de cada caja y una llave de caja por punto de emisión. Ver [Autoalojamiento
 - **Dos cajas cobran a la vez.** La API serializa cada serie: cada caja tiene su punto de emisión y su numeración,
   sin huecos ni repetidos.
 - **El cliente pide la factura a nombre de su empresa.** Se agrega `cliente: { nombre, rtn }` al documento antes de
-  emitir. Un documento emitido no se edita; el Reglamento solo prevé anularlo (Art. 41) o modificarlo con notas.
-  Si ya salió a CONSUMIDOR FINAL, si procede anularlo y emitir otro lo decide el contador: el repositorio no trata
-  ese caso.
+  emitir. Un documento emitido no se edita: se anula (Art. 41) o se modifica con notas.
 - **Se cae el equipo de la API.** Las cajas no pueden emitir. Se usan los talonarios de contingencia (Art. 55).
   Las ventas hechas con el talonario quedan documentadas en el talonario y no se vuelven a emitir en el sistema. Cuando el sistema vuelve, emite solo las ventas nuevas, con la fecha de hoy.
-
-## Qué confirmar con tu contador
-
-- El tratamiento de la propina y de las bebidas.
-- Cómo se manejan las cuentas divididas.
-- Si el local usa una sola numeración para todas las cajas o una por caja (Art. 48), al inscribir los puntos de
-  emisión.
 
 Siguiente: [Ir a producción](/produccion/).
