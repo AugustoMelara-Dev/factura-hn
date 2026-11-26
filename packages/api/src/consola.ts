@@ -65,10 +65,12 @@ const COMANDOS: Comando[] = [
   },
   {
     nombre: ['llave', 'crear'],
-    uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002]',
-    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración.',
+    uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002] [--mcp]',
+    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración. ' +
+      'Con --mcp imprime en su lugar un token del MCP por HTTP y la URL para conectarlo (p. ej. a ChatGPT); se revoca como cualquier llave.',
     posicionales: { obligatorios: ['tenant'] },
     opciones: ['rol', 'nombre', 'caja'],
+    banderas: ['mcp'],
     usaBase: true,
   },
   {
@@ -121,6 +123,15 @@ const COMANDOS: Comando[] = [
     usaBase: false,
   },
 ];
+
+/** Lo que imprime `llave crear … --mcp`: el token, la URL de ejemplo y que esa URL es secreta. */
+export function textoTokenMcp(rol: string, token: string): string {
+  return [
+    `Token MCP ${rol} (solo se muestra ahora): ${token}`,
+    `URL del MCP por HTTP: https://<tu-servidor>/mcp/${token}`,
+    'Esa URL es secreta como una llave: quien la tenga usa tu API con este rol.',
+  ].join('\n');
+}
 
 const AYUDA = new Set(['ayuda', '--ayuda', '--help', '-h', 'help']);
 
@@ -284,10 +295,10 @@ export async function ejecutarConsola(
         const rolLlave = opciones.rol as 'admin' | 'caja';
         const caja = opciones.caja?.split('-');
         const llave = await crearLlaveOperador(pool, {
-          tenant: posicionales[0]!, rol: rolLlave, nombre: opciones.nombre ?? rolLlave,
-          establecimiento: caja?.[0], puntoEmision: caja?.[1],
+          tenant: posicionales[0]!, rol: rolLlave, nombre: opciones.nombre ?? (banderas.has('mcp') ? 'MCP' : rolLlave),
+          establecimiento: caja?.[0], puntoEmision: caja?.[1], mcp: banderas.has('mcp'),
         });
-        salida.log(`Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
+        salida.log(banderas.has('mcp') ? textoTokenMcp(rolLlave, llave) : `Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
         return 0;
       }
       case 'demo limpiar': {

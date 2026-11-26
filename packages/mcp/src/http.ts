@@ -4,8 +4,9 @@
  * o con el MCP Inspector.
  *
  * Corre como su propio proceso y habla con la API de factura-hn por HTTP, con una llave de API por conexión:
- * - `POST|GET|DELETE /mcp/<token>`: la URL personal (`fhnmcp_…`) que da `POST /v1/demo/entornos`. De ella se deriva
- *   la llave (ver `token.ts`). Es la forma que funciona en Claude, que agrega un conector solo con su URL.
+ * - `POST|GET|DELETE /mcp/<token>`: la URL con un token `fhnmcp_…` (lo crea `factura-hn-api llave crear … --mcp`). De
+ *   ella se deriva la llave (ver `token.ts`). Es la forma que funciona en Claude y ChatGPT, que agregan un conector
+ *   solo con su URL.
  * - `POST|GET|DELETE /mcp` con `Authorization: Bearer <llave fhn_… o token fhnmcp_…>`: para clientes que mandan
  *   cabeceras (MCP Inspector, un agente propio).
  *

@@ -5,11 +5,12 @@ import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
-import { ejecutarConsola } from '../src/consola';
+import { ejecutarConsola, textoTokenMcp } from '../src/consola';
+import { generarTokenMcp, hashLlave, llaveDeTokenMcp, prefijoDe } from '../src/llaves';
 import { iniciarLocal, TENANT_DEMO } from '../src/operador';
 import { arrancar } from '../src/servidor';
 import { migrarApi } from '../src/esquema';
-import { cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG } from './ayuda';
+import { cerrarPool, cliente, EMISOR, nombreTenant, poolPrueba, ROL, URL_PG } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -76,6 +77,20 @@ describe('consola: ayuda y uso', () => {
     }
   });
 
+  it('llave crear --mcp: la ayuda lo dice y el texto lleva el token, la URL y el aviso', async () => {
+    expect((await correr(['ayuda', 'llave', 'crear'])).log).toContain('[--mcp]');
+    const t = generarTokenMcp('produccion');
+    const texto = textoTokenMcp('admin', t.token);
+    expect(texto).toContain(`https://<tu-servidor>/mcp/${t.token}`);
+    expect(texto).toMatch(/secreta como una llave/);
+    // La llave que se guarda es la que el servidor MCP deriva del token impreso.
+    const derivada = llaveDeTokenMcp(t.token)!;
+    expect(derivada).toBe(t.llave);
+    expect(derivada).toMatch(/^fhn_live_/);
+    expect(prefijoDe(derivada)).toBe(t.prefijo);
+    expect(hashLlave(derivada).equals(t.hash)).toBe(true);
+  });
+
   it('openapi imprime la especificación sin base', async () => {
     const r = await correr(['openapi']);
     expect(r.codigo).toBe(0);
@@ -84,6 +99,34 @@ describe('consola: ayuda y uso', () => {
 
   it('el servidor rechaza un FHN_PROXIES_DE_CONFIANZA que no es un número', async () => {
     await expect(arrancar({ DATABASE_URL: 'postgres://nadie@127.0.0.1:1/x', FHN_PROXIES_DE_CONFIANZA: 'uno' })).rejects.toThrow(/FHN_PROXIES_DE_CONFIANZA/);
+  });
+});
+
+conBase('consola: llave crear --mcp', () => {
+  it('guarda la llave derivada del token con su rol y caja, y se revoca como cualquier llave', async () => {
+    const pool = await poolPrueba();
+    const env = { DATABASE_URL: URL_PG, FHN_ROL: ROL, FHN_MODO: 'alojado' };
+    const tenant = nombreTenant('mcp');
+    const creado = await correr(['tenant', 'crear', tenant], env);
+    expect(creado.codigo).toBe(0);
+    const admin = /Llave admin \(solo se muestra ahora\): (fhn_\S+)/.exec(creado.log)![1]!;
+
+    const r = await correr(['llave', 'crear', tenant, '--rol', 'caja', '--caja', '000-001', '--mcp'], env);
+    expect(r.codigo).toBe(0);
+    const token = /Token MCP caja \(solo se muestra ahora\): (fhnmcp_\S+)/.exec(r.log)?.[1];
+    expect(token).toMatch(/^fhnmcp_live_[0-9a-f]{12}_/);
+    expect(r.log).toContain(`https://<tu-servidor>/mcp/${token}`);
+    expect(r.log).not.toMatch(/fhn_live_/);
+
+    const app = crearApp({ pool, modo: 'alojado', rol: ROL, registrar: () => undefined });
+    const llave = llaveDeTokenMcp(token!)!;
+    const sesion = await cliente(app, llave)('GET', '/v1/sesion');
+    expect(sesion.status).toBe(200);
+    expect(((await sesion.json()) as { sesion: unknown }).sesion).toMatchObject({ tenant, llave: { rol: 'caja', establecimiento: '000', puntoEmision: '001' } });
+
+    const revocada = await cliente(app, admin)('DELETE', `/v1/llaves/${prefijoDe(llave)}`);
+    expect(revocada.status).toBeLessThan(300);
+    expect((await cliente(app, llave)('GET', '/v1/sesion')).status).toBe(401);
   });
 });
 

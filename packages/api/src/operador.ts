@@ -6,7 +6,7 @@ import type pg from 'pg';
 import { registrarAutorizacion } from 'factura-hn';
 import { autorizacionDemo, EMISOR_DEMO, LEYENDA_PRUEBA, PREFIJO_CAI_DEMO } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
-import { generarLlave, type ModoTenant, type RolLlave } from './llaves';
+import { generarLlave, generarTokenMcp, type ModoTenant, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
 import { CONSOLA_POR_DEFECTO } from './errores';
 
@@ -79,11 +79,13 @@ async function crearTenantSinReserva(
 
 /**
  * Llave adicional desde la consola del operador (p. ej. si se perdió la única llave admin). Lleva la marca del
- * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción.
+ * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción. Con `mcp`, devuelve en su
+ * lugar un token del MCP por HTTP (`fhnmcp_…`) y guarda la llave que se deriva de él, con el mismo rol y caja:
+ * revocar esa llave (`DELETE /v1/llaves/{prefijo}`) apaga el token.
  */
 export async function crearLlaveOperador(
   pool: pg.Pool,
-  o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string },
+  o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string; mcp?: boolean },
 ): Promise<string> {
   const est = o.establecimiento || null;
   const pto = o.puntoEmision || null;
@@ -95,7 +97,8 @@ export async function crearLlaveOperador(
   if (!modo) {
     throw new Error(`El tenant «${o.tenant}» no existe: arranca la API una vez (crea «${TENANT_LOCAL}») o créalo con «tenant crear».`);
   }
-  const { llave, prefijo, hash } = generarLlave(modo);
+  const nueva = o.mcp ? generarTokenMcp(modo) : generarLlave(modo);
+  const { prefijo, hash } = nueva;
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -103,7 +106,7 @@ export async function crearLlaveOperador(
     );
     await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo })]);
   });
-  return llave;
+  return 'token' in nueva ? nueva.token : nueva.llave;
 }
 
 /**
