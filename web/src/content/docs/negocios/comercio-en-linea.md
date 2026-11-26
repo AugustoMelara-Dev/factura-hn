@@ -70,16 +70,16 @@ Con datos ficticios:
 declare function facturarPedido(pedido: { id: string; cliente?: unknown; lineas: { descripcion: string; cantidad: string; precioUnitario: string }[] }): Promise<unknown>;
 -->
 ```ts
-await facturarPedido({ id: '1001', lineas: [{ descripcion: 'Audífonos inalámbricos', cantidad: '1', precioUnitario: '1150.00' }] });
+await facturarPedido({ id: '2001', lineas: [{ descripcion: 'Audífonos inalámbricos', cantidad: '1', precioUnitario: '1150.00' }] });
 // → { ok: true, numero: '000-002-01-00000002', total: 1150 }
 
 // Más de L 10,000 a consumidor final sin identificación: 422, no se consume número.
-await facturarPedido({ id: '1002', lineas: [{ descripcion: 'Televisor 55 pulgadas', cantidad: '1', precioUnitario: '12500.00' }] });
+await facturarPedido({ id: '2002', lineas: [{ descripcion: 'Televisor 55 pulgadas', cantidad: '1', precioUnitario: '12500.00' }] });
 // → { ok: false, errores: ['Ventas a consumidor final mayores de L 10,000.00 requieren nombre e identificación del cliente (Art. 11).'] }
 
 // Con nombre y DNI (ficticios). Sin base exacta, el total queda 1 centavo por debajo (Ley del ISV, Art. 9).
 await facturarPedido({
-  id: '1003',
+  id: '2003',
   cliente: { nombre: 'Persona Ejemplo', identificacion: { tipo: 'DNI', numero: '9999000000001' } },
   lineas: [{ descripcion: 'Televisor 55 pulgadas', cantidad: '1', precioUnitario: '12500.00' }],
 });
