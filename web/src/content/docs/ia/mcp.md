@@ -1,6 +1,6 @@
 ---
 title: Servidor MCP
-description: El servidor MCP @factura-hn/mcp, sus 7 herramientas, el modo SQLite y el modo API, la base de prueba aparte y la configuración del cliente.
+description: El servidor MCP @factura-hn/mcp, sus 8 herramientas, el modo SQLite y el modo API, la base de prueba aparte y la configuración del cliente.
 sidebar:
   order: 4
 ---
@@ -42,13 +42,14 @@ El resultado dice **DOCUMENTO DE PRUEBA — SIN VALOR FISCAL**. El CAI es fictic
 los 180 días. Para ver el documento como sale impreso, pide que lo muestre impreso: el asistente usa
 `consultar_documento` con formato `texto`. El MCP no genera PDF ni HTML; para eso están el SDK y la API.
 
-## Las 7 herramientas
+## Las 8 herramientas
 
 | Herramienta | Qué hace | Marca |
 |---|---|---|
 | `emitir_factura` | Emite una Factura (01) con el siguiente número autorizado. Exige `idempotencyKey` | |
 | `emitir_nota_credito` | Emite una Nota de Crédito (06) sobre un documento, por su número. `cliente` es opcional | |
 | `consultar_documento` | Devuelve un documento con su estado: resumen, JSON o texto impreso (ticket) | Solo lectura |
+| `listar_documentos` | Lista los documentos emitidos en un período: por omisión los últimos 31 días, hasta 100 | Solo lectura |
 | `anular_documento` | Anula un documento (Art. 41): conserva número y contenido y lo marca ANULADO | Destructiva |
 | `registrar_cai` | Registra una autorización con los datos de la resolución del SAR (Arts. 59-61) | Destructiva |
 | `estado_cai` | Vigencia, números restantes y alertas de cada autorización (Art. 59) | Solo lectura |
@@ -189,6 +190,12 @@ contra tu API. Sirve para clientes que se conectan por URL o para el MCP Inspect
 FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http   # puerto 8788
 ```
 
+En PowerShell:
+
+```powershell
+$env:FHN_API_URL="http://127.0.0.1:8787"; $env:FHN_MCP_HOST="127.0.0.1"; npx -y @factura-hn/mcp http
+```
+
 - La ruta es `/mcp`, con la cabecera `Authorization: Bearer fhn_…` (una llave de tu API). Sin ella, responde 401.
   Para clientes que no mandan cabeceras, `/mcp/<token>` lleva la credencial en la URL (ver [ChatGPT](#chatgpt)).
   Con `FHN_MCP_SOLO_URL=1`, el servidor acepta solo `/mcp/<token>`, sin Bearer.
@@ -241,8 +248,8 @@ ChatGPT agrega un servidor MCP solo por su URL, sin cabeceras. Para usarlo con t
    docker compose exec api factura-hn-api llave crear local --rol caja --caja 000-001 --mcp
    ```
 
-   Imprime el token `fhnmcp_…` y la URL `https://<tu-servidor>/mcp/<token>`. Esa URL es secreta como una llave.
-   Se revoca como cualquier llave (`DELETE /v1/llaves/{prefijo}`).
+   Imprime el token `fhnmcp_…` y la URL `https://<tu-servidor>/mcp/<token>`. Trata esa URL como una contraseña: quien la tenga emite en
+   esa caja (no anula ni administra). Se revoca como cualquier llave (`DELETE /v1/llaves/{prefijo}`).
 4. En ChatGPT, agrega un conector MCP con esa URL y sin autenticación.
 
 Con `--rol caja`, el asistente emite y consulta, pero no anula ni registra CAI.

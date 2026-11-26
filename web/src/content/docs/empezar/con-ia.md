@@ -96,8 +96,8 @@ npx -y @factura-hn/mcp init --demo
 Pega el bloque `mcpServers` que imprime en tu cliente, reinícialo y pide «emite una factura de prueba». Los
 pasos completos están en [Primera factura: MCP](/empezar/primera-factura/#mcp-claude-desktop-claude-code-cursor).
 
-Herramientas: `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `anular_documento`,
-`registrar_cai`, `estado_cai` y `libro_ventas`.
+Herramientas: `emitir_factura`, `emitir_nota_credito`, `consultar_documento`, `listar_documentos`,
+`anular_documento`, `registrar_cai`, `estado_cai` y `libro_ventas`.
 
 :::danger[No apruebes la anulación automáticamente]
 `anular_documento` y `registrar_cai` están marcadas como destructivas: una anulación no se deshace y un CAI
