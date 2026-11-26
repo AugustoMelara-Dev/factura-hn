@@ -1,10 +1,8 @@
 Facturación para Honduras, desde tu código. Emite facturas y notas de crédito y débito que cumplen el
-Reglamento del SAR. Empieza en modo de prueba, en un minuto.
+Reglamento del SAR. Tu primera factura de prueba, en 5 minutos.
 
-```js
-import { crearFacturadorDemo } from 'factura-hn/demo';
-const caja = await crearFacturadorDemo();
-const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' }] });
+```bash
+npm install factura-hn
 ```
 
 [Empezar](/empezar/primera-factura/) · [GitHub](https://github.com/AugustoMelara-Dev/factura-hn)
@@ -12,8 +10,26 @@ const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cant
 ## Qué es
 
 factura-hn es una librería de TypeScript, sin dependencias, que lleva la numeración con CAI y rangos, calcula el
-ISV sin errores de redondeo e imprime en hoja carta o ticket. Lo emitido no se edita: se anula o se corrige con una
-nota. Es gratis y de código abierto.
+ISV sin errores de redondeo e imprime en hoja carta o ticket. Es gratis y de código abierto.
+
+```js
+import { crearFacturadorDemo } from 'factura-hn/demo';
+const caja = await crearFacturadorDemo();
+const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' }] });
+```
+
+Esas tres líneas emiten una factura de prueba con un emisor y un CAI ficticios. Su ticket de 80 mm dice
+«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». En la página puedes emitir más, con el SDK corriendo en el navegador.
+
+## Por qué es confiable
+
+Cumple el Reglamento de Facturación del SAR y cada regla está probada.
+
+- **Numeración sin huecos ni repetidos.** Cada número se reserva en la misma transacción que guarda el documento.
+- **ISV exacto al centavo.** Sin punto flotante, con el redondeo del Art. 9 de la Ley del ISV.
+- **Lo emitido no se edita.** Se anula (Art. 41) o se corrige con una nota de crédito o de débito.
+
+[Ver cada regla con su prueba](/referencia/cumplimiento/).
 
 ## Cómo se integra
 
@@ -48,29 +64,16 @@ npx -y @factura-hn/mcp init --demo
 
 ## Conéctalo a tu IA
 
-El servidor MCP de factura-hn le da a tu asistente las herramientas para emitir, consultar y anular. Este comando
-crea una base de prueba e imprime el bloque listo para pegar:
+El servidor MCP le da a tu asistente las herramientas para emitir, consultar y anular. Este comando crea una base de
+prueba e imprime el bloque listo para pegar. Luego pide: «emite una factura de prueba».
 
 ```bash
 npx -y @factura-hn/mcp init --demo
 ```
 
-**Claude.** Claude Desktop: Settings › Developer › Edit Config abre `claude_desktop_config.json`. Claude Code:
-`.mcp.json` en la raíz del proyecto, o `claude mcp add-json`.
-
-**Cursor.** Pégalo en `~/.cursor/mcp.json` (todos tus proyectos) o en `.cursor/mcp.json` (solo uno) y reinicia
-Cursor.
-
-**ChatGPT.** Levanta la API REST y el MCP por HTTP en tu servidor, con HTTPS. Crea su URL con
-`factura-hn-api llave crear … --mcp` y agrégala en ChatGPT como conector MCP, sin autenticación.
-[Pasos para ChatGPT](/ia/mcp/#chatgpt).
-
-Luego pide: «emite una factura de prueba». Más en la [guía del servidor MCP](/guias/mcp/).
-
-## Por qué es confiable
-
-Cumple el Reglamento de Facturación del SAR y cada regla está probada.
-[Ver cada regla con su prueba](/referencia/cumplimiento/).
+- **Claude** (Claude Desktop y Claude Code): [ver cómo](/ia/mcp/#empieza-en-3-pasos).
+- **Cursor**: [ver cómo](/ia/mcp/#empieza-en-3-pasos).
+- **ChatGPT**, por URL, con tu API en tu servidor: [ver cómo](/ia/mcp/#chatgpt).
 
 ## Comunidad
 
