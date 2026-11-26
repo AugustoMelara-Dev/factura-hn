@@ -49,6 +49,8 @@ FISCAL». No lo uses en producción ni en el almacén de producción.
 7. **El CAI lo carga el usuario** desde su resolución del SAR con `registrarAutorizacion`. No lo escribas en el
    código.
 8. **Montos como texto** (`'89.50'`) cuando vienen de la base. Nada de `float`.
+9. **`factura.totales.*` son números** (`230` o `29.9`). Para mostrarlos con 2 decimales usa `formatearMonto`
+   (`"1,234.50"`) o `formatearMoneda` (`"L 1,234.50"`), de `factura-hn`.
 
 ## Configurar (una vez)
 
