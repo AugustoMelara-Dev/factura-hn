@@ -37,7 +37,7 @@ describe('factura-hn-mcp por stdio', () => {
     for (const env of [{ FHN_API_URL: 'http://127.0.0.1:9', FHN_LLAVE: 'fhn_x' }, { FHN_SQLITE: join(dir, 'f.db'), FHN_EMISOR: emisorJson }]) {
       const cliente = new Client({ name: 'prueba', version: '1.0.0' });
       await cliente.connect(new StdioClientTransport({ command: process.execPath, args: [cli], env: { ...process.env, ...env } as unknown as Record<string, string>, stderr: 'pipe' }));
-      expect((await cliente.listTools()).tools).toHaveLength(7);
+      expect((await cliente.listTools()).tools).toHaveLength(8);
       await cliente.close();
     }
     // Modo local sin archivo: no arranca (no hay almacén en memoria).
