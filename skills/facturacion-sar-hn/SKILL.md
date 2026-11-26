@@ -69,4 +69,4 @@ Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de 
 - Muestra al usuario los mensajes de `ErrorValidacion.errores` sin reinterpretarlos.
 - Cobra `totales.total`.
 - Un documento con `modo: 'prueba'` (CAI ficticio) no tiene valor fiscal: no lo entregues como factura real.
-- Recuerda al usuario, una vez, que debe estar registrado como autoimpresor ante el SAR y validar con su contador.
+- Para facturar de verdad, el negocio necesita su inscripción como autoimpresor ante el SAR y el CAI de su resolución.

@@ -1,5 +1,5 @@
 {
-  "$comentario": "Perfiles de la medición de carga (pnpm carga [perfil] [campo=valor ...]). La latencia se exige en la fase a tasa fija (tasa solicitudes/s, lazo abierto); el rendimiento, en la fase de saturación (conexiones sin pausa), donde se toleran tiempos agotados y errores de red si la integridad se cumple. Los valores salen de un equipo Windows de 20 núcleos; los del perfil ci se calibran con las primeras corridas en GitHub (4 vCPU). Umbrales y por qué: docs/calidad/carga.md. Una medición que no los cumple termina con código 1.",
+  "$comentario": "Perfiles de la medición de carga (pnpm carga [perfil] [campo=valor ...]). La latencia se exige en la fase a tasa fija (tasa solicitudes/s, lazo abierto); el rendimiento, en la fase de saturación (conexiones sin pausa), donde se toleran tiempos agotados y errores de red si la integridad se cumple. Los valores salen de un equipo Windows de 20 núcleos; los del perfil ci se calibran con las primeras corridas en GitHub (4 vCPU). Una medición que no los cumple termina con código 1.",
   "ci": {
     "duracionS": 20,
     "conexiones": 16,

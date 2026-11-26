@@ -12,4 +12,5 @@ la anulación. Trae ejemplos: consumidor final, cliente con RTN y tasas mezclada
 inválida y una nota de crédito.
 
 Los CAI son **ficticios** (`DEMO00-NO-VALIDO-…`) y todo vive en memoria: se borra al recargar.
-La prueba (`test/playground.test.ts`) compila el paquete y lo ejecuta en un contexto sin APIs de Node.
+
+Documentación: [guía del SDK](https://augustomelara-dev.github.io/factura-hn/guias/sdk/).

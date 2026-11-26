@@ -9,7 +9,7 @@ construye y guarda el documento en una transacción. Si algo falla, el número n
 |---|---|
 | PostgreSQL, Supabase, Neon, RDS… | `@factura-hn/postgres` → `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
 | POS fuera de línea, Electron, instalación local | `@factura-hn/sqlite` → `new AlmacenSQLite(new Database('fiscal.db'))` |
-| Pruebas y demos | `AlmacenFiscalMemoria` (se pierde al reiniciar) |
+| Pruebas | `AlmacenFiscalMemoria` (se pierde al reiniciar) |
 | Otra base (MySQL, SQL Server, IndexedDB…) | Implementa `AlmacenFiscal` y hazlo pasar la batería de contrato (abajo) |
 
 Los dos adaptadores crean sus tablas `fhn_*` y además las protegen con disparadores: no se pueden borrar
@@ -31,7 +31,7 @@ Esto se cumple aunque alguien edite la base a mano.
 
 ## Sistemas en red (Art. 48)
 
-El Reglamento admite tres estructuras (Art. 48, C L.2083-2115). En factura-hn cada serie es un
+El Reglamento admite tres estructuras (Art. 48). En factura-hn cada serie es un
 identificador `establecimiento-puntoEmision-tipo`, así que la estructura se elige con los puntos de emisión
 que se registran ante el SAR y con dónde vive el almacén:
 

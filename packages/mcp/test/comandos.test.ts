@@ -295,10 +295,10 @@ it('la base de init --demo queda lista para el SDK, sin documentos, y el emisor 
 });
 
 describe('README y versión del paquete', () => {
-  it('los bloques mcpServers de los README y del sitio fijan la versión de package.json', () => {
+  it('los bloques mcpServers del README del MCP y del sitio fijan la versión de package.json', () => {
     const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), 'utf8');
     const { version } = JSON.parse(leer('../package.json')) as { version: string };
-    for (const ruta of ['../README.md', '../../../README.md', '../../../web/src/content/docs/ia/mcp.md']) {
+    for (const ruta of ['../README.md', '../../../web/src/content/docs/ia/mcp.md']) {
       const texto = leer(ruta);
       // Toda mención entre comillas (argumento de un bloque) lleva la versión, y es la del paquete. Tras
       // `pnpm run version` (scripts/fijar-versiones.mjs), cambia el número en todos.

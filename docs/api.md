@@ -7,10 +7,6 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `local` (por defecto) | Un negocio con su propio servidor y base en el establecimiento (Art. 47) | Uno: `local` | http o https, también hacia la red del negocio |
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
-> **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») no está
-> claro en el Reglamento, que no prevé de forma literal un servidor de un tercero. Mientras el SAR no lo aclare, la
-> recomendación es el modo local.
-
 ## La primera factura (3 pasos)
 
 Desde la raíz del repositorio, con Docker y Compose v2. Emite en el tenant `demo`, con **CAI ficticio**: el
@@ -115,8 +111,7 @@ caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
 `packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`). Cada operación tiene un
 `operationId` estable, en camelCase y en español (verbo + recurso: `emitirDocumento`, `listarDocumentos`,
-`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método. La CI pasa
-la especificación por un linter (`pnpm lint:openapi`, Redocly) y falla con cualquier error.
+`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método.
 
 ### Colecciones de Bruno y Postman, y clientes en otros lenguajes
 
@@ -171,21 +166,20 @@ ejemplo [Kiota](https://learn.microsoft.com/openapi/kiota/) (C#, PHP, Go, Java, 
 openapi-generator si soporta los `anyOf` y los tipos con `null` de 3.1. Lo que ningún generador hace por ti y
 hay que escribir a mano: una `Idempotency-Key` estable por venta, mostrar tal cual los errores 422
 (`errores[].mensaje`), la cabecera `X-Operador` codificada con `encodeURIComponent` si lleva tildes, y la
-verificación de la firma de los webhooks (ver «Webhooks»). La CI corre la colección de Bruno y la prueba de
-Python contra la imagen de Docker en cada cambio.
+verificación de la firma de los webhooks (ver «Webhooks»).
 
 ### Variables de entorno
 
 | Variable | Por defecto | |
 |---|---|---|
-| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13; sirve Supabase). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
+| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas: migra y prepara el modo local al arrancar, y la usa la consola. Sin ella, la API usa `DATABASE_URL` para todo, corre como dueño de las tablas y lo avisa en el log |
 | `FHN_MIGRAR_AL_ARRANCAR` | `1` | `0`: la API no migra al arrancar ni necesita al dueño de las tablas; exige el esquema al día y que `DATABASE_URL` no sea dueño, superusuario ni `BYPASSRLS`. La migración corre aparte (`factura-hn-api migrar`). No sirve en modo local |
-| `FHN_MODO` | `local` | `local`, `alojado` o `demo` (la demostración pública, ver [demo](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local |
+| `FHN_MODO` | `local` | `local` (un negocio) o `alojado` (varios). Sin definir, la API avisa en el log que corre en modo local |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
-| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz donde escucha el proceso. `::` escucha en IPv6 e IPv4 (una red privada solo IPv6, como la de Fly.io). Con Docker Compose, el puerto publicado en el equipo es `FHN_PUERTO` (8787 por defecto) |
+| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz donde escucha el proceso. `::` escucha en IPv6 e IPv4. Con Docker Compose, el puerto publicado en el equipo es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o rangos CIDR (`fdaa:0:1a2b::/48`), o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
 | `FHN_CONSOLA` | `node packages/api/dist/cli.js` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
@@ -661,9 +655,8 @@ tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas; también los nombres con punto final, como `localhost.`), y la conexión va a la misma IP que se
   validó (sin DNS rebinding) y sin redirecciones. De la respuesta del receptor solo se guarda el código de estado.
-- Las pruebas de `packages/api/test/owasp/` recorren el OWASP API Security Top 10 (2023) contra la API; el resultado
-  está en `docs/calidad/owasp.md` y se repite con `pnpm calidad:owasp`.
-- `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca. Sin definir, avisa en el log; en
+- Las pruebas de `packages/api/test/owasp/` recorren el OWASP API Security Top 10 (2023) contra la API.
+- Con un `FHN_MODO` mal escrito, la API no arranca. Sin definir, avisa en el log; en
   modo local, una base con tenants de otros negocios no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión
   completo, emitir con ella da 403 `CAJA_SIN_PUNTO`; la consola exige `--caja 000-001` con `--rol caja`.
