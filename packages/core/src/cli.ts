@@ -5,7 +5,7 @@
  *   npx factura-hn demo     emite una factura de prueba y escribe factura-demo.html
  *   npx factura-hn init     crea emitir.mjs y emisor.json en el directorio actual
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { crearFacturadorDemo, LEYENDA_PRUEBA } from './demo';
 import { esErrorValidacion } from './documento';
@@ -34,12 +34,40 @@ Comandos:
   init, iniciar     Crea emitir.mjs (un ejemplo que emite y guarda factura.html) y emisor.json (datos
                     ficticios del negocio) en este directorio, sin preguntas. Si ya existen con otro
                     contenido, no toca nada; --forzar los reemplaza.
-  ayuda, --help     Muestra esta ayuda.
+  ayuda, --help     Muestra esta ayuda. Con un comando (npx factura-hn init --help, o ayuda init),
+                    la de ese comando.
   version           Muestra la versión.
 
 Los documentos de prueba llevan la leyenda «${LEYENDA_PRUEBA}».
 Guía: ${GUIA}
 `;
+
+/** La ayuda de cada comando: `npx factura-hn <comando> --help` o `npx factura-hn ayuda <comando>`. */
+const AYUDA_COMANDO: Record<string, string> = {
+  demo: `Uso: npx factura-hn demo
+
+Emite al instante una factura de prueba (CAI ficticio, en memoria), imprime el ticket y escribe
+factura-demo.html en este directorio (si ya existe, factura-demo-2.html, y así: nunca sobrescribe).
+No lleva opciones.
+
+Los documentos de prueba llevan la leyenda «${LEYENDA_PRUEBA}».
+Guía: ${GUIA}
+`,
+  init: `Uso: npx factura-hn init [--forzar]     (alias: iniciar)
+
+Crea emitir.mjs (un ejemplo que emite y guarda factura.html) y emisor.json (datos ficticios del
+negocio) en este directorio, sin preguntas. Si ya existen con otro contenido, no toca nada.
+
+Opciones:
+  --forzar   Reemplaza emitir.mjs y emisor.json con el ejemplo. Antes comprueba que puede
+             escribir los dos: si no puede con alguno, no reemplaza ninguno.
+
+Después: node emitir.mjs. Guía: ${GUIA}
+`,
+};
+AYUDA_COMANDO.iniciar = AYUDA_COMANDO.init!;
+
+const PIDE_AYUDA = new Set(['--help', '-h', '--ayuda']);
 
 const EMISOR_PLANTILLA = {
   _instrucciones:
@@ -57,7 +85,7 @@ const EMISOR_PLANTILLA = {
 const EMITIR_MJS = `// Emite una factura DE PRUEBA con factura-hn y la guarda en factura.html.
 // Ejecuta: node emitir.mjs
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { AlmacenFiscalMemoria, crearFacturador, formatearMonto, renderizarHTML, renderizarTexto } from 'factura-hn';
+import { AlmacenFiscalMemoria, crearFacturador, esErrorValidacion, formatearMonto, renderizarHTML, renderizarTexto } from 'factura-hn';
 import { autorizacionDemo } from 'factura-hn/demo';
 
 // 1. Los datos de tu negocio (Reglamento Art. 10 num. 1). Cámbialos en emisor.json; las claves con _ no se leen.
@@ -65,6 +93,10 @@ let datos;
 try {
   datos = JSON.parse(readFileSync(new URL('./emisor.json', import.meta.url), 'utf8'));
 } catch (e) {
+  if (e?.code === 'ENOENT') {
+    console.error('No está emisor.json en esta carpeta: créalo con npx factura-hn init (y cambia sus datos por los de tu negocio).');
+    process.exit(1);
+  }
   if (!(e instanceof SyntaxError)) throw e;
   console.error(\`emisor.json no es JSON válido (\${e.message}). Revisa las comillas dobles, las comas entre campos (sin coma después del último) y las llaves; o bórralo y vuelve a crearlo con: npx factura-hn init --forzar\`);
   process.exit(1);
@@ -74,17 +106,25 @@ const emisor = Object.fromEntries(Object.entries(datos).filter(([clave]) => !cla
 // 2. El almacén fiscal: reserva cada número y guarda los documentos. En memoria para probar: se pierde al terminar,
 //    así que cada vez que corres este archivo la numeración empieza otra vez en 00000001. En producción,
 //    AlmacenSQLite (@factura-hn/sqlite) o AlmacenPostgres (@factura-hn/postgres), que guardan la serie.
-const facturador = crearFacturador({ almacen: new AlmacenFiscalMemoria(), emisor, establecimiento: '000', puntoEmision: '001' });
+//    Un dato que no sirve (en emisor.json o en la venta) lanza ErrorValidacion: se muestra su mensaje, sin la pila.
+let factura;
+try {
+  const facturador = crearFacturador({ almacen: new AlmacenFiscalMemoria(), emisor, establecimiento: '000', puntoEmision: '001' });
 
-// 3. La autorización (CAI). Esta es FICTICIA y de prueba: cada documento sale con la leyenda
-//    «${LEYENDA_PRUEBA}». En producción, registra una vez la de tu resolución del SAR.
-await facturador.registrarAutorizacion(autorizacionDemo());
+  // 3. La autorización (CAI). Esta es FICTICIA y de prueba: cada documento sale con la leyenda
+  //    «${LEYENDA_PRUEBA}». En producción, registra una vez la de tu resolución del SAR.
+  await facturador.registrarAutorizacion(autorizacionDemo());
 
-// 4. Una venta. Los montos van como texto, con punto decimal.
-const factura = await facturador.emitir({
-  preciosIncluyenISV: true,
-  lineas: [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
-});
+  // 4. Una venta. Los montos van como texto, con punto decimal.
+  factura = await facturador.emitir({
+    preciosIncluyenISV: true,
+    lineas: [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
+  });
+} catch (e) {
+  if (!esErrorValidacion(e)) throw e;
+  console.error(\`No se emitió: \${e.message}\\nCorrige emisor.json (o vuelve al ejemplo con: npx factura-hn init --forzar).\`);
+  process.exit(1);
+}
 
 // No sobrescribe: si factura.html ya existe, usa factura-2.html, factura-3.html…
 let archivo = 'factura.html';
@@ -168,7 +208,21 @@ function init(dir: string, forzar: boolean): number {
     );
     return 1;
   }
-  for (const [nombre, contenido] of archivos) writeFileSync(join(dir, nombre), contenido);
+  // Primero se comprueba que se puede escribir cada archivo que cambia: o se reemplazan todos, o ninguno.
+  const porEscribir = archivos.filter((_, i) => estado[i] !== 'igual');
+  for (const [nombre] of porEscribir) {
+    const ruta = join(dir, nombre);
+    try {
+      accessSync(existsSync(ruta) ? ruta : dir, constants.W_OK);
+    } catch {
+      console.error(
+        `No se pudo escribir ${ruta}: no hay permiso (archivo de solo lectura o carpeta ajena). No se cambió ningún archivo.\n` +
+          'Quita la protección contra escritura de ese archivo, o corre init en una carpeta tuya.',
+      );
+      return 1;
+    }
+  }
+  for (const [nombre, contenido] of porEscribir) writeFileSync(join(dir, nombre), contenido);
   const nuevos = conEstado('nuevo');
   const iguales = conEstado('igual');
   if (!nuevos.length && !distintos.length) {
@@ -202,7 +256,7 @@ function problemaDeNode(version: string): string | null {
   return `factura-hn necesita Node ${NODE_MINIMO} o más reciente, y tienes ${version}. Instala la versión LTS de https://nodejs.org y vuelve a correr el comando.`;
 }
 
-const COMANDOS = new Set(['demo', 'init', 'iniciar', 'ayuda', '--help', '-h', 'help', 'version', '--version', '-v']);
+const COMANDOS = new Set(['demo', 'init', 'iniciar', 'ayuda', '--help', '-h', '--ayuda', 'help', 'version', '--version', '-v']);
 
 export async function principal(args: string[], dir = process.cwd()): Promise<number> {
   const node = problemaDeNode(process.versions.node);
@@ -211,6 +265,16 @@ export async function principal(args: string[], dir = process.cwd()): Promise<nu
     return 1;
   }
   const [comando = 'ayuda', ...resto] = args;
+  // Ayuda de un comando: «init --help», «demo -h», «ayuda init».
+  const ayudaDe = AYUDA_COMANDO[comando];
+  if (ayudaDe && resto.some((o) => PIDE_AYUDA.has(o))) {
+    console.log(ayudaDe);
+    return 0;
+  }
+  if ((comando === 'ayuda' || PIDE_AYUDA.has(comando) || comando === 'help') && resto.length === 1 && AYUDA_COMANDO[resto[0]!]) {
+    console.log(AYUDA_COMANDO[resto[0]!]);
+    return 0;
+  }
   const opciones = new Set(resto);
   // Solo init acepta una opción (--forzar). Cualquier otra, o una errata, es un error: no se adivina.
   const validas = comando === 'init' || comando === 'iniciar' ? ['--forzar'] : [];
@@ -234,6 +298,7 @@ export async function principal(args: string[], dir = process.cwd()): Promise<nu
     case 'ayuda':
     case '--help':
     case '-h':
+    case '--ayuda':
     case 'help':
       console.log(AYUDA);
       return 0;
