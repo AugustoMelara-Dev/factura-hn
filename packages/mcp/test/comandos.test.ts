@@ -318,3 +318,93 @@ describe('README y versión del paquete', () => {
     }
   });
 });
+
+describe('hallazgos de la auditoría de la CLI del MCP', () => {
+  it('MCPC-1: dos init --forzar seguidos no pierden el emisor original (copias .bak numeradas)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-bak-'));
+    await correr(['init'], { cwd: dir });
+    const emisor = join(dir, 'emisor.json');
+    writeFileSync(emisor, '{"rtn": "08011999000001"}');
+    await correr(['init', '--forzar'], { cwd: dir });
+    // La segunda vez el emisor es la plantilla: no hay nada que respaldar y la copia buena sigue.
+    const r2 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r2.out).not.toContain('Copia del emisor anterior');
+    expect(readFileSync(`${emisor}.bak`, 'utf8')).toBe('{"rtn": "08011999000001"}');
+    // Otro emisor distinto va a la siguiente copia libre, sin pisar la primera.
+    writeFileSync(emisor, '{"rtn": "08011999000002"}');
+    const r3 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r3.out).toContain(`Copia del emisor anterior en ${emisor}.bak-2.`);
+    expect(readFileSync(`${emisor}.bak`, 'utf8')).toBe('{"rtn": "08011999000001"}');
+    expect(readFileSync(`${emisor}.bak-2`, 'utf8')).toBe('{"rtn": "08011999000002"}');
+    // El mismo emisor otra vez reutiliza su copia.
+    writeFileSync(emisor, '{"rtn": "08011999000001"}');
+    const r4 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r4.out).toContain(`Copia del emisor anterior en ${emisor}.bak.`);
+    expect(existsSync(`${emisor}.bak-3`)).toBe(false);
+  });
+
+  it('MCPC-2/6: registrar-cai rechaza un CAI con formato que no es del SAR y una fecha límite vencida', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-cai-'));
+    await correr(['init'], { cwd: dir });
+    const base = join(dir, 'factura.db');
+    const sin = (bandera: string) => resolucion.filter((_, i) => resolucion[i] !== bandera && resolucion[i - 1] !== bandera);
+    const xyz = await correr(['registrar-cai', '--base', base, ...sin('--cai'), '--cai', 'XYZ']);
+    expect(xyz).toMatchObject({ codigo: 1, err: expect.stringContaining('[CAI_FORMATO]') });
+    const vencida = await correr(['registrar-cai', '--base', base, ...sin('--fecha-limite'), '--fecha-limite', '2020-01-01']);
+    expect(vencida).toMatchObject({ codigo: 1, err: expect.stringContaining('[AUTORIZACION_VENCIDA]') });
+    expect(autorizaciones(base)).toBe(0);
+  });
+
+  it('MCPC-3: una base dañada da un error en español con la ruta; init --demo --forzar la recrea, la real nunca se borra', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-danada-'));
+    const demo = join(dir, 'factura-demo.db');
+    writeFileSync(demo, 'esto no es una base');
+    const r = await correr(['init', '--demo'], { cwd: dir });
+    expect(r.codigo).toBe(1);
+    expect(r.err).toContain(`${demo} no es una base SQLite de factura-hn`);
+    expect(r.err).toContain('init --demo --forzar');
+    expect(r.err).not.toMatch(/file is not a database/);
+    expect((await correr(['init', '--demo', '--forzar'], { cwd: dir })).codigo).toBe(0);
+    expect(autorizaciones(demo)).toBe(3);
+
+    const real = join(dir, 'factura.db');
+    writeFileSync(real, 'esto tampoco');
+    for (const args of [['init', '--forzar'], ['registrar-cai', '--base', real, ...resolucion]]) {
+      const x = await correr(args, { cwd: dir });
+      expect(x.codigo).toBe(1);
+      expect(x.err).toContain(`${real} no es una base SQLite de factura-hn`);
+      expect(x.err).toContain('restaura tu respaldo');
+    }
+    expect(readFileSync(real, 'utf8')).toBe('esto tampoco');
+  });
+
+  it('MCPC-4: opción sin valor o con valor que empieza con «-»: en español', async () => {
+    expect(await correr(['init', '--dir'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Falta el valor de --dir\./) });
+    const r = await correr(['registrar-cai', ...resolucion.slice(0, 8), '--desde', '-5']);
+    expect(r.codigo).toBe(1);
+    expect(r.err).toMatch(/--desde/);
+    expect(r.err).not.toMatch(/argument|ambiguous|option/i);
+  });
+
+  it('MCPC-5: --api-url que no es una URL http(s)', async () => {
+    for (const url of ['localhost:8787', 'ftp://x.hn']) {
+      const r = await correr(['registrar-cai', '--api-url', url, ...resolucion], { env: { FHN_API_KEY: 'fhn_test_x' } });
+      expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/--api-url/) });
+    }
+  });
+
+  it('MCPC-7: version y ayuda por comando', async () => {
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    for (const v of ['version', '--version', '-v']) expect(await correr([v])).toMatchObject({ codigo: 0, out: version });
+    for (const args of [['init', '--help'], ['ayuda', 'init'], ['iniciar', '-h']]) {
+      const r = await correr(args);
+      expect(r.codigo, args.join(' ')).toBe(0);
+      expect(r.out).toMatch(/--demo[\s\S]*--forzar/);
+      expect(r.out).not.toContain('registrar-cai --cai');
+    }
+    const cai = await correr(['registrar-cai', '--help']);
+    expect(cai.codigo).toBe(0);
+    expect(cai.out).toMatch(/--cai[\s\S]*--fecha-limite/);
+    expect(await correr(['ayuda', 'emitir'])).toMatchObject({ codigo: 1 });
+  });
+});

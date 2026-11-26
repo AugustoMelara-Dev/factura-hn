@@ -5,7 +5,7 @@
  * - `registrar-cai`: registra el CAI de la resolución del SAR (en la base SQLite o vía la API);
  * - `ayuda`.
  */
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -53,8 +53,12 @@ function opciones(args: string[], definicion: NonNullable<NonNullable<Parameters
   } catch (e) {
     const m = e instanceof Error ? e.message : String(e);
     const opcion = /'([^']+)'/.exec(m)?.[1];
+    // El nombre sin lo que agrega Node («--dir <value>»).
+    const nombre = opcion?.split(' ')[0];
     if (/Unknown option/i.test(m)) throw new ErrorUso(`Opción desconocida: ${opcion ?? m}.${opcion === '--force' ? ' ¿Quisiste decir --forzar?' : ''}`);
-    if (/argument missing/i.test(m)) throw new ErrorUso(`Falta el valor de ${opcion ?? 'una opción'}.`);
+    if (/argument missing/i.test(m)) throw new ErrorUso(`Falta el valor de ${nombre ?? 'una opción'}.`);
+    // p. ej. «--desde -5»: parseArgs no sabe si -5 es el valor o otra opción.
+    if (/argument is ambiguous/i.test(m)) throw new ErrorUso(`Falta el valor de ${nombre ?? 'una opción'}, o empieza con «-»: escríbelo como ${nombre ?? '--opcion'}=VALOR.`);
     if (/does not take an argument/i.test(m)) throw new ErrorUso(`${opcion ?? 'Esa opción'} no lleva valor.`);
     if (/Unexpected argument/i.test(m)) throw new ErrorUso(`Argumento inesperado: ${opcion ?? m}. Las opciones van con «--».`);
     throw new ErrorUso(m);
@@ -89,32 +93,47 @@ const DONDE_PEGAR = () =>
     'La primera vez que el cliente arranca el servidor, npx descarga esta versión del paquete: hace falta conexión a internet.',
   ].join('\n');
 
-const AYUDA = `factura-hn MCP: facturación SAR Honduras desde un asistente de IA.
-
-Uso: npx -y ${PAQUETE} [comando] [opciones]
-
-Comandos:
-  (ninguno)        Arranca el servidor MCP por stdio. Lo hace tu cliente MCP con el bloque que imprime «init».
-  init, iniciar    Crea la base SQLite y el archivo del emisor en esta carpeta e imprime el bloque mcpServers.
+/** La ayuda de cada comando: va en la ayuda general y sola con `<comando> --help` o `ayuda <comando>`. */
+const AYUDA_COMANDO: Record<'init' | 'http' | 'registrar-cai', string> = {
+  init: `  init, iniciar    Crea la base SQLite y el archivo del emisor en esta carpeta e imprime el bloque mcpServers.
                      --demo              Modo de prueba: emisor y CAI ficticios (${LEYENDA_PRUEBA}).
                                          Usa factura-demo.db y emisor-demo.json, aparte de la base real.
                      --dir <carpeta>     Otra carpeta en vez de la actual.
                      --establecimiento   Código de establecimiento (por defecto 000).
                      --punto             Código de punto de emisión (por defecto 001).
-                     --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real).
-                                         Con --demo, también recrea la base de prueba. Nunca borra la base real.
-  http             Arranca el MCP por HTTP (Streamable HTTP) sobre tu propia API (FHN_API_URL). Cada
+                     --forzar            Reescribe el archivo del emisor (guarda antes una copia .bak del real,
+                                         sin pisar otra). Con --demo, también recrea la base de prueba. Nunca
+                                         borra la base real.`,
+  http: `  http             Arranca el MCP por HTTP (Streamable HTTP) sobre tu propia API (FHN_API_URL). Cada
                      conexión llama a /mcp con su llave en la cabecera Authorization: Bearer, o a
-                     /mcp/<token> (la URL que imprime «llave crear --mcp»). FHN_MCP_SOLO_URL=1 acepta
-                     solo /mcp/<token>, sin Bearer. Una llave de caja emite en su propia caja.
-  registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
+                     /mcp/<token> (la URL que imprime «llave crear --rol caja --caja 000-001 --mcp»; solo de
+                     una llave de caja). FHN_MCP_SOLO_URL=1 acepta solo /mcp/<token>, sin Bearer. Una llave
+                     de caja emite en su propia caja.`,
+  'registrar-cai': `  registrar-cai    Registra el CAI de la resolución del SAR (cópialo de la resolución; no lo inventes).
                      --cai --tipo (01, 06 o 07) --establecimiento --punto --desde --hasta
                      --fecha-limite AAAA-MM-DD  [--fecha-autorizacion AAAA-MM-DD]
                      --ultimo-emitido-antes N  Si ya emitiste con este CAI (talonario u otro sistema): el último
                                          número usado. La serie sigue desde el siguiente.
                      --base <factura.db>  Base SQLite (o FHN_SQLITE; por defecto ./factura.db).
                      --api-url --llave    Vía la API (o FHN_API_URL y FHN_LLAVE); requiere una llave admin.
-  ayuda            Esta ayuda.
+                     Revisa la forma del CAI (6-6-6-6-6-2), el rango y que la fecha límite no haya pasado.`,
+};
+
+/** Nombre del comando en la ayuda (`iniciar` es `init`). */
+const comandoDeAyuda = (c: string | undefined) => (c === 'iniciar' ? 'init' : c) as keyof typeof AYUDA_COMANDO;
+const esAyuda = (a: string) => a === '--help' || a === '-h' || a === '--ayuda';
+
+const AYUDA = `factura-hn MCP: facturación SAR Honduras desde un asistente de IA.
+
+Uso: npx -y ${PAQUETE} [comando] [opciones]
+
+Comandos:
+  (ninguno)        Arranca el servidor MCP por stdio. Lo hace tu cliente MCP con el bloque que imprime «init».
+${AYUDA_COMANDO.init}
+${AYUDA_COMANDO.http}
+${AYUDA_COMANDO['registrar-cai']}
+  version          La versión de este paquete (también --version).
+  ayuda [comando]  Esta ayuda, o la de un comando (también <comando> --help).
 
 Variables del servidor:
   FHN_SQLITE, FHN_EMISOR             Modo SQLite: la base y el JSON del emisor.
@@ -135,6 +154,18 @@ function listaProblemas(e: ErrorBackend): string {
     .join('\n');
 }
 
+/** El error de SQLite cuando el archivo no es una base (dañado o de otra cosa). */
+const esBaseDanada = (e: unknown) => e instanceof Error && /file is not a database|database disk image is malformed/i.test(e.message);
+
+/** Qué decir de un archivo que no es una base SQLite: nunca se borra una base real. */
+const errorBaseDanada = (ruta: string, demo: boolean) =>
+  new ErrorUso(
+    `${ruta} no es una base SQLite de factura-hn (está dañada o es otro archivo). ` +
+      (demo
+        ? `Para recrear la base de prueba: npx -y ${PAQUETE} init --demo --forzar`
+        : 'Revisa la ruta (FHN_SQLITE o --base). Si es la base del negocio, restaura tu respaldo; si es otro archivo, muévelo y corre init de nuevo.'),
+  );
+
 /** Si la base tiene algún CAI real (en autorizaciones o documentos), no es de prueba: no se toca. */
 function exigirBasePrueba(db: Parameters<typeof caisDeBase>[0], ruta: string) {
   const { reales } = caisDeBase(db);
@@ -151,6 +182,15 @@ function exigirBasePrueba(db: Parameters<typeof caisDeBase>[0], ruta: string) {
  * primero, comprueba que la base sea de prueba y valida los tres: o entran todos o ninguno.
  */
 async function prepararBase(ruta: string, o: { demo: boolean; establecimiento: string; puntoEmision: string; reloj?: () => Date }) {
+  try {
+    return await prepararBaseAbierta(ruta, o);
+  } catch (e) {
+    if (esBaseDanada(e)) throw errorBaseDanada(ruta, o.demo);
+    throw e;
+  }
+}
+
+async function prepararBaseAbierta(ruta: string, o: { demo: boolean; establecimiento: string; puntoEmision: string; reloj?: () => Date }) {
   const db = abrirBase(ruta);
   try {
     const almacen = new AlmacenSQLite(db);
@@ -211,20 +251,32 @@ async function init(args: string[], c: Contexto, s: Salida): Promise<number> {
       ? { _aviso: `Emisor FICTICIO de demostración: ${LEYENDA_PRUEBA}.`, ...EMISOR_DEMO }
       : plantillaEmisor();
     // El emisor real puede tener los datos del negocio: se guarda una copia antes de reescribirlo.
+    const nuevo = `${JSON.stringify(datos, null, 2)}\n`;
     if (existiaEmisor && !demo) {
-      copyFileSync(emisor, `${emisor}.bak`);
-      hechos.push(`Copia del emisor anterior en ${emisor}.bak.`);
+      const actual = readFileSync(emisor, 'utf8');
+      // Si ya es la plantilla, no hay datos que guardar. Una copia anterior nunca se pisa: va a .bak-2, .bak-3…
+      if (actual !== nuevo) {
+        const copias = [`${emisor}.bak`, ...Array.from({ length: 998 }, (_, i) => `${emisor}.bak-${i + 2}`)];
+        const igual = copias.find((r) => existsSync(r) && readFileSync(r, 'utf8') === actual);
+        const destino = igual ?? copias.find((r) => !existsSync(r));
+        if (!destino) throw new ErrorUso(`Hay demasiadas copias de ${emisor}: borra las .bak que no necesites y vuelve a intentarlo.`);
+        if (!igual) copyFileSync(emisor, destino);
+        hechos.push(`Copia del emisor anterior en ${destino}.`);
+      }
     }
-    writeFileSync(emisor, `${JSON.stringify(datos, null, 2)}\n`, 'utf8');
+    writeFileSync(emisor, nuevo, 'utf8');
     hechos.push(`${existiaEmisor ? 'Reescrito' : 'Creado'} ${emisor}${demo ? ' (emisor ficticio).' : ' (plantilla: llénala con los datos de tu negocio).'}`);
   }
 
   const existiaBase = existsSync(base);
   if (existiaBase && forzar && demo) {
     // Solo una base de prueba se recrea: antes de borrarla se comprueba que no tenga ningún CAI real.
+    // Un archivo que ni siquiera es una base SQLite no puede tener CAI reales: se recrea igual.
     const db = abrirBase(base);
     try {
       exigirBasePrueba(db, base);
+    } catch (e) {
+      if (!esBaseDanada(e)) throw e;
     } finally {
       db.close();
     }
@@ -319,6 +371,9 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
   let donde: string;
   try {
     if (url) {
+      if (!URL.canParse(url) || !/^https?:$/.test(new URL(url).protocol)) {
+        throw new ErrorUso(`--api-url (o FHN_API_URL) debe ser una URL completa, p. ej. http://127.0.0.1:8787 (no «${url}»).`);
+      }
       const llave = v.llave ?? c.env.FHN_LLAVE;
       if (!llave) throw new ErrorUso('Falta la llave de API: pásala con --llave o en FHN_LLAVE. Tiene que ser una llave admin.');
       r = await new BackendApi({ url, llave, operador }).registrarCAI(autorizacion);
@@ -332,6 +387,9 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
       const db = abrirBase(base);
       try {
         r = await registrarCAIEnAlmacen(new AlmacenSQLite(db), db, autorizacion, { actor: 'mcp:registrar-cai', operador, reloj: c.reloj });
+      } catch (e) {
+        if (esBaseDanada(e)) throw errorBaseDanada(base, false);
+        throw e;
       } finally {
         db.close();
       }
@@ -359,6 +417,12 @@ async function registrarCai(args: string[], c: Contexto, s: Salida): Promise<num
 export async function ejecutarComando(args: string[], c: Contexto): Promise<number | 'servidor' | 'http'> {
   const s = c.salida ?? consola;
   const [comando, ...resto] = args;
+  // `<comando> --help`: la ayuda de ese comando, sin ejecutarlo.
+  const deAyuda = comandoDeAyuda(comando);
+  if (AYUDA_COMANDO[deAyuda] && resto.some(esAyuda)) {
+    s.out(`Uso: npx -y ${PAQUETE} ${comando} [opciones]\n\n${AYUDA_COMANDO[deAyuda]}`);
+    return 0;
+  }
   try {
     switch (comando) {
       case undefined:
@@ -374,8 +438,22 @@ export async function ejecutarComando(args: string[], c: Contexto): Promise<numb
       case 'ayuda':
       case 'help':
       case '--help':
-      case '-h':
-        s.out(AYUDA);
+      case '--ayuda':
+      case '-h': {
+        if (!resto.length) {
+          s.out(AYUDA);
+          return 0;
+        }
+        const tema = AYUDA_COMANDO[comandoDeAyuda(resto[0])];
+        if (!tema || resto.length > 1) throw new ErrorUso(`No hay ayuda para «${resto.join(' ')}»: los comandos son init, http y registrar-cai.`);
+        s.out(`Uso: npx -y ${PAQUETE} ${resto[0]} [opciones]\n\n${tema}`);
+        return 0;
+      }
+      case 'version':
+      case '--version':
+      case '-v':
+        if (resto.length) throw new ErrorUso('El comando version no lleva argumentos.');
+        s.out(versionPaquete() ?? 'desconocida');
         return 0;
       default:
         s.err(`Comando desconocido: ${comando}.\n\n${AYUDA}`);
