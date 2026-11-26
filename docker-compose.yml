@@ -28,11 +28,16 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - datos:/var/lib/postgresql/data
+      # Solo corre al crear la base en un volumen nuevo: con FHN_API_PASSWORD (override con contraseñas), crea fhn_api.
+      - ./scripts/db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d factura_hn"]
+      # Por TCP y no por el socket: mientras se crea la base, Postgres arranca un servidor temporal que solo
+      # escucha en el socket. Así «sano» quiere decir que ya acepta conexiones de verdad.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d factura_hn"]
       interval: 2s
       timeout: 3s
       retries: 30
+      start_period: 60s
 
   api:
     build:
@@ -43,8 +48,8 @@ services:
     environment:
       # La API corre como fhn_api: un rol LOGIN que no es dueño de las tablas ni superusuario. Al arrancar, la
       # migración lo crea (sin contraseña: dentro de Compose rige trust) y le concede el rol de la aplicación.
-      # Con contraseñas (docker-compose.override.yml), define las DOS URL, cada una con su contraseña, y crea
-      # fhn_api con la suya antes: ver «Poner en marcha un negocio» y «Actualizar» en docs/autoalojamiento.md.
+      # Con contraseñas (docker-compose.override.yml), define las DOS URL, cada una con su contraseña, y
+      # FHN_API_PASSWORD en el servicio db (scripts/db-init crea fhn_api): ver docs/autoalojamiento.md.
       DATABASE_URL: postgres://fhn_api@db:5432/factura_hn
       # Dueño de las tablas: solo para migrar y preparar el modo local al arrancar, y para la consola (factura-hn-api).
       # Debe ser otro usuario que el de DATABASE_URL; si no, la API no arranca.
