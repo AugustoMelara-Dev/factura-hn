@@ -152,20 +152,35 @@ function init(dir: string, forzar: boolean): number {
     ['emisor.json', JSON.stringify(EMISOR_PLANTILLA, null, 2) + '\n'],
   ];
   // Un archivo igual al que se crearía no estorba: init se puede correr dos veces.
-  const distintos = archivos
-    .filter(([nombre, contenido]) => existsSync(join(dir, nombre)) && readFileSync(join(dir, nombre), 'utf8') !== contenido)
-    .map(([nombre]) => nombre);
+  const estado = archivos.map(([nombre, contenido]) => {
+    const ruta = join(dir, nombre);
+    if (!existsSync(ruta)) return 'nuevo';
+    return readFileSync(ruta, 'utf8') === contenido ? 'igual' : 'distinto';
+  });
+  const conEstado = (e: string) => archivos.filter((_, i) => estado[i] === e).map(([nombre]) => nombre);
+  const distintos = conEstado('distinto');
   if (distintos.length && !forzar) {
     const verbo = distintos.length > 1 ? 'existen' : 'existe';
     console.error(
       `Ya ${verbo} ${distintos.join(' y ')} en ${dir}, con otro contenido: no se tocó nada.\n` +
-        'Para reemplazar los dos con el ejemplo, corre: npx factura-hn init --forzar\n' +
+        '--forzar reemplaza emitir.mjs y emisor.json con el ejemplo: npx factura-hn init --forzar\n' +
         'O corre init en una carpeta vacía.',
     );
     return 1;
   }
   for (const [nombre, contenido] of archivos) writeFileSync(join(dir, nombre), contenido);
-  console.log(`Listo: creé emitir.mjs y emisor.json en ${dir} (modo de prueba, CAI ficticio).`);
+  const nuevos = conEstado('nuevo');
+  const iguales = conEstado('igual');
+  if (!nuevos.length && !distintos.length) {
+    console.log(`Ya estaban emitir.mjs y emisor.json en ${dir} (sin cambios).`);
+  } else {
+    const hecho = [
+      ...(nuevos.length ? [`creé ${nuevos.join(' y ')}`] : []),
+      ...(distintos.length ? [`reemplacé ${distintos.join(' y ')} con el ejemplo`] : []),
+    ].join(' y ');
+    const sinCambios = iguales.length ? `; ${iguales.join(' y ')} ya estaba igual` : '';
+    console.log(`Listo: ${hecho} en ${dir}${sinCambios} (modo de prueba, CAI ficticio).`);
+  }
   if (instaladoEn(dir)) {
     console.log('Ahora corre: node emitir.mjs');
     console.log(`Para emitir de verdad, cambia emisor.json por los datos de tu negocio y registra tu CAI. Guía: ${GUIA}`);

@@ -96,6 +96,8 @@ describe('npx factura-hn', () => {
     // Otra vez, sin cambios en los archivos: no estorban, termina bien.
     const repetido = correr(['init'], proyecto);
     expect(repetido.codigo).toBe(0);
+    expect(repetido.salida).toContain(`Ya estaban emitir.mjs y emisor.json en ${proyecto} (sin cambios).`);
+    expect(repetido.salida).not.toContain('Listo');
     expect(repetido.salida).toContain('Ahora corre: node emitir.mjs');
 
     // No sobrescribe un archivo con otro contenido: ni con init ni con iniciar, salvo con --forzar.
@@ -103,10 +105,12 @@ describe('npx factura-hn', () => {
     const otra = correr(['iniciar'], proyecto);
     expect(otra.codigo).toBe(1);
     expect(otra.error).toContain(`Ya existe emisor.json en ${proyecto}, con otro contenido: no se tocó nada.`);
-    expect(otra.error).toContain('npx factura-hn init --forzar');
+    expect(otra.error).toContain('--forzar reemplaza emitir.mjs y emisor.json con el ejemplo: npx factura-hn init --forzar');
     expect(otra.salida).toBe('');
     expect(readFileSync(join(proyecto, 'emisor.json'), 'utf8')).toBe('{"mio":true}\n');
-    expect(correr(['iniciar', '--forzar'], proyecto).codigo).toBe(0);
+    const forzado = correr(['iniciar', '--forzar'], proyecto);
+    expect(forzado.codigo).toBe(0);
+    expect(forzado.salida).toContain(`Listo: reemplacé emisor.json con el ejemplo en ${proyecto}; emitir.mjs ya estaba igual (modo de prueba, CAI ficticio).`);
     expect(readFileSync(join(proyecto, 'emisor.json'), 'utf8')).toContain('"rtn"');
 
     const emitir = spawnSync(process.execPath, ['emitir.mjs'], { cwd: proyecto, encoding: 'utf8', timeout: 60_000 });
@@ -202,7 +206,15 @@ describe('npx factura-hn', () => {
     const r = correr(['init'], p);
     expect(r.codigo).toBe(1);
     expect(r.error).toContain('Ya existe emitir.mjs en');
+    expect(r.error).toContain('--forzar reemplaza emitir.mjs y emisor.json con el ejemplo');
     expect(existsSync(join(p, 'emisor.json'))).toBe(false);
+    // Uno igual al ejemplo y el otro falta: crea solo el que falta y lo dice.
+    rmSync(join(p, 'emitir.mjs'));
+    expect(correr(['init'], p).codigo).toBe(0);
+    rmSync(join(p, 'emisor.json'));
+    const parcial = correr(['init'], p);
+    expect(parcial.codigo).toBe(0);
+    expect(parcial.salida).toContain(`Listo: creé emisor.json en ${p}; emitir.mjs ya estaba igual (modo de prueba, CAI ficticio).`);
   });
 
   it('una opción desconocida (o una errata) da error y código 1, sin escribir nada', () => {
