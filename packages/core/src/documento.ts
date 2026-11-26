@@ -173,6 +173,19 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
 }
 
 /**
+ * `preciosIncluyenISV` es booleano. Un texto como `'false'` (de un formulario, una variable de entorno o una query
+ * string) se rechaza: tomarlo como verdadero cobraría de menos e imprimiría «Precios incluyen ISV».
+ */
+export function problemaDePreciosIncluyenISV(valor: unknown, campo = 'preciosIncluyenISV'): Problema | null {
+  if (valor === undefined || typeof valor === 'boolean') return null;
+  return {
+    codigo: 'PRECIOS_INCLUYEN_ISV_FORMATO',
+    mensaje: `«preciosIncluyenISV» debe ser true o false (booleano), no ${JSON.stringify(valor) ?? String(valor)}.`,
+    campo,
+  };
+}
+
+/**
  * Caracteres que ningún texto de un documento puede llevar:
  * - los de control Unicode (categoría Cc: C0, DEL y C1), salvo el tabulador, el salto de línea y el retorno de
  *   carro, que tienen sentido en texto libre (descripciones, direcciones, observaciones);
@@ -291,6 +304,8 @@ export function validarEntrada(
   if (problemaTipo) problemas.push(problemaTipo);
   const problemaOperador = problemaDeOperador(entrada.operador);
   if (problemaOperador) problemas.push(problemaOperador);
+  const problemaPrecios = problemaDePreciosIncluyenISV(entrada.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(problemaPrecios);
   problemas.push(...problemasDeTexto(entrada));
 
   // Autorización
@@ -407,7 +422,7 @@ export function validarEntrada(
   problemas.push(...problemasLineas);
   if (problemasLineas.length === 0) {
     const { totales } = calcularCentavos(entrada.lineas, {
-      preciosIncluyenISV: entrada.preciosIncluyenISV ?? false,
+      preciosIncluyenISV: entrada.preciosIncluyenISV === true,
       exonerado: Boolean(entrada.exoneracion),
       moneda,
     });

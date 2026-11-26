@@ -190,9 +190,18 @@ export function calcularCentavos(
   opciones: OpcionesCalculo = {},
 ): { lineas: Array<{ entrada: LineaEntrada; leida: LineaLeida; importe: bigint }>; totales: TotalesCentavos } {
   const problemas = validarLineas(lineas);
+  // Solo `true` activa los precios con ISV incluido: un texto como 'false' es un error, no un «sí».
+  const incluyeISV: unknown = opciones.preciosIncluyenISV;
+  if (incluyeISV !== undefined && typeof incluyeISV !== 'boolean') {
+    problemas.push({
+      codigo: 'PRECIOS_INCLUYEN_ISV_FORMATO',
+      mensaje: `«preciosIncluyenISV» debe ser true o false (booleano), no ${JSON.stringify(incluyeISV) ?? String(incluyeISV)}.`,
+      campo: 'preciosIncluyenISV',
+    });
+  }
   if (problemas.length) throw new ErrorCalculo(problemas);
 
-  const incluye = opciones.preciosIncluyenISV ?? false;
+  const incluye = incluyeISV === true;
   const grupos: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, GRAVADO0: 0n, EXENTO: 0n };
   let descuentos = 0n;
 

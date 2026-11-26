@@ -422,6 +422,13 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
   centavos, o la cantidad y el precio intercambiados.
 
+### PRECIOS_INCLUYEN_ISV_FORMATO
+
+- **Qué significa:** `preciosIncluyenISV` no es booleano (por ejemplo, el texto `'false'` de un formulario o de
+  una variable de entorno). No se toma como verdadero: el total cambiaría y el impreso diría «Precios incluyen ISV».
+- **Solución:** pon `preciosIncluyenISV: true` o `false`, sin comillas, u omítelo (false). Si el valor llega como
+  texto, conviértelo antes: `valor === 'true'`.
+
 ### TIPO_CAMBIO
 
 - **Qué significa:** el documento está en moneda extranjera y no trae un tipo de cambio válido.

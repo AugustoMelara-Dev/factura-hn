@@ -7,7 +7,8 @@
  */
 import { calcularDocumento } from './calculo';
 import { congelar } from './inmutable';
-import { ErrorValidacion, validarEmisor } from './documento';
+import { ErrorValidacion, problemaDePreciosIncluyenISV, validarEmisor } from './documento';
+import { conSolucion } from './errores';
 import { anular, buscarDocumento, emitir, exigirAlmacen, registrarAutorizacion } from './emision';
 import { esNumeroValido, formatearNumero, parsearNumero } from './numeracion';
 import type { LibroContable } from './exportacion';
@@ -123,6 +124,8 @@ const tres = (v: string | number) => String(v).trim().padStart(3, '0');
 export function crearFacturador(config: ConfigFacturador): Facturador {
   exigirAlmacen(config?.almacen, 'crearFacturador');
   const problemas = validarEmisor(config.emisor);
+  const problemaPrecios = problemaDePreciosIncluyenISV(config.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(conSolucion(problemaPrecios));
   if (problemas.length) throw new ErrorValidacion(problemas);
   const almacen = config.almacen;
   const emisor = congelar(structuredClone(config.emisor));
@@ -199,12 +202,15 @@ export function crearFacturador(config: ConfigFacturador): Facturador {
           ...(o.operador !== undefined ? { operador: o.operador } : {}),
         },
       ),
-    cotizar: (venta) =>
-      calcularDocumento(venta.lineas, {
+    cotizar: (venta) => {
+      const problema = problemaDePreciosIncluyenISV(venta.preciosIncluyenISV);
+      if (problema) throw new ErrorValidacion([problema]);
+      return calcularDocumento(venta.lineas, {
         preciosIncluyenISV: venta.preciosIncluyenISV ?? config.preciosIncluyenISV ?? false,
         exonerado: Boolean(venta.exoneracion),
         moneda: venta.moneda ?? 'HNL',
-      }),
+      });
+    },
     emitir: (venta, o) =>
       emitirEntrada({ ...venta, emisor, preciosIncluyenISV: venta.preciosIncluyenISV ?? config.preciosIncluyenISV ?? false }, o),
     notaCredito: (n, o) => nota('06', n, o),
