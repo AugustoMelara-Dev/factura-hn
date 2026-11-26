@@ -422,6 +422,12 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Solución:** revisa la cantidad y el precio de las líneas. Suele ser un error de digitación: un precio en
   centavos, o la cantidad y el precio intercambiados.
 
+### MONEDA
+
+- **Qué significa:** la moneda del documento no es `'HNL'` ni `'USD'` (por ejemplo `'EUR'` o `'usd'` en
+  minúsculas). Lo dicen `emitir`, `validarEntrada`, `cotizar` y `calcularDocumento`.
+- **Solución:** usa `moneda: 'HNL'` (por defecto) o `'USD'` con su `tipoCambio`, en mayúsculas.
+
 ### PRECIOS_INCLUYEN_ISV_FORMATO
 
 - **Qué significa:** `preciosIncluyenISV` no es booleano (por ejemplo, el texto `'false'` de un formulario o de

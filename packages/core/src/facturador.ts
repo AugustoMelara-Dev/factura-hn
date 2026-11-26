@@ -5,10 +5,9 @@
  * Es una fachada, no un segundo camino: cada método llama a `emitir`, `anular`, `registrarAutorizacion` o
  * `buscarDocumento`, con la misma transacción, las mismas validaciones y la misma bitácora.
  */
-import { calcularDocumento } from './calculo';
+import { calcularDocumento, problemaDeMoneda, problemaDePreciosIncluyenISV } from './calculo';
 import { congelar } from './inmutable';
-import { ErrorValidacion, problemaDePreciosIncluyenISV, validarEmisor } from './documento';
-import { conSolucion } from './errores';
+import { ErrorValidacion, validarEmisor } from './documento';
 import { anular, buscarDocumento, emitir, exigirAlmacen, registrarAutorizacion } from './emision';
 import { esNumeroValido, formatearNumero, parsearNumero } from './numeracion';
 import type { LibroContable } from './exportacion';
@@ -125,7 +124,7 @@ export function crearFacturador(config: ConfigFacturador): Facturador {
   exigirAlmacen(config?.almacen, 'crearFacturador');
   const problemas = validarEmisor(config.emisor);
   const problemaPrecios = problemaDePreciosIncluyenISV(config.preciosIncluyenISV);
-  if (problemaPrecios) problemas.push(conSolucion(problemaPrecios));
+  if (problemaPrecios) problemas.push(problemaPrecios);
   if (problemas.length) throw new ErrorValidacion(problemas);
   const almacen = config.almacen;
   const emisor = congelar(structuredClone(config.emisor));
@@ -203,8 +202,8 @@ export function crearFacturador(config: ConfigFacturador): Facturador {
         },
       ),
     cotizar: (venta) => {
-      const problema = problemaDePreciosIncluyenISV(venta.preciosIncluyenISV);
-      if (problema) throw new ErrorValidacion([problema]);
+      const problemas = [problemaDePreciosIncluyenISV(venta.preciosIncluyenISV), problemaDeMoneda(venta.moneda)].filter((p) => p !== null);
+      if (problemas.length) throw new ErrorValidacion(problemas);
       return calcularDocumento(venta.lineas, {
         preciosIncluyenISV: venta.preciosIncluyenISV ?? config.preciosIncluyenISV ?? false,
         exonerado: Boolean(venta.exoneracion),

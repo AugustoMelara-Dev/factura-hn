@@ -78,6 +78,9 @@ export function enteroALetras(n: number): string {
   return partes.join(' ');
 }
 
+/** Monedas que el SDK sabe escribir en letras (y en las que se emite). */
+export const MONEDAS: readonly Moneda[] = ['HNL', 'USD'];
+
 const NOMBRE_MONEDA: Record<Moneda, { singular: string; plural: string }> = {
   HNL: { singular: 'LEMPIRA', plural: 'LEMPIRAS' },
   USD: { singular: 'DÓLAR', plural: 'DÓLARES' },
@@ -96,6 +99,9 @@ export function centavosEnLetras(centavos: bigint, moneda: Moneda = 'HNL'): stri
   if (centavos < 0n) throw new RangeError('El monto no puede ser negativo');
   const enteros = Number(centavos / 100n);
   const fraccion = (centavos % 100n).toString().padStart(2, '0');
+  if (!Object.prototype.hasOwnProperty.call(NOMBRE_MONEDA, moneda)) {
+    throw new RangeError(`Moneda no soportada: ${JSON.stringify(moneda) ?? String(moneda)}. Usa 'HNL' o 'USD'.`);
+  }
   const nombre = NOMBRE_MONEDA[moneda];
   const palabras = apocopar(enteroALetras(enteros)); // 0 → «CERO»
   // "UN MILLÓN DE LEMPIRAS", "DOS MILLONES DE LEMPIRAS", "UN BILLÓN DE LEMPIRAS"

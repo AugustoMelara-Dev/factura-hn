@@ -2,7 +2,16 @@
  * Construcción y validación de documentos fiscales (Factura, Nota de Crédito, Nota de Débito).
  */
 import { congelar } from './inmutable';
-import { advertenciasDeCalculo, calcularCentavos, calcularDocumento, ESCALA_PRECIO, MONTO_MAXIMO_CENTAVOS, validarLineas } from './calculo';
+import {
+  advertenciasDeCalculo,
+  calcularCentavos,
+  calcularDocumento,
+  ESCALA_PRECIO,
+  MONTO_MAXIMO_CENTAVOS,
+  problemaDeMoneda,
+  problemaDePreciosIncluyenISV,
+  validarLineas,
+} from './calculo';
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
 import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
@@ -170,19 +179,6 @@ export function problemaDeOperador(operador: unknown, campo = 'operador'): Probl
     return { codigo: 'OPERADOR', mensaje: 'El operador debe ser un nombre de 1 a 80 caracteres, sin caracteres de control.', campo };
   }
   return null;
-}
-
-/**
- * `preciosIncluyenISV` es booleano. Un texto como `'false'` (de un formulario, una variable de entorno o una query
- * string) se rechaza: tomarlo como verdadero cobraría de menos e imprimiría «Precios incluyen ISV».
- */
-export function problemaDePreciosIncluyenISV(valor: unknown, campo = 'preciosIncluyenISV'): Problema | null {
-  if (valor === undefined || typeof valor === 'boolean') return null;
-  return {
-    codigo: 'PRECIOS_INCLUYEN_ISV_FORMATO',
-    mensaje: `«preciosIncluyenISV» debe ser true o false (booleano), no ${JSON.stringify(valor) ?? String(valor)}.`,
-    campo,
-  };
 }
 
 /**
@@ -376,8 +372,10 @@ export function validarEntrada(
 
   // Moneda
   const moneda = entrada.moneda ?? 'HNL';
+  const problemaMoneda = problemaDeMoneda(entrada.moneda);
+  if (problemaMoneda) problemas.push(problemaMoneda);
   const tipoCambio = moneda === 'HNL' ? null : leerTipoCambio(entrada.tipoCambio);
-  if (moneda !== 'HNL' && tipoCambio === null) {
+  if (!problemaMoneda && moneda !== 'HNL' && tipoCambio === null) {
     problemas.push({ codigo: 'TIPO_CAMBIO', mensaje: 'En moneda extranjera se debe indicar el tipo de cambio de la fecha de emisión (mayor que 0, hasta 6 decimales).', campo: 'tipoCambio' });
   }
 

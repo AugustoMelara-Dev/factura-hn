@@ -10,6 +10,7 @@ import {
   crearFacturador,
   emitir,
   esErrorValidacion,
+  montoEnLetras,
   registrarAutorizacion,
   type AutorizacionCAI,
   type DocumentoEntrada,
@@ -66,5 +67,25 @@ describe('preciosIncluyenISV es booleano', () => {
   it('calcularDocumento no toma un texto como verdadero', () => {
     const opciones = { preciosIncluyenISV: 'false' } as unknown as Parameters<typeof calcularDocumento>[1];
     expect(() => calcularDocumento(lineas, opciones)).toThrow(/preciosIncluyenISV.*true o false/);
+  });
+});
+
+describe('moneda: HNL o USD', () => {
+  it('emitir con EUR o usd da MONEDA sin consumir número (no un TypeError)', async () => {
+    const almacen = await preparar();
+    for (const moneda of ['EUR', 'usd', 7]) {
+      const entrada = { emisor: EMISOR_DEMO, lineas, moneda, tipoCambio: '27' } as unknown as DocumentoEntrada;
+      expect(await codigoDe(emitir(entrada, { almacen, ...caja }))).toBe('MONEDA');
+    }
+    expect((await emitir({ emisor: EMISOR_DEMO, lineas, moneda: 'USD', tipoCambio: '24.5' }, { almacen, ...caja })).correlativo).toBe(1);
+  });
+
+  it('cotizar y calcularDocumento lo dicen con su código; montoEnLetras con un RangeError claro', async () => {
+    const caja2 = crearFacturador({ almacen: await preparar(), emisor: EMISOR_DEMO });
+    const venta = { lineas, moneda: 'EUR' } as unknown as Parameters<typeof caja2.cotizar>[0];
+    expect(await codigoDe(() => caja2.cotizar(venta))).toBe('MONEDA');
+    const opciones = { moneda: 'EUR' } as unknown as Parameters<typeof calcularDocumento>[1];
+    expect(() => calcularDocumento(lineas, opciones)).toThrow(/moneda debe ser 'HNL' o 'USD'/);
+    expect(() => montoEnLetras(5, 'EUR' as 'HNL')).toThrow(/Moneda no soportada: "EUR". Usa 'HNL' o 'USD'/);
   });
 });
