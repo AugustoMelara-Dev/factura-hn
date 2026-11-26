@@ -480,7 +480,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
     if (/^application\/json\s*$/i.test(c.res.headers.get('content-type') ?? '')) c.header('Content-Type', TIPO_JSON);
   });
-  // CORS solo para lo que llama el navegador (la página «Pruébalo ahora»): `POST /v1/demo/entornos`, sin credenciales.
+  // CORS solo para lo que llama el navegador (una página de un origen permitido): `POST /v1/demo/entornos`, sin credenciales.
   // Solo los orígenes de FHN_DEMO_ORIGENES; nunca «*». También en los errores (429, 503), que pasan por aquí.
   app.use('/v1/demo/*', async (c, next) => {
     const origen = c.req.header('origin');
@@ -588,7 +588,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       // la dirección de sus visitantes. Con Origin, solo los de FHN_DEMO_ORIGENES; sin Origin (curl, el SDK), se atiende.
       const origen = c.req.header('origin');
       if (origen !== undefined && !demo.origenes.includes(origen)) {
-        throw new ErrorApi(403, 'ORIGEN_NO_PERMITIDO', 'Esta página no puede crear entornos de prueba. Usa la del sitio de factura-hn o curl.');
+        throw new ErrorApi(403, 'ORIGEN_NO_PERMITIDO', 'Esta página no puede crear entornos de prueba: su origen no está en FHN_DEMO_ORIGENES. Usa un origen permitido o curl.');
       }
       if (await demoPausado()) throw errorPausa();
       const ip = ipDe(c);

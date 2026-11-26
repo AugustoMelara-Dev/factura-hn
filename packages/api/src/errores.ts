@@ -136,7 +136,7 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
       'Se alcanzó el límite de entornos de prueba (por dirección por día, o en todo el servicio). Usa el que ya creaste o ' +
       'reintenta después de los segundos de Retry-After.',
     DEMO_LIMITE_SOLICITUDES: 'Este entorno de prueba ya usó todas sus solicitudes. Crea otro entorno con `POST /v1/demo/entornos`.',
-    ORIGEN_NO_PERMITIDO: 'Solo la página del sitio de factura-hn (o curl, sin Origin) crea entornos de prueba. Abre «Pruébalo ahora» en el sitio.',
+    ORIGEN_NO_PERMITIDO: 'Esta página no está entre los orígenes que el servidor acepta (FHN_DEMO_ORIGENES). Crea el entorno desde un origen permitido o sin cabecera Origin (p. ej. con curl).',
     DEMO_LIMITE_DOCUMENTOS: 'Este entorno de prueba ya emitió todos los documentos que permite. Crea otro entorno con `POST /v1/demo/entornos`.',
     VALIDACION: 'Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta con la misma Idempotency-Key: un 422 no consume número.',
   };
