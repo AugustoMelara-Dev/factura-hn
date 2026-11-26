@@ -13,7 +13,7 @@ import {
   validarLineas,
 } from './calculo';
 import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, ErrorMonto, formatearMonto, parsearDecimal, redondearDecimal, type Monto } from './dinero';
-import { esAdvertencia, esFechaValida, fechaHonduras, validarAutorizacion } from './autorizacion';
+import { esAdvertencia, esFechaValida, fechaHonduras, horaHonduras, validarAutorizacion } from './autorizacion';
 import { esDNIValido, esRTNValido, limpiarIdentificador, normalizarCAI } from './identificacion';
 import { esNumeroValido, formatearNumero, formatearRango, numeroDesdeAutorizacion, parsearNumero, TIPOS_DOCUMENTO } from './numeracion';
 import { conSolucion } from './errores';
@@ -135,6 +135,7 @@ export function problemaDeTipo(tipo: string): Problema | null {
   return null;
 }
 
+const PATRON_HORA = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const PATRON_CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** Un problema en una línea de texto: código, mensaje, qué hacer y dónde leer más. */
@@ -423,6 +424,15 @@ export function validarEntrada(
     });
   }
 
+  // Hora: HH:mm de 24 horas. Si falta, la pone el reloj, como la fecha.
+  if (entrada.horaEmision !== undefined && (typeof entrada.horaEmision !== 'string' || !PATRON_HORA.test(entrada.horaEmision))) {
+    problemas.push({
+      codigo: 'HORA_EMISION',
+      mensaje: `horaEmision debe ser HH:mm de 24 horas (p. ej. 14:05), no ${JSON.stringify(entrada.horaEmision) ?? String(entrada.horaEmision)}.`,
+      campo: 'horaEmision',
+    });
+  }
+
   // Emisor
   problemas.push(...validarEmisor(entrada.emisor));
 
@@ -591,7 +601,13 @@ export function construirDocumento(
 ): DocumentoFiscal {
   const forma = problemasDeForma(entrada);
   if (forma.length) throw new ErrorValidacion(forma);
-  entrada = { ...entrada, fechaEmision: entrada.fechaEmision ?? hoyHonduras(opciones) };
+  // Fecha y hora salen del mismo instante del reloj si no vienen en la entrada.
+  const ahora = opciones.reloj?.() ?? new Date();
+  entrada = {
+    ...entrada,
+    fechaEmision: entrada.fechaEmision ?? hoyHonduras({ reloj: () => ahora }),
+    horaEmision: entrada.horaEmision ?? horaHonduras(ahora),
+  };
   const v = validarEntrada(entrada, autorizacion, opciones);
   const errores = [...v.errores, ...adicionales.filter((p) => !esAdvertencia(p))];
   const advertencias = [...v.advertencias, ...adicionales.filter(esAdvertencia)];

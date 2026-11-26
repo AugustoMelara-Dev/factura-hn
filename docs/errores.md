@@ -264,6 +264,11 @@ operación del sistema; no es una regla del SAR. Ver también [normativa](normat
 - **Qué significa:** `fechaEmision` no tiene la forma `AAAA-MM-DD`.
 - **Solución:** omite el campo: la pone el reloj.
 
+### HORA_EMISION
+
+- **Qué significa:** `horaEmision` no es una hora HH:mm de 24 horas (por ejemplo `'99:99'` o `'ayer'`).
+- **Solución:** omítela: la pone el reloj con la hora de Honduras, igual que la fecha. Si la pasas, usa `'14:05'`.
+
 ### FECHA_EMISION_NO_ES_HOY
 
 - **Qué significa:** se envió una fecha de emisión distinta de la de hoy en Honduras.

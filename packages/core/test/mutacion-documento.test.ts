@@ -547,8 +547,10 @@ describe('construirDocumento', () => {
     expect(construirDocumento(entrada({ cliente: { nombre: ' Ana ' } }), AUT, 1).cliente.nombreImpreso).toBe('Ana');
   });
   it('los campos opcionales solo aparecen si vienen; el operador se recorta', () => {
-    const minimo = construirDocumento(entrada(), AUT, 1);
-    for (const campo of ['horaEmision', 'exoneracion', 'tipoCambio', 'referencia', 'motivo', 'condicionPago', 'observaciones', 'operador', 'modo', 'equivalenteLempiras']) {
+    const minimo = construirDocumento(entrada(), AUT, 1, { reloj: () => new Date('2026-11-19T21:07:00Z') });
+    // La hora, como la fecha, la pone el reloj si no viene (hora de Honduras, UTC-6).
+    expect(minimo.horaEmision).toBe('15:07');
+    for (const campo of ['exoneracion', 'tipoCambio', 'referencia', 'motivo', 'condicionPago', 'observaciones', 'operador', 'modo', 'equivalenteLempiras']) {
       expect(campo in minimo).toBe(false);
     }
     const completo = construirDocumento(

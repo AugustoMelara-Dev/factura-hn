@@ -62,6 +62,7 @@ export const SOLUCIONES: Readonly<Record<string, string>> = {
 
   // Fecha y reloj
   FECHA_EMISION: 'Omite `fechaEmision`: la pone el reloj con la fecha de hoy en Honduras.',
+  HORA_EMISION: 'Omite `horaEmision`: la pone el reloj con la hora de Honduras. Si la pasas, usa HH:mm de 24 horas, p. ej. 14:05.',
   FECHA_EMISION_NO_ES_HOY: 'Omite `fechaEmision`: la pone el reloj. Si la fecha de hoy está mal, corrige el reloj del dispositivo.',
   FECHA_ANTERIOR_AL_ULTIMO:
     'Si el reloj de este dispositivo está atrasado, corrígelo. Si el último documento se emitió con el reloj adelantado, anúlalo con `corregirFechaAdelantada`.',

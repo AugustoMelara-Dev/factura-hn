@@ -140,3 +140,22 @@ describe('entradas mal tipadas: un ErrorValidacion con código, nunca un TypeErr
     expect(() => calcularDocumento([null] as unknown as typeof lineas)).toThrow(/Línea 1: debe ser un objeto/);
   });
 });
+
+describe('horaEmision: HH:mm válida, y si falta la pone el reloj', () => {
+  it("'99:99', 'ayer' o un número dan HORA_EMISION sin consumir número", async () => {
+    const almacen = await preparar();
+    for (const horaEmision of ['99:99', 'ayer', '24:00', '9:05', 905]) {
+      const entrada = { emisor: EMISOR_DEMO, lineas, horaEmision } as unknown as DocumentoEntrada;
+      expect([horaEmision, await codigoDe(emitir(entrada, { almacen, ...caja }))]).toEqual([horaEmision, 'HORA_EMISION']);
+    }
+    const doc = await emitir({ emisor: EMISOR_DEMO, lineas, horaEmision: '23:59' }, { almacen, ...caja });
+    expect([doc.correlativo, doc.horaEmision]).toEqual([1, '23:59']);
+  });
+
+  it('sin el campo, emitir pone la hora de Honduras del mismo reloj que la fecha', async () => {
+    const almacen = await preparar();
+    const reloj = () => new Date('2026-11-27T04:30:00Z'); // 26/11 a las 22:30 en Honduras
+    const doc = await emitir({ emisor: EMISOR_DEMO, lineas }, { almacen, ...caja, opciones: { reloj } });
+    expect([doc.fechaEmision, doc.horaEmision]).toEqual(['2026-11-26', '22:30']);
+  });
+});
