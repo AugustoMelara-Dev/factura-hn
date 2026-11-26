@@ -2,6 +2,9 @@
  * Consola del operador: ayuda, errores de uso en español con código 1, y `demo llave` contra PostgreSQL real.
  */
 import { randomBytes } from 'node:crypto';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { crearApp } from '../src/app';
@@ -99,6 +102,38 @@ describe('consola: ayuda y uso', () => {
     const r = await correr(['openapi']);
     expect(r.codigo).toBe(0);
     expect(JSON.parse(r.log).paths['/v1/sesion']).toBeDefined();
+  });
+
+  it('openapi <archivo>: lo escribe; si no puede (carpeta inexistente o sin permiso), lo dice en español y sugiere redirigir', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-openapi-'));
+    try {
+      const bien = join(dir, 'op ñ.json');
+      const r = await correr(['openapi', bien]);
+      expect(r.codigo).toBe(0);
+      expect(JSON.parse(readFileSync(bien, 'utf8')).paths['/v1/sesion']).toBeDefined();
+      expect(r.log).toContain('Especificación OpenAPI escrita en');
+
+      const sinCarpeta = await correr(['openapi', join(dir, 'no-existe', 'x.json')]);
+      expect(sinCarpeta.codigo).toBe(1);
+      expect(sinCarpeta.error).toMatch(/No se pudo escribir .*x\.json \(la carpeta no existe\)/);
+      expect(sinCarpeta.error).toContain('openapi > openapi.json');
+      expect(sinCarpeta.error).not.toMatch(/ENOENT|no such file/);
+
+      // Un archivo de solo lectura (como la carpeta de trabajo de la imagen de Docker, que no se puede escribir).
+      // (root escribe igual en un archivo de solo lectura: ahí no aplica.)
+      if (process.getuid?.() === 0) return;
+      const soloLectura = join(dir, 'solo-lectura.json');
+      writeFileSync(soloLectura, '{}');
+      chmodSync(soloLectura, 0o444);
+      const sinPermiso = await correr(['openapi', soloLectura], { FHN_CONSOLA: 'docker compose exec -T api factura-hn-api' });
+      expect(sinPermiso.codigo).toBe(1);
+      expect(sinPermiso.error).toContain('(no hay permiso para escribir ahí)');
+      expect(sinPermiso.error).toContain('docker compose exec -T api factura-hn-api openapi > openapi.json');
+      expect(sinPermiso.error).not.toMatch(/EACCES|EPERM|permission denied/);
+      chmodSync(soloLectura, 0o644);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('el servidor rechaza un FHN_PROXIES_DE_CONFIANZA que no es un número', async () => {

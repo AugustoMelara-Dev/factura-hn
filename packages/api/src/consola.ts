@@ -4,6 +4,7 @@
  * llaves se imprimen una sola vez, solo en esta terminal.
  */
 import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type pg from 'pg';
 import { crearApp } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
@@ -231,8 +232,23 @@ export async function ejecutarConsola(
     if (clave === 'openapi') {
       const app = crearApp({ pool: {} as pg.Pool, modo: 'alojado' });
       const doc = await (await app.request('/openapi.json')).text();
-      if (posicionales[0]) writeFileSync(posicionales[0], `${JSON.stringify(JSON.parse(doc), null, 2)}\n`);
-      else salida.log(doc);
+      const archivo = posicionales[0];
+      if (!archivo) {
+        salida.log(doc);
+        return 0;
+      }
+      try {
+        writeFileSync(archivo, `${JSON.stringify(JSON.parse(doc), null, 2)}\n`);
+      } catch (e) {
+        // Dentro de Docker la carpeta de trabajo no se puede escribir (y el archivo quedaría en el contenedor): lo
+        // útil es redirigir la salida estándar a un archivo del equipo.
+        const codigo = (e as { code?: string }).code;
+        const por = codigo === 'ENOENT' ? 'la carpeta no existe' : codigo === 'EACCES' || codigo === 'EPERM' ? 'no hay permiso para escribir ahí' : (e as Error).message;
+        throw new Error(
+          `No se pudo escribir ${resolve(archivo)} (${por}). Crea la carpeta o elige otra ruta, o redirige la salida: ${consola} openapi > openapi.json`,
+        );
+      }
+      salida.log(`Especificación OpenAPI escrita en ${resolve(archivo)}.`);
       return 0;
     }
 
