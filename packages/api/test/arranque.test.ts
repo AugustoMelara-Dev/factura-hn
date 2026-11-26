@@ -4,12 +4,13 @@
  * despachador del servidor no toca los datos de las demás pruebas.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import net from 'node:net';
 import pg from 'pg';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mantenimientoApi, migrarApi, rolLoginApi } from '../src/esquema';
 import { comandoLlaveAdminLocal, crearLlaveOperador, crearTenant, TENANT_DEMO, TENANT_LOCAL } from '../src/operador';
 import { usuarioDeUrlSiHay } from '../src/pool';
-import { arrancar } from '../src/servidor';
+import { arrancar, lineaDeArranque } from '../src/servidor';
 import { CofreSecretos, despacharWebhooks } from '../src/webhooks';
 import { caiAleatorio, cerrarPool, cliente, EMISOR, FECHA_LIMITE, poolPrueba, ROL, URL_PG, venta } from './ayuda';
 
@@ -68,7 +69,35 @@ describe('rol LOGIN de la API', () => {
   });
 });
 
+describe('línea del log al arrancar', () => {
+  it('da el puerto publicado por Compose si lo recibe; dentro del contenedor sin él, no inventa una URL', () => {
+    expect(lineaDeArranque({ modo: 'local', puerto: 8787, puertoPublicado: '8797', enContenedor: true })).toBe('factura-hn API (local) en http://localhost:8797 · documentación en /docs');
+    const contenedor = lineaDeArranque({ modo: 'local', puerto: 8787, enContenedor: true });
+    expect(contenedor).not.toContain('http://');
+    expect(contenedor).toContain('FHN_PUERTO');
+    expect(lineaDeArranque({ modo: 'alojado', puerto: 8790, enContenedor: false })).toBe('factura-hn API (alojado) en http://localhost:8790 · documentación en /docs');
+  });
+});
+
 describe.skipIf(!URL_PG)('arranque', () => {
+  it('con el puerto ocupado termina con un mensaje en español; con PUERTO=0 el log da el puerto real', async () => {
+    const url = await esquemaNuevo();
+    const ocupado = net.createServer();
+    await new Promise<void>((r) => ocupado.listen(0, '127.0.0.1', r));
+    const puerto = (ocupado.address() as net.AddressInfo).port;
+    try {
+      await expect(arrancar({ ...base, PUERTO: String(puerto), DATABASE_URL: url(), FHN_MODO: 'local' })).rejects.toThrow(
+        `El puerto ${puerto} ya está en uso: otro proceso escucha en él. Ciérralo o elige otro con PUERTO=<número>.`,
+      );
+    } finally {
+      ocupado.close();
+    }
+    const s = await arrancar({ ...base, DATABASE_URL: url(), FHN_MODO: 'local' });
+    await s.cerrar();
+    const linea = salida.log.find((l) => l.startsWith('factura-hn API'));
+    expect(linea).toMatch(/^factura-hn API \(local\) en http:\/\/localhost:[1-9]\d* · documentación en \/docs$/);
+  });
+
   it('con FHN_MIGRAR_URL corre como un rol LOGIN creado por la migración, sin superusuario ni BYPASSRLS, y emite de punta a punta', async () => {
     const url = await esquemaNuevo();
     const login = `fhn_api_prueba_${hex()}`;
