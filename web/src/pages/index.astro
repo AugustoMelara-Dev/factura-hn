@@ -79,13 +79,12 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 			<figure class="video">
 				<video
 					controls
-					muted
 					playsinline
 					preload="metadata"
 					width="1920"
 					height="1080"
 					poster={conBase('/video/poster.jpg')}
-					aria-label="Video de factura-hn: de npm install a una factura de prueba impresa"
+					aria-label="Video de factura-hn en 28 segundos, narrado y con subtítulos"
 				>
 					<source src={conBase('/video/factura-hn-lanzamiento.mp4')} type="video/mp4" />
 				</video>
@@ -116,6 +115,32 @@ const SEGURIDAD = `${REPO}/security/advisories/new`;
 			<h2 class="titulo-seccion" id="titulo-probar">Emite una factura de prueba sin instalar nada.</h2>
 			<p class="entrada">El SDK corre en esta página con un emisor y un CAI ficticios. Cada emisión toma el número siguiente.</p>
 			<Demo />
+		</div>
+	</section>
+
+	<section class="seccion" aria-labelledby="paso-a-paso">
+		<div class="contenedor dos">
+			<div class="dos-texto">
+				<p class="antetitulo">Paso a paso</p>
+				<h2 class="titulo-seccion" id="paso-a-paso">De la instalación al impreso.</h2>
+				<p class="entrada">
+					Instalas con npm y emites una factura de prueba de tres formas: con el SDK, con la consola y con Claude por MCP.
+					Al final, el impreso en HTML, PDF carta y ticket. Narrado y con subtítulos.
+				</p>
+			</div>
+			<figure class="video video-seccion">
+				<video
+					controls
+					playsinline
+					preload="none"
+					width="1920"
+					height="1080"
+					poster={conBase('/video/poster-demo.jpg')}
+					aria-label="Video paso a paso: instalar factura-hn y emitir una factura de prueba con el SDK, la consola y Claude"
+				>
+					<source src={conBase('/video/factura-hn-demo.mp4')} type="video/mp4" />
+				</video>
+			</figure>
 		</div>
 	</section>
 
