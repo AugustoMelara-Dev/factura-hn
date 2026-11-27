@@ -18,8 +18,8 @@
         "modo": "local",
         "demo": true,
         "llave": {
-          "id": "11a3d333-ef23-4f00-b072-2022d02a60b1",
-          "prefijo": "c9d91afb9baa",
+          "id": "13d8f9ed-db82-4101-81ed-c3f5a430b9ca",
+          "prefijo": "5e08d3220264",
           "nombre": "Caja demo (consola)",
           "rol": "caja",
           "establecimiento": "000",
@@ -102,7 +102,7 @@
     "cuerpo": {
       "emisores": [
         {
-          "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+          "id": "8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d",
           "rtn": "99990000000000",
           "correo": "demo@ejemplo.example",
           "telefono": "0000-0001",
@@ -121,7 +121,7 @@
     "tipo": "application/json",
     "cuerpo": {
       "emisor": {
-        "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+        "id": "8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d",
         "rtn": "99990000000000",
         "correo": "demo@ejemplo.example",
         "telefono": "0000-0001",
@@ -137,7 +137,7 @@
     "tipo": "application/json",
     "cuerpo": {
       "emisor": {
-        "id": "c34f95db-d4e4-418d-a201-216f69be3e61",
+        "id": "8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d",
         "rtn": "99990000000000",
         "correo": "demo@ejemplo.example",
         "telefono": "0000-0002",
@@ -154,10 +154,10 @@
     "cuerpo": {
       "error": {
         "codigo": "EMISOR_EXISTE",
-        "mensaje": "Este tenant ya tiene emisor (id c34f95db-d4e4-418d-a201-216f69be3e61): usa PATCH /v1/emisores/c34f95db-d4e4-418d-a201-216f69be3e61.",
-        "solicitud": "9e2615d4-842a-49a7-9084-b37bb0a77e63"
+        "mensaje": "Este tenant ya tiene emisor (id 8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d): usa PATCH /v1/emisores/8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d.",
+        "solicitud": "815b0a05-7fe3-4394-875d-e7596f93a788"
       },
-      "id": "c34f95db-d4e4-418d-a201-216f69be3e61"
+      "id": "8e416fdb-4c6d-4bea-b5a7-8ab9f5334d2d"
     }
   },
   "GET /v1/autorizaciones": {
@@ -296,6 +296,7 @@
         "destinoEjemplares": "Original: Cliente / Copia: Emisor",
         "advertencias": [],
         "estado": "EMITIDO",
+        "horaEmision": "19:03",
         "modo": "prueba"
       },
       "enlaces": {
@@ -361,6 +362,7 @@
           "destinoEjemplares": "Original: Cliente / Copia: Emisor",
           "advertencias": [],
           "estado": "EMITIDO",
+          "horaEmision": "19:03",
           "modo": "prueba"
         }
       ],
@@ -371,7 +373,7 @@
   "GET /v1/documentos/{archivo}": {
     "codigo": 200,
     "tipo": "text/plain",
-    "cuerpo": "******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n          Pulpería Demostración\nNEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO\n                 VÁLIDO)\n          RTN: 9999-0000-000000\n     Barrio El Centro, Ciudad Ejemplo\n  Casa matriz: Barrio El Centro, Ciudad\n                 Ejemplo\n             Tel.: 0000-0002\n           demo@ejemplo.example\n------------------------------------------\n                 FACTURA\n          N° 000-001-01-00000001\nCAI: DEMO00-NO-VALIDO-0000-0000-0000-01\nRango: 000-001-01-00000001 al\n000-001-01-00005000\nFecha límite de emisión: 25/05/2027\nFecha: 26/11/2026\n------------------------------------------\nCliente: CONSUMIDOR FINAL\n------------------------------------------\nCafé molido 1 lb\n  2 x 115.00                      230.00 G\n------------------------------------------\nDescuentos y rebajas otorgados      L 0.00\nSub-total                         L 200.00\nImporte exonerado                   L 0.00\nImporte exento                      L 0.00\nImporte gravado 15%               L 200.00\nImporte gravado 18%                 L 0.00\nI.S.V. 15%                         L 30.00\nI.S.V. 18%                          L 0.00\nTOTAL A PAGAR                     L 230.00\n------------------------------------------\nDOSCIENTOS TREINTA LEMPIRAS CON 00/100\nPrecios incluyen ISV.\nG=gravado 15% G18=gravado 18% E=exento\n------------------------------------------\n    Original: Cliente / Copia: Emisor\n******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n"
+    "cuerpo": "******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n          Pulpería Demostración\nNEGOCIO DE DEMOSTRACIÓN (CAI FICTICIO, NO\n                 VÁLIDO)\n          RTN: 9999-0000-000000\n     Barrio El Centro, Ciudad Ejemplo\n  Casa matriz: Barrio El Centro, Ciudad\n                 Ejemplo\n             Tel.: 0000-0002\n           demo@ejemplo.example\n------------------------------------------\n                 FACTURA\n          N° 000-001-01-00000001\nCAI: DEMO00-NO-VALIDO-0000-0000-0000-01\nRango: 000-001-01-00000001 al\n000-001-01-00005000\nFecha límite de emisión: 25/05/2027\nFecha: 26/11/2026 19:03\n------------------------------------------\nCliente: CONSUMIDOR FINAL\n------------------------------------------\nCafé molido 1 lb\n  2 x 115.00                      230.00 G\n------------------------------------------\nDescuentos y rebajas otorgados      L 0.00\nSub-total                         L 200.00\nImporte exonerado                   L 0.00\nImporte exento                      L 0.00\nImporte gravado 15%               L 200.00\nImporte gravado 18%                 L 0.00\nI.S.V. 15%                         L 30.00\nI.S.V. 18%                          L 0.00\nTOTAL A PAGAR                     L 230.00\n------------------------------------------\nDOSCIENTOS TREINTA LEMPIRAS CON 00/100\nPrecios incluyen ISV.\nG=gravado 15% G18=gravado 18% E=exento\n------------------------------------------\n    Original: Cliente / Copia: Emisor\n******************************************\n  DOCUMENTO DE PRUEBA — SIN VALOR FISCAL\n******************************************\n"
   },
   "GET /v1/series/{identificador}/no-utilizados": {
     "codigo": 200,
@@ -390,7 +392,7 @@
         "mensaje": "000-001-01 no tiene documentos emitidos con fecha posterior a hoy (2026-11-26).",
         "solucion": "Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta.",
         "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#validacion",
-        "solicitud": "646f0d90-3b83-4f78-affc-79581c77521f"
+        "solicitud": "0417c7cf-2576-44c3-94fe-edcbe1490fa5"
       },
       "errores": [
         {
@@ -436,7 +438,7 @@
       "eventos": [
         {
           "tipo": "DOCUMENTO_EMITIDO",
-          "instante": "2026-11-26T22:39:21.335Z",
+          "instante": "2026-11-27T01:03:16.719Z",
           "fecha": "2026-11-26",
           "detalle": {
             "tipoDocumento": "01",
@@ -445,11 +447,11 @@
           },
           "identificador": "000-001-01",
           "numero": "000-001-01-00000001",
-          "actor": "llave:11a3d333-ef23-4f00-b072-2022d02a60b1 (caja: Caja demo (consola))"
+          "actor": "llave:13d8f9ed-db82-4101-81ed-c3f5a430b9ca (caja: Caja demo (consola))"
         },
         {
           "tipo": "AUTORIZACION_REGISTRADA",
-          "instante": "2026-11-26T22:39:19.327Z",
+          "instante": "2026-11-27T01:03:16.072Z",
           "fecha": "2026-11-26",
           "detalle": {
             "cai": "DEMO00-NO-VALIDO-0000-0000-0000-02",
@@ -459,7 +461,7 @@
             "advertencias": []
           },
           "identificador": "000-002-01",
-          "actor": "llave:2857a310-0eac-431b-8ef6-60ef283d30a3 (admin: Admin demo (consola))"
+          "actor": "llave:da547dc6-5dca-4c98-95c6-9a06dd36e643 (admin: Admin demo (consola))"
         }
       ],
       "hayMas": true,
@@ -471,13 +473,13 @@
     "tipo": "application/json",
     "cuerpo": {
       "llave": {
-        "id": "982fa98b-680a-4246-9884-a4b93179afb2",
-        "prefijo": "903ef024e72f",
+        "id": "42c12be5-c5b7-4c26-8464-2051a12b7d17",
+        "prefijo": "9018d72604e2",
         "nombre": "Caja 2",
         "rol": "caja",
         "establecimiento": "000",
         "puntoEmision": "002",
-        "creada": "2026-11-26T22:39:26.044Z",
+        "creada": "2026-11-27T01:03:18.877Z",
         "revocada": null,
         "ultimoUso": null
       },
@@ -490,57 +492,57 @@
     "cuerpo": {
       "llaves": [
         {
-          "id": "da0ff517-f590-4a6e-bc0f-df5a34f286c3",
-          "prefijo": "fce2335088dc",
+          "id": "f28c271b-ac4f-4e7a-be8a-e58b6cce5057",
+          "prefijo": "c4adcbec79ae",
           "nombre": "admin inicial",
           "rol": "admin",
           "establecimiento": null,
           "puntoEmision": null,
-          "creada": "2026-11-26T22:38:59.660Z",
+          "creada": "2026-11-27T01:02:57.912Z",
           "revocada": null,
           "ultimoUso": null
         },
         {
-          "id": "493d80f6-be6d-4c8d-9a51-91854f514fb5",
-          "prefijo": "11db297701ae",
+          "id": "30ae0400-8d66-4c05-8ec8-cf5cd3a3fa63",
+          "prefijo": "255afed48133",
           "nombre": "Caja 1 (demo)",
           "rol": "caja",
           "establecimiento": "000",
           "puntoEmision": "001",
-          "creada": "2026-11-26T22:39:00.104Z",
+          "creada": "2026-11-27T01:02:58.398Z",
           "revocada": null,
           "ultimoUso": null
         },
         {
-          "id": "11a3d333-ef23-4f00-b072-2022d02a60b1",
-          "prefijo": "c9d91afb9baa",
+          "id": "13d8f9ed-db82-4101-81ed-c3f5a430b9ca",
+          "prefijo": "5e08d3220264",
           "nombre": "Caja demo (consola)",
           "rol": "caja",
           "establecimiento": "000",
           "puntoEmision": "001",
-          "creada": "2026-11-26T22:39:12.267Z",
+          "creada": "2026-11-27T01:03:07.698Z",
           "revocada": null,
-          "ultimoUso": "2026-11-26T22:39:15.835Z"
+          "ultimoUso": "2026-11-27T01:03:14.628Z"
         },
         {
-          "id": "2857a310-0eac-431b-8ef6-60ef283d30a3",
-          "prefijo": "85241d2c1ed1",
+          "id": "da547dc6-5dca-4c98-95c6-9a06dd36e643",
+          "prefijo": "9961564aed26",
           "nombre": "Admin demo (consola)",
           "rol": "admin",
           "establecimiento": null,
           "puntoEmision": null,
-          "creada": "2026-11-26T22:39:14.800Z",
+          "creada": "2026-11-27T01:03:12.635Z",
           "revocada": null,
-          "ultimoUso": "2026-11-26T22:39:16.141Z"
+          "ultimoUso": "2026-11-27T01:03:14.866Z"
         },
         {
-          "id": "982fa98b-680a-4246-9884-a4b93179afb2",
-          "prefijo": "903ef024e72f",
+          "id": "42c12be5-c5b7-4c26-8464-2051a12b7d17",
+          "prefijo": "9018d72604e2",
           "nombre": "Caja 2",
           "rol": "caja",
           "establecimiento": "000",
           "puntoEmision": "002",
-          "creada": "2026-11-26T22:39:26.044Z",
+          "creada": "2026-11-27T01:03:18.877Z",
           "revocada": null,
           "ultimoUso": null
         }
@@ -554,14 +556,14 @@
     "tipo": "application/json",
     "cuerpo": {
       "llave": {
-        "id": "982fa98b-680a-4246-9884-a4b93179afb2",
-        "prefijo": "903ef024e72f",
+        "id": "42c12be5-c5b7-4c26-8464-2051a12b7d17",
+        "prefijo": "9018d72604e2",
         "nombre": "Caja 2",
         "rol": "caja",
         "establecimiento": "000",
         "puntoEmision": "002",
-        "creada": "2026-11-26T22:39:26.044Z",
-        "revocada": "2026-11-26T22:39:26.558Z",
+        "creada": "2026-11-27T01:03:18.877Z",
+        "revocada": "2026-11-27T01:03:19.353Z",
         "ultimoUso": null
       }
     }
@@ -571,17 +573,17 @@
     "tipo": "application/json",
     "cuerpo": {
       "webhook": {
-        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "id": "0fb84985-9389-4f23-9a06-76cd54926008",
         "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
         "eventos": [
           "documento.emitido",
           "documento.anulado"
         ],
         "activo": true,
-        "creado": "2026-11-26T22:39:26.881Z",
+        "creado": "2026-11-27T01:03:19.641Z",
         "graciaHasta": null
       },
-      "secreto": "whsec_I089…"
+      "secreto": "whsec_gT-U…"
     }
   },
   "GET /v1/webhooks": {
@@ -590,14 +592,14 @@
     "cuerpo": {
       "webhooks": [
         {
-          "id": "954790c5-1b35-481b-95ab-062419107d94",
+          "id": "0fb84985-9389-4f23-9a06-76cd54926008",
           "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
           "eventos": [
             "documento.emitido",
             "documento.anulado"
           ],
           "activo": true,
-          "creado": "2026-11-26T22:39:26.881Z",
+          "creado": "2026-11-27T01:03:19.641Z",
           "graciaHasta": null
         }
       ],
@@ -610,15 +612,15 @@
     "tipo": "application/json",
     "cuerpo": {
       "entrega": {
-        "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
-        "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+        "id": "8f07009b-cc92-4f0f-9c09-62ed14e95fd4",
+        "webhookId": "0fb84985-9389-4f23-9a06-76cd54926008",
         "evento": "webhook.prueba",
         "estado": "PENDIENTE",
         "intentos": 0,
-        "proximoIntento": "2026-11-26T22:39:27.659Z",
+        "proximoIntento": "2026-11-27T01:03:20.096Z",
         "ultimoCodigo": null,
         "ultimoError": null,
-        "creada": "2026-11-26T22:39:27.659Z"
+        "creada": "2026-11-27T01:03:20.096Z"
       }
     }
   },
@@ -628,15 +630,15 @@
     "cuerpo": {
       "entregas": [
         {
-          "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
-          "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+          "id": "8f07009b-cc92-4f0f-9c09-62ed14e95fd4",
+          "webhookId": "0fb84985-9389-4f23-9a06-76cd54926008",
           "evento": "webhook.prueba",
           "estado": "PENDIENTE",
           "intentos": 0,
-          "proximoIntento": "2026-11-26T22:39:27.659Z",
+          "proximoIntento": "2026-11-27T01:03:20.096Z",
           "ultimoCodigo": null,
           "ultimoError": null,
-          "creada": "2026-11-26T22:39:27.659Z"
+          "creada": "2026-11-27T01:03:20.096Z"
         }
       ],
       "hayMas": false,
@@ -648,15 +650,15 @@
     "tipo": "application/json",
     "cuerpo": {
       "entrega": {
-        "id": "6fe4b0e6-e926-4545-a799-afebedad21c7",
-        "webhookId": "954790c5-1b35-481b-95ab-062419107d94",
+        "id": "8f07009b-cc92-4f0f-9c09-62ed14e95fd4",
+        "webhookId": "0fb84985-9389-4f23-9a06-76cd54926008",
         "evento": "webhook.prueba",
         "estado": "PENDIENTE",
         "intentos": 0,
-        "proximoIntento": "2026-11-26T22:39:28.319Z",
+        "proximoIntento": "2026-11-27T01:03:20.558Z",
         "ultimoCodigo": null,
         "ultimoError": null,
-        "creada": "2026-11-26T22:39:27.659Z"
+        "creada": "2026-11-27T01:03:20.096Z"
       }
     }
   },
@@ -665,17 +667,17 @@
     "tipo": "application/json",
     "cuerpo": {
       "webhook": {
-        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "id": "0fb84985-9389-4f23-9a06-76cd54926008",
         "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
         "eventos": [
           "documento.emitido",
           "documento.anulado"
         ],
         "activo": true,
-        "creado": "2026-11-26T22:39:26.881Z",
-        "graciaHasta": "2026-11-27T22:39:28.742Z"
+        "creado": "2026-11-27T01:03:19.641Z",
+        "graciaHasta": "2026-11-28T01:03:20.823Z"
       },
-      "secreto": "whsec_-hf2…"
+      "secreto": "whsec_c-Zx…"
     }
   },
   "DELETE /v1/webhooks/{id}": {
@@ -683,15 +685,15 @@
     "tipo": "application/json",
     "cuerpo": {
       "webhook": {
-        "id": "954790c5-1b35-481b-95ab-062419107d94",
+        "id": "0fb84985-9389-4f23-9a06-76cd54926008",
         "url": "https://tienda.ejemplo.example/webhooks/factura-hn",
         "eventos": [
           "documento.emitido",
           "documento.anulado"
         ],
         "activo": false,
-        "creado": "2026-11-26T22:39:26.881Z",
-        "graciaHasta": "2026-11-27T22:39:28.742Z"
+        "creado": "2026-11-27T01:03:19.641Z",
+        "graciaHasta": "2026-11-28T01:03:20.823Z"
       }
     }
   },
@@ -750,11 +752,12 @@
         "destinoEjemplares": "Original: Cliente / Copia: Emisor",
         "advertencias": [],
         "estado": "ANULADO",
+        "horaEmision": "19:03",
         "modo": "prueba",
         "anulacion": {
           "motivo": "Error en el precio",
           "fecha": "2026-11-26",
-          "hora": "16:39"
+          "hora": "19:03"
         }
       }
     }

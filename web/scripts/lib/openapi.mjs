@@ -13,17 +13,10 @@ const METODOS = ['get', 'post', 'put', 'patch', 'delete'];
 const ORDEN_GRUPOS = ['Documentos', 'Series', 'Autorizaciones', 'Emisor', 'Reportes', 'Auditoría', 'Llaves', 'Webhooks', 'Sesión', 'Sistema'];
 const posicionGrupo = (g) => (ORDEN_GRUPOS.includes(g) ? ORDEN_GRUPOS.indexOf(g) : 500);
 
-/**
- * Rutas que no se documentan: las del servidor de entornos de prueba temporales (`/v1/demo/…`), que no existe en
- * una instalación propia.
- */
-export const rutaOculta = (ruta) => ruta === '/v1/demo' || ruta.startsWith('/v1/demo/');
-
 /** «MÉTODO /ruta» de cada operación que publica la referencia. */
 export function operacionesPublicadas(spec) {
   const ops = [];
   for (const [ruta, metodos] of Object.entries(spec.paths ?? {})) {
-    if (rutaOculta(ruta)) continue;
     for (const metodo of Object.keys(metodos)) if (METODOS.includes(metodo)) ops.push(`${metodo.toUpperCase()} ${ruta}`);
   }
   return ops;
@@ -130,7 +123,6 @@ export function referenciaApi(spec = JSON.parse(readFileSync(join(RAIZ, 'package
 
   const operaciones = [];
   for (const [ruta, metodos] of Object.entries(spec.paths ?? {})) {
-    if (rutaOculta(ruta)) continue;
     for (const [metodo, op] of Object.entries(metodos)) {
       if (!METODOS.includes(metodo)) continue;
       const parametros = (op.parameters ?? []).map((p) => (p.$ref ? spec.components.parameters[nombreRef(p.$ref)] : p));
