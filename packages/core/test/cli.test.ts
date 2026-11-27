@@ -251,7 +251,7 @@ describe('npx factura-hn', () => {
   });
 });
 
-describe('hallazgos de la auditoría de la CLI', () => {
+describe('CLI: casos límite', () => {
   /** Un proyecto con factura-hn instalado (enlace al núcleo compilado) y lo que crea init. */
   function proyectoConInit(nombre: string) {
     const p = join(dir, nombre);
@@ -262,7 +262,7 @@ describe('hallazgos de la auditoría de la CLI', () => {
   }
   const emitir = (p: string) => spawnSync(process.execPath, ['emitir.mjs'], { cwd: p, encoding: 'utf8', timeout: 60_000 });
 
-  it('CLI-1: emitir.mjs con emisor.json incompleto o ausente: mensaje en español y código 1, sin la pila', () => {
+  it('emitir.mjs con emisor.json incompleto o ausente: mensaje en español y código 1, sin la pila', () => {
     const p = proyectoConInit('emisor-incompleto');
     writeFileSync(join(p, 'emisor.json'), '{"rtn": "1"}\n');
     const incompleto = emitir(p);
@@ -283,7 +283,7 @@ describe('hallazgos de la auditoría de la CLI', () => {
   });
 
   // Como root (contenedores de CI) el modo 444 no impide escribir: la prueba no aplica.
-  it.skipIf(process.getuid?.() === 0)('CLI-2: init --forzar con un archivo de solo lectura no reemplaza ninguno', () => {
+  it.skipIf(process.getuid?.() === 0)('init --forzar con un archivo de solo lectura no reemplaza ninguno', () => {
     const p = join(dir, 'solo-lectura');
     mkdirSync(p);
     writeFileSync(join(p, 'emitir.mjs'), '// mío\n');
@@ -301,7 +301,7 @@ describe('hallazgos de la auditoría de la CLI', () => {
     }
   });
 
-  it('CLI-3: ayuda por comando y --ayuda, con código 0 y sin escribir nada', () => {
+  it('ayuda por comando y --ayuda, con código 0 y sin escribir nada', () => {
     const p = join(dir, 'ayuda-comando');
     mkdirSync(p);
     for (const args of [['init', '--help'], ['iniciar', '-h'], ['init', '--ayuda'], ['ayuda', 'init'], ['init', '--forzar', '--help']]) {

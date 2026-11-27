@@ -39,6 +39,9 @@ test('detecta los términos internos, con su línea', () => {
   assert.deepEqual(nombres('hallazgos del núcleo'), ['jerga del proceso']);
   assert.deepEqual(nombres('el hallazgo M4 de la segunda ronda'), ['jerga del proceso']);
   assert.deepEqual(nombres('la auditoría de agentes'), ['jerga del proceso']);
+  assert.deepEqual(nombres("it('MCPC-1: dos init seguidos'"), ['código de hallazgo de auditoría']);
+  assert.deepEqual(nombres('MCP-2/API-1: un token de admin'), ['código de hallazgo de auditoría']);
+  assert.deepEqual(nombres('el caso SDK-3'), ['código de hallazgo de auditoría']);
 });
 
 test('detecta menciones a las herramientas de IA con que se construyó', () => {

@@ -16,6 +16,8 @@ export const TERMINOS = [
   // Códigos de hallazgos de mutación («M66)», «M31-M35:»). Exige el «)» o el «:» detrás: así no toma los
   // trazos de un SVG («M6 4»).
   ['código de hallazgo interno', /\bM\d{1,3}(?:-M?\d{1,3})?(?=[):])/],
+  // Códigos de hallazgos de una auditoría («MCPC-1:», «SDK-3», «MCP-2/API-1»). La ISO-8601, UTF-8 o P-256 no cuentan.
+  ['código de hallazgo de auditoría', /\b(?:MCPC|MCP|SDK|API|CLI|WEB|DOC|CI)-\d{1,2}\b/],
   ['marca de revisión interna', /\[REVISAR\]/],
   // Una tanda de trabajo: «Lote 4:», «(Lote 4)», «lote 2 del plan» o un identificador «lote6». La palabra fiscal
   // («el lote 3», «Lote 1 de facturas») no cuenta.

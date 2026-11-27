@@ -130,7 +130,7 @@ antes de pasar a factura-hn:
 
 ```js
 await registrarAutorizacion(almacen, {
-  cai: 'B1C2D3-E4F5A6-B1C2D3-E4F5A6-B1C2D3-E4',
+  cai: 'B1C2D3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-E4',
   tipoDocumento: '01',
   establecimiento: '000',
   puntoEmision: '002',
