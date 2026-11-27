@@ -179,6 +179,26 @@
           "correo"
         ]
       },
+      "ErrorEmisorExiste": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Id del emisor que ya existe: cámbialo con `PATCH /v1/emisores/{id}`."
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ]
+      },
       "EmisorCambios": {
         "type": "object",
         "properties": {
@@ -1170,6 +1190,26 @@
           "motivo"
         ]
       },
+      "ErrorPeriodo": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "documentos": {
+                "type": "integer",
+                "description": "Con `PERIODO_DEMASIADO_GRANDE`: documentos del período."
+              },
+              "maximo": {
+                "type": "integer",
+                "description": "Con `PERIODO_DEMASIADO_GRANDE`: máximo de documentos por reporte."
+              }
+            }
+          }
+        ]
+      },
       "RespuestaLlaveNueva": {
         "type": "object",
         "properties": {
@@ -1739,11 +1779,11 @@
             }
           },
           "409": {
-            "description": "Ya existe",
+            "description": "Ya existe (EMISOR_EXISTE), con el `id` del emisor actual",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ErrorEmisorExiste"
                 }
               }
             },
@@ -5544,11 +5584,11 @@
             }
           },
           "422": {
-            "description": "Reglas fiscales: lista de errores",
+            "description": "El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ErrorPeriodo"
                 }
               }
             },
@@ -5827,11 +5867,11 @@
             }
           },
           "422": {
-            "description": "Reglas fiscales: lista de errores",
+            "description": "El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ErrorPeriodo"
                 }
               }
             },

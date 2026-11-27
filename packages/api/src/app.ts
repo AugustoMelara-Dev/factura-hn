@@ -917,7 +917,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/emisores', operationId: 'crearEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Registra los datos del obligado tributario (uno por tenant)',
       request: { body: { content: { 'application/json': { schema: S.Emisor } }, required: true } },
-      responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
+      responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorEmisorExiste, 'Ya existe (EMISOR_EXISTE), con el `id` del emisor actual'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1615,6 +1615,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         },
         // 403 `CAJA_SIN_PUNTO`: una llave de caja sin punto de emisión.
         ...respuestasDe(400, 401, 403, 422, 429, 500),
+        422: json(S.ErrorPeriodo, 'El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)'),
       },
     }),
     async (c) => {
@@ -1683,6 +1684,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           content: { 'application/x-ndjson': { schema: z.string() }, 'text/csv': { schema: z.string() }, 'text/plain': { schema: z.string() } },
         },
         ...respuestasDe(400, 401, 403, 422, 429, 500),
+        422: json(S.ErrorPeriodo, 'El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)'),
       },
     }),
     async (c) => {

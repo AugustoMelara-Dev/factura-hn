@@ -174,8 +174,24 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
     }
     const v = validador(puntero('paths', hallada.plantilla, m, 'responses', op.responses[estado] ? estado : 'default', 'content', tipo, 'schema'));
     if (!v(cuerpo)) violaciones.push(`${clave}: el cuerpo no cumple el esquema: ${ajv.errorsText(v.errors, { separator: '; ' })}`);
+    // Un error no trae campos en la raíz que su esquema no declare (el esquema no los prohíbe: así lo lee un cliente
+    // generado sin fallar si un día se agregan, pero la API debe declararlos).
+    else if (r.status >= 400 && cuerpo !== null && typeof cuerpo === 'object' && !Array.isArray(cuerpo)) {
+      const declarados = propiedadesDe(contenido[tipo]!.schema);
+      const sobran = Object.keys(cuerpo).filter((k) => declarados && !declarados.includes(k));
+      if (sobran.length) violaciones.push(`${clave}: campos en la raíz que la especificación no declara: ${sobran.join(', ')}`);
+    }
   }
   return { clave, operacion: op.operationId, violaciones };
+}
+
+/** Propiedades declaradas de un esquema (siguiendo un `$ref` a components/schemas), o null si no se pueden saber. */
+function propiedadesDe(esquema: Esquema | undefined): string[] | null {
+  let e = esquema;
+  const ref = e?.$ref as string | undefined;
+  if (ref?.startsWith('#/components/schemas/')) e = (SPEC as unknown as { components: { schemas: Record<string, Esquema> } }).components.schemas[ref.split('/').pop()!];
+  const props = e?.properties as Record<string, unknown> | undefined;
+  return props ? Object.keys(props) : null;
 }
 
 async function leerJSON(r: Response, violaciones: string[]): Promise<unknown> {

@@ -73,6 +73,17 @@ export const ErrorRespuesta = z
   })
   .openapi('Error');
 
+/** El 409 `EMISOR_EXISTE` lleva además el `id` del emisor que ya existe. */
+export const ErrorEmisorExiste = ErrorRespuesta.extend({
+  id: z.string().uuid().openapi({ description: 'Id del emisor que ya existe: cámbialo con `PATCH /v1/emisores/{id}`.' }),
+}).openapi('ErrorEmisorExiste');
+
+/** El 422 de un reporte: con `PERIODO_DEMASIADO_GRANDE`, cuántos documentos tiene el período y el máximo. */
+export const ErrorPeriodo = ErrorRespuesta.extend({
+  documentos: z.number().int().optional().openapi({ description: 'Con `PERIODO_DEMASIADO_GRANDE`: documentos del período.' }),
+  maximo: z.number().int().optional().openapi({ description: 'Con `PERIODO_DEMASIADO_GRANDE`: máximo de documentos por reporte.' }),
+}).openapi('ErrorPeriodo');
+
 export const Emisor = z
   .object({
     rtn: Texto(20),

@@ -478,6 +478,13 @@ export interface components {
                 [key: string]: string;
             };
         };
+        ErrorEmisorExiste: components["schemas"]["Error"] & {
+            /**
+             * Format: uuid
+             * @description Id del emisor que ya existe: cámbialo con `PATCH /v1/emisores/{id}`.
+             */
+            id: string;
+        };
         EmisorCambios: {
             rtn?: string;
             razonSocial?: string;
@@ -761,6 +768,12 @@ export interface components {
              * @example María López
              */
             operador?: string;
+        };
+        ErrorPeriodo: components["schemas"]["Error"] & {
+            /** @description Con `PERIODO_DEMASIADO_GRANDE`: documentos del período. */
+            documentos?: number;
+            /** @description Con `PERIODO_DEMASIADO_GRANDE`: máximo de documentos por reporte. */
+            maximo?: number;
         };
         RespuestaLlaveNueva: {
             llave: components["schemas"]["Llave"];
@@ -1079,7 +1092,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Ya existe */
+            /** @description Ya existe (EMISOR_EXISTE), con el `id` del emisor actual */
             409: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -1090,7 +1103,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorEmisorExiste"];
                 };
             };
             /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
@@ -2882,7 +2895,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Reglas fiscales: lista de errores */
+            /** @description El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE) */
             422: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -2893,7 +2906,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorPeriodo"];
                 };
             };
             /** @description Límite de solicitudes (con `Retry-After`) */
@@ -3012,7 +3025,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Reglas fiscales: lista de errores */
+            /** @description El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE) */
             422: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -3023,7 +3036,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorPeriodo"];
                 };
             };
             /** @description Límite de solicitudes (con `Retry-After`) */
