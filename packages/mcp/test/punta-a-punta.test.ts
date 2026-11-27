@@ -5,7 +5,7 @@
  * 3. el cliente MCP del SDK arranca el servidor por stdio y emite una factura, que sale marcada como de prueba.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +20,7 @@ const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
 
 describe('punta a punta: init --demo → bloque mcpServers → «emite una factura de prueba»', () => {
   it('emite por stdio con la configuración que imprime init y advierte que es de prueba', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'fhn-p2p-'));
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'fhn-p2p-')));
     // Paso 1.
     const salida = execFileSync(process.execPath, [tsx, cli, 'init', '--demo'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
     const bloque = JSON.parse(/\{\n  "mcpServers"[\s\S]*?\n\}/.exec(salida.replace(/\r\n/g, '\n'))![0]) as {
