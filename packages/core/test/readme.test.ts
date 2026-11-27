@@ -1,7 +1,7 @@
 /**
- * La documentación es código: cada bloque ```ts del README, de AGENTS.md y de los README de los paquetes debe
- * compilar contra la API actual, el ejemplo principal debe dar los números que promete, y README, AGENTS.md,
- * llms.txt y la skill deben llevar los mismos prompts y nombrar solo funciones y tipos que existen.
+ * La documentación es código: el ejemplo de tres líneas del README corre tal cual, cada bloque ```ts de AGENTS.md,
+ * de las guías y de los README de los paquetes compila contra la API actual, y AGENTS.md, llms.txt y la skill llevan
+ * los mismos prompts y nombran solo funciones y tipos que existen.
  *
  * Un bloque que usa variables del proyecto del integrador (carrito, repo…) las declara en un comentario
  * HTML inmediatamente anterior:  <!-- declaraciones: declare const carrito: Item[]; -->
@@ -11,7 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { emitir, renderizarHTML, type AlmacenFiscalMemoria, type DocumentoFiscal } from '../src';
+import { renderizarHTML, type DocumentoFiscal } from '../src';
 
 const RAIZ = join(__dirname, '..', '..', '..');
 const INDICE = join(__dirname, '..', 'src', 'index.ts');
@@ -78,7 +78,7 @@ function compilar(fragmentos: Fragmento[]): string[] {
 }
 
 describe('los fragmentos de código de la documentación compilan', () => {
-  for (const archivo of ['README.md', 'AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md', 'packages/sqlite/README.md', 'packages/postgres/README.md', 'packages/pdf/README.md', 'packages/cliente/README.md']) {
+  for (const archivo of ['AGENTS.md', 'docs/guia-sdk.md', 'docs/errores.md', 'packages/sqlite/README.md', 'packages/postgres/README.md', 'packages/pdf/README.md', 'packages/cliente/README.md']) {
     it(archivo, () => {
       const fragmentos = fragmentosTS(archivo);
       expect(fragmentos.length).toBeGreaterThan(0);
@@ -106,42 +106,28 @@ describe('los fragmentos de código de la documentación compilan', () => {
   }, 60_000);
 });
 
-it('el ejemplo «En 30 segundos» del README corre tal cual, con el reloj real, y da lo que promete', async () => {
-  // Se ejecuta el bloque del README, sin reloj fijo: si su CAI de ejemplo caducara, esta prueba fallaría.
-  const bloque = fragmentosTS('README.md').find((f) => f.codigo.includes('// En cada venta'));
-  expect(bloque, 'bloque «En 30 segundos» del README').toBeDefined();
+it('el ejemplo de tres líneas del README corre tal cual, con el reloj real, y emite en modo de prueba', async () => {
+  const texto = readFileSync(join(RAIZ, 'README.md'), 'utf8').replace(/\r\n/g, '\n');
+  const bloque = [...texto.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]!).find((c) => c.includes('crearFacturadorDemo'));
+  expect(bloque, 'bloque ```js con crearFacturadorDemo en el README').toBeDefined();
+  expect(bloque!.trim().split('\n')).toHaveLength(3);
   const dir = join(__dirname, '.generado');
   mkdirSync(dir, { recursive: true });
-  const ruta = join(dir, 'readme-en-30-segundos.ts');
-  const codigo = bloque!.codigo
-    .replace("from 'factura-hn'", "from '../../src/index'")
-    .replace('export {};', 'export { almacen, factura };');
-  writeFileSync(ruta, codigo);
-  const { almacen, factura: f } = (await import(ruta)) as { almacen: AlmacenFiscalMemoria; factura: DocumentoFiscal };
+  const ruta = join(dir, 'readme-tres-lineas.ts');
+  writeFileSync(ruta, `${bloque!.replace("from 'factura-hn/demo'", "from '../../src/demo'")}\nexport { factura };\n`);
+  const { factura: f } = (await import(ruta)) as { factura: DocumentoFiscal };
   expect(f.numero).toBe('000-001-01-00000001');
-  expect(f.totales.total).toBe(371);
-  expect(f.totales.totalEnLetras).toBe('TRESCIENTOS SETENTA Y UN LEMPIRAS CON 00/100');
+  expect(f.totales.total).toBe(264.5);
+  expect(f.totales.totalEnLetras).toBe('DOSCIENTOS SESENTA Y CUATRO LEMPIRAS CON 50/100');
   expect(f.advertencias).toEqual([]);
-  // «Los cuatro empiezan en modo de prueba»: el CAI del ejemplo es ficticio y lo impreso lo dice.
+  // «Emite con un CAI ficticio: todo impreso dice …»
   expect(f.modo).toBe('prueba');
   expect(renderizarHTML(f)).toContain('DOCUMENTO DE PRUEBA');
-
-  // «Avisos que verás»: venta mixta.
-  const mixta = await emitir({
-    emisor: f.emisor,
-    cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
-    lineas: [
-      { descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' },
-      { descripcion: 'Frijoles (lb)', cantidad: 3, precioUnitario: '28.00', isv: 'EXENTO' },
-    ],
-  }, { almacen, establecimiento: '000', puntoEmision: '001' });
-  expect(mixta.advertencias.map((p) => p.codigo)).toEqual(['AVISO_VENTA_MIXTA']);
-  expect(mixta.totales.baseCreditoFiscal).toBe(100);
 });
 
 // --- Prompts y nombres en la documentación para agentes -------------------------------------------------
 
-const DOCS_AGENTES = ['README.md', 'AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md', 'web/src/content/docs/ia/prompts.md'];
+const DOCS_AGENTES = ['AGENTS.md', 'llms.txt', 'skills/facturacion-sar-hn/SKILL.md', 'web/src/content/docs/ia/prompts.md'];
 const PROMPT_SDK = 'Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.';
 const PROMPT_API = 'Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.';
 
@@ -195,8 +181,8 @@ describe('documentación para agentes', () => {
   it('las herramientas MCP que se listan son las que el servidor registra', () => {
     const servidor = readFileSync(join(RAIZ, 'packages', 'mcp', 'src', 'servidor.ts'), 'utf8');
     const registradas = [...servidor.matchAll(/registerTool\(\s*'(\w+)'/g)].map((m) => m[1]).sort();
-    expect(registradas).toHaveLength(7);
-    for (const archivo of ['README.md', 'llms.txt', 'packages/mcp/README.md']) {
+    expect(registradas).toHaveLength(8);
+    for (const archivo of ['llms.txt', 'packages/mcp/README.md']) {
       const texto = readFileSync(join(RAIZ, archivo), 'utf8');
       for (const h of registradas) expect(texto.includes(h!), `${archivo}: ${h}`).toBe(true);
     }

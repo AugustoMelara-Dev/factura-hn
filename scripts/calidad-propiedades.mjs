@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Medición de las propiedades del núcleo (fast-check), contrato OpenAPI de las respuestas
- * de la API y fuzzing. Imprime los números de `docs/calidad/propiedades.md`.
+ * de la API y fuzzing. Imprime los números en la consola.
  *
  * - Núcleo: corre `packages/core/test/propiedades` y cuenta propiedades y casos (`FHN_PROP_INFORME`).
  * - API (con `FHN_PG_URL`): corre todas las pruebas de la API con el validador del contrato y cuenta las respuestas

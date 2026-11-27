@@ -146,18 +146,33 @@ describe('catálogo docs/errores.md', () => {
     expect(sinSolucion).toEqual([]);
   });
 
+  /**
+   * Códigos del servidor de entornos de prueba temporales (`FHN_MODO=demo`, `POST /v1/demo/entornos`): ese modo
+   * está apagado por defecto y no se documenta, así que no tienen «### CODIGO».
+   */
+  const SOLO_MODO_DEMO = new Set([
+    'DEMO_PAUSADO', 'ORIGEN_NO_PERMITIDO', 'DEMO_LIMITE_ENTORNOS', 'DEMO_SOLO_PRUEBA', 'ENTORNO_VENCIDO',
+    'DEMO_NO_DISPONIBLE', 'DEMO_LIMITE_SOLICITUDES', 'DEMO_LIMITE_DOCUMENTOS',
+  ]);
+
   it('también los códigos de la API REST y del servidor MCP', () => {
     const faltan: string[] = [];
+    const vistos = new Set<string>();
     for (const paquete of ['api', 'mcp']) {
       const dir = join(RAIZ, 'packages', paquete, 'src');
       for (const archivo of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
         const texto = readFileSync(join(dir, archivo), 'utf8');
         for (const m of texto.matchAll(/(?:ErrorApi\(\s*\d+,\s*|ErrorBackend\(\s*|errorDe\(\s*|codigo:\s*)'([A-Z][A-Z0-9_]+)'/g)) {
-          if (!encabezados.has(m[1]!)) faltan.push(`${paquete}/${archivo}: ${m[1]}`);
+          vistos.add(m[1]!);
+          if (!encabezados.has(m[1]!) && !SOLO_MODO_DEMO.has(m[1]!)) faltan.push(`${paquete}/${archivo}: ${m[1]}`);
         }
       }
     }
     expect(faltan).toEqual([]);
+    // La lista de excepciones no envejece: cada código sigue en la API y no aparece en el catálogo.
+    expect([...SOLO_MODO_DEMO].filter((c) => !vistos.has(c))).toEqual([]);
+    expect([...SOLO_MODO_DEMO].filter((c) => encabezados.has(c))).toEqual([]);
+    expect(catalogo).not.toContain('/v1/demo');
   });
 
   it('detecta un código sin encabezado (control de la propia prueba)', () => {

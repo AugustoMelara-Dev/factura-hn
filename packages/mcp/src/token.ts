@@ -1,5 +1,5 @@
 /**
- * Token del MCP remoto: `fhnmcp_<test|live>_<prefijo>_<secreto>`. Va en la ruta de la URL personal
+ * Token del MCP remoto: `fhnmcp_<test|live>_<prefijo>_<secreto>`. Va en la ruta de la URL
  * (`https://…/mcp/<token>`), porque un conector personalizado de Claude se agrega solo con la URL. De él se deriva la
  * llave de API con que este servidor habla con la API: `fhn_<marca>_<prefijo>_<HMAC-SHA256(secreto, ETIQUETA)>`.
  * La API crea esa llave (y guarda solo su hash) al crear el token; revocarla (`DELETE /v1/llaves/{prefijo}`) apaga

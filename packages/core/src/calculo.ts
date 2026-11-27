@@ -9,18 +9,17 @@
  * Los descuentos reducen la base antes del ISV (Ley del ISV Art. 3: «No forman parte de la base gravable
  * los descuentos efectivos que consten en la factura»).
  *
- * El ISV se calcula sobre la suma de cada grupo de tasa, no línea por línea. Es una lectura de
- * factura-hn (el Reglamento no lo resuelve de forma literal): el Art. 11 h-i pide subtotales e impuestos por tarifa, y
- * redondear por línea puede dar un ISV impreso que no es la tasa × la base impresa.
+ * factura-hn calcula el ISV sobre la suma de cada grupo de tasa, no línea por línea: así el ISV impreso es siempre
+ * la tasa × la base impresa y cuadra con los subtotales e impuestos por tarifa que pide el Art. 11 h-i.
  */
 import { centavosATexto, deCentavos, dividirRedondeando, ErrorMonto, escaladoATexto, parsearDecimal, type Monto } from './dinero';
-import { centavosEnLetras } from './letras';
+import { centavosEnLetras, MONEDAS } from './letras';
 import type { LineaCalculada, LineaEntrada, Moneda, Problema, Totales, TratamientoISV } from './tipos';
 
 /**
  * Tasas del ISV en porcentaje: 15 % general y 18 % para los bienes y servicios que fija el Decreto 278-2013
- * Art. 16 (La Gaceta 33,316). Ese texto no está entre las fuentes primarias revisadas, así que el SDK
- * **no** decide qué producto va al 18 %: lo indica el integrador en cada línea (`isv: 'ISV18'`).
+ * Art. 16 (La Gaceta 33,316). El SDK **no** decide qué producto va al 18 %: lo indica el integrador en cada
+ * línea (`isv: 'ISV18'`).
  */
 export const TASAS_ISV: Record<Exclude<TratamientoISV, 'EXENTO' | 'GRAVADO0'>, number> = {
   ISV15: 15,
@@ -64,7 +63,7 @@ function leer(valor: LineaEntrada[keyof LineaEntrada], escala: number, campo: st
     return parsearDecimal(valor as string | number, escala, campo);
   } catch (e) {
     // Siempre es ErrorMonto (parsearDecimal solo lanza ErrorMonto, también con un objeto que no se puede
-    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md).
+    // convertir a texto): la condición `true` es un mutante equivalente que se deja vivo.
     if (e instanceof ErrorMonto) return e.message;
     throw e;
   }
@@ -93,7 +92,7 @@ function leerLinea(l: LineaEntrada, i: number, problemas: Problema[]): LineaLeid
   }
   if (typeof descuento === 'string' || descuento < 0n) {
     problemas.push({ codigo: 'LINEA_DESCUENTO', mensaje: `Línea ${n}: ${typeof descuento === 'string' ? descuento : 'el descuento no puede ser negativo.'}`, campo });
-    // `false` → `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): el problema ya se
+    // `false` → `true` es un mutante equivalente que se deja vivo: el problema ya se
     // registró, y con cantidad y precio válidos la comparación de abajo no lanza ni agrega otro.
     ok = false;
   }
@@ -104,6 +103,25 @@ function leerLinea(l: LineaEntrada, i: number, problemas: Problema[]): LineaLeid
     return null;
   }
   return leida;
+}
+
+/**
+ * `preciosIncluyenISV` es booleano. Un texto como `'false'` (de un formulario, una variable de entorno o una query
+ * string) se rechaza: tomarlo como verdadero cobraría de menos e imprimiría «Precios incluyen ISV».
+ */
+export function problemaDePreciosIncluyenISV(valor: unknown, campo = 'preciosIncluyenISV'): Problema | null {
+  if (valor === undefined || typeof valor === 'boolean') return null;
+  return {
+    codigo: 'PRECIOS_INCLUYEN_ISV_FORMATO',
+    mensaje: `«preciosIncluyenISV» debe ser true o false (booleano), no ${JSON.stringify(valor) ?? String(valor)}.`,
+    campo,
+  };
+}
+
+/** Monedas en que se emite: lempiras y dólares. Otra moneda (o `'usd'` en minúsculas) es el error `MONEDA`. */
+export function problemaDeMoneda(valor: unknown, campo = 'moneda'): Problema | null {
+  if (valor === undefined || (typeof valor === 'string' && (MONEDAS as readonly string[]).includes(valor))) return null;
+  return { codigo: 'MONEDA', mensaje: `La moneda debe ser 'HNL' o 'USD', no ${JSON.stringify(valor) ?? String(valor)}.`, campo };
 }
 
 export function validarLineas(lineas: LineaEntrada[]): Problema[] {
@@ -117,8 +135,13 @@ export function validarLineas(lineas: LineaEntrada[]): Problema[] {
   let leidas = true;
   lineas.forEach((l, i) => {
     const campo = `lineas[${i}]`;
-    if (!l.descripcion || !l.descripcion.trim())
-      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: falta la descripción.`, campo });
+    if (typeof l !== 'object' || l === null || Array.isArray(l)) {
+      problemas.push({ codigo: 'LINEA', mensaje: `Línea ${i + 1}: debe ser un objeto con descripcion, cantidad y precioUnitario.`, campo });
+      leidas = false;
+      return;
+    }
+    if (typeof l.descripcion !== 'string' || !l.descripcion.trim())
+      problemas.push({ codigo: 'LINEA_DESCRIPCION', mensaje: `Línea ${i + 1}: ${typeof l.descripcion === 'string' || l.descripcion === undefined ? 'falta la descripción.' : 'la descripción debe ser texto.'}`, campo });
     if (l.isv !== undefined && !['ISV15', 'ISV18', 'GRAVADO0', 'EXENTO'].includes(l.isv))
       problemas.push({ codigo: 'LINEA_ISV', mensaje: `Línea ${i + 1}: tratamiento ISV inválido "${l.isv}".`, campo });
     const leida = leerLinea(l, i, problemas);
@@ -156,12 +179,12 @@ export function impuestoArt9(baseCentavos: bigint, tasa: number): bigint {
  * de 1 centavo por tasa.
  */
 export function baseDesdePrecioConISV(totalCentavos: bigint, tasa: number): { base: bigint; isv: bigint; ajuste: bigint } {
-  // `<= 0n` → `< 0n` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con T = 0 el ciclo de abajo llega a base 0, ISV 0 y ajuste 0.
+  // `<= 0n` → `< 0n` es un mutante equivalente que se deja vivo: con T = 0 el ciclo de abajo llega a base 0, ISV 0 y ajuste 0.
   if (totalCentavos <= 0n) return { base: 0n, isv: 0n, ajuste: 0n };
   // Cota superior: f(b) ≥ b·(100+tasa)/100 − ½, así que b ≤ (T + ½)·100/(100+tasa). Cambiar el «+ 1n» de adentro
-  // por «- 1n» es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): mueve la cota menos de 1 y el «+ 1n» final la compensa.
+  // por «- 1n» es un mutante equivalente que se deja vivo: mueve la cota menos de 1 y el «+ 1n» final la compensa.
   let base = ((totalCentavos * 2n + 1n) * 100n) / (BigInt(100 + tasa) * 2n) + 1n;
-  // `base > 0n` → `base >= 0n` o `true` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): con T > 0, en base 0 vale 0 + ISV(0) = 0 ≤ T
+  // `base > 0n` → `base >= 0n` o `true` es un mutante equivalente que se deja vivo: con T > 0, en base 0 vale 0 + ISV(0) = 0 ≤ T
   // y el ciclo para.
   while (base > 0n && base + impuestoArt9(base, tasa) > totalCentavos) base -= 1n;
   const isv = impuestoArt9(base, tasa);
@@ -191,9 +214,12 @@ export function calcularCentavos(
   opciones: OpcionesCalculo = {},
 ): { lineas: Array<{ entrada: LineaEntrada; leida: LineaLeida; importe: bigint }>; totales: TotalesCentavos } {
   const problemas = validarLineas(lineas);
+  // Solo `true` activa los precios con ISV incluido: un texto como 'false' es un error, no un «sí».
+  const problemaPrecios = problemaDePreciosIncluyenISV(opciones.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(problemaPrecios);
   if (problemas.length) throw new ErrorCalculo(problemas);
 
-  const incluye = opciones.preciosIncluyenISV ?? false;
+  const incluye = opciones.preciosIncluyenISV === true;
   const grupos: Record<TratamientoISV, bigint> = { ISV15: 0n, ISV18: 0n, GRAVADO0: 0n, EXENTO: 0n };
   let descuentos = 0n;
 
@@ -243,6 +269,8 @@ export function calcularDocumento(
   lineas: LineaEntrada[],
   opciones: OpcionesCalculo = {},
 ): { lineas: LineaCalculada[]; totales: Totales; advertencias: Problema[] } {
+  const problemaMoneda = problemaDeMoneda(opciones.moneda);
+  if (problemaMoneda) throw new ErrorCalculo([problemaMoneda]);
   const r = calcularCentavos(lineas, opciones);
   const calculadas: LineaCalculada[] = r.lineas.map(({ entrada: l, leida, importe }) => {
     const linea: LineaCalculada = {
@@ -301,7 +329,7 @@ export function sugerirPrecioSinAjuste(
   const cant = parsearDecimal(opciones.cantidad ?? 1, ESCALA_CANTIDAD, 'La cantidad');
   const exacto = (c: bigint) => c >= 0n && baseDesdePrecioConISV(dividirRedondeando(c * cant, 10_000n), tasa).ajuste === 0n;
   let abajo = p;
-  // `abajo > 0n` → `>= 0n` es un mutante equivalente que se deja vivo (docs/calidad/mutacion.md): el precio 0 siempre es exacto y el ciclo para ahí.
+  // `abajo > 0n` → `>= 0n` es un mutante equivalente que se deja vivo: el precio 0 siempre es exacto y el ciclo para ahí.
   while (abajo > 0n && !exacto(abajo)) abajo -= 1n;
   let arriba = p;
   while (!exacto(arriba)) arriba += 1n;

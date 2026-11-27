@@ -1,7 +1,6 @@
-// Integración de Astro: sin JavaScript, la documentación se ve en el tema claro, como el resto del sitio.
-// Starlight escribe <html data-theme="dark"> y su script (aquí, ProveedorTema.astro) lo cambia al cargar; sin
-// JavaScript ese cambio no ocurre. Al terminar el build, el valor inicial pasa a "light". Con JavaScript no cambia
-// nada: el script sigue eligiendo el tema guardado (o el claro, si nunca se eligió).
+// Integración de Astro: el sitio tiene un solo tema, claro. Starlight escribe <html data-theme="dark"> y su script
+// (aquí, ProveedorTema.astro) lo cambia al cargar; sin JavaScript ese cambio no ocurre. Al terminar el build, el
+// valor inicial pasa a "light" en cada página.
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';

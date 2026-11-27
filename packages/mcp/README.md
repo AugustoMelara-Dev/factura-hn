@@ -1,13 +1,12 @@
 # @factura-hn/mcp
 
 Servidor MCP de factura-hn para asistentes de IA (Claude Desktop, Claude Code, Cursor, VS Code…): emite,
-consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Proyecto independiente, no afiliado al SAR.
+consulta y anula documentos del SAR de Honduras (Acuerdo 481-2017). Documentación completa:
+[guía del MCP](https://augustomelara-dev.github.io/factura-hn/guias/mcp/).
 
-## Pruébalo en 3 pasos
+## Empieza en 3 pasos
 
-Requiere Node 22.13 o más reciente: la base local es SQLite (`node:sqlite`), que llega en esa versión. Con un Node
-anterior, `init`, `registrar-cai` y el servidor en modo SQLite se niegan con «Necesitas Node 22.13 o más reciente
-(tienes …)». Instala la versión LTS de [nodejs.org](https://nodejs.org).
+Requiere Node 22.13 o más reciente (la base local usa `node:sqlite`).
 
 **1.** En una carpeta vacía:
 
@@ -16,8 +15,7 @@ npx -y @factura-hn/mcp init --demo
 ```
 
 Crea `factura-demo.db` (base SQLite) y `emisor-demo.json` (emisor ficticio), registra un CAI ficticio de prueba
-e imprime el bloque `mcpServers` con las rutas absolutas. `npx` descarga el paquete la primera vez: hace falta
-conexión a internet.
+e imprime el bloque `mcpServers` con las rutas absolutas.
 
 **2.** Pega el bloque en la configuración de tu cliente MCP y reinícialo:
 
@@ -28,14 +26,15 @@ conexión a internet.
 | Cursor | `~/.cursor/mcp.json` (todos los proyectos) o `.cursor/mcp.json` (uno) |
 | VS Code | `.vscode/mcp.json`, con la clave `"servers"` en vez de `"mcpServers"` |
 
-En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@<versión>"]`, porque
-`npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió: el cliente
-arranca siempre esa, no la última publicada. Para actualizar, vuelve a correr `init` con la versión nueva o
-cambia el número en el bloque.
+En Claude Code también sirve `claude mcp add-json factura-hn '<el objeto de "factura-hn">'`, como dice `init`.
 
-La primera vez que el cliente arranca el servidor, `npx` lo descarga si no está en la caché de npm: hace falta
-conexión a internet y puede tardar unos segundos. Si el cliente dice que el servidor no respondió a tiempo,
-reinícialo una vez.
+En Windows el bloque usa `"command": "cmd", "args": ["/c", "npx", "-y", "@factura-hn/mcp@<versión>"]`, porque
+`npx` es un `.cmd`; en macOS y Linux, `"command": "npx"`. El bloque fija la versión que lo imprimió; para
+actualizar, cambia el número. Si el cliente dice que el servidor no respondió a tiempo la primera vez (npx lo
+está descargando), reinícialo.
+
+El binario se llama `factura-hn-mcp`. Si prefieres instalar el paquete en tu proyecto (`npm i @factura-hn/mcp`),
+usa `"command": "node", "args": ["<ruta>/node_modules/@factura-hn/mcp/dist/cli.js"]` en vez de `npx`.
 
 **3.** Pídele al asistente: «emite una factura de prueba».
 
@@ -100,6 +99,8 @@ esos números se repetirían.
   nueva: si la ruta no existe, lo dice.
 - No acepta el CAI ficticio (`CAI_DEMO`) ni registra un CAI real en una base de prueba, en ninguna serie
   (`BASE_DEMO`).
+- El CAI debe tener el formato de la resolución (`XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-XX`, hexadecimal) y una
+  fecha límite que no haya pasado (`CAI_FORMATO`, `AUTORIZACION_VENCIDA`).
 - Un CAI registrado no se puede quitar: revisa los datos antes.
 
 También puedes pedirle al asistente que lo registre con la herramienta `registrar_cai`, dándole los datos de la
@@ -115,6 +116,7 @@ resolución: la herramienta le exige no inventarlos, preguntarte si ya emitiste 
 | `emitir_factura` | Factura (01) con el siguiente número autorizado; `idempotencyKey` para reintentos |
 | `emitir_nota_credito` | Nota de crédito (06) sobre un documento por su número; `cliente` opcional |
 | `consultar_documento` | Resumen, JSON o representación impresa (texto) |
+| `listar_documentos` | Documentos de un período (por omisión, los últimos 31 días; hasta 100), también los de prueba |
 | `anular_documento` | Art. 41 (marcada como destructiva) |
 | `registrar_cai` | Registra una autorización del SAR con los datos de la resolución (irreversible: marcada como destructiva) |
 | `estado_cai` | Vigencia, restantes y alertas de cada autorización |
@@ -159,7 +161,10 @@ VALOR FISCAL» y `structuredContent.prueba` es `true`.
 - **Clientes sin elicitación.** Si tu cliente MCP no la ofrece, esas dos herramientas se niegan con
   `CONFIRMACION_NO_DISPONIBLE`. Si aceptas que el asistente anule y registre CAI sin esa ventana (con la confirmación
   de tu cliente como única barrera), agrega `"FHN_MCP_PERMITIR_DESTRUCTIVAS": "1"` al `env` del servidor y
-  reinícialo. Con una llave admin de la API, piénsalo dos veces.
+  reinícialo. Con una llave admin de la API, piénsalo dos veces. Por HTTP esa variable no tiene efecto: usa un
+  cliente que pida confirmación, o anula y registra con una llave admin desde la API.
+- Antes de pedir confirmación, el servidor revisa lo que puede revisar: con una llave de caja, anular responde
+  `SOLO_ADMIN` sin preguntar; un CAI que se solapa o es ficticio se rechaza sin preguntar.
 - **Datos de prueba.** Sin elicitación, anular un documento de prueba y registrar el CAI ficticio
   (`DEMO00-NO-VALIDO-…`) funcionan sin esa variable: no tienen valor fiscal. Con elicitación, también preguntan.
 - Si un argumento no tiene la forma esperada (p. ej. falta `idempotencyKey` o tiene menos de 8 caracteres), el
@@ -220,44 +225,40 @@ para imprimir «Atendido por» en el documento.
 | Variable | |
 |---|---|
 | `FHN_SQLITE`, `FHN_EMISOR` | Modo SQLite: la base y el archivo del emisor. |
-| `FHN_ESTABLECIMIENTO`, `FHN_PUNTO` | Dónde emite este servidor (por defecto `000` y `001`). |
+| `FHN_ESTABLECIMIENTO`, `FHN_PUNTO` | Dónde emite este servidor (por defecto `000` y `001`). Por HTTP, solo con llaves sin caja: una llave de caja emite en su caja. |
 | `FHN_API_URL`, `FHN_LLAVE` | Modo API: la dirección de la API y la llave. |
 | `FHN_OPERADOR` | Opcional. Quién opera con el agente, para la bitácora. |
 | `FHN_MCP_PERMITIR_DESTRUCTIVAS` | Opcional. `1` deja anular y registrar CAI con un cliente MCP que no ofrece elicitación (ver «Seguridad»). Sin ella, esas herramientas se niegan en esos clientes. |
 
 ## MCP remoto (Streamable HTTP)
 
-El comando `http` sirve el mismo servidor (las mismas herramientas, errores y confirmaciones) por HTTP, para
-agregarlo como conector personalizado en Claude (web, escritorio y móvil) o en ChatGPT, o para probarlo con el MCP
-Inspector. Corre aparte de la API y la llama por HTTP con la llave de cada conexión; no guarda datos ni
-credenciales.
-
-Está en el paquete desde la versión siguiente a la 0.3.0 (`npx -y @factura-hn/mcp ayuda` dice si tu versión lo
-tiene). Mientras tanto, desde un clon del repositorio, después de `pnpm install` y `pnpm build`:
+`npx -y @factura-hn/mcp http` sirve el mismo servidor por HTTP, para agregarlo como conector personalizado en
+Claude o ChatGPT. Corre aparte de la API y la llama con la llave de cada conexión; no guarda datos.
 
 ```bash
-FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 node packages/mcp/dist/cli.js http   # puerto 8788
-# con una versión que ya lo trae:
-FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http
+FHN_API_URL=http://127.0.0.1:8787 FHN_MCP_HOST=127.0.0.1 npx -y @factura-hn/mcp http   # puerto 8788
 ```
 
-Por defecto escucha en todas las interfaces (`FHN_MCP_HOST=0.0.0.0`, para un contenedor); en tu equipo, `127.0.0.1`.
-El puerto se cambia con `FHN_MCP_PUERTO` (o `PORT`).
+En PowerShell:
 
-- `/mcp/<token>`: la URL personal (`fhnmcp_…`) que da `POST /v1/demo/entornos` en la demostración pública. Es la
-  que se pega en Claude o ChatGPT, y la que se prueba sin cabeceras:
-  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp/<token> --transport http --method tools/list`.
-- `/mcp` con `Authorization: Bearer <llave fhn_…>`: para clientes que mandan cabeceras, p. ej.
-  `npx @modelcontextprotocol/inspector --cli http://127.0.0.1:8788/mcp --transport http --header "Authorization: Bearer <llave>" --method tools/list`.
-  Sin esa cabecera, `/mcp` responde 401.
+```powershell
+$env:FHN_API_URL="http://127.0.0.1:8787"; $env:FHN_MCP_HOST="127.0.0.1"; npx -y @factura-hn/mcp http
+```
 
-Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Hay límites por dirección, por llave y de
-sesiones, y un resultado de más de 64 KB se recorta con un aviso. Las variables (`FHN_MCP_*`), el despliegue y
-las notas de seguridad están en [docs/demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md#mcp-remoto);
-cómo agregar el conector, en la [guía del sitio](https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/).
+El cliente llama a `/mcp` con `Authorization: Bearer <llave fhn_…>`; sin esa cabecera responde 401. El puerto se
+cambia con `FHN_MCP_PUERTO`. Cada sesión queda atada a su llave y vence a los 15 minutos sin uso. Por HTTP,
+anular y registrar CAI piden confirmación por elicitación; sin ella, se niegan sobre datos reales.
 
-Por HTTP no hay `FHN_MCP_PERMITIR_DESTRUCTIVAS`: anular y registrar CAI piden confirmación por elicitación y, con
-un cliente que no la ofrece, se niegan sobre datos reales (sobre datos de prueba siguen, como por stdio).
+Una llave de caja emite en su propia caja (la de `GET /v1/sesion`); `FHN_ESTABLECIMIENTO` y `FHN_PUNTO` solo
+aplican a las llaves sin caja. Con `FHN_MCP_SOLO_URL=1`, el servidor acepta solo `/mcp/<token>` y `/mcp` con
+Bearer responde 404. Una ruta que no es exactamente `/mcp/<token>` (p. ej. `/mcp/<token>/x`) responde 404.
+
+Para ChatGPT, que solo agrega un conector por URL y sin cabeceras, crea un token con
+`factura-hn-api llave crear <tenant> --rol caja --caja 000-001 --mcp` y usa la URL que imprime,
+`https://<tu-servidor>/mcp/<token>`, «sin autenticación». Trata esa URL como una contraseña: quien la tenga emite
+en esa caja. Por eso el token solo puede ser de una llave de caja: `--mcp` rechaza `--rol admin`, y el servidor
+responde 403 a un token de una llave admin (por URL o por Bearer). Para anular o registrar CAI, usa una llave
+admin desde la API.
 
 ## Comandos
 
@@ -269,8 +270,10 @@ Todos en español. `npx -y @factura-hn/mcp ayuda` los lista.
 | `init` (o `iniciar`) | Crea la base y el emisor e imprime el bloque `mcpServers`. Opciones: `--demo`, `--dir`, `--establecimiento`, `--punto`, `--forzar`. |
 | `http` | Arranca el MCP remoto por Streamable HTTP (ver «MCP remoto»). Se configura con variables de entorno. |
 | `registrar-cai` | Registra el CAI de una resolución del SAR, en la base SQLite o vía la API. Opciones: `--cai`, `--tipo`, `--establecimiento`, `--punto`, `--desde`, `--hasta`, `--fecha-limite`, `--fecha-autorizacion`, `--ultimo-emitido-antes`, `--base`, `--api-url`, `--llave`. |
-| `ayuda` | La ayuda. |
+| `ayuda [comando]` | La ayuda general, o la de un comando (también `<comando> --help`). |
+| `version` | La versión (también `--version`). |
 
 `init` no sobrescribe nada sin `--forzar`, y repetirlo da el mismo resultado. `--forzar` reescribe el archivo del
-emisor (del `emisor.json` real guarda antes una copia, `emisor.json.bak`) y, con `--demo`, recrea la base de
-prueba si no tiene ningún CAI real. La base real no se borra nunca.
+emisor (del `emisor.json` real guarda antes una copia, `emisor.json.bak`; si esa ya tiene otro contenido,
+`emisor.json.bak-2` y así, sin pisar ninguna) y, con `--demo`, recrea la base de prueba si no tiene ningún CAI real
+o si está dañada. La base real no se borra nunca: si está dañada, el error lo dice con su ruta.

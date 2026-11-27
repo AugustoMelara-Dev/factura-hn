@@ -119,10 +119,7 @@ estado.alertas.map((a) => a.codigo); // ["AVISO_VENCIMIENTO", "AVISO_RANGO"]
 El aviso de vencimiento sigue al Art. 59: la nueva autorización se solicita «dentro de los dos (2) meses
 previos» a la fecha límite.
 
-:::note[Interpretación pendiente]
-Contar esos dos meses como meses de calendario (y no como 60 días) es la lectura que aplica factura-hn: el
-Art. 59 no dice cómo se cuentan.
-:::
+factura-hn cuenta los dos meses como meses de calendario, no como 60 días.
 
 La API expone lo mismo en `GET /v1/autorizaciones/{cai}/estado` y el MCP en la herramienta `estado_cai`.
 
@@ -133,16 +130,16 @@ antes de pasar a factura-hn:
 
 ```js
 await registrarAutorizacion(almacen, {
-  cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4',
+  cai: 'B1C2D3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-E4',
   tipoDocumento: '01',
   establecimiento: '000',
-  puntoEmision: '001',
+  puntoEmision: '002',
   rangoInicial: 1,
   rangoFinal: 5000,
   fechaLimiteEmision: '2027-06-30',
   ultimoEmitidoAntes: 1250, // lo emitido fuera de este sistema
 });
-// La siguiente factura de la serie es la 000-001-01-00001251.
+// La siguiente factura de la serie 000-002-01 es la 000-002-01-00001251.
 ```
 
 Con eso:
@@ -154,11 +151,6 @@ Con eso:
   ([`REFERENCIA_NO_EXISTE`](/referencia/errores/#referencia_no_existe)).
 
 Omite el campo en una autorización nueva.
-
-:::note[Interpretación pendiente]
-`ultimoEmitidoAntes` es una decisión del proyecto para no reutilizar números en una migración: el Reglamento no
-regula la migración de una serie. Confírmalo con tu contador.
-:::
 
 ## Siguientes pasos
 

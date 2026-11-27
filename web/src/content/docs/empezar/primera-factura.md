@@ -6,15 +6,11 @@ sidebar:
 ---
 
 Cuatro caminos, cada uno en unos pocos pasos. Todos empiezan en **modo de prueba**: un CAI ficticio
-(`DEMO00-NO-VALIDO-…`) y un emisor ficticio con RTN `9999…`. Todo lo que se imprime lleva la leyenda
-**«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**.
+(`DEMO00-NO-VALIDO-…`), un emisor ficticio con RTN `9999…` y la leyenda
+**«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»**. Para facturar de verdad, registras el CAI de tu resolución:
+ver [Pasar al CAI real](/empezar/modo-de-prueba/#pasar-al-cai-real).
 
-:::caution[Sin valor fiscal]
-Estas facturas no sirven ante la autoridad tributaria. Para facturar de verdad necesitas el CAI de tu propia
-resolución: ver [Modo de prueba](/empezar/modo-de-prueba/#pasar-al-cai-real).
-:::
-
-¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Para verlo sin instalar nada, abre el
+¿No sabes cuál elegir? Ver [Elegir camino](/empezar/elegir-camino/). Sin instalar nada: el
 [playground](/empezar/playground/).
 
 ## SDK (Node 20 o más reciente)
@@ -114,8 +110,8 @@ Los pasos siguientes se corren desde la raíz del repositorio. Para otro puerto,
 `000-001-01-0000000N`. El número sale de la respuesta; no lo escribas a mano. El `factura.pdf` lleva la leyenda
 de prueba y una marca de agua «PRUEBA».
 
-La venta de `packages/api/ejemplos/factura.json` es de 2 × L 57.50 con los precios con ISV: total L 115.00. No
-es la misma venta del SDK ni de Next.js.
+La venta de `packages/api/ejemplos/factura.json` es de 2 × L 57.50 con los precios con ISV: total L 115.00. Es
+otra venta que la de `emitir.mjs` y la de Next.js.
 
 Si el paso 2 dice «No se emitió», la respuesta trae el error con su `solucion`. Lo más común: `LLAVE` vacía (el
 paso 1 falló) o el comando no se corrió desde la raíz del repositorio. En ese caso el paso 3 se detiene con «el
@@ -173,8 +169,8 @@ En modo de prueba, sin base de datos, en un proyecto de `create-next-app` con el
 
 4. `npm run dev` y abre `http://localhost:3000/factura`.
 
-**Qué verás:** la factura `000-001-01-00000001` con la misma venta del SDK (subtotal L 200.00, ISV L 30.00,
-total L 230.00) y la leyenda de prueba. Cada recarga emite el número siguiente. El almacén es de memoria: la
+**Qué verás:** la factura `000-001-01-00000001` con la venta de `emitir.mjs`, 2 × L 115.00 con ISV incluido
+(subtotal L 200.00, ISV L 30.00, total L 230.00), y la leyenda de prueba. Cada recarga emite el número siguiente. El almacén es de memoria: la
 numeración vuelve a empezar al reiniciar el servidor.
 
 ## Siguientes pasos

@@ -17,10 +17,13 @@ En PowerShell, el tercer comando es:
 $env:FHN_LLAVE = 'fhn_test_…'; pnpm --filter @factura-hn/ejemplo-express start
 ```
 
+Si el puerto 3001 está ocupado, usa otro con `PUERTO` (`PUERTO=3006 FHN_LLAVE=fhn_test_… pnpm --filter @factura-hn/ejemplo-express start`; en PowerShell,
+`$env:PUERTO = '3006'`) y cámbialo también en los `curl` de abajo.
+
 La llave de caja del demo (CAI ficticio) sale una sola vez en `docker compose logs api`. Si ya no la tienes,
 crea otra: `docker compose exec api factura-hn-api demo llave`.
 
-Pruébalo en otra terminal (en PowerShell, escribe `curl.exe` en lugar de `curl`):
+Prueba en otra terminal (en PowerShell, escribe `curl.exe` en lugar de `curl`):
 
 ```bash
 curl -X POST -H 'content-type: application/json' http://127.0.0.1:3001/pedidos/1001/factura   # 201 la primera vez (200 si el pedido ya se facturó)
@@ -49,3 +52,5 @@ CSRF, y haz que `buscarPedido` compruebe que el pedido es del usuario de la sesi
 Para registrar el webhook (llave admin): `POST /v1/webhooks {"url": "https://tu-tienda.hn/webhooks/factura-hn",
 "eventos": ["documento.emitido","documento.anulado","autorizacion.por_vencer","autorizacion.agotada"]}`. El
 secreto viene en la respuesta, una sola vez: guárdalo en `FHN_SECRETO_WEBHOOK`.
+
+Documentación: [guía de la API](https://augustomelara-dev.github.io/factura-hn/guias/api/).

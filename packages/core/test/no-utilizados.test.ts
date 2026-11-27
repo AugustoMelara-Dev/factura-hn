@@ -7,9 +7,11 @@ import {
   decimoDiaHabilDelMesSiguiente,
   documentosNoUtilizados,
   emitir,
+  esErrorValidacion,
   estadoAutorizacion,
   noUtilizadosDelAlmacen,
   registrarAutorizacion,
+  type AlmacenFiscal,
   type AutorizacionCAI,
 } from '../src';
 
@@ -118,5 +120,34 @@ describe('Art. 59: aviso de renovación «dentro de los dos (2) meses previos»'
   });
   it('se puede ajustar con diasAviso', () => {
     expect(estadoAutorizacion(aut, 1, { hoy: '2026-12-03', diasAviso: 30 }).alertas).toEqual([]);
+  });
+});
+
+describe('noUtilizadosDelAlmacen: el identificador se valida y la consulta no crea series', () => {
+  /** Almacén que cuenta las series que se bloquean (en un adaptador real, bloquear una serie nueva la crea). */
+  const conConteo = (almacen: AlmacenFiscalMemoria) => {
+    const bloqueadas: string[] = [];
+    const espia: AlmacenFiscal = {
+      transaccion: (fn) => almacen.transaccion((tx) => fn({ ...tx, bloquearSerie: (id: string) => (bloqueadas.push(id), tx.bloquearSerie(id)) })),
+    };
+    return { espia, bloqueadas };
+  };
+
+  it('uno mal escrito da IDENTIFICADOR, no «nada que avisar»', async () => {
+    const almacen = new AlmacenFiscalMemoria();
+    await registrarAutorizacion(almacen, AUT, { reloj: () => new Date('2026-10-30T15:00:00Z') });
+    const { espia, bloqueadas } = conConteo(almacen);
+    for (const id of ['000-1-01', '0000101', '000-001-01 ', '000-001', 'basura-xyz', '000-001-99']) {
+      const e = await noUtilizadosDelAlmacen(espia, id, { hoy: '2026-11-26' }).then(() => null, (x: unknown) => x);
+      expect([id, esErrorValidacion(e) ? e.errores[0]!.codigo : e]).toEqual([id, 'IDENTIFICADOR']);
+    }
+    expect(bloqueadas).toEqual([]);
+    expect(await noUtilizadosDelAlmacen(espia, '000-001-01', { hoy: '2026-11-26' })).toMatchObject([{ desde: 1, hasta: 100 }]);
+  });
+
+  it('una serie sin autorizaciones devuelve [] sin bloquearla (no la crea)', async () => {
+    const { espia, bloqueadas } = conConteo(new AlmacenFiscalMemoria());
+    expect(await noUtilizadosDelAlmacen(espia, '000-009-01')).toEqual([]);
+    expect(bloqueadas).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Con el original en el almacén, una nota de crédito no puede llevar el acumulado de notas por
- * encima del total del original ni usar otra tasa de ISV (lectura de factura-hn del Art. 4 num. 32: ajuste, devolución o descuento sobre el
+ * encima del total del original ni usar otra tasa de ISV (Art. 4 num. 32: ajuste, devolución o descuento sobre el
  * «correspondiente» comprobante). Con un original externo solo queda el aviso AVISO_ORIGINAL_EXTERNO.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -106,7 +106,7 @@ describe('nota de crédito contra su original en el almacén (Art. 4 num. 32)', 
 
   it('con un original en dólares compara en lempiras con su tipo de cambio', async () => {
     const usd = await factura({ moneda: 'USD', tipoCambio: '24.70' }); // USD 115.00 = L 2,840.50
-    // Las líneas de la nota van en la moneda del original y se convierten con el tipo de cambio del original (lectura de factura-hn): USD 57.50 = L 1,420.25.
+    // Las líneas de la nota van en la moneda del original y se convierten con el tipo de cambio del original: USD 57.50 = L 1,420.25.
     expect((await nota(usd, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '50.00' }])).totales.total).toBe(1420.25);
     const errores = await errorDe(nota(usd, MARTILLO(1))); // USD 115.00 = L 2,840.50 > saldo
     expect(errores![0]!.mensaje).toContain('saldo disponible L 1,420.25');
@@ -131,5 +131,27 @@ describe('nota de crédito contra su original en el almacén (Art. 4 num. 32)', 
     }, { almacen, ...caja });
     expect(sinGuiones.referencia!.numero).toBe(f.numero);
     expect((await errorDe(nota(f, MARTILLO(1))))!.map((p) => p.codigo)).toEqual(['NOTA_SUPERA_ORIGINAL']);
+  });
+});
+
+describe('la nota no pasa lo gravado a exento ni a tasa cero', () => {
+  const codigos = async (p: Promise<unknown>) => (await errorDe(p))?.map((e) => e.codigo) ?? ['OK'];
+
+  it('original solo al 15 %: una línea EXENTO o GRAVADO0 da NOTA_TASA_DISTINTA sin consumir número', async () => {
+    const f = await factura();
+    expect(await codigos(nota(f, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00', isv: 'EXENTO' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    expect(await codigos(nota(f, [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '15.00', isv: 'GRAVADO0' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    // Original al 15 % y al 18 %: tampoco se acredita como exento.
+    const mixta = await factura({ lineas: [...MARTILLO(1), { descripcion: 'Cerveza', cantidad: 1, precioUnitario: '30.00', isv: 'ISV18' }] });
+    expect(await codigos(nota(mixta, [{ descripcion: 'Cerveza', cantidad: 1, precioUnitario: '30.00', isv: 'EXENTO' }]))).toEqual(['NOTA_TASA_DISTINTA']);
+    // La nota con la misma tasa sí pasa, y es la primera de la serie 06.
+    expect((await nota(f, MARTILLO(1))).correlativo).toBe(1);
+  });
+
+  it('original con exento: la nota acredita lo exento hasta lo que tuvo el original (tope por grupo)', async () => {
+    const f = await factura({ lineas: [...MARTILLO(1), { descripcion: 'Frijoles', cantidad: 1, precioUnitario: '40.00', isv: 'EXENTO' }] });
+    expect(await codigos(nota(f, [{ descripcion: 'Frijoles', cantidad: 2, precioUnitario: '40.00', isv: 'EXENTO' }]))).toEqual(['NOTA_SUPERA_ORIGINAL']);
+    expect((await nota(f, [{ descripcion: 'Frijoles', cantidad: 1, precioUnitario: '40.00', isv: 'EXENTO' }])).totales.importeExento).toBe(40);
+    expect(await codigos(nota(f, [{ descripcion: 'Frijoles', cantidad: 1, precioUnitario: '0.01', isv: 'EXENTO' }]))).toEqual(['NOTA_SUPERA_ORIGINAL']);
   });
 });

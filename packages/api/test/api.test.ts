@@ -188,7 +188,7 @@ conBase('flujo completo', () => {
     expect((await json(nc)).documento.numero).toBe('000-001-06-00000001');
   });
 
-  it('una NC que supera el original es 422 para todos (Art. 4 num. 32, lectura de factura-hn); sobre un original externo solo la emite una admin (política de seguridad de la API, no una regla fiscal); el número no se pierde', async () => {
+  it('una NC que supera el original es 422 para todos (Art. 4 num. 32); sobre un original externo solo la emite una admin (política de seguridad de la API, no una regla fiscal); el número no se pierde', async () => {
     const { app, admin } = await tenantListo();
     const caja = cliente(app, await crearCaja(admin, '001'));
     const f = (await json(await emitir(admin, venta('100.00', { documento: { cliente: { nombre: 'Cliente', rtn: '99990000000002' }, lineas: [{ descripcion: 'Martillo', cantidad: 1, precioUnitario: '100.00' }] } })))).documento;
@@ -320,6 +320,20 @@ conBase('inyección y entradas hostiles', () => {
       expect([400, 404], ruta).toContain(r.status);
     }
     expect((await admin('GET', '/v1/documentos/000-001-01-00000001')).status).toBe(200);
+  });
+
+  it('no utilizados de una serie con un tipo de documento que no existe: 400 con el campo, no un 422 fuera del contrato', async () => {
+    const { admin } = await tenantListo();
+    for (const identificador of ['000-000-00', '000-001-99']) {
+      const r = await admin('GET', `/v1/series/${identificador}/no-utilizados`);
+      expect(r.status, identificador).toBe(400);
+      expect((await json(r)).error).toMatchObject({
+        codigo: 'SOLICITUD_INVALIDA',
+        campo: 'identificador',
+        mensaje: expect.stringContaining('el tipo de documento (los dos últimos dígitos) no existe'),
+      });
+    }
+    expect((await admin('GET', '/v1/series/000-001-01/no-utilizados')).status).toBe(200);
   });
 
   it('textos con HTML se escapan en la representación impresa', async () => {

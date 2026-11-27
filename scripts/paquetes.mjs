@@ -11,8 +11,7 @@ export const REPOSITORIO = 'git+https://github.com/AugustoMelara-Dev/factura-hn.
 
 /**
  * Documentos de `docs/` que van dentro del paquete `factura-hn` (lista de inclusión): solo lo que le sirve a quien
- * integra la librería. Quedan fuera, en el repositorio, los informes de calidad (`docs/calidad*`). verificar-dist
- * falla si el paquete trae algo fuera de esta lista.
+ * integra la librería. verificar-dist falla si el paquete trae algo fuera de esta lista.
  */
 export const DOCS_PUBLICOS = [
   'api.md',

@@ -16,13 +16,13 @@ import { BackendApi, BackendLocal, type Backend } from './backend';
 import { abrirBase, ejecutarComando } from './comandos';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
 import { leerEmisor } from './emisor';
-import { opcionesMcpHttpDesdeEntorno, servirMcpHttp } from './http';
+import { lineaArranqueHttp, opcionesMcpHttpDesdeEntorno, servirMcpHttp } from './http';
 import { problemaDeNode } from './requisitos';
 import { crearServidorMCP } from './servidor';
 
 function backendDesdeEntorno(env: NodeJS.ProcessEnv): { backend: Backend; descripcion: string } {
   if (env.FHN_API_URL) {
-    if (!env.FHN_LLAVE) throw new Error('Falta FHN_LLAVE (llave de API).');
+    if (!env.FHN_LLAVE) throw new Error('Falta FHN_LLAVE, la llave de API que va con FHN_API_URL. Agrégala al "env" del servidor en la configuración de tu cliente MCP y reinícialo.');
     return {
       backend: new BackendApi({
         url: env.FHN_API_URL, llave: env.FHN_LLAVE, establecimiento: env.FHN_ESTABLECIMIENTO, puntoEmision: env.FHN_PUNTO, operador: env.FHN_OPERADOR || undefined,
@@ -33,7 +33,7 @@ function backendDesdeEntorno(env: NodeJS.ProcessEnv): { backend: Backend; descri
   if (env.FHN_SQLITE) {
     if (!env.FHN_EMISOR) throw new Error('Falta FHN_EMISOR (ruta al JSON con los datos del emisor). Créalo con `npx -y @factura-hn/mcp init`.');
     if (env.FHN_SQLITE.trim() === ':memory:' || env.FHN_SQLITE.startsWith('file::memory:')) {
-      throw new Error('FHN_SQLITE debe ser un archivo (p. ej. ./factura.db): en memoria se perderían los documentos al cerrar.');
+      throw new Error('FHN_SQLITE debe ser la ruta de un archivo (p. ej. ./factura.db): en memoria, los documentos se perderían al cerrar. Cambia FHN_SQLITE en la configuración de tu cliente MCP.');
     }
     const emisor = leerEmisor(env.FHN_EMISOR);
     const establecimiento = env.FHN_ESTABLECIMIENTO ?? '000';
@@ -84,7 +84,7 @@ try {
   } else if (r === 'http') {
     const opciones = opcionesMcpHttpDesdeEntorno(process.env);
     const { cerrar } = await servirMcpHttp(opciones);
-    console.error(`factura-hn MCP remoto: escucha en ${opciones.host}:${opciones.puerto}, rutas /mcp/<token> y /mcp; API en ${opciones.urlApi}.`);
+    console.error(lineaArranqueHttp(opciones));
     const salir = () => void cerrar().finally(() => process.exit(0));
     process.once('SIGTERM', salir);
     process.once('SIGINT', salir);

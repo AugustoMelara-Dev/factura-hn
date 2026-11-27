@@ -8,10 +8,9 @@
   </g>
   <text x="172" y="150" font-family="IBM Plex Mono" font-weight="500" font-size="40" fill="#0a0a0a" letter-spacing="-0.8">factura-hn</text>
   <text font-family="Figtree" font-weight="600" font-size="64" fill="#0a0a0a" letter-spacing="-2.4">
-    <tspan x="96" y="270">Facturación para Honduras,</tspan>
-    <tspan x="96" y="344">con cada regla que implementa</tspan>
-    <tspan x="96" y="418">citada y probada.</tspan>
+    <tspan x="96" y="300">Facturación para Honduras,</tspan>
+    <tspan x="96" y="378">desde tu código.</tspan>
   </text>
   <text x="96" y="492" font-family="Figtree" font-weight="500" font-size="30" fill="#4b5563">SDK de TypeScript · CLI · API REST · Servidor MCP</text>
-  <text x="96" y="560" font-family="Figtree" font-weight="500" font-size="24" fill="#6b7280">Código abierto, MIT · Acuerdo 481-2017 · Proyecto independiente, no afiliado al SAR</text>
+  <text x="96" y="560" font-family="Figtree" font-weight="500" font-size="24" fill="#6b7280">Código abierto · Proyecto independiente, no afiliado al SAR</text>
 </svg>

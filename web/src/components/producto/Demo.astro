@@ -1,0 +1,116 @@
+---
+// «Pruébalo aquí»: emite facturas de prueba con el SDK del repositorio, dentro de la página. Sin React y sin
+// backend: un formulario de HTML y un script que Astro empaqueta con `factura-hn` (dependencia workspace:*).
+// Usa crearFacturadorDemo(): emisor y CAI ficticios, y todo lo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR
+// FISCAL». Nada sale del equipo; la numeración vive en la memoria de la página y vuelve a empezar al recargar.
+// Sin JavaScript, el formulario se ve pero no emite: el aviso lo dice.
+import { LINEA_PORTADA } from '../../datos/ejemplo.mjs';
+---
+
+<div class="demo" data-demo>
+	<form class="demo-form" novalidate>
+		<div class="campo">
+			<label for="demo-descripcion">Descripción</label>
+			<input id="demo-descripcion" name="descripcion" type="text" value={LINEA_PORTADA.descripcion} maxlength="120" autocomplete="off" required />
+		</div>
+		<div class="demo-par">
+			<div class="campo">
+				<label for="demo-cantidad">Cantidad</label>
+				<input id="demo-cantidad" name="cantidad" type="number" inputmode="numeric" min="1" max="9999" step="1" value={LINEA_PORTADA.cantidad} required />
+			</div>
+			<div class="campo">
+				<label for="demo-precio">Precio unitario (L)</label>
+				<input id="demo-precio" name="precio" type="text" inputmode="decimal" value={LINEA_PORTADA.precioUnitario} autocomplete="off" required />
+			</div>
+		</div>
+		<fieldset class="campo segmentos">
+			<legend>ISV</legend>
+			<div class="segmentos-fila">
+				<label><input type="radio" name="isv" value="ISV15" checked /><span>15 %</span></label>
+				<label><input type="radio" name="isv" value="ISV18" /><span>18 %</span></label>
+				<label><input type="radio" name="isv" value="EXENTO" /><span>Exento</span></label>
+			</div>
+		</fieldset>
+		<label class="casilla"><input type="checkbox" name="incluye" /> Los precios ya incluyen el ISV</label>
+		<button class="boton boton-primario" type="submit" data-demo-boton>Emitir factura de prueba</button>
+		<p class="demo-nota">
+			Corre el mismo paquete que instalas con <code>npm install factura-hn</code>. Nada sale de tu equipo; la numeración
+			vuelve a empezar al recargar.
+		</p>
+	</form>
+
+	<div class="demo-salida" aria-live="polite" data-demo-salida>
+		<div class="demo-vacio" data-demo-vacio>
+			<span class="demo-numero">000-001-01-00000001</span>
+			<p>Llena la venta y emite. Aquí sale el ticket de 80 mm que genera el SDK, con el ISV y el total en letras.</p>
+			<noscript><p>Para emitir aquí hace falta JavaScript.</p></noscript>
+		</div>
+		<p class="demo-error" role="alert" hidden data-demo-error></p>
+		<div class="demo-resultado" hidden data-demo-resultado>
+			<dl class="demo-totales">
+				<div><dt>Número</dt><dd class="demo-mono" data-campo="numero"></dd></div>
+				<div><dt>Subtotal</dt><dd data-campo="subtotal"></dd></div>
+				<div><dt>ISV</dt><dd data-campo="isv"></dd></div>
+				<div class="demo-total"><dt>Total</dt><dd data-campo="total"></dd></div>
+			</dl>
+			<pre class="ticket-papel" tabindex="0" aria-label="Ticket de la factura de prueba" data-demo-ticket></pre>
+		</div>
+	</div>
+</div>
+
+<script>
+	import { renderizarTexto, type TratamientoISV } from 'factura-hn';
+	import { crearFacturadorDemo } from 'factura-hn/demo';
+
+	const raiz = document.querySelector<HTMLElement>('[data-demo]');
+	if (raiz) {
+		const form = raiz.querySelector('form')!;
+		const boton = raiz.querySelector<HTMLButtonElement>('[data-demo-boton]')!;
+		const vacio = raiz.querySelector<HTMLElement>('[data-demo-vacio]')!;
+		const error = raiz.querySelector<HTMLElement>('[data-demo-error]')!;
+		const resultado = raiz.querySelector<HTMLElement>('[data-demo-resultado]')!;
+		const ticket = raiz.querySelector<HTMLElement>('[data-demo-ticket]')!;
+		const campo = (n: string) => raiz.querySelector<HTMLElement>(`[data-campo="${n}"]`)!;
+		const lempiras = new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		const L = (n: number) => `L ${lempiras.format(n)}`;
+		let caja: ReturnType<typeof crearFacturadorDemo> | null = null;
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const datos = new FormData(form);
+			const precio = String(datos.get('precio') ?? '').trim().replace(',', '.');
+			boton.disabled = true;
+			try {
+				caja ??= crearFacturadorDemo();
+				const factura = await (await caja).emitir({
+					preciosIncluyenISV: datos.get('incluye') === 'on',
+					lineas: [
+						{
+							descripcion: String(datos.get('descripcion') ?? '').trim(),
+							cantidad: Number(datos.get('cantidad')),
+							precioUnitario: precio,
+							isv: String(datos.get('isv')) as TratamientoISV,
+						},
+					],
+				});
+				const t = factura.totales;
+				campo('numero').textContent = factura.numero;
+				campo('subtotal').textContent = L(t.subtotal);
+				campo('isv').textContent = L(t.isv15 + t.isv18);
+				campo('total').textContent = L(t.total);
+				ticket.textContent = renderizarTexto(factura);
+				ticket.setAttribute('aria-label', `Ticket de la factura de prueba ${factura.numero}`);
+				vacio.hidden = true;
+				error.hidden = true;
+				resultado.hidden = false;
+				boton.textContent = 'Emitir la siguiente';
+			} catch (err) {
+				// Los errores del SDK traen qué pasó y cómo resolverlo, en español: se muestran tal cual.
+				error.textContent = `No se emitió. ${err instanceof Error ? err.message : String(err)}`;
+				error.hidden = false;
+			} finally {
+				boton.disabled = false;
+			}
+		});
+	}
+</script>

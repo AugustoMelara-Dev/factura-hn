@@ -1,40 +1,22 @@
 ---
-// Pie del menú del teléfono en la documentación (reemplaza al MobileMenuFooter de Starlight): las páginas del
-// producto, que en pantallas angostas no caben en la cabecera, y después lo de Starlight (redes y tema).
+// Pie del menú del teléfono en la documentación (reemplaza al MobileMenuFooter de Starlight): la portada y
+// GitHub, que en pantallas angostas no caben en la cabecera, y después lo de Starlight (redes).
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro';
-import { PRUEBA } from '../datos/demo';
-import { conBase, PRODUCTO } from '../datos/navegacion';
+import { conBase } from '../datos/navegacion';
 ---
 
 <nav class="producto" aria-label="factura-hn">
-	<a class="prueba" href={conBase(PRUEBA.ruta)}>{PRUEBA.texto}</a>
-	<ul>
-		{
-			PRODUCTO.map((e) => (
-				<li>
-					<a href={conBase(e.ruta)}>{e.texto}</a>
-				</li>
-			))
-		}
-	</ul>
+	<a href={conBase('/')}>Portada</a>
 </nav>
 <Default />
 
 <style>
 	.producto {
-		display: grid;
-		gap: 0.5rem;
-		padding-block: 1rem 0.5rem;
+		display: flex;
+		padding-block: 0.5rem;
 		border-top: 1px solid var(--sl-color-hairline);
 	}
-	.producto ul {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		padding: 0;
-		margin: 0;
-		list-style: none;
-	}
-	.producto ul a {
+	.producto a {
 		display: flex;
 		align-items: center;
 		min-height: 2.75rem;
@@ -42,18 +24,7 @@ import { conBase, PRODUCTO } from '../datos/navegacion';
 		text-decoration: none;
 		font-weight: 500;
 	}
-	.producto ul a:hover {
+	.producto a:hover {
 		color: var(--sl-color-white);
-	}
-	.prueba {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 2.75rem;
-		border-radius: 8px;
-		background: var(--fhn-acento);
-		color: var(--fhn-sobre-acento);
-		font-weight: 500;
-		text-decoration: none;
 	}
 </style>

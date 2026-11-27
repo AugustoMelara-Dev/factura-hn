@@ -6,7 +6,7 @@
  * 1. Comprueba que los seis paquetes publicables comparten versión (grupo `fixed` de .changeset/config.json).
  * 2. `@factura-hn/api` (privada, en el `ignore` de changesets) toma esa versión en su package.json, y
  *    `packages/api/openapi.json` en `info.version`. El código la lee de package.json (`VERSION_API`).
- * 3. Los bloques `mcpServers` («@factura-hn/mcp@X.Y.Z») del README, de packages/mcp/README.md y de la página del
+ * 3. Los bloques `mcpServers` («@factura-hn/mcp@X.Y.Z») de packages/mcp/README.md y de la página del
  *    MCP en el sitio fijan la versión nueva (las pruebas los comparan con package.json).
  * 4. `CHANGELOG.md` de la raíz (historia hasta la 0.2.0) recibe una sección de la versión nueva que enlaza al
  *    CHANGELOG de cada paquete, donde changesets escribe el detalle. Si la sección ya existe, no la toca.
@@ -53,7 +53,7 @@ fijarVersionJSON('packages/api/openapi.json', (j) => j.info.version);
 
 // 3. Los bloques mcpServers.
 const patronMcp = /@factura-hn\/mcp@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/g;
-for (const ruta of ['README.md', 'packages/mcp/README.md', 'web/src/content/docs/ia/mcp.md']) {
+for (const ruta of ['packages/mcp/README.md', 'web/src/content/docs/ia/mcp.md']) {
   const antes = leer(ruta);
   const despues = antes.replace(patronMcp, `@factura-hn/mcp@${version}`);
   if (despues !== antes) escribir(ruta, despues);

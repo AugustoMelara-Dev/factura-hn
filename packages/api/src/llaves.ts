@@ -54,7 +54,7 @@ export function coincide(llave: string, hashGuardado: Buffer): boolean {
 }
 
 /**
- * Token del MCP remoto: `fhnmcp_<test|live>_<prefijo>_<secreto>`. Va en la ruta de la URL personal del MCP
+ * Token del MCP remoto: `fhnmcp_<test|live>_<prefijo>_<secreto>`. Va en la ruta de la URL del MCP
  * (`https://…/mcp/<token>`), porque un conector personalizado de Claude se agrega solo con la URL. No es una llave
  * de API: el servidor MCP deriva de él la llave `fhn_<marca>_<prefijo>_<HMAC-SHA256(secreto, ETIQUETA)>`, una llave
  * normal del tenant (con su fila en `api_llaves` y su hash). Así la base no guarda nada con que reconstruir el

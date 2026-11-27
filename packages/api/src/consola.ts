@@ -4,8 +4,9 @@
  * llaves se imprimen una sola vez, solo en esta terminal.
  */
 import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type pg from 'pg';
-import { crearApp } from './app';
+import { crearApp, VERSION_API } from './app';
 import { migrarApi, ROL_POR_DEFECTO } from './esquema';
 import {
   bloqueLlavesDemo,
@@ -16,6 +17,7 @@ import {
   datosRealesEnBase,
   errorDatosRealesEnDemo,
   errorTenantEnModoLocal,
+  ERROR_TOKEN_MCP_SOLO_CAJA,
   LEYENDA_PRUEBA,
   pausarDemo,
   purgarEntornosDemo,
@@ -65,10 +67,12 @@ const COMANDOS: Comando[] = [
   },
   {
     nombre: ['llave', 'crear'],
-    uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002]',
-    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración.',
+    uso: 'llave crear <tenant> --rol admin|caja [--nombre "Caja 2"] [--caja 000-002] [--mcp]',
+    descripcion: 'Crea una llave. Con --rol caja, --caja es obligatorio (establecimiento-punto de emisión). Empieza con fhn_live_ en un tenant de producción y con fhn_test_ en uno de prueba. Así se crea la llave admin del negocio: llave crear local --rol admin --nombre Administración. ' +
+      'Con --mcp (solo con --rol caja --caja 000-001) imprime en su lugar un token del MCP por HTTP y la URL para conectarlo (p. ej. a ChatGPT): emite en esa caja, pero no anula ni administra. Se revoca como cualquier llave.',
     posicionales: { obligatorios: ['tenant'] },
     opciones: ['rol', 'nombre', 'caja'],
+    banderas: ['mcp'],
     usaBase: true,
   },
   {
@@ -84,7 +88,7 @@ const COMANDOS: Comando[] = [
     nombre: ['demo', 'limpiar'],
     uso: 'demo limpiar',
     descripcion:
-      'Demostración pública (FHN_MODO=demo): borra ya los entornos de prueba vencidos, cada uno con todos sus datos. La API lo ' +
+      'Modo demo (FHN_MODO=demo): borra ya los entornos de prueba vencidos, cada uno con todos sus datos. La API lo ' +
       'hace sola cada minuto; este comando sirve para una tarea programada aparte. Solo toca entornos de prueba con CAI ficticio.',
     posicionales: { obligatorios: [] },
     usaBase: true,
@@ -93,7 +97,7 @@ const COMANDOS: Comando[] = [
     nombre: ['demo', 'pausar'],
     uso: 'demo pausar [--motivo "texto"]',
     descripcion:
-      'Interruptor global de la demostración pública: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO. La API ' +
+      'Interruptor global del modo demo: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO. La API ' +
       'lo nota en a lo sumo 5 segundos. Se deshace con «demo reanudar».',
     posicionales: { obligatorios: [] },
     opciones: ['motivo'],
@@ -102,14 +106,14 @@ const COMANDOS: Comando[] = [
   {
     nombre: ['demo', 'reanudar'],
     uso: 'demo reanudar',
-    descripcion: 'Quita la pausa de la demostración pública (salvo que la API arrancara con FHN_DEMO_PAUSADO=1).',
+    descripcion: 'Quita la pausa del modo demo (salvo que la API arrancara con FHN_DEMO_PAUSADO=1).',
     posicionales: { obligatorios: [] },
     usaBase: true,
   },
   {
     nombre: ['demo', 'estado'],
     uso: 'demo estado',
-    descripcion: 'Entornos de la demostración pública vigentes y vencidos por borrar, y si está en pausa.',
+    descripcion: 'Entornos del modo demo vigentes y vencidos por borrar, y si está en pausa.',
     posicionales: { obligatorios: [] },
     usaBase: true,
   },
@@ -122,7 +126,17 @@ const COMANDOS: Comando[] = [
   },
 ];
 
+/** Lo que imprime `llave crear … --mcp`: el token, la URL de ejemplo y que esa URL es secreta. */
+export function textoTokenMcp(caja: string, token: string): string {
+  return [
+    `Token MCP de la caja ${caja} (solo se muestra ahora): ${token}`,
+    `URL del MCP por HTTP: https://<tu-servidor>/mcp/${token}`,
+    'Trata esa URL como una contraseña: quien la tenga emite en esta caja (no puede anular ni administrar).',
+  ].join('\n');
+}
+
 const AYUDA = new Set(['ayuda', '--ayuda', '--help', '-h', 'help']);
+const VERSION = new Set(['version', '--version', '-v']);
 
 function ayudaGeneral(consola: string): string {
   return [
@@ -134,6 +148,8 @@ function ayudaGeneral(consola: string): string {
     ...COMANDOS.map((c) => `  ${c.uso}\n      ${c.descripcion}`),
     '  ayuda [comando]',
     '      Muestra esta ayuda o la de un comando (también --help).',
+    '  version',
+    '      Muestra la versión (también --version).',
     '',
     'Conexión: FHN_MIGRAR_URL (dueño de las tablas) si está definida; si no, DATABASE_URL.',
     'Las llaves se muestran una sola vez, solo en esta terminal.',
@@ -191,6 +207,10 @@ export async function ejecutarConsola(
     salida.error(ayudaGeneral(consola));
     return 1;
   }
+  if (VERSION.has(args[0]!) && args.length === 1) {
+    salida.log(VERSION_API);
+    return 0;
+  }
   if (AYUDA.has(args[0]!)) {
     const tema = args.slice(1);
     const c = tema.length ? buscar(tema)?.comando : undefined;
@@ -219,8 +239,23 @@ export async function ejecutarConsola(
     if (clave === 'openapi') {
       const app = crearApp({ pool: {} as pg.Pool, modo: 'alojado' });
       const doc = await (await app.request('/openapi.json')).text();
-      if (posicionales[0]) writeFileSync(posicionales[0], `${JSON.stringify(JSON.parse(doc), null, 2)}\n`);
-      else salida.log(doc);
+      const archivo = posicionales[0];
+      if (!archivo) {
+        salida.log(doc);
+        return 0;
+      }
+      try {
+        writeFileSync(archivo, `${JSON.stringify(JSON.parse(doc), null, 2)}\n`);
+      } catch (e) {
+        // Dentro de Docker la carpeta de trabajo no se puede escribir (y el archivo quedaría en el contenedor): lo
+        // útil es redirigir la salida estándar a un archivo del equipo.
+        const codigo = (e as { code?: string }).code;
+        const por = codigo === 'ENOENT' ? 'la carpeta no existe' : codigo === 'EACCES' || codigo === 'EPERM' ? 'no hay permiso para escribir ahí' : (e as Error).message;
+        throw new Error(
+          `No se pudo escribir ${resolve(archivo)} (${por}). Crea la carpeta o elige otra ruta, o redirige la salida: ${consola} openapi > openapi.json`,
+        );
+      }
+      salida.log(`Especificación OpenAPI escrita en ${resolve(archivo)}.`);
       return 0;
     }
 
@@ -237,6 +272,7 @@ export async function ejecutarConsola(
       if (opciones.rol !== 'admin' && opciones.rol !== 'caja') throw new ErrorUso('--rol debe ser admin o caja.', comando);
       if (opciones.rol === 'caja' && !opciones.caja) throw new ErrorUso('Una llave de caja se ata a su punto de emisión: agrega --caja 000-001.', comando);
       if (opciones.caja && !/^\d{3}-\d{3}$/.test(opciones.caja)) throw new ErrorUso('--caja va como establecimiento-punto de emisión, p. ej. 000-001.', comando);
+      if (banderas.has('mcp') && opciones.rol !== 'caja') throw new ErrorUso(ERROR_TOKEN_MCP_SOLO_CAJA, comando);
     }
     if (clave === 'demo llave' && opciones.rol !== undefined && opciones.rol !== 'admin' && opciones.rol !== 'caja') {
       throw new ErrorUso('--rol debe ser admin o caja.', comando);
@@ -263,7 +299,7 @@ export async function ejecutarConsola(
 
     switch (clave) {
       case 'migrar':
-        // La demostración pública: la misma revisión que hace la API al arrancar con el dueño. Así, con la API
+        // Modo demo: la misma revisión que hace la API al arrancar con el dueño. Así, con la API
         // arrancando sin credenciales de dueño (FHN_MIGRAR_AL_ARRANCAR=0), una base con datos reales no pasa.
         if (env.FHN_MODO === 'demo') {
           const reales = await datosRealesEnBase(pool);
@@ -284,10 +320,10 @@ export async function ejecutarConsola(
         const rolLlave = opciones.rol as 'admin' | 'caja';
         const caja = opciones.caja?.split('-');
         const llave = await crearLlaveOperador(pool, {
-          tenant: posicionales[0]!, rol: rolLlave, nombre: opciones.nombre ?? rolLlave,
-          establecimiento: caja?.[0], puntoEmision: caja?.[1],
+          tenant: posicionales[0]!, rol: rolLlave, nombre: opciones.nombre ?? (banderas.has('mcp') ? 'MCP' : rolLlave),
+          establecimiento: caja?.[0], puntoEmision: caja?.[1], mcp: banderas.has('mcp'),
         });
-        salida.log(`Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
+        salida.log(banderas.has('mcp') ? textoTokenMcp(opciones.caja!, llave) : `Llave ${rolLlave} (solo se muestra ahora): ${llave}`);
         return 0;
       }
       case 'demo limpiar': {
@@ -297,11 +333,11 @@ export async function ejecutarConsola(
       }
       case 'demo pausar':
         await pausarDemo(pool, true, opciones.motivo);
-        salida.log('Demostración en pausa: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO (en a lo sumo 5 s).');
+        salida.log('Modo demo en pausa: no se crean entornos y los que hay reciben 503 DEMO_PAUSADO (en a lo sumo 5 s).');
         return 0;
       case 'demo reanudar':
         await pausarDemo(pool, false);
-        salida.log('Demostración reanudada.');
+        salida.log('Modo demo reanudado.');
         return 0;
       case 'demo estado': {
         const r = await resumenDemo(pool);
@@ -326,9 +362,11 @@ export async function ejecutarConsola(
       salida.error(`Error: ${e.message}${e.comando ? `\n\n${ayudaDe(e.comando, consola)}` : ''}`);
     } else {
       const codigo = (e as { code?: string }).code;
-      const sinConexion = codigo === 'ECONNREFUSED' || codigo === 'ENOTFOUND' || codigo === 'ETIMEDOUT';
+      // pg-pool corta la conexión por tiempo con un error sin `code`: se reconoce por su texto.
+      const porTiempo = e instanceof Error && /connection (terminated due to connection )?timeout|timeout exceeded when trying to connect/i.test(e.message);
+      const sinConexion = codigo === 'ECONNREFUSED' || codigo === 'ENOTFOUND' || codigo === 'ETIMEDOUT' || porTiempo;
       salida.error(sinConexion
-        ? `Error: no se pudo conectar a la base (${codigo}). Revisa FHN_MIGRAR_URL o DATABASE_URL y que Postgres esté en marcha.`
+        ? `Error: no se pudo conectar a la base (${codigo ?? 'tiempo de espera agotado'}). Revisa FHN_MIGRAR_URL o DATABASE_URL y que Postgres esté en marcha; si está ocupada, reintenta.`
         : `Error: ${e instanceof Error ? e.message : String(e)}`);
     }
     return 1;

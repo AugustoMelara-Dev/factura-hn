@@ -53,6 +53,11 @@ describe('init --demo', () => {
     expect(b).toEqual({ command: 'npx', args: ['-y', expect.stringMatching(/^@factura-hn\/mcp@\d+\.\d+\.\d+/)], env: { FHN_SQLITE: base, FHN_EMISOR: emisor, FHN_ESTABLECIMIENTO: '000', FHN_PUNTO: '001' } });
     expect(r.out).toMatch(/Claude Desktop[\s\S]*Claude Code[\s\S]*Cursor[\s\S]*VS Code/);
     expect(r.out).toContain('«emite una factura de prueba»');
+    // Sin preguntas ni pasos sueltos: dice que quedó listo y qué pegar.
+    expect(r.out).toContain(`Listo: modo de prueba en ${dir}. Cada documento sale con la leyenda «${LEYENDA_PRUEBA}».`);
+    expect(r.out).toContain('Pega este bloque en la configuración de tu cliente MCP:');
+    expect(r.out).not.toMatch(/Paso \d/);
+    expect(r.err).toBe('');
   });
 
   it('es idempotente: la segunda vez conserva todo y no registra otro CAI', async () => {
@@ -101,6 +106,7 @@ describe('init --demo', () => {
   it('opciones mal escritas: error en español y código 1', async () => {
     expect(await correr(['init', '--demoo'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Opción desconocida: --demoo\./) });
     expect(await correr(['init', '--punto', 'abcd'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/--punto debe tener hasta 3 dígitos/) });
+    expect(await correr(['init', '--demo', '--force'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Opción desconocida: --force\. ¿Quisiste decir --forzar\?\nAyuda: npx -y @factura-hn\/mcp ayuda$/) });
   });
 });
 
@@ -118,7 +124,7 @@ describe('init --demo no toca una base con CAI reales', () => {
   it('--forzar no la borra', async () => {
     const { dir, base } = await baseConCAIReal();
     const r = await correr(['init', '--demo', '--forzar'], { cwd: dir });
-    expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/tiene un CAI real \(A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4\): no es una base de prueba\. No se modifica ni se borra\./) });
+    expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/tiene un CAI real \(A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4\): no es una base de prueba, así que no se modifica ni se borra\. Para probar, crea la base de prueba en otra carpeta: npx -y @factura-hn\/mcp init --demo --dir \.\/prueba/) });
     expect(autorizaciones(base)).toBe(1);
   });
 
@@ -151,6 +157,9 @@ describe('init sin --demo', () => {
     expect(r.out).toContain('registrar_cai');
     expect(r.out).not.toContain(LEYENDA_PRUEBA);
     expect(bloqueDe(r.out).mcpServers['factura-hn'].env.FHN_SQLITE).toBe(base);
+    // Quien solo quiere probar ve el camino corto antes de los pasos del CAI real.
+    expect(r.out).toContain('¿Solo quieres probar? Corre: npx -y @factura-hn/mcp init --demo');
+    expect(r.out.indexOf('init --demo')).toBeLessThan(r.out.indexOf('registrar-cai'));
   });
 
   it('--forzar reescribe la plantilla pero nunca borra la base real', async () => {
@@ -295,10 +304,10 @@ it('la base de init --demo queda lista para el SDK, sin documentos, y el emisor 
 });
 
 describe('README y versión del paquete', () => {
-  it('los bloques mcpServers de los README y del sitio fijan la versión de package.json', () => {
+  it('los bloques mcpServers del README del MCP y del sitio fijan la versión de package.json', () => {
     const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), 'utf8');
     const { version } = JSON.parse(leer('../package.json')) as { version: string };
-    for (const ruta of ['../README.md', '../../../README.md', '../../../web/src/content/docs/ia/mcp.md']) {
+    for (const ruta of ['../README.md', '../../../web/src/content/docs/ia/mcp.md']) {
       const texto = leer(ruta);
       // Toda mención entre comillas (argumento de un bloque) lleva la versión, y es la del paquete. Tras
       // `pnpm run version` (scripts/fijar-versiones.mjs), cambia el número en todos.
@@ -307,5 +316,95 @@ describe('README y versión del paquete', () => {
       expect(fijadas.length, ruta).toBeGreaterThan(0);
       expect(new Set(fijadas), ruta).toEqual(new Set([version]));
     }
+  });
+});
+
+describe('CLI del MCP: casos límite', () => {
+  it('dos init --forzar seguidos no pierden el emisor original (copias .bak numeradas)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-bak-'));
+    await correr(['init'], { cwd: dir });
+    const emisor = join(dir, 'emisor.json');
+    writeFileSync(emisor, '{"rtn": "99990000000001"}');
+    await correr(['init', '--forzar'], { cwd: dir });
+    // La segunda vez el emisor es la plantilla: no hay nada que respaldar y la copia buena sigue.
+    const r2 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r2.out).not.toContain('Copia del emisor anterior');
+    expect(readFileSync(`${emisor}.bak`, 'utf8')).toBe('{"rtn": "99990000000001"}');
+    // Otro emisor distinto va a la siguiente copia libre, sin pisar la primera.
+    writeFileSync(emisor, '{"rtn": "99990000000002"}');
+    const r3 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r3.out).toContain(`Copia del emisor anterior en ${emisor}.bak-2.`);
+    expect(readFileSync(`${emisor}.bak`, 'utf8')).toBe('{"rtn": "99990000000001"}');
+    expect(readFileSync(`${emisor}.bak-2`, 'utf8')).toBe('{"rtn": "99990000000002"}');
+    // El mismo emisor otra vez reutiliza su copia.
+    writeFileSync(emisor, '{"rtn": "99990000000001"}');
+    const r4 = await correr(['init', '--forzar'], { cwd: dir });
+    expect(r4.out).toContain(`Copia del emisor anterior en ${emisor}.bak.`);
+    expect(existsSync(`${emisor}.bak-3`)).toBe(false);
+  });
+
+  it('registrar-cai rechaza un CAI con formato que no es del SAR y una fecha límite vencida', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-cai-'));
+    await correr(['init'], { cwd: dir });
+    const base = join(dir, 'factura.db');
+    const sin = (bandera: string) => resolucion.filter((_, i) => resolucion[i] !== bandera && resolucion[i - 1] !== bandera);
+    const xyz = await correr(['registrar-cai', '--base', base, ...sin('--cai'), '--cai', 'XYZ']);
+    expect(xyz).toMatchObject({ codigo: 1, err: expect.stringContaining('[CAI_FORMATO]') });
+    const vencida = await correr(['registrar-cai', '--base', base, ...sin('--fecha-limite'), '--fecha-limite', '2020-01-01']);
+    expect(vencida).toMatchObject({ codigo: 1, err: expect.stringContaining('[AUTORIZACION_VENCIDA]') });
+    expect(autorizaciones(base)).toBe(0);
+  });
+
+  it('una base dañada da un error en español con la ruta; init --demo --forzar la recrea, la real nunca se borra', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-danada-'));
+    const demo = join(dir, 'factura-demo.db');
+    writeFileSync(demo, 'esto no es una base');
+    const r = await correr(['init', '--demo'], { cwd: dir });
+    expect(r.codigo).toBe(1);
+    expect(r.err).toContain(`${demo} no es una base SQLite de factura-hn`);
+    expect(r.err).toContain('init --demo --forzar');
+    expect(r.err).not.toMatch(/file is not a database/);
+    expect((await correr(['init', '--demo', '--forzar'], { cwd: dir })).codigo).toBe(0);
+    expect(autorizaciones(demo)).toBe(3);
+
+    const real = join(dir, 'factura.db');
+    writeFileSync(real, 'esto tampoco');
+    for (const args of [['init', '--forzar'], ['registrar-cai', '--base', real, ...resolucion]]) {
+      const x = await correr(args, { cwd: dir });
+      expect(x.codigo).toBe(1);
+      expect(x.err).toContain(`${real} no es una base SQLite de factura-hn`);
+      expect(x.err).toContain('restaura tu respaldo');
+    }
+    expect(readFileSync(real, 'utf8')).toBe('esto tampoco');
+  });
+
+  it('opción sin valor o con valor que empieza con «-»: en español', async () => {
+    expect(await correr(['init', '--dir'])).toMatchObject({ codigo: 1, err: expect.stringMatching(/^Falta el valor de --dir\./) });
+    const r = await correr(['registrar-cai', ...resolucion.slice(0, 8), '--desde', '-5']);
+    expect(r.codigo).toBe(1);
+    expect(r.err).toMatch(/--desde/);
+    expect(r.err).not.toMatch(/argument|ambiguous|option/i);
+  });
+
+  it('--api-url que no es una URL http(s)', async () => {
+    for (const url of ['localhost:8787', 'ftp://x.hn']) {
+      const r = await correr(['registrar-cai', '--api-url', url, ...resolucion], { env: { FHN_API_KEY: 'fhn_test_x' } });
+      expect(r).toMatchObject({ codigo: 1, err: expect.stringMatching(/--api-url/) });
+    }
+  });
+
+  it('version y ayuda por comando', async () => {
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    for (const v of ['version', '--version', '-v']) expect(await correr([v])).toMatchObject({ codigo: 0, out: version });
+    for (const args of [['init', '--help'], ['ayuda', 'init'], ['iniciar', '-h']]) {
+      const r = await correr(args);
+      expect(r.codigo, args.join(' ')).toBe(0);
+      expect(r.out).toMatch(/--demo[\s\S]*--forzar/);
+      expect(r.out).not.toContain('registrar-cai --cai');
+    }
+    const cai = await correr(['registrar-cai', '--help']);
+    expect(cai.codigo).toBe(0);
+    expect(cai.out).toMatch(/--cai[\s\S]*--fecha-limite/);
+    expect(await correr(['ayuda', 'emitir'])).toMatchObject({ codigo: 1 });
   });
 });

@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de identificacion.ts y modo.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de identificacion.ts y modo.ts (pnpm mutacion).
 // Cada caso fija un borde del formato: anclas de las expresiones regulares, longitud exacta y lo que se devuelve
 // sin cambios cuando el valor no tiene la forma esperada.
 import { describe, expect, it } from 'vitest';

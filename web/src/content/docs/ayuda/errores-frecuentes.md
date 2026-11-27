@@ -93,8 +93,8 @@ empiezan por `AVISO_` no bloquean: el documento se emite y el aviso queda en `do
 - **Causa:** se envió `fechaEmision` con un día distinto de hoy en Honduras.
 - **Solución:** no envíes `fechaEmision`: la pone el reloj. Si la fecha de hoy está mal, corrige el reloj del
   equipo.
-- **Base:** lectura de factura-hn de los Arts. 14 y 43 (momento de emisión y archivo en orden cronológico); esos
-  artículos no lo prohíben de forma literal.
+- **Base:** factura-hn usa siempre la fecha de hoy, por el momento de emisión (Art. 14) y el archivo en orden
+  cronológico (Art. 43).
 - [Ver en la referencia](/referencia/errores/#fecha_emision_no_es_hoy)
 
 ## 7. `RELOJ_ADELANTADO_SOSPECHOSO` y `FECHA_ANTERIOR_AL_ULTIMO`
@@ -120,9 +120,7 @@ empiezan por `AVISO_` no bloquean: el documento se emite y el aviso queda en `do
 - **Base:** Arts. 26 y 28 num. 1-2.
 - [Ver en la referencia](/referencia/errores/#nota_cliente_rtn)
 
-:::note[Lectura de factura-hn]
-Aceptar una nota con RTN sobre un original emitido sin RTN es una lectura de los Arts. 26 y 28: no lo dicen de forma literal. La nota sale con el aviso `AVISO_ORIGINAL_SIN_RTN`. Confírmalo con tu contador.
-:::
+Una nota con RTN sobre un original sin RTN sale con el aviso `AVISO_ORIGINAL_SIN_RTN`.
 
 ## 9. `TIPO_NO_EMITIBLE`
 

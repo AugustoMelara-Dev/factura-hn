@@ -30,10 +30,7 @@ No incluyas datos reales de contribuyentes. Usa los ficticios de [Contribuir](/a
 
 ## Versiones con soporte
 
-| Versión | Soporte |
-|---|---|
-| 0.2.x (la más reciente) | Sí |
-| Anteriores | No |
+Recibe correcciones de seguridad la versión más reciente publicada (0.x). Actualiza a ella antes de reportar.
 
 ## Qué nos interesa especialmente
 
@@ -47,5 +44,4 @@ No incluyas datos reales de contribuyentes. Usa los ficticios de [Contribuir](/a
 
 - La configuración de tu propio servidor (TLS, contraseñas de la base, respaldos). Ver
   [Autoalojamiento](/guias/autoalojar/).
-- Las interpretaciones fiscales. Abre un issue con la plantilla «Regla fiscal». Ver
-  [Contribuir](/ayuda/contribuir/).
+- Las reglas fiscales: abre un issue con la plantilla «Regla fiscal». Ver [Contribuir](/ayuda/contribuir/).

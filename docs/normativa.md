@@ -1,83 +1,68 @@
 # Qué cubre la librería y de dónde sale cada regla
 
-> **Aviso.** `factura-hn` te ayuda a generar documentos con los requisitos del reglamento, pero no
-> sustituye la autorización del SAR ni la asesoría de un contador. Para emitir desde un sistema necesitas
-> inscribirte en el Régimen de Facturación, registrarte como autoimpresor y obtener tu CAI y rango.
-> La normativa cambia: revisa los acuerdos vigentes en sar.gob.hn antes de salir a producción.
-
-Cada requisito, con su artículo, cómo lo cumple factura-hn y la prueba que lo verifica, está en la
-[matriz de cumplimiento](cumplimiento.md). Donde el Reglamento no es literal, esta página y la matriz dicen qué
-lectura aplica factura-hn, para que la revises con tu contador.
+Para emitir desde un sistema, el negocio se inscribe en el Régimen de Facturación como autoimpresor y obtiene su
+CAI y su rango del SAR. factura-hn aplica las reglas de formato, numeración y cálculo. Cada requisito, con su
+artículo y la prueba que lo verifica, está en la [matriz de cumplimiento](cumplimiento.md).
 
 ## Base normativa
 
 - **Acuerdo 481-2017**, Reglamento del Régimen de Facturación, Otros Documentos Fiscales y Registro Fiscal
-  de Imprentas (La Gaceta, 10 ago 2017), con sus reformas (Acuerdos 609-2017 y 725-2018, entre otros).
-- **Ley del Impuesto Sobre Ventas**: tasa general 15%; 18% para bebidas alcohólicas, cigarrillos y boletos
-  aéreos en clase ejecutiva/primera (Decreto 278-2013, Art. 16; factura-hn no tiene su texto primario, así que
-  qué productos van al 18 % lo decide quien integra).
-- Situación de la factura electrónica (nov. 2026): el régimen vigente es el de **CAI + rango autorizado**.
-  La modalidad electrónica es la de *autoimpresor* (sistema computarizado) dentro de ese régimen; no hay un
-  esquema XML obligatorio con validación previa del SAR. Si el SAR publica uno, se agregará como módulo.
+  de Imprentas, con sus reformas (Acuerdos 609-2017, 725-2018 y 817-2018).
+- **Ley del Impuesto Sobre Ventas**: tasa general de 15 %; 18 % para bebidas alcohólicas, cigarrillos y boletos
+  aéreos en clase ejecutiva o primera (Decreto 278-2013, Art. 16). Cada producto lleva su tasa.
+- Régimen vigente: **CAI y rango autorizado**, en la modalidad de autoimpresor por sistema computarizado.
 
-## Mapa de requisitos → librería
+## Mapa de requisitos
 
 | Requisito (Acuerdo 481-2017) | Dónde |
 |---|---|
 | Número de 16 dígitos `NNN-NNN-NN-NNNNNNNN` (establecimiento, punto de emisión, tipo, correlativo) | `formatearNumero`, `parsearNumero` |
-| Códigos de tipo de documento vigentes (01, 04–12; reforma del Acuerdo 609-2017: 06 Nota de Crédito, 07 Nota de Débito) | `TIPOS_DOCUMENTO` |
+| Códigos de tipo de documento vigentes (01, 04–12; Acuerdo 609-2017: 06 Nota de Crédito, 07 Nota de Débito) | `TIPOS_DOCUMENTO` |
 | CAI, rango autorizado y fecha límite de emisión impresos | `DocumentoFiscal.cai/rangoAutorizado/fechaLimiteEmision`, render |
 | No emitir después de la fecha límite ni fuera del rango | `emitir` (`AUTORIZACION_VENCIDA`, `RANGO_AGOTADO`, `CORRELATIVO_FUERA_DE_RANGO`) |
-| Autorización por punto de emisión y tipo de documento, vigencia máx. 1 año | `AutorizacionCAI`, `estadoAutorizacion` |
-| Datos del emisor: RTN, razón social, nombre comercial, direcciones, teléfono, correo (todos obligatorios, Art. 10 num. 1) | `Emisor`, `EMISOR_*`, render |
-| Destino de ejemplares (original cliente / copia emisor) | `DESTINO_EJEMPLARES` |
-| Datos del adquirente exonerado: OCE y constancia de registro, **o** registro SAG/RUPNSA (Art. 11 num. 4) | `Exoneracion`, `EXONERACION_*` |
+| Autorización por punto de emisión y tipo de documento, vigencia máxima de 1 año | `AutorizacionCAI`, `estadoAutorizacion` |
+| Datos del emisor: RTN, razón social, nombre comercial, direcciones, teléfono y correo (Art. 10 num. 1) | `Emisor`, `EMISOR_*`, render |
+| Destino de ejemplares (original cliente, copia emisor) | `DESTINO_EJEMPLARES` |
+| Adquirente exonerado (Art. 11 num. 4): factura-hn acepta OCE y constancia de registro, o registro SAG/RUPNSA | `Exoneracion`, `EXONERACION_*` |
 | RTN del cliente cuando la compra es para crédito fiscal, costo o gasto | `Cliente.rtn` |
-| "CONSUMIDOR FINAL" cuando no se identifica al cliente | `CONSUMIDOR_FINAL` |
-| Identificación obligatoria en ventas a consumidor final mayores de L 10,000 | `CONSUMIDOR_FINAL_IDENTIFICACION` (umbral configurable) |
-| Descripción, cantidad, valor unitario | `LineaEntrada` |
+| «CONSUMIDOR FINAL» cuando no se identifica al cliente | `CONSUMIDOR_FINAL` |
+| Identificación en ventas a consumidor final de más de L 10,000 | `CONSUMIDOR_FINAL_IDENTIFICACION` (umbral configurable) |
+| Descripción, cantidad y valor unitario | `LineaEntrada` |
 | Descuentos y rebajas otorgados | `Totales.descuentos` |
-| Importes exonerado, exento, gravado 0 % y gravado por tasa; ISV discriminado por tasa (Art. 11 num. 1 g-i) | `calcularDocumento` |
+| Importes exonerado, exento, gravado 0 % y gravado por tasa; ISV por tasa (Art. 11 num. 1 g-i) | `calcularDocumento` |
 | Exportaciones con tasa cero (Art. 12) | `isv: 'GRAVADO0'`, `totales.importeGravado0` |
 | Crédito fiscal: en ventas mixtas solo cuentan las gravadas (Art. 11 num. 3) | `totales.baseCreditoFiscal`, `AVISO_VENTA_MIXTA` |
-| Notas 06/07 coherentes con el documento que modifican (Arts. 4 num. 32, 6, 26, 28, 41): tipo, CAI, número, fecha, RTN, estado, moneda y tipo de cambio | `REFERENCIA_*` en `emitir` |
-| Nota de crédito: la suma de las notas sobre un original no supera su total ni, a cada tasa, su gravado y su ISV; no cambia la tasa de ISV ni lleva ISV sobre un original exonerado (Art. 4 num. 32; el tope no es literal: es la lectura que aplica factura-hn) | `NOTA_SUPERA_ORIGINAL` (con el saldo disponible), `NOTA_TASA_DISTINTA` y el aviso `AVISO_NOTA_EXONERACION_DISTINTA` en `emitir` |
-| Un documento con notas vigentes no se anula: primero se anulan las notas (Arts. 41 y 4 num. 32; la regla no es literal: es la lectura que aplica factura-hn) | `DOCUMENTO_CON_NOTAS` en `anular` |
-| Tipos que un sistema no puede emitir: 04, 09, 10, 12 (Arts. 4 num. 43, 46, 47) | `TIPO_NO_EMITIBLE` |
-| Importe total en número y letras, moneda | `Totales.totalEnLetras`, `montoEnLetras` |
+| Notas 06 y 07 coherentes con el documento que modifican (Arts. 4 num. 32, 26, 28 y 41) | `REFERENCIA_*` en `emitir` |
+| Nota de crédito: factura-hn no deja que la suma de las notas supere el original ni cambie su tasa | `NOTA_SUPERA_ORIGINAL` (con el saldo), `NOTA_TASA_DISTINTA`, `AVISO_NOTA_EXONERACION_DISTINTA` |
+| factura-hn no anula un documento con notas vigentes: primero se anulan las notas | `DOCUMENTO_CON_NOTAS` en `anular` |
+| Tipos que un sistema no emite: 04, 09, 10 y 12 (Arts. 4 num. 43, 46 y 47) | `TIPO_NO_EMITIBLE` |
+| Importe total en número y letras, y moneda | `Totales.totalEnLetras`, `montoEnLetras` |
 | Tipo de cambio si la moneda es extranjera | `tipoCambio` (`TIPO_CAMBIO`) |
-| Notas de crédito/débito: CAI, número y fecha del documento que modifican, y motivo | `ReferenciaDocumento`, `motivo` |
+| Notas: CAI, número y fecha del documento que modifican, y motivo | `ReferenciaDocumento`, `motivo` |
 | Notas: nombre y RTN del adquirente; moneda nacional (Arts. 26 y 28) | `NOTA_CLIENTE_RTN`, `NOTA_MONEDA` |
 | Nota de Crédito: nombre, identidad y firma de quien la recibe (Art. 26 num. 7) | render (campos en blanco) |
 
+## Cómo calcula
+
+- factura-hn calcula el ISV **por grupo de tasa**: el total siempre cuadra con la suma de importes más ISV.
+- Con precios con ISV incluido, el total puede quedar un centavo abajo por el redondeo del Art. 9 de la Ley del
+  ISV (`totales.ajustePorRedondeo`). Para evitarlo, `sugerirPrecioSinAjuste`.
+- Moneda extranjera: el libro de ventas convierte a lempiras con el tipo de cambio de cada documento, y el
+  impreso agrega el equivalente en lempiras del ISV y del total.
+- Una nota sobre una factura a CONSUMIDOR FINAL acepta el RTN que indiques y lleva el aviso
+  `AVISO_ORIGINAL_SIN_RTN`.
+- La leyenda «La factura es beneficio de todos, exíjala» es opcional (`leyenda`).
+
 ## Fuera de alcance
 
-- **No se pueden emitir por sistema computarizado**, y el SDK los rechaza con `TIPO_NO_EMITIBLE`: recibo por
-  honorarios (04), ticket (09, solo máquina registradora), factura prevalorada (10) y constancia de donación (12)
-  (Arts. 4 num. 43, 46 y 47).
-- **Emitibles, pero aún no soportados:** comprobante de retención (05), guía de remisión (08) y boleta de compra
-  (11). La numeración los reconoce; falta su cálculo y render.
-- Envío de archivos al SAR y declaración SAR-222 (hay `libroVentasCSV` y `resumenVentas` como apoyo).
-- Validación del dígito verificador del RTN y consulta en línea de RTN/CAI.
+- **No se emiten por sistema computarizado** y el SDK los rechaza con `TIPO_NO_EMITIBLE`: recibo por honorarios
+  (04), ticket (09, solo máquina registradora), factura prevalorada (10) y constancia de donación (12).
+- **No incluidos:** comprobante de retención (05), guía de remisión (08) y boleta de compra (11). La numeración
+  los reconoce.
+- Envío de archivos al SAR y declaración SAR-222. Como apoyo: `libroVentasCSV`, `resumenVentas` y `exportarTexto`.
+- Consulta en línea de RTN o CAI.
 
-## Puntos para confirmar con tu contador
+## Créditos
 
-- Si tu giro tiene productos al 18% o exentos, que la clasificación de cada producto esté bien.
-- Si aplicas ISV línea por línea o por grupo de tasa: la librería lo calcula **por grupo de tasa**,
-  así el total siempre cuadra con la suma de importes más ISV.
-- La leyenda "La factura es beneficio de todos, exíjala" **no** la exige el reglamento; es opcional (`leyenda`).
-- Documentos en moneda extranjera: el libro de ventas los convierte a lempiras campo por campo con el tipo de
-  cambio del documento, y el impreso agrega el equivalente en lempiras del ISV y del total. El Reglamento no
-  lo dice de forma literal: son lecturas que aplica factura-hn.
-- Una nota sobre una factura a CONSUMIDOR FINAL (sin RTN) acepta el RTN que indiques, con el aviso
-  `AVISO_ORIGINAL_SIN_RTN`. Los Arts. 26 y 28 no lo resuelven de forma literal: es la lectura que aplica factura-hn.
-
-## Referencias y créditos
-
-- [invoicehn](https://github.com/JorgePadilla/invoicehn) (Ruby, MIT, Jorge Padilla): la referencia más completa
-  que existe. De su investigación salen la tabla de códigos vigente (Acuerdo 609-2017) y los textos
-  consolidados en `doc/fuentes/` (Gacetas 34,413 · 34,457 · 34,792 · 34,811).
-- [skillsarhn](https://github.com/Javitonito-Javier/skillsarhn) (MIT, Ing. Javier Omar Oliva Meza): skills de
-  facturación y contabilidad tributaria. Su tabla de códigos usa la numeración original de 2017.
-- Texto consolidado del Reglamento: el Art. 53 permite sistemas "desarrollados o adquiridos" por el obligado
-  tributario, con integración contable o de inventario, controles de auditoría, persistencia y exportación a texto.
+La tabla de códigos vigente y los textos consolidados del Reglamento se apoyan en la investigación de
+[invoicehn](https://github.com/JorgePadilla/invoicehn) (MIT, Jorge Padilla).

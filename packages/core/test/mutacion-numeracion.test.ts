@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de numeracion.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de numeracion.ts (pnpm mutacion).
 // Número NNN-NNN-TT-NNNNNNNN: límites del correlativo, anclas de los patrones, mensajes de error y pertenencia
 // exacta a una autorización (cada parte del número y los dos extremos del rango).
 import { describe, expect, it } from 'vitest';
@@ -81,8 +81,8 @@ describe('parsearNumero y esNumeroValido', () => {
     expect(parsearNumero('002 007 01 00000150')).toEqual({ establecimiento: '002', puntoEmision: '007', tipoDocumento: '01', correlativo: 150 });
   });
   it('exige exactamente 16 dígitos (el patrón va anclado)', () => {
-    expect(() => parsearNumero('0000010100000001X')).toThrow(new RangeError('El número de documento debe tener 16 dígitos: "0000010100000001X"'));
-    expect(() => parsearNumero('X0000010100000001')).toThrow('El número de documento debe tener 16 dígitos: "X0000010100000001"');
+    expect(() => parsearNumero('0000010100000001X')).toThrow(new RangeError('El número de documento debe tener 16 dígitos, con o sin guiones (p. ej. 000-001-01-00000001): "0000010100000001X"'));
+    expect(() => parsearNumero('X0000010100000001')).toThrow('El número de documento debe tener 16 dígitos, con o sin guiones (p. ej. 000-001-01-00000001): "X0000010100000001"');
     expect(() => parsearNumero('00000101000000011')).toThrow('debe tener 16 dígitos');
   });
   it('rechaza un tipo desconocido y el correlativo 0', () => {

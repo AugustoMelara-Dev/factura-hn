@@ -108,3 +108,76 @@ export function problemasDeIntegridad(i: Integridad): string[] {
     ...(i.documentosSinClave ? [`${i.documentosSinClave} documento(s) sin clave de idempotencia`] : []),
   ];
 }
+
+/**
+ * Espera a que la cantidad de documentos del tenant deje de cambiar (`lecturas` lecturas iguales seguidas, cada
+ * `cadaMs`; tope `topeMs`). Una solicitud que el cliente soltó sigue en la API y puede emitir después de que el
+ * cliente terminó: revisar antes deja esa emisión fuera de la cuenta, pero no su aviso de webhook.
+ */
+export async function esperarQuietud(pool: pg.Pool, tenant: string, { lecturas = 4, cadaMs = 500, topeMs = 30_000 } = {}): Promise<number> {
+  const contar = async () => {
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN READ ONLY');
+      await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      const n = (await c.query<{ n: number }>('SELECT count(*)::int AS n FROM fhn_documentos WHERE tenant = $1', [tenant])).rows[0]!.n;
+      await c.query('COMMIT');
+      return n;
+    } finally {
+      c.release();
+    }
+  };
+  const fin = Date.now() + topeMs;
+  let ultimo = await contar();
+  for (let iguales = 1; iguales < lecturas && Date.now() < fin; ) {
+    await new Promise((r) => setTimeout(r, cadaMs));
+    const n = await contar();
+    iguales = n === ultimo ? iguales + 1 : 1;
+    ultimo = n;
+  }
+  return ultimo;
+}
+
+/** Avisos `documento.emitido` contra documentos, uno a uno (por número), en una sola foto de la base. */
+export interface Avisos {
+  documentos: number;
+  avisos: number;
+  entregados: number;
+  documentosSinAviso: number;
+  avisosSinDocumento: number;
+  documentosConVariosAvisos: number;
+}
+
+export async function revisarAvisos(pool: pg.Pool, tenant: string): Promise<Avisos> {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+    const r = (await c.query<Avisos>(
+      `WITH a AS (SELECT substr(clave, length('documento.emitido:') + 1) AS numero, estado FROM api_entregas
+                   WHERE tenant = $1 AND evento = 'documento.emitido'),
+            d AS (SELECT numero FROM fhn_documentos WHERE tenant = $1)
+       SELECT (SELECT count(*) FROM d)::int AS documentos,
+              (SELECT count(*) FROM a)::int AS avisos,
+              (SELECT count(*) FROM a WHERE estado = 'ENTREGADA')::int AS entregados,
+              (SELECT count(*) FROM d WHERE NOT EXISTS (SELECT 1 FROM a WHERE a.numero = d.numero))::int AS "documentosSinAviso",
+              (SELECT count(*) FROM a WHERE NOT EXISTS (SELECT 1 FROM d WHERE d.numero = a.numero))::int AS "avisosSinDocumento",
+              (SELECT count(*) FROM (SELECT numero FROM a GROUP BY numero HAVING count(*) > 1) x)::int AS "documentosConVariosAvisos"`,
+      [tenant],
+    )).rows[0]!;
+    await c.query('COMMIT');
+    return r;
+  } finally {
+    c.release();
+  }
+}
+
+/** Lo que no cumple en los avisos: cada documento con exactamente un aviso, y todos entregados. */
+export function problemasDeAvisos(a: Avisos): string[] {
+  return [
+    ...(a.documentosSinAviso ? [`${a.documentosSinAviso} documento(s) sin su aviso de webhook`] : []),
+    ...(a.avisosSinDocumento ? [`${a.avisosSinDocumento} aviso(s) de webhook sin su documento`] : []),
+    ...(a.documentosConVariosAvisos ? [`${a.documentosConVariosAvisos} documento(s) con más de un aviso de webhook`] : []),
+    ...(a.entregados !== a.avisos ? [`webhooks: ${a.entregados} entregados de ${a.avisos} encolados`] : []),
+  ];
+}

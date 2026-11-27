@@ -6,8 +6,8 @@
  *   Sin ella, la API usa DATABASE_URL también para eso y corre como dueño de las tablas (se avisa en el log).
  * - FHN_MIGRAR_AL_ARRANCAR: `1` (por defecto) migra al arrancar; `0` no (la migración corre aparte con «migrar»). Con `0` y
  *   sin FHN_MIGRAR_URL, el proceso no tiene credenciales de dueño (no sirve en modo local).
- * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (la demostración pública: solo entornos
- *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*, ver docs/demo.md)
+ * - FHN_MODO: `local` (por defecto, con aviso en el log), `alojado` o `demo` (modo demo: solo entornos
+ *   de prueba que crea cualquiera y que se borran a las 24 h; variables FHN_DEMO_*)
  * - FHN_IP_CLIENTE_CABECERA: cabecera con la dirección del cliente que pone el proxy de confianza (p. ej.
  *   Fly-Client-IP en Fly.io). Sin definir, ninguna se cree.
  * - PUERTO: por defecto 8787; FHN_HOST: por defecto 0.0.0.0
@@ -22,6 +22,9 @@
  *   comas, X-Forwarded-For se cree solo si la solicitud llega desde una de ellas.
  * - FHN_CONSOLA: cómo se invoca la consola en los mensajes (la imagen de Docker la define)
  */
+import { existsSync } from 'node:fs';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { serve } from '@hono/node-server';
 import type pg from 'pg';
 import { crearApp } from './app';
@@ -44,6 +47,40 @@ import { crearPool, esperarBase, usuarioDeUrl, usuarioDeUrlSiHay } from './pool'
 import { CofreSecretos, despacharWebhooks } from './webhooks';
 
 const UNA_HORA = 3_600_000;
+
+/**
+ * La línea del log al arrancar. Dentro del contenedor, el puerto del proceso (8787) no es el de tu equipo: Compose
+ * publica el de `FHN_PUERTO`. Si el contenedor recibe `FHN_PUERTO`, se da esa URL; si no, no se inventa una.
+ */
+export function lineaDeArranque(o: { modo: string; puerto: number; puertoPublicado?: string; enContenedor: boolean }): string {
+  const publicado = o.puertoPublicado?.trim();
+  const donde = publicado && /^\d+$/.test(publicado)
+    ? `en http://localhost:${publicado}`
+    : o.enContenedor
+      ? `escucha en el puerto ${o.puerto} del contenedor; en tu equipo, en el que publica Docker Compose (FHN_PUERTO, 8787 por defecto)`
+      : `en http://localhost:${o.puerto}`;
+  return `factura-hn API (${o.modo}) ${donde} · documentación en /docs`;
+}
+
+/** Espera a que el servidor escuche; un puerto ocupado o sin permiso, en español y sin traza. */
+export function esperarEscucha(servidor: Server, puerto: number): Promise<number> {
+  return new Promise((resolver, rechazar) => {
+    const listo = () => {
+      servidor.off('error', fallo);
+      resolver((servidor.address() as AddressInfo | null)?.port ?? puerto);
+    };
+    const fallo = (e: NodeJS.ErrnoException) => {
+      servidor.off('listening', listo);
+      if (e.code === 'EADDRINUSE') rechazar(new Error(`El puerto ${puerto} ya está en uso: otro proceso escucha en él. Ciérralo o elige otro con PUERTO=<número>.`));
+      else if (e.code === 'EACCES') rechazar(new Error(`No hay permiso para escuchar en el puerto ${puerto}. Elige uno mayor que 1023 con PUERTO=<número>.`));
+      else if (e.code === 'EADDRNOTAVAIL') rechazar(new Error(`La dirección de FHN_HOST no es de este equipo: no se puede escuchar en ella. Usa 0.0.0.0 o 127.0.0.1.`));
+      else rechazar(e);
+    };
+    if (servidor.listening) return listo();
+    servidor.once('listening', listo);
+    servidor.once('error', fallo);
+  });
+}
 
 /**
  * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Recorre
@@ -87,7 +124,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     throw new Error(`FHN_MODO debe ser "local", "alojado" o "demo" (no "${modoTexto}").`);
   }
   const modo = modoTexto;
-  // La demostración pública: la base debe ser solo suya y los límites por dirección deben ver la del cliente.
+  // Modo demo: la base debe ser solo suya y los límites por dirección deben ver la del cliente.
   const configDemo = modo === 'demo' ? leerConfigDemo(env) : undefined;
   if (modo === 'demo') {
     if (env.FHN_DEMO === '1') throw new Error('FHN_DEMO=1 es la demostración del modo local; con FHN_MODO=demo no se usa. Quítala.');
@@ -95,7 +132,7 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
     if (!env.FHN_PROXIES_DE_CONFIANZA?.trim() && !env.FHN_IP_CLIENTE_CABECERA?.trim()) {
       throw new Error(
         'FHN_MODO=demo necesita saber la dirección de cada visitante para sus límites: define FHN_PROXIES_DE_CONFIANZA ' +
-          '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. Fly-Client-IP en Fly.io). Ver docs/demo.md.',
+          '(0 si los clientes llegan directo) o FHN_IP_CLIENTE_CABECERA (p. ej. X-Real-IP o CF-Connecting-IP).',
       );
     }
   }
@@ -224,8 +261,15 @@ export async function arrancar(env: NodeJS.ProcessEnv = process.env): Promise<Se
 
   const app = crearApp({ pool: poolApi, modo, rol, cofre, consola, proxiesDeConfianza, cabeceraIpCliente, hayDemo, soloTenantsLocales: modo === 'local', demo: configDemo });
   const puerto = Number(env.PUERTO ?? 8787);
-  const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' });
-  console.log(`factura-hn API (${modo}) en http://localhost:${puerto} · documentación en /docs`);
+  const servidor = serve({ fetch: app.fetch, port: puerto, hostname: env.FHN_HOST ?? '0.0.0.0' }) as Server;
+  let escucha: number;
+  try {
+    escucha = await esperarEscucha(servidor, puerto);
+  } catch (e) {
+    await poolApi.end().catch(() => undefined);
+    throw e;
+  }
+  console.log(lineaDeArranque({ modo, puerto: escucha, puertoPublicado: env.FHN_PUERTO, enContenedor: existsSync('/.dockerenv') }));
 
   // Cada 5 s, sin esperar a la pasada anterior: los tenants que siguen entregando se omiten (enCurso), así que
   // un receptor lento solo retrasa los avisos de su propio tenant.

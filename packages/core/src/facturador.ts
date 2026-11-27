@@ -5,10 +5,10 @@
  * Es una fachada, no un segundo camino: cada método llama a `emitir`, `anular`, `registrarAutorizacion` o
  * `buscarDocumento`, con la misma transacción, las mismas validaciones y la misma bitácora.
  */
-import { calcularDocumento } from './calculo';
+import { calcularDocumento, problemaDeMoneda, problemaDePreciosIncluyenISV } from './calculo';
 import { congelar } from './inmutable';
 import { ErrorValidacion, validarEmisor } from './documento';
-import { anular, buscarDocumento, emitir, exigirAlmacen, registrarAutorizacion } from './emision';
+import { anular, buscarDocumento, emitir, exigirAlmacen, problemasDeCaja, registrarAutorizacion } from './emision';
 import { esNumeroValido, formatearNumero, parsearNumero } from './numeracion';
 import type { LibroContable } from './exportacion';
 import type { AlmacenFiscal, FiltroDocumentos, TransaccionFiscal } from './almacen';
@@ -123,6 +123,9 @@ const tres = (v: string | number) => String(v).trim().padStart(3, '0');
 export function crearFacturador(config: ConfigFacturador): Facturador {
   exigirAlmacen(config?.almacen, 'crearFacturador');
   const problemas = validarEmisor(config.emisor);
+  const problemaPrecios = problemaDePreciosIncluyenISV(config.preciosIncluyenISV);
+  if (problemaPrecios) problemas.push(problemaPrecios);
+  problemas.push(...problemasDeCaja(config.establecimiento ?? '000', config.puntoEmision ?? '001'));
   if (problemas.length) throw new ErrorValidacion(problemas);
   const almacen = config.almacen;
   const emisor = congelar(structuredClone(config.emisor));
@@ -199,12 +202,15 @@ export function crearFacturador(config: ConfigFacturador): Facturador {
           ...(o.operador !== undefined ? { operador: o.operador } : {}),
         },
       ),
-    cotizar: (venta) =>
-      calcularDocumento(venta.lineas, {
+    cotizar: (venta) => {
+      const problemas = [problemaDePreciosIncluyenISV(venta.preciosIncluyenISV), problemaDeMoneda(venta.moneda)].filter((p) => p !== null);
+      if (problemas.length) throw new ErrorValidacion(problemas);
+      return calcularDocumento(venta.lineas, {
         preciosIncluyenISV: venta.preciosIncluyenISV ?? config.preciosIncluyenISV ?? false,
         exonerado: Boolean(venta.exoneracion),
         moneda: venta.moneda ?? 'HNL',
-      }),
+      });
+    },
     emitir: (venta, o) =>
       emitirEntrada({ ...venta, emisor, preciosIncluyenISV: venta.preciosIncluyenISV ?? config.preciosIncluyenISV ?? false }, o),
     notaCredito: (n, o) => nota('06', n, o),

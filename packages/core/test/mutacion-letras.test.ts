@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de letras.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de letras.ts (pnpm mutacion).
 // Reglamento Art. 11: el importe total va en número y en letras. Se recorre cada palabra de las tablas, los
 // casos especiales (CIEN, UN/VEINTIÚN delante de un sustantivo, «DE» tras MILLÓN) y los límites de entrada.
 import { describe, expect, it } from 'vitest';

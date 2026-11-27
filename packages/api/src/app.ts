@@ -41,6 +41,7 @@ import {
   registrarAutorizacionConAvisos,
   renderizarHTML,
   renderizarTexto,
+  TIPOS_DOCUMENTO,
   validarEntrada,
   type AutorizacionCAI,
   type DocumentoFiscal,
@@ -95,30 +96,14 @@ import {
 // La versión sale de packages/api/package.json (el empaquetador la incrusta; `pnpm run version` la sube con los
 // paquetes publicados). Va en `FacturaHN-Version`, `/salud` y `info.version` de `/openapi.json`.
 import { version as VERSION_PAQUETE } from '../package.json';
+import { mensajeEnEspanol } from './mensajes-forma';
 export const VERSION_API: string = VERSION_PAQUETE;
-
-const LOCALE_ES = z.locales.es().localeError;
-const LOCALE_EN = z.locales.en().localeError;
-const textoDe = (m: unknown): string | undefined => (typeof m === 'string' ? m : (m as { message?: string } | null | undefined)?.message);
-
-/**
- * Mensaje en español de un problema de forma (400), solo para la respuesta de la API: no cambia la configuración
- * global de Zod (otra biblioteca del mismo proceso sigue con sus mensajes). Zod ya no trae la entrada en el
- * problema; se toma de `datos` (lo que se validó) por su ruta. Un mensaje propio del esquema se respeta: solo se
- * traduce el que coincide con el mensaje por omisión de Zod.
- */
-function mensajeEnEspanol(issue: z.core.$ZodIssue, datos: unknown): string {
-  const input = issue.path.reduce<unknown>((v, k) => (v !== null && typeof v === 'object' ? (v as Record<PropertyKey, unknown>)[k as PropertyKey] : undefined), datos);
-  const conEntrada = { ...issue, input } as Parameters<typeof LOCALE_ES>[0];
-  if (textoDe(LOCALE_EN(conEntrada)) !== issue.message) return issue.message;
-  return textoDe(LOCALE_ES(conEntrada)) ?? issue.message;
-}
 
 export interface ConfigApi {
   pool: pg.Pool;
   /**
    * - `local`: un solo negocio (Art. 47); `alojado`: varios negocios con RLS;
-   * - `demo`: la demostración pública: solo entornos de prueba que crea cualquiera con `POST /v1/demo/entornos` y que
+   * - `demo`: modo demo: solo entornos de prueba que crea cualquiera con `POST /v1/demo/entornos` y que
    *   se borran a las 24 h. Sin webhooks, sin cambiar el emisor ficticio y con límites estrictos (ver `demo`).
    */
   modo: 'local' | 'alojado' | 'demo';
@@ -141,10 +126,9 @@ export interface ConfigApi {
    *   las demás esperan su turno en una cola de a lo sumo `maxEnCola` (por defecto 256) durante a lo sumo
    *   `esperaMaxMs` (por defecto 5000). Más allá, 429 `DEMASIADOS_INTENTOS` con `Retry-After`.
    * - `porSegundo`, `rafaga` (por defecto 2 y 20): fichas por dirección (IPv6 por su /64). Un prefijo inexistente
-   *   gasta una; una llave válida no gasta nada. Solo cuentan con el semáforo saturado: entonces cada consulta en
-   *   curso de la dirección reserva una ficha y, sin fichas libres, 429 `DEMASIADOS_INTENTOS` sin consultar la
-   *   base. Con lugares libres, la consulta corre aunque la dirección no tenga fichas (todas las cajas de una
-   *   instalación con Docker llegan desde la misma puerta de enlace).
+   *   gasta una; una llave válida no gasta nada. Sin fichas libres, una llave que el proceso no conoce recibe 429
+   *   `DEMASIADOS_INTENTOS` sin consultar la base. Con el semáforo saturado, además, cada consulta en curso de la
+   *   dirección reserva una ficha.
    * - Las mismas tasas, por prefijo, para los fallos de un prefijo que existe (secreto equivocado, llave revocada
    *   o tenant inactivo): una caja que reintenta con su llave revocada se frena solo a sí misma.
    * - `memoriaInactivaMs` (por defecto 15 000): cuánto recuerda el proceso que un prefijo existe sin llave activa
@@ -386,7 +370,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       return { registrado: r.rows[0]?.registrado === true };
     });
   const registrar = cfg.registrar ?? ((m: string, e?: unknown) => console.error(m, e));
-  // --- Modo demo: estado en memoria de este proceso (una sola réplica; ver docs/demo.md) ---
+  // --- Modo demo: estado en memoria de este proceso (una sola réplica) ---
   const demo = cfg.modo === 'demo' ? (cfg.demo ?? configDemo()) : null;
   const ipDe = (c: Context<Env>) => ipDeSolicitud(c, proxies, cfg.cabeceraIpCliente);
   const maxCuerpo = demo?.maxCuerpo ?? 512 * 1024;
@@ -411,7 +395,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     demoPausa.hasta = ahora + 5000;
     return demoPausa.valor;
   };
-  const errorPausa = () => new ErrorApi(503, 'DEMO_PAUSADO', 'La demostración está en pausa. Vuelve a intentarlo más tarde.', { reintentarEn: 600 });
+  const errorPausa = () => new ErrorApi(503, 'DEMO_PAUSADO', 'El modo demo está en pausa. Vuelve a intentarlo más tarde.', { reintentarEn: 600 });
   const expiraDe = async (tenant: string): Promise<number | null> => {
     const ya = demoExpira.get(tenant);
     if (ya !== undefined) return ya;
@@ -480,7 +464,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // PowerShell 5.1 (Invoke-RestMethod) lee el cuerpo como Latin-1 y «Café» llega como «CafÃ©».
     if (/^application\/json\s*$/i.test(c.res.headers.get('content-type') ?? '')) c.header('Content-Type', TIPO_JSON);
   });
-  // CORS solo para lo que llama el navegador (la página «Pruébalo ahora»): `POST /v1/demo/entornos`, sin credenciales.
+  // CORS solo para lo que llama el navegador (una página de un origen permitido): `POST /v1/demo/entornos`, sin credenciales.
   // Solo los orígenes de FHN_DEMO_ORIGENES; nunca «*». También en los errores (429, 503), que pasan por aquí.
   app.use('/v1/demo/*', async (c, next) => {
     const origen = c.req.header('origin');
@@ -561,14 +545,15 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Demo pública: crear un entorno de prueba (sin llave) ------------------------------------------------------
   // Se registra antes de la autenticación: su manejador responde sin pasar por ella. Fuera del modo demo, 404.
+  // No se publica en la especificación (`hide`, ver OPERACIONES_NO_PUBLICADAS en ./demo).
   app.openapi(
     createRoute({
-      method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [],
-      summary: 'Crea un entorno de prueba propio (solo en el servidor de demostración)',
+      method: 'post', path: RUTA_ENTORNOS_DEMO, operationId: 'crearEntornoDemo', tags: ['Demostración'], security: [], hide: true,
+      summary: 'Crea un entorno de prueba propio (solo con el modo demo activo)',
       description:
         'Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para ' +
         'quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el ' +
-        'servidor lo tiene, una URL personal del MCP remoto. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
+        'servidor lo tiene, la URL del MCP remoto del entorno. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El ' +
         'entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo ' +
         'el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los ' +
         'orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. ' +
@@ -582,13 +567,13 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     }),
     async (c) => {
       if (!demo) throw new ErrorApi(404, 'NO_ENCONTRADO', 'Ruta no encontrada.');
-      // Todo entorno de la demostración es de prueba: lo dice también en los errores (403, 429, 503).
+      // Todo entorno del modo demo es de prueba: lo dice también en los errores (403, 429, 503).
       c.header('FacturaHN-Modo', 'prueba');
       // CORS no frena un POST sin cuerpo (es una solicitud «simple»): una página de otro sitio podría crear entornos con
       // la dirección de sus visitantes. Con Origin, solo los de FHN_DEMO_ORIGENES; sin Origin (curl, el SDK), se atiende.
       const origen = c.req.header('origin');
       if (origen !== undefined && !demo.origenes.includes(origen)) {
-        throw new ErrorApi(403, 'ORIGEN_NO_PERMITIDO', 'Esta página no puede crear entornos de prueba. Usa la del sitio de factura-hn o curl.');
+        throw new ErrorApi(403, 'ORIGEN_NO_PERMITIDO', 'Esta página no puede crear entornos de prueba: su origen no está en FHN_DEMO_ORIGENES. Usa un origen permitido o curl.');
       }
       if (await demoPausado()) throw errorPausa();
       const ip = ipDe(c);
@@ -612,10 +597,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         )).rows[0]!;
         if (cupo.estado !== 'ok') return cupo;
         await tx.consulta('INSERT INTO api_emisores (tenant, datos) VALUES ($1, $2)', [tenant, JSON.stringify(EMISOR_DEMO)]);
-        const insertarLlave = (k: { prefijo: string; hash: Buffer }, nombre: string) =>
-          tx.consulta("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', $4)", [k.prefijo, tenant, k.hash, nombre]);
-        await insertarLlave(llave, 'Visitante (demo)');
-        if (mcp) await insertarLlave(mcp, 'MCP remoto (demo)');
+        await tx.consulta("INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre) VALUES ($1, $2, $3, 'admin', 'Visitante (demo)')", [llave.prefijo, tenant, llave.hash]);
+        // El token del MCP va en una URL: solo puede ser de una llave de caja (emite en 000-001, no anula ni administra).
+        if (mcp) {
+          await tx.consulta(
+            "INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, 'caja', 'MCP remoto (demo)', '000', '001')",
+            [mcp.prefijo, tenant, mcp.hash],
+          );
+        }
         // Los CAI ficticios, en la misma transacción: un entorno nunca queda a medias.
         const enEstaTx = { transaccion: <T>(fn: (x: TransaccionFiscal) => Promise<T>) => fn(t) } as unknown as AlmacenPostgres;
         for (const tipoDocumento of ['01', '06', '07'] as const) {
@@ -654,14 +643,14 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   /**
    * Modo demo, dentro de la autenticación (antes de las cabeceras de la llave): solo entornos de prueba vigentes,
-   * interruptor global, límites por entorno y globales, y fuera lo que no tiene sentido en una demostración pública
+   * interruptor global, límites por entorno y globales, y fuera lo que no tiene sentido en modo demo
    * (webhooks: la red interna del proveedor; cambiar el emisor ficticio; crear llaves). Revocar una llave sí se
    * puede: así se apaga la URL del MCP.
    */
   const exigirDemo = async (c: Context<Env>, tenant: string, modoTenant: ModoTenant) => {
     if (!demo) return;
     if (await demoPausado()) throw errorPausa();
-    const soloPrueba = () => new ErrorApi(403, 'DEMO_SOLO_PRUEBA', 'Este servidor de demostración solo atiende entornos de prueba.');
+    const soloPrueba = () => new ErrorApi(403, 'DEMO_SOLO_PRUEBA', 'Este servidor está en modo demo: solo atiende entornos de prueba.');
     if (modoTenant !== 'prueba') throw soloPrueba();
     const expira = await expiraDe(tenant);
     if (expira === null) throw soloPrueba();
@@ -669,10 +658,10 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     const m = c.req.method;
     const ruta = c.req.path;
     if (ruta.startsWith('/v1/webhooks') || (ruta.startsWith('/v1/emisores') && m !== 'GET') || (ruta === '/v1/llaves' && m === 'POST')) {
-      throw new ErrorApi(403, 'DEMO_NO_DISPONIBLE', 'Esta operación no está disponible en la demostración pública.');
+      throw new ErrorApi(403, 'DEMO_NO_DISPONIBLE', 'Esta operación no está disponible en modo demo.');
     }
     const lleno = (espera: number) => {
-      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en la demostración. Espera y reintenta.', { reintentarEn: espera });
+      if (espera > 0) throw new ErrorApi(429, 'DEMASIADAS_SOLICITUDES', 'Demasiadas solicitudes en modo demo. Espera y reintenta.', { reintentarEn: espera });
     };
     // Primero los límites del entorno y al final el global: un entorno que se pasa de los suyos no gasta el cupo de
     // todos (con sus dos llaves admin podría agotarlo y dejar en 429 a los demás visitantes).
@@ -688,7 +677,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   app.openapi(
     createRoute({
-      method: 'options', path: RUTA_ENTORNOS_DEMO, operationId: 'preflightEntornoDemo', tags: ['Demostración'], security: [],
+      method: 'options', path: RUTA_ENTORNOS_DEMO, operationId: 'preflightEntornoDemo', tags: ['Demostración'], security: [], hide: true,
       summary: 'Preflight CORS de la creación de entornos',
       description: 'Con `FHN_MODO=demo` y un `Origin` de `FHN_DEMO_ORIGENES`, lleva las cabeceras `Access-Control-*`; si no, ninguna.',
       responses: { 204: { description: 'Sin cuerpo' }, ...respuestasDe(413, 500) },
@@ -719,9 +708,9 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
     // El límite de la llave cuenta solo solicitudes con su secreto correcto: conocer un prefijo no basta para
     // dejarla en 429. Una llave que este proceso ya validó (mismo hash, en memoria) no pasa por el límite de
     // intentos. Las demás: (1) una sola consulta por prefijo a la vez y a lo sumo `consultasSimultaneas` en el
-    // proceso; las demás esperan en una cola acotada en tamaño y tiempo; (2) solo si hay que hacer cola, la
-    // dirección necesita una ficha libre además de las reservadas por sus consultas en curso, o recibe 429 sin
-    // consultar la base; (3) el fallo de un prefijo que existe se cobra a ese prefijo y el de un prefijo
+    // proceso; las demás esperan en una cola acotada en tamaño y tiempo; (2) un prefijo desconocido necesita una
+    // ficha libre de su dirección (si hay que hacer cola, además de las reservadas por sus consultas en curso), o
+    // recibe 429 sin consultar la base; (3) el fallo de un prefijo que existe se cobra a ese prefijo y el de un prefijo
     // inexistente, a la dirección; (4) un prefijo registrado sin llave activa se recuerda `memoriaInactivaMs`.
     // Una llave válida no gasta fichas.
     const hashVisto = verificadas.get(prefijo);
@@ -747,14 +736,17 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         // Quien llega mientras ya se consulta su prefijo espera ese resultado: no consulta la base ni reserva.
         let enCurso = enVueloPorPrefijo.get(prefijo);
         if (!enCurso) {
-          // La dirección solo frena cuando hay que hacer cola. Un prefijo desconocido necesita una ficha libre; uno
-          // ya conocido no gasta fichas, pero la dirección no puede tener más de `rafaga` consultas en curso: si no,
-          // quien conoce muchos prefijos (p. ej. un admin con muchas llaves) llena la cola para todos.
-          if (consultasNuevas.saturado) {
-            const enVuelo = enVueloPorIp.get(ip) ?? 0;
-            const espera = registradoConocido ? (enVuelo >= rafagaIntentos ? 1 : 0) : intentosPorIp.espera(ip, enVuelo);
-            if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
-          }
+          // Un prefijo desconocido necesita una ficha libre de su dirección, también sin cola: así se frenan los
+          // intentos seguidos, uno tras otro, que nunca llenan la cola. Con cola, además de las reservadas por sus
+          // consultas en curso. Uno ya conocido no gasta fichas, pero con cola la dirección no puede tener más de
+          // `rafaga` consultas en curso: si no, quien conoce muchos prefijos (p. ej. un admin con muchas llaves)
+          // llena la cola para todos.
+          const saturado = consultasNuevas.saturado;
+          const enVuelo = enVueloPorIp.get(ip) ?? 0;
+          const espera = registradoConocido
+            ? (saturado && enVuelo >= rafagaIntentos ? 1 : 0)
+            : intentosPorIp.espera(ip, saturado ? enVuelo : 0);
+          if (espera > 0) throw new ErrorApi(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos con llaves no válidas. Espera y reintenta.', { reintentarEn: espera });
           enVueloPorIp.set(ip, (enVueloPorIp.get(ip) ?? 0) + 1);
           reservada = true;
           enCurso = consultasNuevas.con(() => buscarLlave(prefijo)).finally(() => enVueloPorPrefijo.delete(prefijo));
@@ -930,7 +922,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'post', path: '/v1/emisores', operationId: 'crearEmisor', tags: ['Emisor'], security: seguridad,
       summary: 'Registra los datos del obligado tributario (uno por tenant)',
       request: { body: { content: { 'application/json': { schema: S.Emisor } }, required: true } },
-      responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorRespuesta, 'Ya existe'), ...respuestasError },
+      responses: { 201: json(S.RespuestaEmisor, 'Registrado'), 409: json(S.ErrorEmisorExiste, 'Ya existe (EMISOR_EXISTE), con el `id` del emisor actual'), ...respuestasError },
     }),
     async (c) => {
       exigirAdmin(c);
@@ -1544,6 +1536,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Series ----------------------------------------------------------------------------------------------
   const rutaSerie = z.object({ identificador: z.string().regex(IDENTIFICADOR).openapi({ example: '000-001-01' }) });
+  // Una consulta con un tipo que no existe (000-001-99) es un error de forma (400), no una serie vacía.
+  const rutaSerieConsulta = z.object({
+    identificador: z.string().regex(IDENTIFICADOR)
+      .refine((id) => id.slice(8) in TIPOS_DOCUMENTO, { message: `el tipo de documento (los dos últimos dígitos) no existe: usa uno de ${Object.keys(TIPOS_DOCUMENTO).join(', ')}` })
+      .openapi({ example: '000-001-01' }),
+  });
   app.openapi(
     createRoute({
       method: 'post', path: '/v1/series/{identificador}/corregir-fecha', operationId: 'corregirFechaSerie', tags: ['Series'], security: seguridad,
@@ -1571,7 +1569,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'get', path: '/v1/series/{identificador}/no-utilizados', operationId: 'listarNoUtilizados', tags: ['Series'], security: seguridad,
       summary: 'Números que hay que reportar al SAR como no utilizados (Art. 42)',
       description: 'Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.',
-      request: { params: rutaSerie },
+      request: { params: rutaSerieConsulta },
       responses: {
         200: json(
           z.object({
@@ -1628,6 +1626,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
         },
         // 403 `CAJA_SIN_PUNTO`: una llave de caja sin punto de emisión.
         ...respuestasDe(400, 401, 403, 422, 429, 500),
+        422: json(S.ErrorPeriodo, 'El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)'),
       },
     }),
     async (c) => {
@@ -1696,6 +1695,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           content: { 'application/x-ndjson': { schema: z.string() }, 'text/csv': { schema: z.string() }, 'text/plain': { schema: z.string() } },
         },
         ...respuestasDe(400, 401, 403, 422, 429, 500),
+        422: json(S.ErrorPeriodo, 'El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE)'),
       },
     }),
     async (c) => {

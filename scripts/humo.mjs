@@ -123,14 +123,14 @@ function crearProyecto(dir, tarballs) {
 
 /**
  * El ejemplo mínimo del README de factura-hn (el que se ve en npm), guardado como factura.mjs y corrido con node.
- * Es el bloque que sigue a «En cada venta» (el mismo que comprueba packages/core/test/readme.test.ts).
+ * Es el bloque ```js con `crearFacturadorDemo` (el mismo que comprueba packages/core/test/readme.test.ts).
  */
 async function caminoSDK({ proyecto, tarballs }) {
   const readme = leerDeTgz(tarballs.core, 'package/README.md').replace(/\r\n/g, '\n');
-  const bloque = [...readme.matchAll(/```(?:ts|js)\n([\s\S]*?)```/g)].map((m) => m[1]).find((c) => c.includes('// En cada venta'));
-  if (!bloque) throw new Error('El README de factura-hn no trae el ejemplo mínimo (bloque con «// En cada venta»).');
-  const variable = /const (\w+) = await emitir\(/.exec(bloque)?.[1];
-  if (!variable) throw new Error('El ejemplo mínimo no guarda el resultado de emitir en una constante.');
+  const bloque = [...readme.matchAll(/```js\n([\s\S]*?)```/g)].map((m) => m[1]).find((c) => c.includes('crearFacturadorDemo'));
+  if (!bloque) throw new Error('El README de factura-hn no trae el ejemplo mínimo (bloque ```js con «crearFacturadorDemo»).');
+  if (!/const factura = await /.test(bloque)) throw new Error('El ejemplo mínimo no guarda el documento emitido en «factura».');
+  const variable = 'factura';
   const archivo = join(proyecto, 'factura.mjs');
   writeFileSync(archivo, `${bloque}\nconsole.log(JSON.stringify({ numero: ${variable}.numero, total: ${variable}.totales.total }));\n`);
   const salida = correr(process.execPath, [archivo], { cwd: proyecto }).trim().split('\n').at(-1);
@@ -250,13 +250,15 @@ async function caminoMCP({ proyecto }) {
   const r = JSON.parse(salidaCliente.trim().split('\n').at(-1));
   const faltan = HERRAMIENTAS_MCP.filter((h) => !r.herramientas.includes(h));
   if (faltan.length) throw new Error(`el servidor MCP no registra ${faltan.join(', ')}`);
+  const sobran = r.herramientas.filter((h) => !HERRAMIENTAS_MCP.includes(h));
+  if (sobran.length) throw new Error(`el servidor MCP registra herramientas que el humo no conoce: ${sobran.join(', ')}`);
   if (r.error || r.datos?.prueba !== true || !r.texto.includes(LEYENDA_PRUEBA)) {
     throw new Error(`emitir_factura no devolvió un documento de prueba: ${JSON.stringify(r)}`);
   }
   return `${r.herramientas.length} herramientas; ${r.datos.documento.numero} de prueba`;
 }
 
-const HERRAMIENTAS_MCP = ['emitir_factura', 'emitir_nota_credito', 'consultar_documento', 'anular_documento', 'estado_cai', 'libro_ventas', 'registrar_cai'];
+const HERRAMIENTAS_MCP = ['emitir_factura', 'emitir_nota_credito', 'consultar_documento', 'listar_documentos', 'anular_documento', 'estado_cai', 'libro_ventas', 'registrar_cai'];
 
 /** Cliente MCP del proyecto de prueba: lee de stdin el servidor (command, args, env, cwd) y emite una factura. */
 const CLIENTE_MCP = `import { Client } from '@modelcontextprotocol/sdk/client/index.js';

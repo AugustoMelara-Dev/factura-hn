@@ -1,6 +1,6 @@
 /**
  * Notas vigentes y tope de la nota de crédito:
- * - Arts. 41 y 4 num. 32 (lectura de factura-hn): un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
+ * - Arts. 41 y 4 num. 32: un original con notas vigentes no se anula (`DOCUMENTO_CON_NOTAS`).
  * - Art. 4 num. 32: tope de la nota de crédito por tasa; original en USD por el mismo camino que la nota;
  *   `AVISO_NOTA_EXONERACION_DISTINTA`.
  * - Menores: `ANULACION_MOTIVO`, `estadoAutorizacion` con una serie que viene de otro CAI, `caiEstricto` en la demo,
@@ -140,19 +140,20 @@ describe('Art. 4 num. 32: tope de la nota de crédito por tasa', () => {
   });
 });
 
-describe('Art. 4 num. 32: original en dólares por el mismo camino que la nota', () => {
-  it('la devolución total de 7 × USD 0.07 a 24.5 se emite (antes NOTA_SUPERA_ORIGINAL: L 13.81 contra L 13.72)', async () => {
+describe('Art. 4 num. 32: original en dólares con la misma conversión que la nota y el libro', () => {
+  it('la devolución total de 7 × USD 0.07 a 24.5 acredita lo que el libro registró de la venta: L 13.73', async () => {
     const LINEA = [{ descripcion: 'Tornillo', cantidad: 7, precioUnitario: '0.07' }];
-    const f = await factura({ moneda: 'USD', tipoCambio: '24.5', lineas: LINEA }); // USD 0.56
-    expect(f.equivalenteLempiras!.total).toBe(13.72);
+    const f = await factura({ moneda: 'USD', tipoCambio: '24.5', lineas: LINEA }); // USD 0.49 + ISV 0.07
+    // 0.49 × 24.5 = 12.005 → 12.01 y 0.07 × 24.5 = 1.715 → 1.72: total 13.73, la suma de las columnas.
+    expect(f.equivalenteLempiras).toEqual({ isv15: 1.72, total: 13.73 });
     const nc = await nota(f, LINEA);
-    expect(nc.totales.total).toBe(13.81);
+    expect(nc.totales).toMatchObject({ importeGravado15: 12.01, isv15: 1.72, total: 13.73 });
     // Saldo agotado: otra nota, aunque sea mínima, ya no cabe.
     const errores = await errorDe(nota(f, [{ descripcion: 'Tornillo', cantidad: 1, precioUnitario: '0.01' }]));
-    expect(errores![0]!.mensaje).toContain('total L 13.81, ya acreditado L 13.81 en 1 nota(s), saldo disponible L 0.00');
+    expect(errores![0]!.mensaje).toContain('total L 13.73, ya acreditado L 13.73 en 1 nota(s), saldo disponible L 0.00');
   });
 
-  it('con precios con ISV incluido, descuento y exoneración, el original en lempiras es el de su nota idéntica', async () => {
+  it('con precios con ISV incluido, descuento y exoneración, la nota idéntica agota el saldo', async () => {
     const LINEAS = [
       { descripcion: 'Taladro', cantidad: 3, precioUnitario: '12.3457', descuento: '1.11' },
       { descripcion: 'Broca', cantidad: 2, precioUnitario: '0.9999', isv: 'ISV18' as const },

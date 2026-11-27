@@ -1,47 +1,50 @@
 // Referencia de la API REST generada de packages/api/openapi.json, en Markdown y en español.
 // Orden (como la referencia de Stripe): autenticación, errores, idempotencia y paginación; después las rutas por
 // etiqueta y los esquemas. Es contenido normal del sitio, así que Pagefind lo indexa.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import GithubSlugger from 'github-slugger';
 import { RAIZ, REPO } from '../../sitio.config.mjs';
+import { EJEMPLOS, PREAMBULO, VARIABLES, variablesDe } from './ejemplos-openapi.mjs';
 
 const METODOS = ['get', 'post', 'put', 'patch', 'delete'];
 
-/**
- * Orden de los grupos (etiquetas del OpenAPI): primero lo que más se usa. Una etiqueta nueva va antes de
- * «Demostración», que siempre queda al final.
- */
+/** Orden de los grupos (etiquetas del OpenAPI): primero lo que más se usa. Una etiqueta nueva va al final. */
 const ORDEN_GRUPOS = ['Documentos', 'Series', 'Autorizaciones', 'Emisor', 'Reportes', 'Auditoría', 'Llaves', 'Webhooks', 'Sesión', 'Sistema'];
-const posicionGrupo = (g) => (g === 'Demostración' ? 1000 : ORDEN_GRUPOS.includes(g) ? ORDEN_GRUPOS.indexOf(g) : 500);
+const posicionGrupo = (g) => (ORDEN_GRUPOS.includes(g) ? ORDEN_GRUPOS.indexOf(g) : 500);
 
-/** Valores de ejemplo para los formatos sin `example` en la especificación. Datos ficticios. */
-const POR_FORMATO = {
-  date: '2026-11-18',
-  'date-time': '2026-11-18T10:30:00-06:00',
-  uuid: '0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42',
-  email: 'cliente@ejemplo.example',
-  uri: 'https://ejemplo.example/webhooks/factura-hn',
-};
-/** Y por nombre de campo, para que el ejemplo se lea como un documento de prueba. Datos ficticios. */
-const POR_CAMPO = {
-  numero: '000-001-01-00000001',
-  cai: 'DEMO00-NO-VALIDO-0000-0000-0000-01',
-  rtn: '99990000000001',
-  razonSocial: 'Cliente de Prueba S. de R.L.',
-  nombreImpreso: 'Cliente de Prueba',
-  descripcion: 'Café molido 1 lb',
-  rangoAutorizado: '000-001-01-00000001 al 000-001-01-00001000',
-  fechaLimiteEmision: '2027-11-18',
-  fechaEmision: '2026-11-18',
-  fecha: '2026-11-18',
-  horaEmision: '10:30:00',
-  hora: '10:30:00',
-  totalEnLetras: 'DOSCIENTOS TREINTA LEMPIRAS EXACTOS',
-  establecimiento: '000',
-  puntoEmision: '001',
-  motivo: 'Error en el precio',
-};
+/** «MÉTODO /ruta» de cada operación que publica la referencia. */
+export function operacionesPublicadas(spec) {
+  const ops = [];
+  for (const [ruta, metodos] of Object.entries(spec.paths ?? {})) {
+    for (const metodo of Object.keys(metodos)) if (METODOS.includes(metodo)) ops.push(`${metodo.toUpperCase()} ${ruta}`);
+  }
+  return ops;
+}
+
+/**
+ * Las llaves y los secretos de una respuesta real, recortados al prefijo y «…». Son de una instalación de prueba
+ * que ya no existe, pero un secreto entero en la documentación parece uno que se puede usar.
+ */
+export function ocultarSecretos(valor) {
+  if (typeof valor === 'string') return valor.replace(/\b(fhn(?:mcp)?_(?:test_|live_)?[A-Za-z0-9]{6})[A-Za-z0-9_-]{12,}/g, '$1…');
+  if (Array.isArray(valor)) return valor.map(ocultarSecretos);
+  if (valor && typeof valor === 'object') {
+    return Object.fromEntries(
+      Object.entries(valor).map(([k, v]) => [
+        k,
+        /^(secreto|secretoAnterior|llave|token)$/.test(k) && typeof v === 'string' && v.length > 16 ? `${v.slice(0, 10)}…` : ocultarSecretos(v),
+      ]),
+    );
+  }
+  return valor;
+}
+
+/** Respuestas reales de los ejemplos, guardadas por scripts/capturar-ejemplos-openapi.mjs. */
+export function respuestasCapturadas() {
+  const archivo = join(RAIZ, 'web/scripts/lib/ejemplos-openapi.json');
+  return existsSync(archivo) ? JSON.parse(readFileSync(archivo, 'utf8')) : {};
+}
 
 /** Texto de la especificación → Markdown seguro: `<algo>` fuera del código no debe leerse como HTML. */
 const md = (s = '') =>
@@ -52,7 +55,7 @@ const md = (s = '') =>
 /** Lo mismo, para una celda de tabla: sin saltos de línea ni barras sueltas. */
 const celda = (s = '') => md(s).replace(/\|/g, '\\|').replace(/\n+/g, '<br>');
 
-export function referenciaApi(spec = JSON.parse(readFileSync(join(RAIZ, 'packages/api/openapi.json'), 'utf8'))) {
+export function referenciaApi(spec = JSON.parse(readFileSync(join(RAIZ, 'packages/api/openapi.json'), 'utf8')), capturadas = respuestasCapturadas()) {
   const esquemas = spec.components?.schemas ?? {};
   const nombreRef = (ref) => ref.split('/').at(-1);
 
@@ -96,71 +99,26 @@ export function referenciaApi(spec = JSON.parse(readFileSync(join(RAIZ, 'package
     return `| Campo | Tipo | Descripción |\n|---|---|---|\n${filas.join('\n')}\n`;
   };
 
-  /**
-   * Un valor de ejemplo que cumple el esquema: su `example`, el primer valor de su `enum`, su `default` o uno
-   * armado por tipo. `minimo` deja solo los campos obligatorios (para el cuerpo de una solicitud mínima).
-   */
-  const muestra = (s, { minimo = false, nivel = 0, campo } = {}) => {
-    if (!s || nivel > 12) return null;
-    if (s.$ref) return muestra(esquemas[nombreRef(s.$ref)], { minimo, nivel: nivel + 1, campo });
-    const t0 = Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type;
-    if (campo && POR_CAMPO[campo] !== undefined && (t0 === 'string' || (!t0 && !s.properties)) && !s.enum) return POR_CAMPO[campo];
-    if (s.example !== undefined) return s.example;
-    if (s.examples?.length) return s.examples[0];
-    if (s.const !== undefined) return s.const;
-    if (s.enum) return s.enum[0];
-    if (s.default !== undefined) return s.default;
-    if (s.allOf) return Object.assign({}, ...s.allOf.map((x) => muestra(x, { minimo, nivel: nivel + 1 }) ?? {}));
-    for (const k of ['oneOf', 'anyOf']) {
-      if (s[k]) return muestra(s[k].find((x) => x.type !== 'null') ?? s[k][0], { minimo, nivel: nivel + 1 });
-    }
-    const t = Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type;
-    if (t === 'object' || s.properties) {
-      const req = new Set(s.required ?? []);
-      const props = Object.entries(s.properties ?? {}).filter(([k]) => !minimo || req.has(k));
-      return Object.fromEntries(props.map(([k, v]) => [k, muestra(v, { minimo, nivel: nivel + 1, campo: k })]));
-    }
-    if (t === 'array') return [muestra(s.items, { minimo, nivel: nivel + 1 })].filter((x) => x !== null);
-    if (t === 'integer') return s.minimum ?? 1;
-    if (t === 'number') return s.minimum ?? 0;
-    if (t === 'boolean') return true;
-    if (t === 'string') return POR_FORMATO[s.format] ?? (s.minLength > 5 ? 'x'.repeat(s.minLength) : 'texto');
-    return null;
-  };
   const json = (v) => JSON.stringify(v, null, 2);
+  const ejemplos = new Map(EJEMPLOS.map((e) => [e.op, e]));
 
-  /** curl mínimo de una operación: la llave si la pide, la idempotencia si la exige y el cuerpo con lo obligatorio. */
-  const curlDe = ({ metodo, ruta, op, parametros }) => {
-    const valorParametro = (p) => {
-      const v = p.example ?? p.schema?.example ?? muestra(p.schema);
-      return encodeURIComponent(String(v ?? p.name));
-    };
-    let url = ruta.replace(/\{([^}]+)\}/g, (_, n) => valorParametro(parametros.find((p) => p.in === 'path' && p.name === n) ?? { name: n }));
-    const consulta = parametros.filter((p) => p.in === 'query' && p.required);
-    if (consulta.length) url += `?${consulta.map((p) => `${p.name}=${valorParametro(p)}`).join('&')}`;
-    const lineas = [`curl${metodo === 'get' ? '' : ` -X ${metodo.toUpperCase()}`} "$API${url}"`];
-    if ((op.security ?? spec.security ?? []).length) lineas.push('-H "authorization: Bearer $LLAVE"');
-    for (const p of parametros.filter((x) => x.in === 'header' && x.required)) {
-      lineas.push(`-H "${p.name.toLowerCase()}: ${/^idempotency-key$/i.test(p.name) ? '$(uuidgen)' : valorParametro(p)}"`);
+  /** El curl de una operación (lib/ejemplos-openapi.mjs) y su respuesta real (lib/ejemplos-openapi.json). */
+  const ejemploDe = ({ metodo, ruta }) => {
+    const clave = `${metodo.toUpperCase()} ${ruta}`;
+    const ejemplo = ejemplos.get(clave);
+    const respuesta = capturadas[clave];
+    if (!ejemplo || !respuesta) {
+      throw new Error(
+        `Referencia de la API: ${clave} no tiene ${ejemplo ? 'respuesta capturada' : 'ejemplo'}. Agrégalo en web/scripts/lib/ejemplos-openapi.mjs ` +
+          'y corre web/scripts/capturar-ejemplos-openapi.mjs contra una API nueva.',
+      );
     }
-    const cuerpo = op.requestBody?.content?.['application/json']?.schema;
-    if (cuerpo) {
-      lineas.push('-H "content-type: application/json"');
-      lineas.push(`-d '${JSON.stringify(muestra(cuerpo, { minimo: true }) ?? {})}'`);
-    }
-    return lineas.join(' \\\n  ');
+    return { ...ejemplo, respuesta };
   };
-
-  /** La primera respuesta 2xx con JSON, con su código y un ejemplo. */
-  const respuestaDe = (op) => {
-    for (const [codigo, r] of Object.entries(op.responses ?? {})) {
-      if (!/^2/.test(codigo)) continue;
-      const c = r.content?.['application/json'];
-      if (!c) return { codigo, ejemplo: null, tipo: Object.keys(r.content ?? {})[0] };
-      const ejemplo = c.example ?? Object.values(c.examples ?? {})[0]?.value ?? muestra(c.schema);
-      return { codigo, ejemplo };
-    }
-    return null;
+  /** Una respuesta de texto, recortada a sus primeras líneas. */
+  const recortar = (texto, max = 12) => {
+    const l = String(texto).replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n');
+    return l.length > max ? `${l.slice(0, max).join('\n')}\n…` : l.join('\n');
   };
 
   const operaciones = [];
@@ -181,12 +139,17 @@ export function referenciaApi(spec = JSON.parse(readFileSync(join(RAIZ, 'package
 ${spec.info?.version ?? ''}). Tu servidor la sirve en \`/openapi.json\` y la documentación interactiva en \`/docs\`. Cómo
 levantar la API, los roles, los webhooks y la seguridad están en la [guía de la API REST](/referencia/api/).
 
-Cada ruta trae un curl mínimo y un ejemplo de respuesta. Los ejemplos usan dos variables de la terminal:
+Cada ruta trae un curl que corre tal cual y la respuesta real que dio en una instalación nueva, levantada con
+\`docker compose up -d --build --wait\` (ver [Autoalojar la API](/guias/autoalojar/)). Los ejemplos son de bash:
+Linux, macOS, Git Bash o WSL en Windows. Antes, en la carpeta del repositorio, pega una vez:
 
 \`\`\`bash
-API=http://127.0.0.1:8787   # tu servidor (el puerto por defecto de la API)
-LLAVE=fhn_test_…            # una llave de la API
+${PREAMBULO}
 \`\`\`
+
+\`LLAVE\` emite y consulta en la caja 000-001; \`ADMIN\` anula y configura el emisor, los CAI, las llaves y los webhooks. Las dos
+son del tenant \`demo\`, con CAI ficticio: nada de lo que emitas ahí tiene validez fiscal. Los números, los \`id\` y las
+fechas de tus respuestas serán otros.
 
 ${md(spec.info?.description ?? '')}
 `;
@@ -264,12 +227,18 @@ nunca el texto. Qué hacer ante cada código: [catálogo de errores](/referencia
       }
       const cuerpo = op.requestBody?.content?.['application/json']?.schema;
       if (cuerpo) s += `Cuerpo (JSON): ${tipo(cuerpo)}\n\n`;
-      s += `\`\`\`bash\n${curlDe(o)}\n\`\`\`\n\n`;
-      const respuesta = respuestaDe(op);
-      if (respuesta?.ejemplo != null) {
-        s += `Respuesta \`${respuesta.codigo}\` (ejemplo armado con los valores de la especificación):\n\n\`\`\`json\n${json(respuesta.ejemplo)}\n\`\`\`\n\n`;
-      } else if (respuesta) {
-        s += `Respuesta \`${respuesta.codigo}\`${respuesta.tipo ? ` (\`${respuesta.tipo}\`)` : ', sin cuerpo'}.\n\n`;
+      const { curl, nota, respuesta } = ejemploDe(o);
+      const usa = variablesDe(curl);
+      if (usa.length) s += `${usa.map((v) => `\`$${v}\` es ${VARIABLES[v].texto}`).join('; ')}.\n\n`;
+      s += `\`\`\`bash\n${curl}\n\`\`\`\n\n`;
+      if (nota) s += `${nota}\n\n`;
+      const tipoR = respuesta.tipo ? ` (\`${respuesta.tipo}\`)` : '';
+      if (respuesta.tipo === 'application/json') {
+        s += `Respuesta \`${respuesta.codigo}\`:\n\n\`\`\`json\n${json(respuesta.cuerpo)}\n\`\`\`\n\n`;
+      } else if (respuesta.cuerpo) {
+        s += `Respuesta \`${respuesta.codigo}\`${tipoR}:\n\n\`\`\`text\n${recortar(respuesta.cuerpo)}\n\`\`\`\n\n`;
+      } else {
+        s += `Respuesta \`${respuesta.codigo}\`, sin cuerpo.\n\n`;
       }
       s += '| Respuesta | Descripción | Cuerpo |\n|---|---|---|\n';
       for (const [codigo, r] of Object.entries(op.responses ?? {})) {

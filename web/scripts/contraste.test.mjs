@@ -1,5 +1,5 @@
-// Contraste de la paleta del sitio (WCAG 2.x, luminancia relativa). Lee los tokens de src/styles/tokens.css (claro
-// en `:root`, oscuro en `:root[data-theme='dark']`) y las asignaciones de Starlight (tema.css) y de Astryx
+// Contraste de la paleta del sitio (WCAG 2.x, luminancia relativa). El sitio tiene un solo tema, claro. Lee los
+// tokens de src/styles/tokens.css (`:root`) y las asignaciones de Starlight (tema.css) y de Astryx
 // (astryx-puente.css), que apuntan a esos tokens. Si un cambio baja un par de AA, la prueba falla. Corre con
 // `node --test` (lo hace `pnpm sitio`).
 import assert from 'node:assert/strict';
@@ -21,7 +21,10 @@ const asignaciones = {
   ...variables(bloque(leerCss('astryx-puente.css'), '[data-astryx-theme]', 'astryx-puente.css')),
 };
 const claro = { ...variables(bloque(tokens, ':root', 'tokens.css')), ...asignaciones };
-const oscuro = { ...claro, ...variables(bloque(tokens, ":root[data-theme='dark']", 'tokens.css')) };
+
+test('un solo tema: tokens.css no define un tema oscuro', () => {
+  assert.doesNotMatch(tokens, /data-theme=.dark|prefers-color-scheme:\s*dark/);
+});
 
 function color(tema, nombre) {
   let v = tema[nombre];
@@ -82,45 +85,37 @@ const PARES = [
   ['--color-text-secondary', '--color-background-surface', 4.5, 'texto secundario de Astryx en superficie'],
 ];
 
-for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {
-  test(`contraste AA, tema ${nombreTema}`, () => {
-    const fallos = [];
-    for (const [texto, fondo, minimo, uso] of PARES) {
-      const r = contraste(color(tema, texto), color(tema, fondo));
-      if (r < minimo) fallos.push(`${uso}: ${texto} sobre ${fondo} = ${r.toFixed(2)} (< ${minimo})`);
-    }
-    assert.deepEqual(fallos, []);
-  });
-}
+test('contraste AA de la paleta', () => {
+  const fallos = [];
+  for (const [texto, fondo, minimo, uso] of PARES) {
+    const r = contraste(color(claro, texto), color(claro, fondo));
+    if (r < minimo) fallos.push(`${uso}: ${texto} sobre ${fondo} = ${r.toFixed(2)} (< ${minimo})`);
+  }
+  assert.deepEqual(fallos, []);
+});
 
-// El código resaltado de la portada: cada color que Shiki le da, en los dos temas, sobre el fondo del bloque
-// (.codigo en sitio.css: --fhn-fondo).
-// Shiki llega con Astro (no es dependencia directa del sitio): se carga desde ahí.
+// El código resaltado de la portada: cada color que Shiki le da, sobre el fondo del bloque (.codigo en sitio.css:
+// --fhn-superficie). Shiki llega con Astro (no es dependencia directa del sitio): se carga desde ahí.
 test('contraste AA del código resaltado de la portada', async () => {
   const { createRequire } = await import('node:module');
   const { pathToFileURL } = await import('node:url');
   const desdeAstro = createRequire(createRequire(import.meta.url).resolve('astro/package.json'));
   const { codeToTokens } = await import(pathToFileURL(desdeAstro.resolve('shiki')).href);
-  const { EJEMPLO_PORTADA, temasCodigo } = await import('../src/datos/ejemplo.mjs');
-  const { tokens } = await codeToTokens(EJEMPLO_PORTADA, { lang: 'ts', themes: await temasCodigo() });
+  const { EJEMPLO_PORTADA, temaCodigo } = await import('../src/datos/ejemplo.mjs');
+  const { tokens: lineas } = await codeToTokens(EJEMPLO_PORTADA, { lang: 'js', theme: await temaCodigo() });
   const fallos = new Set();
-  for (const t of tokens.flat().filter((x) => x.content.trim())) {
-    for (const [nombreTema, tema, clave] of [['claro', claro, 'color'], ['oscuro', oscuro, '--shiki-dark']]) {
-      const c = t.htmlStyle?.[clave]?.slice(0, 7);
-      const r = contraste(c, color(tema, '--fhn-fondo'));
-      if (r < 4.5) fallos.add(`${nombreTema}: «${t.content.trim()}» ${c} = ${r.toFixed(2)}`);
-    }
+  for (const t of lineas.flat().filter((x) => x.content.trim())) {
+    const c = t.color.slice(0, 7);
+    const r = contraste(c, color(claro, '--fhn-superficie'));
+    if (r < 4.5) fallos.add(`«${t.content.trim()}» ${c} = ${r.toFixed(2)}`);
   }
   assert.deepEqual([...fallos], []);
 });
 
-// `node scripts/contraste.test.mjs --tabla` imprime la tabla de contrastes de cada tema.
+// `node scripts/contraste.test.mjs --tabla` imprime la tabla de contrastes.
 if (process.argv.includes('--tabla')) {
-  for (const [nombreTema, tema] of [['claro', claro], ['oscuro', oscuro]]) {
-    console.log(`\n${nombreTema}`);
-    for (const [texto, fondo, minimo, uso] of PARES) {
-      const [a, b] = [color(tema, texto), color(tema, fondo)];
-      console.log(`| ${uso} | \`${a}\` sobre \`${b}\` | ${contraste(a, b).toFixed(2).replace('.', ',')} | ${minimo} |`);
-    }
+  for (const [texto, fondo, minimo, uso] of PARES) {
+    const [a, b] = [color(claro, texto), color(claro, fondo)];
+    console.log(`| ${uso} | \`${a}\` sobre \`${b}\` | ${contraste(a, b).toFixed(2).replace('.', ',')} | ${minimo} |`);
   }
 }

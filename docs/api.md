@@ -7,16 +7,13 @@ Hono + OpenAPI 3.1 + PostgreSQL. El mismo código sirve dos modos:
 | `local` (por defecto) | Un negocio con su propio servidor y base en el establecimiento (Art. 47) | Uno: `local` | http o https, también hacia la red del negocio |
 | `alojado` | Un operador que sirve a varios negocios | Varios, aislados con RLS | Solo https y nunca hacia direcciones internas |
 
-> **Modo alojado:** su encaje con el Art. 47 («el establecimiento donde se encuentre el servidor») no está
-> claro en el Reglamento, que no prevé de forma literal un servidor de un tercero. Mientras el SAR no lo aclare, la
-> recomendación es el modo local.
-
 ## La primera factura (3 pasos)
 
-Desde la raíz del repositorio, con Docker y Compose v2. Emite en el tenant `demo`, con **CAI ficticio**: el
+Con Docker y Compose v2, desde un clon del repositorio. Emite en el tenant `demo`, con **CAI ficticio**: el
 documento es de prueba y no tiene validez fiscal.
 
 ```bash
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git && cd factura-hn
 docker compose up -d --build --wait     # API en http://127.0.0.1:8787 (otro puerto: FHN_PUERTO=8788 docker compose …)
 ```
 
@@ -115,8 +112,7 @@ caja si no debe anular). Ver `packages/cliente/README.md` y `packages/mcp/README
 Documentación interactiva en `/docs` y especificación en `/openapi.json` (también en
 `packages/api/openapi.json`, que se regenera con `pnpm --filter @factura-hn/api openapi`). Cada operación tiene un
 `operationId` estable, en camelCase y en español (verbo + recurso: `emitirDocumento`, `listarDocumentos`,
-`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método. La CI pasa
-la especificación por un linter (`pnpm lint:openapi`, Redocly) y falla con cualquier error.
+`anularDocumento`…): los clientes generados en otros lenguajes toman de ahí el nombre de cada método.
 
 ### Colecciones de Bruno y Postman, y clientes en otros lenguajes
 
@@ -151,14 +147,23 @@ Antes de usarlas, levanta la API (`docker compose up -d --build --wait`) y crea 
 **Python.** `clientes/python/` genera un cliente con
 [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) y lo prueba emitiendo una
 factura de prueba (correlativo, idempotencia, total, desglose del ISV y leyenda «DOCUMENTO DE PRUEBA — SIN VALOR
-FISCAL»). El código generado no
-se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual dentro del repositorio:
+FISCAL»). El código generado no se versiona: se genera en `clientes/python/generado/`. Con un entorno virtual
+dentro del repositorio y `FHN_LLAVE` exportada, en Linux y macOS:
 
 ```bash
 python -m venv .venv-python
-.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt   # Windows: .venv-python\Scripts\pip
+.venv-python/bin/pip install --require-hashes -r clientes/python/requirements.txt
 .venv-python/bin/python clientes/python/generar.py
-FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python   # con FHN_LLAVE exportada
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/bin/python -m pytest clientes/python
+```
+
+En Windows (Git Bash), el entorno virtual pone los programas en `Scripts` en lugar de `bin`:
+
+```bash
+python -m venv .venv-python
+.venv-python/Scripts/pip install --require-hashes -r clientes/python/requirements.txt
+.venv-python/Scripts/python clientes/python/generar.py
+FHN_API_URL=http://127.0.0.1:8787 .venv-python/Scripts/python -m pytest clientes/python
 ```
 
 En tu proyecto, `from factura_hn_api import AuthenticatedClient` y
@@ -171,21 +176,20 @@ ejemplo [Kiota](https://learn.microsoft.com/openapi/kiota/) (C#, PHP, Go, Java, 
 openapi-generator si soporta los `anyOf` y los tipos con `null` de 3.1. Lo que ningún generador hace por ti y
 hay que escribir a mano: una `Idempotency-Key` estable por venta, mostrar tal cual los errores 422
 (`errores[].mensaje`), la cabecera `X-Operador` codificada con `encodeURIComponent` si lleva tildes, y la
-verificación de la firma de los webhooks (ver «Webhooks»). La CI corre la colección de Bruno y la prueba de
-Python contra la imagen de Docker en cada cambio.
+verificación de la firma de los webhooks (ver «Webhooks»).
 
 ### Variables de entorno
 
 | Variable | Por defecto | |
 |---|---|---|
-| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13; sirve Supabase). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
+| `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres ≥ 13). Con `FHN_MIGRAR_URL`, un rol LOGIN que no es dueño de las tablas: si no existe, la migración lo crea (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`, sin contraseña) y le concede el rol de la aplicación |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas: migra y prepara el modo local al arrancar, y la usa la consola. Sin ella, la API usa `DATABASE_URL` para todo, corre como dueño de las tablas y lo avisa en el log |
 | `FHN_MIGRAR_AL_ARRANCAR` | `1` | `0`: la API no migra al arrancar ni necesita al dueño de las tablas; exige el esquema al día y que `DATABASE_URL` no sea dueño, superusuario ni `BYPASSRLS`. La migración corre aparte (`factura-hn-api migrar`). No sirve en modo local |
-| `FHN_MODO` | `local` | `local`, `alojado` o `demo` (la demostración pública, ver [demo](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local |
+| `FHN_MODO` | `local` | `local` (un negocio) o `alojado` (varios). Sin definir, la API avisa en el log que corre en modo local |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo efectivo: 7) |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de webhooks (AES-256-GCM). Obligatoria en `alojado` |
-| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz donde escucha el proceso. `::` escucha en IPv6 e IPv4 (una red privada solo IPv6, como la de Fly.io). Con Docker Compose, el puerto publicado en el equipo es `FHN_PUERTO` (8787 por defecto) |
+| `PUERTO` / `FHN_HOST` | `8787` / `0.0.0.0` | Puerto e interfaz donde escucha el proceso. `::` escucha en IPv6 e IPv4. Con Docker Compose, el puerto publicado en el equipo es `FHN_PUERTO` (8787 por defecto) |
 | `FHN_DEMO` | — | `1`: datos de demostración en modo local |
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Proxies delante de la API, para el límite de intentos: la lista de sus direcciones o rangos CIDR (`fdaa:0:1a2b::/48`), o su número (ver «Límites de solicitudes»; el número, solo si a la API se llega únicamente por el proxy) |
 | `FHN_CONSOLA` | `node packages/api/dist/cli.js` | Cómo se muestra la consola en los mensajes. La imagen de Docker la define como `docker compose exec api factura-hn-api` |
@@ -208,11 +212,18 @@ aparece la forma de Docker Compose; los mensajes del servidor usan la de su desp
 ```bash
 docker compose exec api factura-hn-api ayuda                     # lista los comandos; también --help
 docker compose exec api factura-hn-api migrar
-docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # modo alojado: imprime la llave admin (fhn_live_…)
-docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # modo alojado, sandbox: llaves fhn_test_…, solo CAI ficticios
-docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
+docker compose exec api factura-hn-api llave crear local --rol caja --nombre "Caja 2" --caja 000-002
+docker compose exec api factura-hn-api llave crear local --rol caja --caja 000-001 --mcp   # token y URL del MCP por HTTP (ChatGPT)
 docker compose exec api factura-hn-api demo llave                # otra llave de caja del demo (--rol admin, --solo-llave)
-docker compose exec api factura-hn-api openapi openapi.json
+docker compose exec -T api factura-hn-api openapi > openapi.json # la especificación, en tu equipo
+```
+
+Solo en modo alojado (`FHN_MODO=alojado`, varios tenants), con un `docker-compose.yml` propio:
+
+```bash
+docker compose exec api factura-hn-api tenant crear ferreteria-norte --nombre "Ferretería Norte" --limite 5000   # imprime la llave admin (fhn_live_…)
+docker compose exec api factura-hn-api tenant crear ferreteria-norte-prueba --modo prueba   # sandbox: llaves fhn_test_…, solo CAI ficticios
+docker compose exec api factura-hn-api llave crear ferreteria-norte --rol caja --nombre "Caja 2" --caja 000-002
 ```
 
 `ayuda <comando>` (o `<comando> --help`) muestra el uso de cada uno. Un error de uso sale en español, con el uso
@@ -226,7 +237,11 @@ local es de un solo negocio (para el tuyo, `llave crear local --rol admin`). Los
 reservados (los usa el servidor en modo local), y `demo llave` solo crea llaves en el tenant de demostración
 (el del emisor y el CAI ficticios). `tenant crear --modo prueba|produccion` (por defecto `produccion`) fija el
 modo del tenant, que no cambia después (ver «Tenants de prueba y de producción»). `llave crear` y `demo llave`
-crean la llave con la marca del modo de su tenant.
+crean la llave con la marca del modo de su tenant. `llave crear … --mcp` (solo con `--rol caja --caja <establecimiento-punto>`)
+guarda la misma llave, pero imprime un token `fhnmcp_…` y la URL `https://<tu-servidor>/mcp/<token>` para conectar
+el MCP por HTTP (`@factura-hn/mcp http`) desde un cliente que solo acepta una URL, como ChatGPT. Trata esa URL
+como una contraseña: quien la tenga emite en esa caja (no anula ni administra). Se revoca con
+`DELETE /v1/llaves/{prefijo}`.
 
 ### Modo local y modo alojado
 
@@ -413,12 +428,13 @@ antes a centavos.
 {
   "error": {
     "codigo": "VALIDACION",
-    "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Arts. 59-61).",
-    "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: POST /v1/autorizaciones …",
+    "mensaje": "No hay autorización (CAI) registrada para este punto de emisión y tipo de documento (Factura, serie 000-009-01) (Arts. 59-61).",
+    "solucion": "Registra con una llave admin el CAI de este punto de emisión y tipo de documento: `POST /v1/autorizaciones` con el CAI, el rango y la fecha límite de la resolución del SAR. `GET /v1/sesion` dice qué falta para emitir.",
     "documentacion": "https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/errores.md#sin_autorizacion",
-    "solicitud": "0b6f9c3e-6a1d-4f7e-9a51-2f3c8d7e1a42"
+    "solicitud": "744161c4-1b32-4172-ab06-958492845d20"
   },
-  "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "…", "solucion": "…", "documentacion": "…#sin_autorizacion" }]
+  "errores": [{ "codigo": "SIN_AUTORIZACION", "mensaje": "No hay autorización (CAI) registrada …", "solucion": "…", "documentacion": "…#sin_autorizacion" }],
+  "advertencias": []
 }
 ```
 
@@ -491,10 +507,10 @@ Solo lee datos del tenant de la llave (RLS).
   `Retry-After` hasta el primer día del mes siguiente a las 00:00 de Honduras. El documento no se emite y el
   número no se consume.
 - **Intentos con llaves que este proceso aún no validó:** 2 fichas por segundo y ráfaga de 20 por dirección
-  (opción `limiteIntentos`). Cada consulta en curso reserva una ficha: sin fichas libres, 429
-  `DEMASIADOS_INTENTOS` **sin consultar la base**, aunque lleguen muchas a la vez. Una llave que resulta válida
-  no gasta su ficha, y las solicitudes simultáneas con la misma llave hacen una sola consulta. Una llave que ya
-  autenticó en este proceso no pasa por este límite, aunque su dirección lo agote, y un secreto equivocado con
+  (opción `limiteIntentos`). Cada llave inexistente gasta una ficha, y sin fichas libres la respuesta es 429
+  `DEMASIADOS_INTENTOS` **sin consultar la base**, lleguen seguidas o muchas a la vez (con cola, cada consulta en
+  curso reserva además una ficha). Una llave que resulta válida no gasta su ficha, y las solicitudes simultáneas
+  con la misma llave hacen una sola consulta. Una llave que ya autenticó en este proceso no pasa por este límite, aunque su dirección lo agote, y un secreto equivocado con
   su prefijo no la saca de memoria.
 - **Fallos de una llave que existe** (secreto equivocado, llave revocada o tenant inactivo): se cobran a esa
   llave, con las mismas tasas, y no a la dirección. Así, una caja que sigue usando su llave revocada se frena
@@ -504,8 +520,8 @@ Solo lee datos del tenant de la llave (RLS).
   (`limiteIntentos.consultasSimultaneas`); las demás esperan su turno en cola. Esto acota la carga sobre
   Postgres sin dar 429 a nadie.
 - **Después de reiniciar la API** el proceso no recuerda ninguna llave validada. Si más de unas 20 cajas detrás de
-  la misma dirección (una NAT, la puerta de enlace de Docker) llegan a la vez con la cola de consultas llena, las
-  que pasan de la ráfaga reciben 429 `DEMASIADOS_INTENTOS` con un `Retry-After` de pocos segundos, aunque sus llaves sean válidas:
+  la misma dirección (una NAT, la puerta de enlace de Docker) llegan a la vez con la cola de consultas llena, o si
+  esa dirección gastó sus fichas con llaves inexistentes, las que pasan de la ráfaga reciben 429 `DEMASIADOS_INTENTOS` con un `Retry-After` de pocos segundos, aunque sus llaves sean válidas:
   la API todavía no sabe si lo son (eso es lo que protege contra la fuerza bruta). Al reintentar después de
   `Retry-After` entran, y desde ahí ya no pasan por este límite. Un cliente que reintenta después de `Retry-After`
   no tiene que hacer nada más; uno que arranca muchas cajas a la vez puede validar cada llave
@@ -661,9 +677,7 @@ tu propio verificador, no armes un mapa de la cabecera: con dos `v1`, un mapa se
 - Webhooks en modo alojado: solo https, sin direcciones internas (IPv4 e IPv6, incluidas NAT64, 6to4 y las
   IPv4 incrustadas; también los nombres con punto final, como `localhost.`), y la conexión va a la misma IP que se
   validó (sin DNS rebinding) y sin redirecciones. De la respuesta del receptor solo se guarda el código de estado.
-- Las pruebas de `packages/api/test/owasp/` recorren el OWASP API Security Top 10 (2023) contra la API; el resultado
-  está en `docs/calidad/owasp.md` y se repite con `pnpm calidad:owasp`.
-- `FHN_MODO` acepta solo `local` o `alojado`: un valor mal escrito no arranca. Sin definir, avisa en el log; en
+- Con un `FHN_MODO` mal escrito, la API no arranca. Sin definir, avisa en el log; en
   modo local, una base con tenants de otros negocios no arranca.
 - Una llave de caja siempre emite en su punto de emisión. Si una llave de caja vieja no tiene punto de emisión
   completo, emitir con ella da 403 `CAJA_SIN_PUNTO`; la consola exige `--caja 000-001` con `--rol caja`.

@@ -78,7 +78,7 @@ declare const original: DocumentoFiscal;
 ```ts
 import { emitir } from 'factura-hn';
 
-const nota = await emitir(
+const devolucion = await emitir(
   {
     tipoDocumento: '06',
     emisor,
@@ -112,14 +112,10 @@ La suma de las notas de crédito vigentes sobre un documento no puede superar su
 libera su importe; una nota de débito no amplía el saldo. Un original en dólares se compara en lempiras, con su
 tipo de cambio.
 
-La nota tampoco puede llevar ISV a una tasa que el original no tenía, ni ISV sobre un original exonerado
-(`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
+La nota tampoco puede llevar ISV a una tasa que el original no tenía, importe exento o gravado al 0 % que el
+original no tenía, ni ISV sobre un original exonerado (`NOTA_TASA_DISTINTA`). Usa en cada línea el mismo tratamiento de ISV que en el original.
 
-:::caution[Lectura de factura-hn]
-Ningún artículo fija un tope numérico para la Nota de Crédito. El tope y la regla de la tasa se derivan del
-Art. 4 num. 32: la nota ajusta el comprobante «correspondiente», así que no puede devolver más de lo vendido ni a
-otra tasa. Es la lectura que aplica factura-hn; confírmala con tu contador.
-:::
+factura-hn no deja que las notas superen el saldo del documento original ni cambien su tasa.
 
 ## El RTN del adquirente
 
@@ -128,13 +124,6 @@ Toda nota lleva nombre y RTN del adquirente (Art. 26 num. 1-2). Por eso una devo
 
 Si pasas `cliente` con nombre y RTN y el original no tenía RTN, la nota se emite con
 `AVISO_ORIGINAL_SIN_RTN`: confirma que es el mismo cliente.
-
-:::caution[Lectura de factura-hn]
-Los Arts. 26 y 28 no dicen si una nota sobre un original sin RTN debe aceptarse, ni con qué RTN. factura-hn la
-acepta con el aviso `AVISO_ORIGINAL_SIN_RTN`; así, la nota puede dar crédito fiscal a un adquirente que el original
-no identificaba. Consulta con tu
-contador antes de emitir notas sobre ventas a consumidor final.
-:::
 
 ## Documentos que no están en este sistema
 
@@ -148,7 +137,7 @@ declare const caja: Facturador;
 -->
 ```ts
 // El original es la factura 57 de otra caja, emitida en papel. Sus datos se copian del documento.
-const nota = await caja.notaCredito({
+const descuento = await caja.notaCredito({
   original: '000-002-01-00000057',
   referencia: { cai: 'A1B2C3-D4E5F6-A1B2C3-D4E5F6-A1B2C3-D4', fecha: '2026-11-02' },
   cliente: { nombre: 'Ferretería Ejemplo S. de R.L.', rtn: '99990000000002' },
@@ -156,7 +145,7 @@ const nota = await caja.notaCredito({
   preciosIncluyenISV: true,
   lineas: [{ descripcion: 'Descuento por pronto pago', cantidad: '1', precioUnitario: '50.00' }],
 });
-nota.advertencias.map((a) => a.codigo); // ['AVISO_ORIGINAL_EXTERNO']
+descuento.advertencias.map((a) => a.codigo); // ['AVISO_ORIGINAL_EXTERNO']
 ```
 
 Con un original externo no se puede comprobar el saldo ni la tasa.
@@ -164,8 +153,7 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 - **Números que este sistema administra.** Si el número del original cae en una autorización registrada aquí y
   todavía no se emitió, el documento no puede existir: `REFERENCIA_NO_EXISTE`.
 - **Series migradas.** Para una serie que se emitió en parte fuera de factura-hn, la autorización acepta
-  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente. El
-  Reglamento no regula la migración de una serie: es la lectura que aplica factura-hn.
+  `ultimoEmitidoAntes`. Los números hasta ese valor cuentan como externos y la serie sigue en el siguiente.
 - **Con la API REST**, una nota sobre un original externo exige una llave admin. Con una llave de caja la
   respuesta es 403 `SOLO_ADMIN` y no se consume número. Es una política de seguridad de la API, no una regla
   fiscal.
@@ -173,7 +161,9 @@ Con un original externo no se puede comprobar el saldo ni la tasa.
 ## Moneda extranjera
 
 La nota se emite en lempiras (Art. 26 num. 9). Si el original está en dólares, escribe las líneas de la nota en
-dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Con el original
+dólares: se convierten con el tipo de cambio del original, que la nota imprime como referencia. Sus importes se
+convierten igual que el libro de ventas convierte el original (columna por columna), así que una nota con las
+mismas líneas lo acredita entero. Con el original
 en el almacén, la moneda y el tipo de cambio se toman de él. Con un original externo, indica
 `referencia.moneda` y `referencia.tipoCambio`.
 
@@ -191,7 +181,7 @@ ventas del período. Una nota anulada sale con su número y montos en cero.
 | [`REFERENCIA`](/referencia/errores/#referencia) | Falta la referencia al documento original |
 | [`MOTIVO`](/referencia/errores/#motivo) | Falta el motivo |
 | [`NOTA_SUPERA_ORIGINAL`](/referencia/errores/#nota_supera_original) | La nota, sumada a las anteriores, supera el total del original |
-| [`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta) | La nota lleva ISV a otra tasa, o sobre un original exonerado |
+| [`NOTA_TASA_DISTINTA`](/referencia/errores/#nota_tasa_distinta) | La nota lleva ISV a otra tasa, exento o 0 % que el original no tenía, o ISV sobre un original exonerado |
 | [`REFERENCIA_ANULADA`](/referencia/errores/#referencia_anulada) | El original está anulado |
 | [`REFERENCIA_FECHA_NO_COINCIDE`](/referencia/errores/#referencia_fecha_no_coincide) | La fecha de la referencia no es la del original guardado |
 | [`REFERENCIA_TIPO`](/referencia/errores/#referencia_tipo) | El original no es un comprobante fiscal |
@@ -204,4 +194,3 @@ Avisos: [`AVISO_ORIGINAL_EXTERNO`](/referencia/errores/#aviso_original_externo) 
 
 - Reglamento, Arts. 4 num. 32, 6, 25, 26 y 41. En la [matriz de cumplimiento](/referencia/cumplimiento/), busca
   esos artículos: cada uno tiene su estado y la prueba que lo verifica.
-- Lecturas de factura-hn donde la norma no es literal: [Estado legal](/produccion/estado-legal/).

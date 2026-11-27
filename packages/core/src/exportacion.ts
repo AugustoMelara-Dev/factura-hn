@@ -7,9 +7,7 @@
  * Art. 53 num. 1: «El sistema de facturación debe estar integrado al menos a un sistema contable o de
  * inventarios.»
  *
- * En las fuentes revisadas el SAR no fija un formato de archivo para autoimpresores. Por eso
- * se ofrecen tres formatos abiertos y
- * documentados; cuando exista un formato oficial se agrega aquí.
+ * factura-hn ofrece tres formatos abiertos y documentados.
  * Todos los importes se escriben desde centavos enteros, sin punto flotante.
  */
 import { centavosATexto, redondearDecimal, textoSeguroCSV } from './dinero';
@@ -99,7 +97,7 @@ export function inicioExportacion(formato: FormatoExportacion, total: number): s
     case 'txt':
       return `#factura-hn|v${VERSION_EXPORTACION}|${total}\n` + COLUMNAS.join('|') + '\n';
     default:
-      throw new Error(`Formato de exportación desconocido: ${String(formato)}`);
+      throw new Error(`Formato de exportación desconocido: ${String(formato)}. Usa 'jsonl', 'csv' o 'txt'.`);
   }
 }
 
@@ -133,7 +131,7 @@ export function lineaExportacion(d: ResumenDocumento, formato: FormatoExportacio
       return COLUMNAS.map((c) => f[c].replace(/[|\r\n]+/g, ' ')).join('|') + '\n';
     }
     default:
-      throw new Error(`Formato de exportación desconocido: ${String(formato)}`);
+      throw new Error(`Formato de exportación desconocido: ${String(formato)}. Usa 'jsonl', 'csv' o 'txt'.`);
   }
 }
 

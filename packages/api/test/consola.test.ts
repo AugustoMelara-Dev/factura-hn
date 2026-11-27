@@ -2,14 +2,18 @@
  * Consola del operador: ayuda, errores de uso en español con código 1, y `demo llave` contra PostgreSQL real.
  */
 import { randomBytes } from 'node:crypto';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import pg from 'pg';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { crearApp } from '../src/app';
-import { ejecutarConsola } from '../src/consola';
+import { ejecutarConsola, textoTokenMcp } from '../src/consola';
+import { generarTokenMcp, hashLlave, llaveDeTokenMcp, prefijoDe } from '../src/llaves';
 import { iniciarLocal, TENANT_DEMO } from '../src/operador';
 import { arrancar } from '../src/servidor';
 import { migrarApi } from '../src/esquema';
-import { cerrarPool, cliente, EMISOR, poolPrueba, ROL, URL_PG } from './ayuda';
+import { cerrarPool, cliente, EMISOR, nombreTenant, poolPrueba, ROL, URL_PG } from './ayuda';
 
 const conBase = describe.skipIf(!URL_PG);
 afterAll(cerrarPool);
@@ -28,6 +32,13 @@ describe('consola: ayuda y uso', () => {
       expect(r.codigo).toBe(0);
       for (const c of ['migrar', 'tenant crear', 'llave crear', 'demo llave', 'openapi']) expect(r.log).toContain(c);
     }
+  });
+
+  it('version, --version y -v imprimen la versión del paquete con código 0; la ayuda lo lista', async () => {
+    const { version } = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as { version: string };
+    for (const a of ['version', '--version', '-v']) expect(await correr([a])).toMatchObject({ codigo: 0, log: version });
+    expect((await correr(['ayuda'])).log).toMatch(/^ {2}version$/m);
+    expect((await correr(['version', 'extra'])).codigo).toBe(1);
   });
 
   it('ayuda de un subcomando, también con --help', async () => {
@@ -57,6 +68,9 @@ describe('consola: ayuda y uso', () => {
       [['tenant', 'crear', 'x', '--color', 'azul'], 'Opción desconocida: --color'],
       [['migrar', 'ya'], 'Sobra el argumento «ya»'],
       [['demo', 'llave', '--rol', 'jefe'], '--rol debe ser admin o caja'],
+      // El token del MCP va en una URL: solo de caja, y lo dice con qué hacer.
+      [['llave', 'crear', 'local', '--rol', 'admin', '--mcp'], 'solo puede ser de una llave de caja'],
+      [['llave', 'crear', 'local', '--rol', 'admin', '--caja', '000-001', '--mcp'], 'usa --rol caja --caja 000-001 con --mcp'],
     ] as const) {
       const r = await correr([...args]);
       expect(r.codigo, args.join(' ')).toBe(1);
@@ -76,14 +90,142 @@ describe('consola: ayuda y uso', () => {
     }
   });
 
+  it('llave crear --mcp: la ayuda lo dice y el texto lleva el token, la URL y el aviso', async () => {
+    expect((await correr(['ayuda', 'llave', 'crear'])).log).toContain('[--mcp]');
+    const t = generarTokenMcp('produccion');
+    const texto = textoTokenMcp('000-001', t.token);
+    expect(texto).toContain(`https://<tu-servidor>/mcp/${t.token}`);
+    expect(texto).toMatch(/Trata esa URL como una contraseña/);
+    expect(texto).toMatch(/no puede anular/);
+    // La llave que se guarda es la que el servidor MCP deriva del token impreso.
+    const derivada = llaveDeTokenMcp(t.token)!;
+    expect(derivada).toBe(t.llave);
+    expect(derivada).toMatch(/^fhn_live_/);
+    expect(prefijoDe(derivada)).toBe(t.prefijo);
+    expect(hashLlave(derivada).equals(t.hash)).toBe(true);
+  });
+
   it('openapi imprime la especificación sin base', async () => {
     const r = await correr(['openapi']);
     expect(r.codigo).toBe(0);
     expect(JSON.parse(r.log).paths['/v1/sesion']).toBeDefined();
   });
 
+  it('una conexión que vence por tiempo (pg-pool, sin code) da el mensaje de conexión, no el texto en inglés', async () => {
+    const corte = new Error('Connection terminated due to connection timeout');
+    const conectar = vi.spyOn(pg.Pool.prototype, 'connect').mockRejectedValue(corte as never);
+    const consultar = vi.spyOn(pg.Pool.prototype, 'query').mockRejectedValue(corte as never);
+    try {
+      const r = await correr(['demo', 'limpiar'], { DATABASE_URL: 'postgres://nadie@127.0.0.1:1/x' });
+      expect(r.codigo).toBe(1);
+      expect(r.error).toContain('no se pudo conectar a la base (tiempo de espera agotado)');
+      expect(r.error).toContain('DATABASE_URL');
+      expect(r.error).not.toContain('Connection terminated');
+    } finally {
+      conectar.mockRestore();
+      consultar.mockRestore();
+    }
+  });
+
+  it('openapi <archivo>: lo escribe; si no puede (carpeta inexistente o sin permiso), lo dice en español y sugiere redirigir', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fhn-openapi-'));
+    try {
+      const bien = join(dir, 'op ñ.json');
+      const r = await correr(['openapi', bien]);
+      expect(r.codigo).toBe(0);
+      expect(JSON.parse(readFileSync(bien, 'utf8')).paths['/v1/sesion']).toBeDefined();
+      expect(r.log).toContain('Especificación OpenAPI escrita en');
+
+      const sinCarpeta = await correr(['openapi', join(dir, 'no-existe', 'x.json')]);
+      expect(sinCarpeta.codigo).toBe(1);
+      expect(sinCarpeta.error).toMatch(/No se pudo escribir .*x\.json \(la carpeta no existe\)/);
+      expect(sinCarpeta.error).toContain('openapi > openapi.json');
+      expect(sinCarpeta.error).not.toMatch(/ENOENT|no such file/);
+
+      // Un archivo de solo lectura (como la carpeta de trabajo de la imagen de Docker, que no se puede escribir).
+      // (root escribe igual en un archivo de solo lectura: ahí no aplica.)
+      if (process.getuid?.() === 0) return;
+      const soloLectura = join(dir, 'solo-lectura.json');
+      writeFileSync(soloLectura, '{}');
+      chmodSync(soloLectura, 0o444);
+      const sinPermiso = await correr(['openapi', soloLectura], { FHN_CONSOLA: 'docker compose exec -T api factura-hn-api' });
+      expect(sinPermiso.codigo).toBe(1);
+      expect(sinPermiso.error).toContain('(no hay permiso para escribir ahí)');
+      expect(sinPermiso.error).toContain('docker compose exec -T api factura-hn-api openapi > openapi.json');
+      expect(sinPermiso.error).not.toMatch(/EACCES|EPERM|permission denied/);
+      chmodSync(soloLectura, 0o644);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('el servidor rechaza un FHN_PROXIES_DE_CONFIANZA que no es un número', async () => {
     await expect(arrancar({ DATABASE_URL: 'postgres://nadie@127.0.0.1:1/x', FHN_PROXIES_DE_CONFIANZA: 'uno' })).rejects.toThrow(/FHN_PROXIES_DE_CONFIANZA/);
+  });
+});
+
+conBase('consola: llave crear --mcp', () => {
+  it('guarda la llave derivada del token con su rol y caja, y se revoca como cualquier llave', async () => {
+    const pool = await poolPrueba();
+    const env = { DATABASE_URL: URL_PG, FHN_ROL: ROL, FHN_MODO: 'alojado' };
+    const tenant = nombreTenant('mcp');
+    const creado = await correr(['tenant', 'crear', tenant], env);
+    expect(creado.codigo).toBe(0);
+    const admin = /Llave admin \(solo se muestra ahora\): (fhn_\S+)/.exec(creado.log)![1]!;
+    // Otra vez el mismo tenant: error en español que lo nombra, no el de Postgres.
+    const repetido = await correr(['tenant', 'crear', tenant], env);
+    expect(repetido.codigo).toBe(1);
+    expect(repetido.error).toContain(`El tenant «${tenant}» ya existe. Para otra llave: llave crear ${tenant} --rol admin`);
+    expect(repetido.error).not.toMatch(/duplicate key/);
+
+    // Con --rol admin se niega y no guarda ninguna llave.
+    const contar = async () => {
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        await c.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+        const n = (await c.query<{ n: number }>('SELECT count(*)::int AS n FROM api_llaves WHERE tenant = $1', [tenant])).rows[0]!.n;
+        await c.query('COMMIT');
+        return n;
+      } finally {
+        c.release();
+      }
+    };
+    const antes = await contar();
+    const negada = await correr(['llave', 'crear', tenant, '--rol', 'admin', '--mcp'], env);
+    expect(negada.codigo).toBe(1);
+    expect(negada.error).toContain('solo puede ser de una llave de caja');
+    expect(negada.log).not.toMatch(/fhnmcp_/);
+    expect(await contar()).toBe(antes);
+
+    const r = await correr(['llave', 'crear', tenant, '--rol', 'caja', '--caja', '000-001', '--mcp'], env);
+    expect(r.codigo).toBe(0);
+    const token = /Token MCP de la caja 000-001 \(solo se muestra ahora\): (fhnmcp_\S+)/.exec(r.log)?.[1];
+    expect(token).toMatch(/^fhnmcp_live_[0-9a-f]{12}_/);
+    expect(r.log).toContain(`https://<tu-servidor>/mcp/${token}`);
+    expect(r.log).not.toMatch(/fhn_live_/);
+
+    const app = crearApp({ pool, modo: 'alojado', rol: ROL, registrar: () => undefined });
+    const llave = llaveDeTokenMcp(token!)!;
+    const sesion = await cliente(app, llave)('GET', '/v1/sesion');
+    expect(sesion.status).toBe(200);
+    expect(((await sesion.json()) as { sesion: unknown }).sesion).toMatchObject({ tenant, llave: { rol: 'caja', establecimiento: '000', puntoEmision: '001' } });
+
+    // La bitácora dice que la llave es la de una URL del MCP.
+    const bit = await pool.connect();
+    try {
+      await bit.query('BEGIN');
+      await bit.query("SELECT set_config('factura_hn.tenant', $1, true)", [tenant]);
+      const fila = await bit.query("SELECT detalle FROM api_bitacora WHERE tenant = $1 AND accion = 'llave.creada' AND detalle->>'prefijo' = $2", [tenant, prefijoDe(llave)]);
+      await bit.query('COMMIT');
+      expect(fila.rows[0]?.detalle).toMatchObject({ rol: 'caja', mcp: true });
+    } finally {
+      bit.release();
+    }
+
+    const revocada = await cliente(app, admin)('DELETE', `/v1/llaves/${prefijoDe(llave)}`);
+    expect(revocada.status).toBeLessThan(300);
+    expect((await cliente(app, llave)('GET', '/v1/sesion')).status).toBe(401);
   });
 });
 

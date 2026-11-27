@@ -4,9 +4,11 @@
  *
  * Los montos del libro van en lempiras: un documento en moneda extranjera se convierte con el tipo de
  * cambio que el propio documento imprime (Art. 11, párrafo final), campo por campo y redondeando a centavos con
- * la regla del Art. 9 de la Ley del ISV. Así el resumen nunca suma dólares como si fueran lempiras.
+ * la regla del Art. 9 de la Ley del ISV; el total de la fila es la suma de sus columnas. Así el resumen nunca suma
+ * dólares como si fueran lempiras, y una nota de crédito por el total de una venta en dólares la deja en 0.
  */
-import { centavosATexto, deCentavos, dividirRedondeando, escaladoATexto, parsearDecimal, redondearDecimal, textoSeguroCSV } from './dinero';
+import { ESCALA_TIPO_CAMBIO, totalesALempiras } from './conversion';
+import { centavosATexto, deCentavos, escaladoATexto, parsearDecimal, redondearDecimal, textoSeguroCSV } from './dinero';
 import { separarDocumentosDePrueba } from './exportacion';
 import type { ResumenDocumento } from './tipos';
 
@@ -53,9 +55,10 @@ export function filaLibroVentas(doc: ResumenDocumento): FilaLibroVentas {
   const anulado = doc.estado === 'ANULADO';
   const signo = doc.tipoDocumento === '06' ? -1 : 1;
   const extranjera = doc.moneda !== 'HNL' && doc.tipoCambio !== undefined;
-  const tc = extranjera ? parsearDecimal(doc.tipoCambio!, 6, 'tipoCambio') : 1_000_000n;
-  const enLempiras = (v: number) => deCentavos(dividirRedondeando(redondearDecimal(v, 2) * tc, 1_000_000n));
-  const m = (v: number) => (anulado ? 0 : signo * enLempiras(v));
+  const tc = extranjera ? parsearDecimal(doc.tipoCambio!, 6, 'tipoCambio') : ESCALA_TIPO_CAMBIO;
+  // Columna por columna; el total es la suma de las columnas, así la fila cuadra al centavo (ver conversion.ts).
+  const L = totalesALempiras(doc.totales, tc);
+  const m = (campo: (typeof CAMPOS_RESUMEN)[number]) => (anulado ? 0 : signo * deCentavos(L[campo]));
   const t = doc.totales;
   return {
     fecha: doc.fechaEmision,
@@ -67,14 +70,14 @@ export function filaLibroVentas(doc: ResumenDocumento): FilaLibroVentas {
     moneda: doc.moneda,
     tipoCambio: extranjera ? Number(escaladoATexto(tc, 6)) : null,
     totalMonedaOriginal: anulado ? 0 : signo * t.total,
-    importeExonerado: m(t.importeExonerado),
-    importeExento: m(t.importeExento),
-    importeGravado0: m(t.importeGravado0),
-    importeGravado15: m(t.importeGravado15),
-    importeGravado18: m(t.importeGravado18),
-    isv15: m(t.isv15),
-    isv18: m(t.isv18),
-    total: m(t.total),
+    importeExonerado: m('importeExonerado'),
+    importeExento: m('importeExento'),
+    importeGravado0: m('importeGravado0'),
+    importeGravado15: m('importeGravado15'),
+    importeGravado18: m('importeGravado18'),
+    isv15: m('isv15'),
+    isv18: m('isv18'),
+    total: m('total'),
     anulado,
   };
 }

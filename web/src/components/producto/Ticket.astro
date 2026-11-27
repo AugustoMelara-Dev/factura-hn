@@ -1,0 +1,22 @@
+---
+// Un ticket real: lo emite el SDK del repositorio al construir el sitio, con el ejemplo de la portada, el emisor y el
+// CAI ficticios del modo de prueba. Lleva la leyenda «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL» que pone el SDK.
+// Nada aquí se escribe a mano: si el SDK cambia el ticket, la portada cambia con él.
+import { renderizarTexto } from 'factura-hn';
+import { crearFacturadorDemo } from 'factura-hn/demo';
+import { EJEMPLO_PORTADA, LINEA_PORTADA } from '../../datos/ejemplo.mjs';
+
+const { descripcion, cantidad, precioUnitario } = LINEA_PORTADA;
+if (!EJEMPLO_PORTADA.includes(`{ descripcion: '${descripcion}', cantidad: ${cantidad}, precioUnitario: '${precioUnitario}' }`)) {
+  throw new Error('El ticket de la portada no usa la misma línea que el ejemplo (datos/ejemplo.mjs).');
+}
+
+const caja = await crearFacturadorDemo();
+const factura = await caja.emitir({ lineas: [LINEA_PORTADA] });
+const texto = renderizarTexto(factura);
+---
+
+<figure class="ticket">
+	<pre class="ticket-papel" tabindex="0" aria-label={`Ticket de 80 mm de la factura ${factura.numero}`}>{texto}</pre>
+	<figcaption>El ticket que imprimen esas tres líneas, generado por el SDK al construir esta página.</figcaption>
+</figure>

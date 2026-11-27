@@ -35,6 +35,12 @@ const FORMATOS: Record<'carta' | 'ticket', Formato> = {
   ticket: { columnas: 42, tamano: 8, ancho: 80 * MM, alto: null, margen: 4 * MM },
 };
 
+/** El formato pedido, o un error que dice cuáles hay (desde JavaScript puede llegar cualquier texto). */
+function formatoDe(formato: unknown = 'carta'): Formato {
+  if (typeof formato === 'string' && Object.prototype.hasOwnProperty.call(FORMATOS, formato)) return FORMATOS[formato as keyof typeof FORMATOS];
+  throw new RangeError(`Formato de PDF desconocido: ${JSON.stringify(formato) ?? String(formato)}. Usa ${Object.keys(FORMATOS).map((f) => `'${f}'`).join(' o ')}.`);
+}
+
 // Caracteres fuera de la tabla ASCII que las fuentes estándar de PDF (WinAnsi) sí pueden dibujar.
 const WIN_ANSI_EXTRA = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
 
@@ -54,7 +60,7 @@ export function aWinAnsi(texto: string): string {
 
 /** Las líneas que se dibujan en el PDF (útil para pruebas y vistas previas). */
 export function lineasPDF(doc: DocumentoFiscal, opciones: OpcionesPDF = {}): string[] {
-  const f = FORMATOS[opciones.formato ?? 'carta'];
+  const f = formatoDe(opciones.formato);
   return renderizarTexto(doc, { ancho: f.columnas, leyenda: opciones.leyenda ?? null })
     .replace(/\n$/, '')
     .split('\n')
@@ -66,7 +72,7 @@ export function lineasPDF(doc: DocumentoFiscal, opciones: OpcionesPDF = {}): str
  * los metadatos son las de emisión), lo que permite guardar su huella.
  */
 export async function renderizarPDF(doc: DocumentoFiscal, opciones: OpcionesPDF = {}): Promise<Uint8Array> {
-  const f = FORMATOS[opciones.formato ?? 'carta'];
+  const f = formatoDe(opciones.formato);
   const lineas = lineasPDF(doc, opciones);
   const interlineado = f.tamano * 1.25;
 

@@ -1,12 +1,12 @@
 # Autoalojamiento con Docker
 
 La API de factura-hn y su base PostgreSQL corren en un equipo del negocio con Docker Compose. Así varias
-cajas de la red local emiten contra el mismo correlativo, y los documentos quedan en el establecimiento
-(el Reglamento no prevé de forma literal un sistema alojado por un tercero; Art. 47).
+cajas de la red local emiten contra el mismo correlativo, y el servidor queda en el establecimiento que el
+negocio registra (el Art. 47 pide registrar «el establecimiento donde se encuentre el servidor»).
 
 Necesitas Docker con Compose v2 y unos 300 MB de disco para las imágenes.
 
-## Probar en 2 minutos
+## Probar en 5 minutos
 
 ```bash
 git clone https://github.com/AugustoMelara-Dev/factura-hn.git
@@ -69,20 +69,18 @@ variables `DATABASE_URL` y `FHN_MIGRAR_URL`.
        environment:
          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+         FHN_API_PASSWORD: ${FHN_API_PASSWORD}
      api:
        environment:
          DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
          FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
    ```
 
-   La API corre como `fhn_api`, un rol que no es dueño de las tablas; `postgres` solo migra al arrancar. Con
-   contraseñas, crea `fhn_api` con la suya **antes** de arrancar la API (`\password` la pide sin dejarla en el
-   historial; escribe la misma de `FHN_API_PASSWORD`):
+   La API corre como `fhn_api`, un rol que no es dueño de las tablas; `postgres` solo migra al arrancar. Al
+   crear la base, `scripts/db-init/10-rol-api.sh` crea `fhn_api` con la contraseña de `FHN_API_PASSWORD`.
+   Arranca:
 
    ```bash
-   docker compose up -d --wait db
-   docker compose exec db psql -U postgres -d factura_hn \
-     -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
    docker compose up -d --build --wait
    ```
 
@@ -113,10 +111,16 @@ Los documentos fiscales no se borran ni se editan; el respaldo es lo que los pro
 ```bash
 # Respaldo diario (cópialo fuera del equipo: disco externo o nube del negocio)
 docker compose exec -T db pg_dump -U postgres -d factura_hn -Fc > respaldo-$(date +%F).dump
+```
 
-# Restaurar en una instalación nueva, antes de emitir nada
-docker compose up -d --wait db
-docker compose exec -T db pg_restore -U postgres -d factura_hn --clean --if-exists < respaldo-AAAA-MM-DD.dump
+Para restaurar en una instalación nueva, antes de emitir nada: arráncala completa una vez (crea los roles que el
+respaldo necesita), detén la API, restaura y vuelve a arrancar. Si usas contraseñas, pon antes tu `.env` y tu
+`docker-compose.override.yml`. Cambia `respaldo-AAAA-MM-DD.dump` por el nombre de tu respaldo:
+
+```bash
+docker compose up -d --build --wait
+docker compose stop api
+docker compose exec -T db pg_restore -U postgres -d factura_hn --clean --if-exists --single-transaction --exit-on-error < respaldo-AAAA-MM-DD.dump
 docker compose up -d --wait
 ```
 
@@ -133,21 +137,26 @@ docker compose up -d --build --wait   # las migraciones corren solas al arrancar
 `DATABASE_URL: postgres://postgres:…`): desde esta versión el `docker-compose.yml` separa el dueño de las tablas
 (`FHN_MIGRAR_URL`) del rol con el que corre la API (`DATABASE_URL`, `fhn_api`). Antes de actualizar, elige una:
 
-- **Recomendado:** crea `fhn_api` con su contraseña y pon **las dos** URL en tu override, cada una con su
-  contraseña (como en el ejemplo de «Poner en marcha un negocio»):
-
-  ```bash
-  # agrega FHN_API_PASSWORD a tu .env; después:
-  docker compose exec db psql -U postgres -d factura_hn \
-    -c "CREATE ROLE fhn_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT" -c "\password fhn_api"
-  ```
+- **Recomendado:** agrega `FHN_API_PASSWORD` a tu `.env` y pon en tu override esa variable en el servicio `db` y
+  **las dos** URL de la API, cada una con su contraseña (como en el ejemplo de «Poner en marcha un negocio»):
 
   ```yaml
   services:
+    db:
+      environment:
+        FHN_API_PASSWORD: ${FHN_API_PASSWORD}
     api:
       environment:
         DATABASE_URL: postgres://fhn_api:${FHN_API_PASSWORD}@db:5432/factura_hn
         FHN_MIGRAR_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/factura_hn
+  ```
+
+  Después crea `fhn_api` con esa contraseña (la base ya existe, así que el script se corre a mano) y actualiza:
+
+  ```bash
+  docker compose up -d --wait db
+  docker compose exec -T db sh -c 'sh /docker-entrypoint-initdb.d/10-rol-api.sh'
+  docker compose up -d --build --wait
   ```
 
 - **Seguir como antes:** en tu override, deja `DATABASE_URL` con `postgres` y anula la nueva variable con
@@ -180,7 +189,7 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 | `DATABASE_URL` | (obligatoria) | Conexión con la que corre la API (Postgres 13 o más reciente). En Compose, el rol `fhn_api`, que no es dueño de las tablas |
 | `FHN_MIGRAR_URL` | — | Conexión del dueño de las tablas, para migrar al arrancar y para la consola. Sin ella, la API corre como dueño de las tablas y lo avisa en el log |
 | `FHN_MIGRAR_AL_ARRANCAR` | `1` | `0`: la API no migra al arrancar ni necesita al dueño de las tablas; exige el esquema al día y que `DATABASE_URL` no sea dueño, superusuario ni `BYPASSRLS`. La migración corre aparte (`factura-hn-api migrar`). No sirve en modo local |
-| `FHN_MODO` | `local` | `local` (un negocio), `alojado` (varios tenants) o `demo` (la demostración pública: solo entornos de prueba que se borran a las 24 h, ver [demo.md](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/demo.md)). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
+| `FHN_MODO` | `local` | `local` (un negocio) o `alojado` (varios tenants). Sin definir, la API avisa en el log que corre en modo local. En modo local no arranca si la base tiene tenants distintos de `local` y `demo` |
 | `FHN_RETENCION_DIAS` | `30` | Días que se guarda la respuesta completa de una clave de idempotencia y una entrega de webhook terminada (mínimo 7). La clave en sí no caduca |
 | `FHN_ROL` | `fhn_app` | Rol sin BYPASSRLS con el que corre cada transacción |
 | `FHN_CLAVE_CIFRADO` | — | 32 bytes en base64 para cifrar los secretos de los webhooks. Obligatoria en `alojado` |
@@ -188,7 +197,7 @@ La base guarda solo el hash de cada llave: una llave perdida no se recupera, se 
 | `FHN_DEMO` | — | `1`: crea el tenant de demostración con datos ficticios |
 | `FHN_PUERTO` | `8787` | Puerto publicado en 127.0.0.1 por `docker-compose.yml` (variable de Compose, no de la API) |
 | `FHN_PROXIES_DE_CONFIANZA` | `0` | Con un proxy (Caddy, nginx) delante de la API, la dirección del proxy (o varias, o rangos CIDR como `10.0.0.0/8`, separadas por comas): el límite de intentos usa la dirección de cada caja y no la del proxy. Un número de proxies (`1`) también sirve, pero solo si a la API se llega únicamente por el proxy (puerto publicado en `127.0.0.1`): si no, quien llegue directo elige su cubeta. Sin proxy, déjala en `0`: `X-Forwarded-For` lo escribe el cliente |
-| `FHN_IP_CLIENTE_CABECERA` | — | Cabecera con la dirección del cliente que pone tu proxy de confianza, p. ej. `Fly-Client-IP` en Fly.io. Tiene prioridad sobre `X-Forwarded-For`. Defínela solo si a la API se llega únicamente por ese proxy: cualquiera puede mandar la cabecera |
+| `FHN_IP_CLIENTE_CABECERA` | — | Cabecera con la dirección del cliente que pone tu proxy de confianza, p. ej. `CF-Connecting-IP` detrás de Cloudflare. Tiene prioridad sobre `X-Forwarded-For`. Defínela solo si a la API se llega únicamente por ese proxy: cualquiera puede mandar la cabecera |
 
 Las demás variables están en la [guía de la API](api.md#variables-de-entorno).
 

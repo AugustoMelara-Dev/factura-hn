@@ -1,22 +1,9 @@
 ---
-// Reemplaza al ThemeProvider de Starlight: el mismo script en línea (evita el destello del tema equivocado), con
-// una diferencia: sin preferencia guardada, el sitio es claro. Si nunca se eligió tema, guarda «light» como si se
-// hubiera elegido, para que el selector de Starlight muestre «Claro». «Automático» se sigue guardando como ''
-// (así lo guarda Starlight) y sigue al sistema. Solo guarda esa preferencia en el navegador: no sale de él.
+// Reemplaza al ThemeProvider de Starlight: el sitio tiene un solo tema, claro. Starlight escribe
+// <html data-theme="dark"> y otros componentes suyos leen `data-theme`; esta línea lo deja en «light» antes de
+// pintar. Sin JavaScript, lo cambia al terminar el build plugins/tema-claro.mjs. No guarda nada en el navegador.
 ---
 
 <script is:inline>
-	(() => {
-		const clave = 'starlight-theme';
-		let guardado = null;
-		try {
-			guardado = localStorage.getItem(clave);
-			if (guardado === null) localStorage.setItem(clave, 'light');
-		} catch {}
-		const tema =
-			guardado === null
-				? 'light'
-				: guardado || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-		document.documentElement.dataset.theme = tema === 'dark' ? 'dark' : 'light';
-	})();
+	document.documentElement.dataset.theme = 'light';
 </script>

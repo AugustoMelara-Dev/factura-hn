@@ -27,12 +27,12 @@ mismo `llms.txt` de la raíz del repositorio, con los enlaces convertidos a pág
 - la primera factura en modo de prueba por el SDK, la API y el MCP;
 - el camino único: `registrarAutorizacion`, `emitir`, `renderizarHTML` o `renderizarTexto`, y `anular`;
 - los almacenes, los documentos que se pueden emitir, los montos, las fechas y los errores;
-- la API REST, el cliente tipado y las 7 herramientas del MCP;
+- la API REST, el cliente tipado y las 8 herramientas del MCP;
 - los dos [prompts de una línea](/ia/prompts/);
 - los tipos clave (`AutorizacionCAI`, `DocumentoEntrada`, `Emisor`, `LineaEntrada`, `DocumentoFiscal`, `Totales`).
 
 Una prueba del repositorio comprueba que `llms.txt` lleve los mismos prompts que el README y `AGENTS.md`, que
-nombre solo funciones y tipos que existen y que liste las 7 herramientas que registra el servidor MCP.
+nombre solo funciones y tipos que existen y que liste las 8 herramientas que registra el servidor MCP.
 
 El paquete npm `factura-hn` también trae `llms.txt`, en `node_modules/factura-hn/llms.txt`.
 

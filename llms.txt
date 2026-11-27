@@ -1,49 +1,50 @@
 # factura-hn
 
-> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración de 16 dígitos NNN-NNN-NN-NNNNNNNN, control de CAI/rango/fecha límite, ISV 15%/18%/0% (exportaciones)/exento/exonerado con el redondeo del Art. 9 de la Ley del ISV, montos exactos (sin punto flotante), montos en letras, validación con códigos de error, emisión atómica sobre Postgres/SQLite, anulación (Art. 41), impresión HTML (carta y ticket 80 mm) y texto térmico, libro de ventas.
+> Librería TypeScript sin dependencias para facturación SAR Honduras (Acuerdo 481-2017): numeración NNN-NNN-NN-NNNNNNNN, control de CAI, rango y fecha límite, ISV 15 %/18 %/0 %/exento/exonerado con el redondeo del Art. 9 de la Ley del ISV, montos exactos y en letras, validación con códigos de error, emisión atómica sobre Postgres o SQLite, anulación, notas de crédito y débito, impresión HTML, texto y PDF, libro de ventas. También como CLI, API REST y servidor MCP.
 
-Primera factura, en modo de prueba (CAI ficticio DEMO00-NO-VALIDO-…, emisor ficticio; todo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»):
-- SDK: `npm install factura-hn` → `npx factura-hn init` → `node emitir.mjs` (escribe factura.html). En un comando: `npx factura-hn demo`. En código: `crearFacturadorDemo()` de `factura-hn/demo`.
-- API: `docker compose up -d --build --wait` → `docker compose exec -T api factura-hn-api demo llave --solo-llave` → `POST /v1/documentos` con una Idempotency-Key nueva → descargar `enlaces.pdf`.
-- MCP: `npx -y @factura-hn/mcp init --demo` → pegar el bloque `mcpServers` en el cliente → pedir «emite una factura de prueba».
-Los documentos de prueba llevan `modo: 'prueba'` y no entran en el libro de ventas ni en la exportación (`esDocumentoDePrueba`). Un punto de emisión no mezcla CAI de prueba y reales: prueba en otro almacén. Para producción: los datos reales del emisor, el CAI de la resolución del SAR (sin `prueba`) y un almacén que guarde.
-Módulos ESM: los ejemplos usan import y await de nivel superior (archivos .mjs o "type": "module").
+Instalar y probar (CAI ficticio DEMO00-NO-VALIDO-…; todo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL»):
+- SDK: `npm install factura-hn`, luego `npx factura-hn init` y `node emitir.mjs`. En código: `const caja = await crearFacturadorDemo()` de `factura-hn/demo` y `await caja.emitir({ lineas })`.
+- CLI: `npx factura-hn demo`.
+- API: `docker compose up -d --build --wait` y la llave de caja con `docker compose exec -T api factura-hn-api demo llave --solo-llave`.
+- MCP: `npx -y @factura-hn/mcp init --demo`, pegar el bloque `mcpServers` en el cliente y pedir «emite una factura de prueba».
+Para producción: los datos reales del emisor, el CAI de la resolución del SAR y un almacén persistente. Prueba en otra base: un punto de emisión no mezcla CAI de prueba y reales.
 
-Un solo camino:
-1. `await registrarAutorizacion(almacen, autorizacion)` una vez por resolución del SAR.
-2. `const doc = await emitir(entrada, { almacen, establecimiento, puntoEmision })` en cada venta: bloquea la serie, elige la autorización vigente, valida, construye y guarda en una transacción. Si falla, no consume número.
-3. `renderizarHTML(doc)` / `renderizarTexto(doc)`.
-4. `await anular(numero, { almacen, motivo })` si hay que anular (nunca borrar).
+Un solo camino con el SDK:
+1. `await registrarAutorizacion(almacen, autorizacion)`: una vez por resolución del SAR.
+2. `const doc = await emitir(entrada, { almacen, establecimiento, puntoEmision })`: en cada venta, en el servidor. Valida, numera y guarda en una transacción; si falla, no consume número.
+3. `renderizarHTML(doc)` o `renderizarTexto(doc)`; PDF con `renderizarPDF` de @factura-hn/pdf.
+4. `await anular(numero, { almacen, motivo })`: nunca borrar. Corregir una factura: Nota de Crédito (06) o de Débito (07).
+`crearFacturador({ almacen, emisor, establecimiento, puntoEmision })` es una fachada sobre esas funciones.
 
-Almacenes: `AlmacenPostgres` (@factura-hn/postgres), `AlmacenSQLite` (@factura-hn/sqlite), `AlmacenFiscalMemoria` (solo pruebas). Para otra base, implementa `AlmacenFiscal` y corre `ejecutarContratoAlmacen` de `factura-hn/pruebas`.
-Documentos que se pueden emitir: 01 Factura, 06 Nota de Crédito, 07 Nota de Débito (tabla vigente tras el Acuerdo 609-2017).
-Montos: `number` o texto exacto (`'89.50'`); el cálculo es con enteros. Cobra `totales.total` (con precios con ISV incluido puede quedar 1 centavo abajo, `totales.ajustePorRedondeo`).
-Fechas: la fecha de emisión la pone el reloj en America/Tegucigalpa; no se puede retrofechar.
-Errores: `ErrorValidacion` con `errores: {codigo, mensaje, campo, solucion?, documentacion?}[]`; `documentacion` enlaza a docs/errores.md.
+Reglas:
+- Almacenes: `AlmacenPostgres` (@factura-hn/postgres), `AlmacenSQLite` (@factura-hn/sqlite), `AlmacenFiscalMemoria` (solo pruebas). Otra base: implementa `AlmacenFiscal` y pasa `ejecutarContratoAlmacen` de `factura-hn/pruebas`.
+- Tipos emitibles: 01 Factura, 06 Nota de Crédito, 07 Nota de Débito.
+- Montos como `number` o texto exacto (`'89.50'`). Cobra `totales.total` (con precios con ISV puede quedar 1 centavo abajo).
+- La fecha la pone el reloj en America/Tegucigalpa; no se retrofecha.
+- Errores: `ErrorValidacion` con `errores: {codigo, mensaje, campo, solucion?, documentacion?}[]`. Muéstralos tal cual. Los `AVISO_*` no bloquean.
 
-API REST (`@factura-hn/api`, Hono + OpenAPI 3.1 + Postgres, `docker compose up -d --build --wait`): `POST /v1/documentos` con `Idempotency-Key` obligatoria; 422 trae `errores` con `solucion`; `GET /v1/sesion` dice qué falta para emitir. Consola del operador: `docker compose exec api factura-hn-api ayuda` (llaves: `… llave crear local --rol admin --nombre Administración`, `… demo llave`). Cliente tipado: `crearCliente({ url, llave })` de `@factura-hn/cliente`, con `fhn.emitir(solicitud, { idempotencyKey })`, `fhn.descargar(numero, 'pdf')`, `await verificarFirmaWebhook(cuerpo, cabecera, secreto)` (devuelve una promesa).
-MCP (`@factura-hn/mcp`): herramientas emitir_factura, emitir_nota_credito, consultar_documento, anular_documento, estado_cai, libro_ventas y registrar_cai; vía la API (FHN_API_URL + FHN_LLAVE) o SDK local (FHN_SQLITE + FHN_EMISOR). Comandos: `init --demo` (prueba), `init` (base real y plantilla emisor.json), `registrar-cai`.
+API REST: `POST /v1/documentos` con `Idempotency-Key` estable por venta; 422 trae `errores` con `solucion`; `GET /v1/sesion` dice qué falta para emitir. Cliente tipado: `crearCliente({ url, llave })` de @factura-hn/cliente, con `fhn.emitir(solicitud, { idempotencyKey })`, `fhn.descargar(numero, 'pdf')` y `await verificarFirmaWebhook(cuerpo, cabecera, secreto)`.
+MCP (@factura-hn/mcp): herramientas emitir_factura, emitir_nota_credito, consultar_documento, listar_documentos, anular_documento, estado_cai, libro_ventas y registrar_cai; vía la API (FHN_API_URL + FHN_LLAVE) o con el SDK local (FHN_SQLITE + FHN_EMISOR). Comandos: `init --demo`, `init`, `registrar-cai`.
 
 Prompt de una línea (SDK): Instala la librería npm "factura-hn", lee node_modules/factura-hn/AGENTS.md completo y agrega facturación SAR Honduras a este proyecto con el SDK: almacén fiscal en nuestra base, registro de CAI, emisión en el servidor con emitir, impresión, anulación y notas de crédito, sin inventar reglas fiscales.
 Prompt de una línea (API): Conecta este proyecto a la API REST de factura-hn (URL en FHN_API_URL, llave de caja en FHN_LLAVE): en JS/TS instala "@factura-hn/cliente" y sigue la sección «Con la API REST» de node_modules/@factura-hn/cliente/AGENTS.md; en otro lenguaje genera el cliente desde FHN_API_URL/openapi.json, cuya descripción trae las reglas. Emite en el servidor con una Idempotency-Key estable por venta, muestra tal cual los errores fiscales (422) y verifica la firma de los webhooks.
 
 ## Docs
 
-- [README](README.md): la primera factura en 3 pasos (SDK, API, MCP), Next.js y producción
-- [Guía del SDK](docs/guia-sdk.md): paso a paso, con el modo de prueba
+- [AGENTS.md](AGENTS.md): integrar el SDK o la API, reglas y errores comunes
+- [Guía del SDK](docs/guia-sdk.md): paso a paso
 - [Errores](docs/errores.md): qué hacer ante cada código
-- [AGENTS.md](AGENTS.md): guía de integración para agentes de IA (SDK y API)
-- [API REST](docs/api.md): rutas, roles, idempotencia, webhooks y seguridad
+- [API REST](docs/api.md): rutas, roles, idempotencia y webhooks
 - [Persistencia](docs/persistencia.md): qué almacén usar y cómo escribir uno propio
-- [Normativa](docs/normativa.md): requisitos cubiertos, fuentes y alcance
-- [Skill de Claude](skills/facturacion-sar-hn/SKILL.md)
+- [Normativa](docs/normativa.md): requisitos cubiertos y alcance
+- [Skill](skills/facturacion-sar-hn/SKILL.md)
 
 ## Tipos clave
 
 - AutorizacionCAI { cai, tipoDocumento, establecimiento, puntoEmision, rangoInicial, rangoFinal, fechaLimiteEmision, ultimoEmitidoAntes?, fechaAutorizacion?, prueba? }
-- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, fechaEmision? (solo la de hoy), horaEmision?, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones?, operador? (se imprime como «Atendido por») }
-- OpcionesEmision { almacen, establecimiento, puntoEmision, opciones?: { umbralIdentificacionConsumidorFinal?, caiEstricto?, reloj? }, saltoMaximoDias?, confirmarSaltoDeFecha?, actor?, operador? (solo en la bitácora), alEmitir?, libroContable? }
+- DocumentoEntrada { tipoDocumento?, emisor, cliente?, lineas, preciosIncluyenISV?, exoneracion?, moneda?, tipoCambio?, referencia?, motivo?, condicionPago?, observaciones?, operador? }
+- OpcionesEmision { almacen, establecimiento, puntoEmision, opciones?, confirmarSaltoDeFecha?, actor?, operador?, alEmitir?, libroContable? }
 - Emisor { rtn, razonSocial, nombreComercial, direccionCasaMatriz, direccionEstablecimiento, telefono, correo } (todos obligatorios)
 - LineaEntrada { codigo?, descripcion, cantidad, precioUnitario, isv?: 'ISV15'|'ISV18'|'GRAVADO0'|'EXENTO', descuento?, unidad? }
-- DocumentoFiscal { numero, correlativo, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, estado: 'EMITIDO'|'ANULADO', anulacion?, ... }
+- DocumentoFiscal { numero, cai, rangoAutorizado, fechaLimiteEmision, fechaEmision, emisor, cliente, lineas, totales, advertencias, estado: 'EMITIDO'|'ANULADO', modo, ... }
 - Totales { descuentos, subtotal, importeExonerado, importeExento, importeGravado0, importeGravado15, importeGravado18, baseCreditoFiscal, isv15, isv18, ajustePorRedondeo, total, totalEnLetras }

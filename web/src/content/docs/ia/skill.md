@@ -22,7 +22,7 @@ registrar un CAI, calcular ISV o armar un POS para Honduras.
   venta, errores del 422 tal cual, reimpresión desde la API y verificación de la firma de los webhooks.
 - **Aplica las reglas.** No inventar requisitos fiscales ni CAI, no borrar ni reutilizar números, mostrar los
   errores sin reinterpretarlos, cobrar `totales.total` y no entregar un documento de prueba como factura.
-  Recuerda una vez que el negocio debe estar registrado como autoimpresor y validar con su contador.
+  Recuerda una vez que el negocio debe estar registrado como autoimpresor.
 
 Trae los mismos dos prompts de una línea que el README y `AGENTS.md`. Ver [Prompts](/ia/prompts/).
 

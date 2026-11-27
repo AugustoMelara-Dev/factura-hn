@@ -1,6 +1,6 @@
 /**
- * Modo demo (`FHN_MODO=demo`): la demostración pública. Cada visitante crea con `POST /v1/demo/entornos` su propio
- * entorno de prueba: un tenant de prueba con emisor y CAI ficticios, una llave `fhn_test_` y una URL personal del MCP
+ * Modo demo (`FHN_MODO=demo`), apagado por defecto. Cada visitante crea con `POST /v1/demo/entornos` su propio
+ * entorno de prueba: un tenant de prueba con emisor y CAI ficticios, una llave `fhn_test_` y la URL del MCP
  * remoto. Nada se comparte entre visitantes, todo lo emitido es DOCUMENTO DE PRUEBA y a las 24 h el entorno se
  * borra con todos sus datos.
  *
@@ -41,10 +41,17 @@ export interface ConfigDemo {
   secreto: Buffer;
 }
 
-/** Origen por defecto de CORS: el sitio de la documentación, donde vive la página «Pruébalo ahora». */
+/** Origen por defecto de CORS: el sitio de la documentación. */
 export const ORIGENES_DEMO_POR_DEFECTO = ['https://augustomelara-dev.github.io'] as const;
 
 export const RUTA_ENTORNOS_DEMO = '/v1/demo/entornos';
+
+/**
+ * Operaciones que el servidor atiende pero no publica en la especificación (`/openapi.json`, `/docs`, el cliente y
+ * las colecciones): las del modo demo, que fuera de `FHN_MODO=demo` responden 404. Las pruebas de contrato exigen
+ * que toda otra ruta esté en la especificación.
+ */
+export const OPERACIONES_NO_PUBLICADAS: readonly string[] = [`POST ${RUTA_ENTORNOS_DEMO}`, `OPTIONS ${RUTA_ENTORNOS_DEMO}`];
 
 const entero = (env: NodeJS.ProcessEnv, nombre: string, defecto: number, min: number, max: number): number => {
   const t = env[nombre]?.trim();
@@ -161,7 +168,7 @@ export function ejemplosDemo(o: { urlApi: string; llave: string; urlMcp: string 
         'Claude (web o escritorio): Customize > Connectors > + > Add custom connector; pega la URL y deja la',
         'autenticación vacía. El conector queda también en la app móvil. ChatGPT: agrega un servidor MCP personalizado',
         'con la URL y sin autenticación. Después pide: «Emite una factura de prueba por 2 cafés de L 57.50, con el ISV incluido».',
-        'Guía completa: https://augustomelara-dev.github.io/factura-hn/ia/mcp-remoto/',
+        'Guía completa: https://augustomelara-dev.github.io/factura-hn/ia/mcp/#por-http',
       ].join('\n')
     : 'Este servidor no tiene MCP remoto configurado. Con el MCP local: FHN_API_URL=' + o.urlApi + ' FHN_LLAVE=' + o.llave + ' npx -y @factura-hn/mcp';
   return { curl, sdk, mcp };

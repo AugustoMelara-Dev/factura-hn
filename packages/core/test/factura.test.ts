@@ -287,6 +287,15 @@ describe('render y reportes', () => {
     expect(html).not.toContain('exíjala');
     expect(renderizarHTML(doc, { leyenda: 'La factura es beneficio de todos, exíjala.' })).toContain('exíjala');
   });
+  it('texto térmico: un ancho fuera de 32 a 120 columnas da un RangeError claro, sin colgarse', () => {
+    for (const ancho of [0, -1, -5, 10, 10.5, 31, 121, 500, Number.NaN]) {
+      expect(() => renderizarTexto(doc, { ancho }), String(ancho)).toThrow(/El ancho del ticket debe ser un entero entre 32 y 120 columnas/);
+    }
+    for (const ancho of [32, 42, 48, 80, 120]) {
+      expect(renderizarTexto(doc, { ancho }).split('\n').every((l) => l.length <= ancho)).toBe(true);
+    }
+  });
+
   it('texto térmico respeta el ancho', () => {
     const txt = renderizarTexto(doc, { ancho: 32 });
     expect(txt.split('\n').every((l) => l.length <= 32)).toBe(true);

@@ -1,4 +1,4 @@
-// Pruebas de mutación del núcleo (cálculo, dinero, numeración y validación). Ver docs/calidad/mutacion.md.
+// Pruebas de mutación del núcleo (cálculo, dinero, numeración y validación).
 // Uso: pnpm mutacion (desde la raíz) o pnpm --filter factura-hn mutacion.
 import { availableParallelism } from 'node:os';
 

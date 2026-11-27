@@ -4,7 +4,7 @@
  *
  * - `/<ruta>.md`: el Markdown de cada página (`/referencia/sdk/` → `/referencia/sdk.md`; la portada, `/index.md`),
  *   con los enlaces del sitio como URL completas para que sirvan fuera del sitio. Las páginas de la documentación
- *   salen de su fuente en `src/content/docs/`; las del producto (portada, Pruébalo, precios…), de `src/md/`.
+ *   salen de su fuente en `src/content/docs/`; la portada, de `src/md/portada.md`.
  * - `/llms.txt`: el llms.txt del repositorio (el que prueba readme.test.ts) con sus enlaces llevados al sitio, más
  *   la lista de páginas con su versión .md.
  * - `/llms-full.txt`: todas las páginas en un solo archivo, en el orden del menú.
@@ -13,7 +13,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { BASE, BLOQUES, DOCS, filtrarDemo, PAGINAS_PRODUCTO, RAIZ, SALIDA, SITIO_URL, WEB } from '../sitio.config.mjs';
+import { BASE, BLOQUES, DOCS, PAGINAS_PRODUCTO, RAIZ, SALIDA, SITIO_URL, WEB } from '../sitio.config.mjs';
 import { reescribirEnlaces, resolverEnlace } from './lib/enlaces-md.mjs';
 import { mapaDeEnlaces } from './lib/paginas.mjs';
 
@@ -48,15 +48,15 @@ export function paginasDelSitio() {
         .replace(/^[ \t]*<\/?[A-Z][\w.]*(\s[^>]*)?\/?>[ \t]*$/gm, '')
         .replace(/\n{3,}/g, '\n\n');
     }
-    cuerpo = filtrarDemo(cuerpo.replace(/<!-- Generado por [^\n]*-->\n+/, '')).trim();
+    cuerpo = cuerpo.replace(/<!-- Generado por [^\n]*-->\n+/, '').trim();
     const bloque = BLOQUES.findIndex((b) => ruta === b.dir || ruta.startsWith(`${b.dir}/`));
     const orden = Number(/order:\s*(\d+)/.exec(fm?.[1] ?? '')?.[1] ?? (ruta.endsWith('/') || !ruta.includes('/') ? 0 : 100));
     return { archivo, ruta, md: `${ruta || 'index'}.md`, titulo, descripcion, cuerpo, clave: [bloque, ruta === BLOQUES[bloque]?.dir ? -1 : orden, titulo] };
   });
-  // Páginas del producto: antes que la documentación, en el orden de PAGINAS_PRODUCTO.
+  // La portada: antes que la documentación.
   PAGINAS_PRODUCTO.forEach(({ ruta, md }, i) => {
     const { titulo, descripcion } = delHtml(ruta);
-    const cuerpo = filtrarDemo(readFileSync(join(WEB, 'src', 'md', md), 'utf8').replace(/\r\n/g, '\n')).trim();
+    const cuerpo = readFileSync(join(WEB, 'src', 'md', md), 'utf8').replace(/\r\n/g, '\n').trim();
     paginas.push({ archivo: `src/md/${md}`, ruta, md: `${ruta || 'index'}.md`, titulo, descripcion, cuerpo, producto: true, clave: [-1, i, titulo] });
   });
   return paginas.sort((a, b) => a.clave[0] - b.clave[0] || a.clave[1] - b.clave[1] || a.clave[2].localeCompare(b.clave[2], 'es'));

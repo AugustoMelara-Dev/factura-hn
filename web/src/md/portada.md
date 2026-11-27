@@ -1,26 +1,41 @@
-factura-hn emite facturas, notas de crédito y notas de débito según el Reglamento del Régimen de Facturación del
-SAR de Honduras (Acuerdo 481-2017). Es de código abierto (MIT), y cada regla que implementa cita su artículo y
-tiene una prueba.
+Facturación para Honduras, desde tu código. Emite facturas y notas de crédito y débito que cumplen el
+Reglamento del SAR. Tu primera factura de prueba, en 5 minutos.
 
 ```bash
 npm install factura-hn
 ```
 
-## Cuatro formas de usarlo
+[Empezar](/empezar/primera-factura/) · [GitHub](https://github.com/AugustoMelara-Dev/factura-hn)
 
-Las mismas reglas fiscales: la API y el MCP llaman por dentro al mismo SDK. Todas empiezan en modo de prueba, con
-un CAI ficticio (`DEMO00-NO-VALIDO-…`), y todo lo impreso dice «DOCUMENTO DE PRUEBA — SIN VALOR FISCAL».
+## Qué es
 
-- [SDK de TypeScript](/guias/sdk/): emite dentro de tu sistema, sobre PostgreSQL, SQLite o tu propia base.
-  `npm install factura-hn`.
-- [CLI](/guias/cli/): una factura de prueba en la consola y un proyecto inicial. `npx factura-hn demo`.
-- [API REST](/guias/api/): para cualquier lenguaje o varias cajas, con Docker y PostgreSQL.
-  `docker compose up -d --build --wait`.
-- [Servidor MCP](/guias/mcp/): un asistente de IA emite, consulta y anula. `npx -y @factura-hn/mcp init --demo`.
+factura-hn es una librería de TypeScript, sin dependencias, que lleva la numeración con CAI y rangos, calcula el
+ISV sin errores de redondeo e imprime en hoja carta o ticket. Es gratis y de código abierto.
 
-También por [tipo de documento](/documentos/) y por [tipo de negocio](/negocios/).
+```js
+import { crearFacturadorDemo } from 'factura-hn/demo';
+const caja = await crearFacturadorDemo();
+const factura = await caja.emitir({ lineas: [{ descripcion: 'Café molido', cantidad: 2, precioUnitario: '115.00' }] });
+```
 
-## Tu primera factura de prueba
+Esas tres líneas emiten una factura de prueba con un emisor y un CAI ficticios. Su ticket de 80 mm dice
+«DOCUMENTO DE PRUEBA — SIN VALOR FISCAL». En la página puedes emitir más, con el SDK corriendo en el navegador.
+
+## Por qué es confiable
+
+Cumple el Reglamento de Facturación del SAR y cada regla está probada.
+
+- **Numeración sin huecos ni repetidos.** Cada número se reserva en la misma transacción que guarda el documento.
+- **ISV exacto al centavo.** Sin punto flotante, con el redondeo del Art. 9 de la Ley del ISV.
+- **Lo emitido no se edita.** Se anula (Art. 41) o se corrige con una nota de crédito o de débito.
+
+[Ver cada regla con su prueba](/referencia/cumplimiento/).
+
+## Cómo se integra
+
+Cuatro formas, las mismas reglas.
+
+**SDK.** Emite desde tu sistema en Node, sobre PostgreSQL, SQLite o tu propia base. [Guía del SDK](/guias/sdk/).
 
 ```bash
 npm install factura-hn
@@ -28,32 +43,53 @@ npx factura-hn init     # crea emitir.mjs y emisor.json
 node emitir.mjs         # emite la factura de prueba
 ```
 
-Ver [Tu primera factura](/empezar/primera-factura/) o el [playground](/empezar/playground/), que corre el SDK en el
-navegador sin instalar nada.
+**CLI.** Una factura de prueba en la consola, sin escribir código. [Guía de la CLI](/guias/cli/).
 
-<!-- con-demo -->
+```bash
+npx factura-hn demo
+```
 
-También sin instalar nada, [Pruébalo ahora](/probar/) crea un entorno de prueba en la demostración pública, con tu
-llave de la API y tu URL del MCP.
+**API REST.** Para cualquier lenguaje o varias cajas, con Docker y PostgreSQL. [Guía de la API](/guias/api/).
 
-<!-- /con-demo -->
+```bash
+git clone https://github.com/AugustoMelara-Dev/factura-hn.git && cd factura-hn
+docker compose up -d --build --wait     # API en http://127.0.0.1:8787
+```
 
-## Lo que resuelve
+**MCP.** Un asistente de IA emite, consulta y anula con las mismas reglas. [Guía del MCP](/guias/mcp/).
 
-- **Numeración atómica y sin huecos.** Cada número se reserva en la misma transacción que guarda el documento, y
-  nunca se borra ni se reutiliza.
-- **Dinero exacto.** Sin punto flotante. El ISV sigue el redondeo del Art. 9 de la Ley del ISV.
-- **Documentos inmutables.** Se anulan (Art. 41) o se corrigen con notas de crédito o de débito.
-- **Bitácora de auditoría** con quién hizo cada operación (Art. 53 num. 2).
+```bash
+npx -y @factura-hn/mcp init --demo
+```
 
-## Confianza
+## Conéctalo a tu IA
 
-- [Cumplimiento](/cumplimiento/): cada requisito con su artículo, su estado y la prueba que lo verifica.
-- [Estado legal](/produccion/estado-legal/): algunos puntos del Reglamento no son literales; factura-hn declara la
-  lectura que aplica en cada caso.
-- Mientras la versión sea 0.x puede haber cambios incompatibles entre versiones menores: ver los
-  [cambios](/ayuda/cambios/).
-- Precios: todo es gratis y de código abierto. Ver [precios](/precios/).
+El servidor MCP le da a tu asistente las herramientas para emitir, consultar y anular. Este comando crea una base de
+prueba e imprime el bloque listo para pegar. Luego pide: «emite una factura de prueba».
 
-**Proyecto independiente, no afiliado al SAR.** factura-hn no es asesoría fiscal ni un sistema autorizado por el
-SAR. Quien emite sigue siendo responsable de cumplir el Reglamento; revisa la configuración con tu contador.
+```bash
+npx -y @factura-hn/mcp init --demo
+```
+
+- **Claude** (Claude Desktop y Claude Code): [ver cómo](/ia/mcp/#empieza-en-3-pasos).
+- **Cursor**: [ver cómo](/ia/mcp/#empieza-en-3-pasos).
+- **ChatGPT**, por URL, con tu API en tu servidor: [ver cómo](/ia/mcp/#chatgpt).
+
+## Comunidad
+
+Pregunta, propón mejoras y contribuye con código, pruebas o documentación.
+
+- [GitHub](https://github.com/AugustoMelara-Dev/factura-hn): el código, las pruebas y la documentación, con licencia MIT.
+- [Discussions](https://github.com/AugustoMelara-Dev/factura-hn/discussions): preguntas, ideas y lo que estás construyendo.
+- [Cómo contribuir](/ayuda/contribuir/): prepara el proyecto, corre las pruebas y abre tu pull request.
+
+## Contacto
+
+- **Preguntas e ideas:** [abre una discusión](https://github.com/AugustoMelara-Dev/factura-hn/discussions).
+- **Un error, o una regla fiscal que crees que está mal:** [abre un issue](https://github.com/AugustoMelara-Dev/factura-hn/issues/new/choose).
+- **Una vulnerabilidad:** [repórtala en privado](https://github.com/AugustoMelara-Dev/factura-hn/security/advisories/new),
+  nunca en un issue público.
+
+No incluyas datos reales de contribuyentes en ningún reporte.
+
+Proyecto independiente, no afiliado al SAR.

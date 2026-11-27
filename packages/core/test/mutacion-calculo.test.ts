@@ -1,4 +1,4 @@
-// Pruebas que matan mutantes de calculo.ts (pnpm mutacion, docs/calidad/mutacion.md).
+// Pruebas que matan mutantes de calculo.ts (pnpm mutacion).
 // Validación de cada campo de la línea con su mensaje, exonerado con las dos tasas, la línea calculada que se
 // devuelve y los bordes de baseDesdePrecioConISV y sugerirPrecioSinAjuste (Ley del ISV Art. 9).
 import { describe, expect, it } from 'vitest';

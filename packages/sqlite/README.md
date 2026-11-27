@@ -25,7 +25,7 @@ const doc = await emitir(entrada, { almacen, establecimiento: '000', puntoEmisio
 
 - **Sin huecos ni repetidos.** Cada transacción abre con `BEGIN IMMEDIATE`. Varias cajas, en el mismo proceso
   o en procesos distintos sobre el mismo archivo, se serializan. Si la base está ocupada, el adaptador espera
-  de forma asíncrona (hasta `esperaMaxima`, 10 s por defecto) sin bloquear el hilo.
+  de forma asíncrona (hasta `esperaMaxima`, 10 s por defecto) sin bloquear el hilo, también al abrir el almacén.
 - **Todo o nada.** Si la validación, el guardado o tu gancho `alEmitir` fallan, se revierte y el número no se
   consume.
 - **La base se protege sola.** Hay disparadores que impiden borrar documentos o autorizaciones, cambiar un
@@ -39,3 +39,5 @@ Pasa la batería de contrato de `factura-hn/pruebas`, incluidas 50 emisiones con
 
 **Respaldos:** el Código Tributario (Arts. 58.4 y 63.3) pide conservar la información 5 años en el domicilio
 fiscal. Copia `fiscal.db` con `VACUUM INTO` o `.backup`; no copies el archivo mientras está abierto en WAL.
+
+Documentación: [guía del SDK](https://augustomelara-dev.github.io/factura-hn/guias/sdk/).

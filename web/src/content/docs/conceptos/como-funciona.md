@@ -52,7 +52,7 @@ formatearNumero({ establecimiento: '000', puntoEmision: '002', tipoDocumento: '0
 ```
 
 El Art. 10 num. 7 dice que la serie se reinicia después del `99999999`. El SDK no modela ese reinicio: rechaza
-un rango que lo cruce (decisión de diseño de factura-hn).
+un rango que lo cruce.
 
 ## Una autorización por punto de emisión y tipo
 
@@ -76,7 +76,7 @@ La nueva autorización se solicita dentro de los dos meses previos a la fecha l�
 | `01` | Factura | Sí |
 | `06` | Nota de Crédito | Sí |
 | `07` | Nota de Débito | Sí |
-| `05`, `08`, `11` | Comprobante de Retención, Guía de Remisión, Boleta de Compra | Se pueden emitir por sistema, pero el SDK aún no los soporta |
+| `05`, `08`, `11` | Comprobante de Retención, Guía de Remisión, Boleta de Compra | Se pueden emitir por sistema; el SDK no los emite (`TIPO_NO_SOPORTADO`) |
 | `04`, `09`, `10`, `12` | Recibo por Honorarios, Ticket, Factura Prevalorada, Constancia de Donación | No: el Reglamento los reserva a otras modalidades (Arts. 4 num. 43, 46 y 47) |
 
 Los códigos son los vigentes tras la reforma del Acuerdo 609-2017. El SDK reconoce todos al leer números y

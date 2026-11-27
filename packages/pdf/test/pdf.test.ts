@@ -45,6 +45,13 @@ describe('contenido (Arts. 10 y 11)', () => {
 });
 
 describe('formatos', () => {
+  it('un formato desconocido da un error que dice cuáles hay', async () => {
+    for (const formato of ['A4', 'a4', '', 5]) {
+      const opciones = { formato } as unknown as Parameters<typeof renderizarPDF>[1];
+      await expect(renderizarPDF(factura, opciones)).rejects.toThrow(/Formato de PDF desconocido: .*Usa 'carta' o 'ticket'\./);
+      expect(() => lineasPDF(factura, opciones)).toThrow(RangeError);
+    }
+  });
   it('carta: una página de 612 × 792 pt con metadatos', async () => {
     const pdf = await PDFDocument.load(await renderizarPDF(factura));
     expect(pdf.getPageCount()).toBe(1);

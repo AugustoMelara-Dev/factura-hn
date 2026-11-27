@@ -24,3 +24,5 @@ const ticket = await renderizarPDF(documento, { formato: 'ticket' }); // 80 mm, 
   otro carácter fuera de esa tabla se reemplaza por «?» (`aWinAnsi`).
 - Papel térmico: antes de imprimir en papel térmico hay que presentar al SAR la certificación del
   proveedor de que la impresión dura al menos 5 años (Art. 38).
+
+Documentación: [imprimir](https://augustomelara-dev.github.io/factura-hn/guias/imprimir/).

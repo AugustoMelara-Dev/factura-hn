@@ -2,9 +2,8 @@
 
 Cliente tipado de la API REST de factura-hn (referencia: `docs/api.md` en este paquete o
 [en GitHub](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/docs/api.md)). Los tipos se generan desde
-[`openapi.json`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/api/openapi.json) de la API;
-una prueba falla si quedan desactualizados. Sin dependencias pesadas
-(`openapi-fetch`): Node 20+, navegador, Deno y edge.
+[`openapi.json`](https://github.com/AugustoMelara-Dev/factura-hn/blob/main/packages/api/openapi.json) de la API.
+Sin dependencias pesadas (`openapi-fetch`): Node 20+, navegador, Deno y edge.
 
 ```ts
 import { crearCliente, ErrorFacturaHN } from '@factura-hn/cliente';
@@ -40,4 +39,4 @@ lee una por una (`hayMas`, `siguiente`).
 `fhn.api` es el cliente de `openapi-fetch` con todas las rutas tipadas (`fhn.api.POST('/v1/llaves', …)`).
 La llave de API va solo en el servidor: nunca en código que llega al navegador.
 
-Regenerar: `pnpm --filter @factura-hn/api openapi && pnpm --filter @factura-hn/cliente generar`.
+Documentación: [guía de la API](https://augustomelara-dev.github.io/factura-hn/guias/api/).

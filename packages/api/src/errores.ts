@@ -126,17 +126,17 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
     BASE_NO_DISPONIBLE:
       'La base de datos se está reiniciando o no responde. Reintenta después de los segundos de Retry-After; al emitir, con la ' +
       'misma Idempotency-Key: si el documento alcanzó a emitirse recibes el mismo, y si no, se emite una sola vez.',
-    DEMO_PAUSADO: 'La demostración está en pausa por mantenimiento o por abuso. Vuelve a intentarlo más tarde (cabecera Retry-After).',
+    DEMO_PAUSADO: 'El modo demo de este servidor está en pausa por mantenimiento o por abuso. Vuelve a intentarlo más tarde (cabecera Retry-After).',
     DEMO_NO_DISPONIBLE:
-      'Esta operación no está disponible en la demostración pública (webhooks, cambiar el emisor ficticio o crear llaves). ' +
-      'Pruébala en tu propia instalación: docs/autoalojamiento.md.',
-    DEMO_SOLO_PRUEBA: 'Este servidor de demostración solo atiende entornos de prueba creados con `POST /v1/demo/entornos`.',
+      'Esta operación no está disponible en modo demo (webhooks, cambiar el emisor ficticio o crear llaves). ' +
+      'Úsala en un servidor en modo local o alojado: docs/autoalojamiento.md.',
+    DEMO_SOLO_PRUEBA: 'Este servidor está en modo demo: solo atiende entornos de prueba creados con `POST /v1/demo/entornos`.',
     ENTORNO_VENCIDO: 'Los entornos de prueba duran 24 horas y luego se borran con todos sus datos. Crea otro con `POST /v1/demo/entornos`.',
     DEMO_LIMITE_ENTORNOS:
       'Se alcanzó el límite de entornos de prueba (por dirección por día, o en todo el servicio). Usa el que ya creaste o ' +
       'reintenta después de los segundos de Retry-After.',
     DEMO_LIMITE_SOLICITUDES: 'Este entorno de prueba ya usó todas sus solicitudes. Crea otro entorno con `POST /v1/demo/entornos`.',
-    ORIGEN_NO_PERMITIDO: 'Solo la página del sitio de factura-hn (o curl, sin Origin) crea entornos de prueba. Abre «Pruébalo ahora» en el sitio.',
+    ORIGEN_NO_PERMITIDO: 'Esta página no está entre los orígenes que el servidor acepta (FHN_DEMO_ORIGENES). Crea el entorno desde un origen permitido o sin cabecera Origin (p. ej. con curl).',
     DEMO_LIMITE_DOCUMENTOS: 'Este entorno de prueba ya emitió todos los documentos que permite. Crea otro entorno con `POST /v1/demo/entornos`.',
     VALIDACION: 'Revisa `errores`: cada uno trae su código y su campo. Corrige y reintenta con la misma Idempotency-Key: un 422 no consume número.',
   };
@@ -144,12 +144,15 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
 
 /**
  * Agrega `solucion` y `documentacion` al error y a cada uno de `errores`. En 422 (`VALIDACION`), el error
- * principal toma la solución del primer problema que tenga una. No reemplaza lo que ya traiga un problema.
+ * principal toma la solución del primer problema que tenga una. Para un código de la tabla de la API, su solución
+ * reemplaza la del SDK (que habla de funciones como `registrarAutorizacion`, no de rutas); los demás problemas
+ * conservan la suya.
  */
 export function conSolucion(cuerpo: CuerpoError, tabla: Record<string, string>): CuerpoError {
   const errores = cuerpo.errores?.map((p): ProblemaApi => {
-    const solucion = p.solucion ?? tabla[p.codigo];
-    return { ...p, ...(solucion ? { solucion } : {}), documentacion: p.documentacion ?? documentacionDe(p.codigo) };
+    const deLaApi = tabla[p.codigo];
+    const solucion = deLaApi ?? p.solucion;
+    return { ...p, ...(solucion ? { solucion } : {}), documentacion: deLaApi ? documentacionDe(p.codigo) : (p.documentacion ?? documentacionDe(p.codigo)) };
   });
   let codigoGuia = cuerpo.error.codigo;
   if (codigoGuia === 'VALIDACION') {
@@ -413,7 +416,7 @@ export function esDeConfianza(lista: readonly string[], ip: string): boolean {
 export function leerCabeceraIpCliente(texto: string | undefined): string | undefined {
   const t = (texto ?? '').trim().toLowerCase();
   if (!t) return undefined;
-  if (!/^[a-z0-9-]{1,64}$/.test(t)) throw new Error(`FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera HTTP, p. ej. Fly-Client-IP (no "${texto}").`);
+  if (!/^[a-z0-9-]{1,64}$/.test(t)) throw new Error(`FHN_IP_CLIENTE_CABECERA debe ser el nombre de una cabecera HTTP, p. ej. X-Real-IP (no "${texto}").`);
   return t;
 }
 

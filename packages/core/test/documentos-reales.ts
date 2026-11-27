@@ -28,13 +28,22 @@ const autorizacion = (tipoDocumento: '01' | '06'): AutorizacionCAI => ({
   fechaLimiteEmision: '2027-06-30',
 });
 
+/**
+ * Un documento tal como lo guardaba una versión anterior, sin `horaEmision` (hoy la pone el reloj si falta). Su
+ * reimpresión debe dar los mismos bytes que entonces.
+ */
+function sinHora(doc: DocumentoFiscal): DocumentoFiscal {
+  const { horaEmision: _quitada, ...antes } = doc;
+  return antes;
+}
+
 /** Factura simple, factura mixta anulada y nota de crédito, todas en lempiras. */
 export function documentosReales(): { simple: DocumentoFiscal; mixta: DocumentoFiscal; anulada: DocumentoFiscal; nota: DocumentoFiscal } {
   const simple = construirDocumento(
     { emisor: EMISOR, horaEmision: '10:30', lineas: [{ descripcion: 'Arroz 5 lb', cantidad: 2, precioUnitario: '89.50' }] },
     autorizacion('01'), 1, { reloj },
   );
-  const mixta = construirDocumento(
+  const mixta = sinHora(construirDocumento(
     {
       emisor: EMISOR,
       cliente: { nombre: 'Ferretería Pérez', rtn: '99990000000002' },
@@ -49,9 +58,9 @@ export function documentosReales(): { simple: DocumentoFiscal; mixta: DocumentoF
       observaciones: 'Entrega a domicilio',
     },
     autorizacion('01'), 2, { reloj },
-  );
+  ));
   const anulada = anularDocumento(mixta, { motivo: 'Cantidad equivocada', reloj });
-  const nota = construirDocumento(
+  const nota = sinHora(construirDocumento(
     {
       tipoDocumento: '06',
       emisor: EMISOR,
@@ -61,7 +70,7 @@ export function documentosReales(): { simple: DocumentoFiscal; mixta: DocumentoF
       lineas: [{ descripcion: 'Clavos 2"', cantidad: 1, precioUnitario: '100.00' }],
     },
     autorizacion('06'), 1, { reloj },
-  );
+  ));
   return { simple, mixta, anulada, nota };
 }
 

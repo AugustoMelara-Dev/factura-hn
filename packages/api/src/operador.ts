@@ -6,7 +6,7 @@ import type pg from 'pg';
 import { registrarAutorizacion } from 'factura-hn';
 import { autorizacionDemo, EMISOR_DEMO, LEYENDA_PRUEBA, PREFIJO_CAI_DEMO } from 'factura-hn/demo';
 import { AlmacenPostgres } from '@factura-hn/postgres';
-import { generarLlave, type ModoTenant, type RolLlave } from './llaves';
+import { generarLlave, generarTokenMcp, type ModoTenant, type RolLlave } from './llaves';
 import { ROL_POR_DEFECTO } from './esquema';
 import { CONSOLA_POR_DEFECTO } from './errores';
 
@@ -58,7 +58,15 @@ export async function crearTenant(
   if (TENANTS_RESERVADOS.includes(o.tenant)) {
     throw new Error(`El nombre «${o.tenant}» está reservado (el servidor usa «local» y «demo» en modo local): elige otro.`);
   }
-  return crearTenantSinReserva(pool, o);
+  try {
+    return await crearTenantSinReserva(pool, o);
+  } catch (e) {
+    // 23505: el tenant ya existe (clave primaria de api_tenants).
+    if ((e as { code?: string }).code === '23505' && (e as { constraint?: string }).constraint === 'api_tenants_pkey') {
+      throw new Error(`El tenant «${o.tenant}» ya existe. Para otra llave: llave crear ${o.tenant} --rol admin`);
+    }
+    throw e;
+  }
 }
 
 async function crearTenantSinReserva(
@@ -77,16 +85,24 @@ async function crearTenantSinReserva(
   return { tenant: o.tenant, llaveAdmin: llave, modo };
 }
 
+/** Mensaje cuando se pide un token del MCP por URL que no es de una llave de caja. */
+export const ERROR_TOKEN_MCP_SOLO_CAJA =
+  'El token del MCP por URL solo puede ser de una llave de caja (emite, pero no anula ni administra): usa --rol caja --caja 000-001 con --mcp. Para anular o registrar CAI, usa una llave admin desde la API.';
+
 /**
  * Llave adicional desde la consola del operador (p. ej. si se perdió la única llave admin). Lleva la marca del
- * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción.
+ * modo de su tenant: `fhn_test_…` en uno de prueba y `fhn_live_…` en uno de producción. Con `mcp`, devuelve en su
+ * lugar un token del MCP por HTTP (`fhnmcp_…`) y guarda la llave que se deriva de él, con la misma caja: revocar
+ * esa llave (`DELETE /v1/llaves/{prefijo}`) apaga el token. El token va en una URL, así que solo puede ser de una
+ * llave de caja: quien tenga la URL emite en esa caja, pero no anula ni administra.
  */
 export async function crearLlaveOperador(
   pool: pg.Pool,
-  o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string },
+  o: { tenant: string; rol: RolLlave; nombre: string; establecimiento?: string; puntoEmision?: string; mcp?: boolean },
 ): Promise<string> {
   const est = o.establecimiento || null;
   const pto = o.puntoEmision || null;
+  if (o.mcp && (o.rol !== 'caja' || !est || !pto)) throw new Error(ERROR_TOKEN_MCP_SOLO_CAJA);
   const tresDigitos = /^[0-9]{3}$/;
   if (Boolean(est) !== Boolean(pto) || (o.rol === 'caja' && !est) || (est && !tresDigitos.test(est)) || (pto && !tresDigitos.test(pto))) {
     throw new Error('Una llave de caja se ata a un establecimiento y punto de emisión: --caja 000-001.');
@@ -95,15 +111,16 @@ export async function crearLlaveOperador(
   if (!modo) {
     throw new Error(`El tenant «${o.tenant}» no existe: arranca la API una vez (crea «${TENANT_LOCAL}») o créalo con «tenant crear».`);
   }
-  const { llave, prefijo, hash } = generarLlave(modo);
+  const mcp = o.mcp ? generarTokenMcp(modo) : null;
+  const { llave, prefijo, hash } = mcp ?? generarLlave(modo);
   await enTenant(pool, o.tenant, async (c) => {
     await c.query(
       'INSERT INTO api_llaves (prefijo, tenant, hash, rol, nombre, establecimiento, punto_emision) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [prefijo, o.tenant, hash, o.rol, o.nombre, est, pto],
     );
-    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo })]);
+    await c.query("INSERT INTO api_bitacora (tenant, actor, accion, detalle) VALUES ($1, 'operador', 'llave.creada', $2)", [o.tenant, JSON.stringify({ prefijo, rol: o.rol, modo, ...(mcp ? { mcp: true } : {}) })]);
   });
-  return llave;
+  return mcp ? mcp.token : llave;
 }
 
 /**
@@ -302,7 +319,7 @@ const TABLAS_CON_TENANT = [
 ] as const;
 
 /**
- * Por qué una base no sirve para el modo demo, o `[]`. La demostración pública no debe compartir base con datos
+ * Por qué una base no sirve para el modo demo, o `[]`. El modo demo no debe compartir base con datos
  * reales, y la revisión falla cerrada: cualquier tenant con filas en cualquier tabla (aunque no tenga llaves) que no
  * sea un entorno de la demostración, cualquier tenant de producción y cualquier CAI real (en autorizaciones o en
  * documentos) la descartan. Corre con el dueño de las tablas. Como varias tablas fuerzan RLS también a su dueño, en
@@ -349,7 +366,7 @@ export async function datosRealesEnBase(pool: pg.Pool): Promise<string[]> {
 export function errorDatosRealesEnDemo(motivos: string[]): string {
   return [
     `FHN_MODO=demo necesita una base solo para la demostración, y esta tiene datos reales: ${motivos.join('; ')}.`,
-    'La demostración pública la usa cualquiera: crea una base aparte para ella (p. ej. factura_hn_demo) y no la compartas',
+    'El modo demo lo usa cualquiera: crea una base aparte para ella (p. ej. factura_hn_demo) y no la compartas',
     'con la de ningún negocio.',
   ].join('\n');
 }

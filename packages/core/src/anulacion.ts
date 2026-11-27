@@ -10,7 +10,8 @@
  * - El documento emitido es inmutable. Anular devuelve un documento **nuevo** con `estado: 'ANULADO'`;
  *   el original no se modifica.
  * - El número y el correlativo se conservan: un número anulado nunca se reutiliza.
- * - El motivo es obligatorio (no lo exige el Art. 41 de forma literal; se exige por auditoría, Art. 53 num. 2).
+ * - factura-hn exige el motivo: queda en el documento y en la bitácora de auditoría (los controles de auditoría del
+ *   Art. 53 num. 2).
  * - No se puede anular dos veces ni «reactivar» un documento anulado.
  * - La fecha de anulación la pone el reloj de Honduras (no es la fecha de emisión, que no cambia).
  */
@@ -43,10 +44,14 @@ export function anularDocumento(doc: DocumentoFiscal, opciones: OpcionesAnulacio
       { codigo: 'YA_ANULADO', mensaje: `El documento ${doc.numero} ya está ANULADO (Art. 41). No se puede anular dos veces ni reactivar.`, campo: 'estado' },
     ]);
   }
-  const motivo = opciones.motivo?.trim();
+  const motivo = typeof opciones.motivo === 'string' ? opciones.motivo.trim() : '';
   if (!motivo) {
     throw new ErrorValidacion([
-      { codigo: 'ANULACION_MOTIVO', mensaje: 'La anulación requiere un motivo.', campo: 'motivo' },
+      {
+        codigo: 'ANULACION_MOTIVO',
+        mensaje: opciones.motivo === undefined || typeof opciones.motivo === 'string' ? 'La anulación requiere un motivo.' : 'El motivo de la anulación debe ser texto.',
+        campo: 'motivo',
+      },
     ]);
   }
   // El motivo queda en el documento y en la bitácora: sin caracteres de control (TEXTO_CARACTER_NO_PERMITIDO).

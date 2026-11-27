@@ -1,0 +1,54 @@
+# Windows, macOS y Linux con Node 20, 22 y 24: build, pruebas de los paquetes y una prueba de punta a punta como la
+# de un usuario real (pnpm pack, npm install en un proyecto nuevo, npx factura-hn init/demo, el ejemplo del README
+# y el MCP por stdio). Los pasos van sin `shell:`: bash en Linux y macOS, PowerShell en Windows.
+# Las acciones van fijadas por SHA (con la versión en el comentario), las mismas que ci.yml.
+name: Multiplataforma
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multiplataforma-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multiplataforma:
+    name: ${{ matrix.os }} · Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Node 20 es el piso de `engines` de factura-hn. sqlite y MCP usan node:sqlite en sus pruebas, y
+        # @factura-hn/mcp pide Node 22.13 o más: en Node 20 sus pruebas y el paso MCP del e2e se omiten.
+        node: [20, 22, 24]
+    env:
+      TZ: UTC # las fechas fiscales salen de America/Tegucigalpa, no de la zona del equipo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      # Sin las dependencias de colecciones/ (CLI de Bruno): solo las usa el trabajo «colecciones» de ci.yml.
+      - run: pnpm install --frozen-lockfile --filter '!@factura-hn/colecciones'
+      - name: Build
+        run: pnpm build
+      - name: Pruebas de los paquetes
+        if: matrix.node != 20
+        run: pnpm test
+      - name: Pruebas de los paquetes en Node 20 (sin sqlite ni MCP, que usan node:sqlite)
+        if: matrix.node == 20
+        run: pnpm -r --filter "./packages/*" --filter "!@factura-hn/sqlite" --filter "!@factura-hn/mcp" test
+      - name: Punta a punta como usuario (pack, npm install, init, emitir.mjs, demo, README y MCP)
+        run: node scripts/e2e-usuario.mjs

@@ -1,6 +1,6 @@
 ---
 title: Servidor MCP
-description: Guía de entrada del servidor MCP de factura-hn — un asistente de IA emite, consulta y anula con las mismas reglas, en tu equipo o con una URL remota.
+description: Guía de entrada del servidor MCP de factura-hn — un asistente de IA emite, consulta y anula con las mismas reglas, por stdio o por HTTP.
 sidebar:
   label: MCP
   hidden: true
@@ -23,13 +23,12 @@ npx -y @factura-hn/mcp init --demo
 
 Crea una base SQLite de prueba con un emisor y un CAI ficticios e imprime el bloque `mcpServers`. Pégalo en la
 configuración de tu cliente MCP, reinícialo y pide: «emite una factura de prueba». Dónde va el bloque en cada
-cliente: [Servidor MCP](/ia/mcp/#pruébalo-en-3-pasos).
+cliente: [Servidor MCP](/ia/mcp/#empieza-en-3-pasos).
 
-## Desde la web o el teléfono (remoto)
+## Por HTTP
 
-En [Pruébalo ahora](/probar/) creas un entorno de prueba con tu **URL personal del MCP**. La pegas como conector
-personalizado en Claude (web, escritorio y móvil) o en ChatGPT, sin instalar nada. El entorno dura 24 horas y
-luego se borra con todo lo emitido. Los pasos para Claude y ChatGPT están en [MCP remoto](/ia/mcp-remoto/).
+`npx -y @factura-hn/mcp http` sirve el mismo servidor por Streamable HTTP, contra tu API, para clientes que se
+conectan por URL. Ver [Servidor MCP: por HTTP](/ia/mcp/#por-http).
 
 ## Las herramientas
 
@@ -39,6 +38,5 @@ tu cliente lo permite.
 
 ## Sigue con
 
-- [MCP remoto](/ia/mcp-remoto/): conectar la URL personal en Claude o ChatGPT, y los límites de la demostración.
-- [Servidor MCP](/ia/mcp/): las 7 herramientas, el modo SQLite y el modo API, y la seguridad.
+- [Servidor MCP](/ia/mcp/): las 8 herramientas, el modo SQLite y el modo API, y la seguridad.
 - [IA y agentes](/ia/): prompts, la skill y `llms.txt`.

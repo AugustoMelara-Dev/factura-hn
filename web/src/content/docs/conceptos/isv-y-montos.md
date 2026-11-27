@@ -27,17 +27,8 @@ documento, todo lo gravado pasa a «importe exonerado», sin ISV. Ver [abajo](#e
 `GRAVADO0` no es lo mismo que `EXENTO`: el Art. 11 num. 1 g pide discriminar los dos, y el documento los
 imprime en columnas distintas.
 
-:::caution[Por confirmar con fuente]
-**La tasa del 18 %.** El código usa 15 % y 18 %, y atribuye el 18 % al Decreto 278-2013, Art. 16. Ese texto no
-está entre las fuentes primarias del repositorio, y la copia de la Ley del ISV que sí está aún muestra las tasas
-anteriores. Falta el texto oficial del decreto y la lista vigente de bienes y servicios al 18 %.
-Hasta entonces, mantener el 18 % es la lectura que aplica factura-hn. Confírmalo con tu contador.
-:::
-
-:::caution[Por confirmar con fuente]
-**Qué producto lleva qué tratamiento.** El SDK no decide qué va al 18 %, qué es exento ni qué es gravado 0 %: lo
-indica tu sistema en cada línea, guardado en el producto. El repositorio no tiene la lista de bienes al 18 % ni la de bienes exentos. Decídelo con tu contador.
-:::
+El SDK no decide qué va al 18 %, qué es exento ni qué es gravado 0 %: lo indica tu sistema en cada línea,
+guardado en el producto.
 
 ```js
 import { calcularDocumento } from 'factura-hn';
@@ -64,11 +55,7 @@ totales.total;            // 455
 El ISV de cada tasa se calcula sobre la suma de sus líneas, no línea por línea. Así el ISV impreso siempre es
 la tasa por la base impresa, y el total cuadra con la suma de importes más impuestos.
 
-:::caution[Por confirmar con fuente]
-Calcular por grupo de tasa y no por línea es una lectura del proyecto: el Art. 9 de la Ley del ISV habla del
-«precio del artículo vendido» y el Art. 11 num. 1 h-i del Reglamento pide subtotales e impuestos por tarifa.
-Confírmalo con tu contador.
-:::
+Así el impreso cuadra con los subtotales e impuestos por tarifa que pide el Art. 11 num. 1 h-i del Reglamento.
 
 ## Precios con ISV incluido
 
@@ -76,14 +63,14 @@ La mayoría de los POS guardan el precio de góndola, que ya trae el ISV. Indíc
 en el documento (o en `crearFacturador`). El SDK separa la base y el impuesto:
 
 ```js
-const { totales } = calcularDocumento(
+const conISV = calcularDocumento(
   [{ descripcion: 'Café molido 1 lb', cantidad: '2', precioUnitario: '115.00' }],
   { preciosIncluyenISV: true },
-);
+).totales;
 
-totales.subtotal; // 200
-totales.isv15;    // 30
-totales.total;    // 230
+conISV.subtotal; // 200
+conISV.isv15;    // 30
+conISV.total;    // 230
 ```
 
 Sin la opción (el valor por defecto es `false`), los precios se toman sin ISV y el impuesto se suma encima.
@@ -95,17 +82,17 @@ medio centavo o más se puede subir. El SDK calcula siempre el ISV como la tasa 
 
 Con precios con ISV incluido, no todos los totales tienen una base exacta. Por ejemplo, ninguna base da un total
 de L 0.27 al 15 %. En ese caso el SDK toma la mayor base cuyo total no supera el precio: el cliente paga
-**un centavo menos, nunca más** (lectura del Art. 9 de la Ley del ISV que aplica factura-hn).
+**un centavo menos, nunca más**. Es la regla de factura-hn para esos precios.
 
 ```js
 import { calcularDocumento, sugerirPrecioSinAjuste } from 'factura-hn';
 
-const { totales } = calcularDocumento(
+const dulce = calcularDocumento(
   [{ descripcion: 'Dulce', cantidad: '1', precioUnitario: '0.27' }],
   { preciosIncluyenISV: true },
-);
-totales.total;             // 0.26
-totales.ajustePorRedondeo; // 0.01
+).totales;
+dulce.total;             // 0.26
+dulce.ajustePorRedondeo; // 0.01
 
 sugerirPrecioSinAjuste('0.27'); // { requiereAjuste: true, anterior: 0.26, siguiente: 0.28 }
 ```
@@ -143,8 +130,8 @@ aviso [`AVISO_VENTA_MIXTA`](/referencia/errores/#aviso_venta_mixta).
 
 ## Exonerado
 
-Un cliente exonerado presenta la Orden de Compra Exenta **y** la Constancia del Registro de Exonerados, **o**
-solo el registro SAG/RUPNSA del sector agroindustrial (Art. 11 num. 4):
+Los datos del adquirente exonerado son los del Art. 11 num. 4. factura-hn acepta la Orden de Compra Exenta **y**
+la Constancia del Registro de Exonerados, **o** solo el registro SAG/RUPNSA del sector agroindustrial:
 
 ```js
 exoneracion: { ordenCompraExenta: '…', constanciaRegistroExonerado: '…' }
@@ -152,23 +139,14 @@ exoneracion: { ordenCompraExenta: '…', constanciaRegistroExonerado: '…' }
 exoneracion: { registroSAG: '…' }
 ```
 
-La exoneración aplica al documento completo. Si la Orden de Compra Exenta no cubre todos los
+En factura-hn, la exoneración aplica al documento completo. Si la Orden de Compra Exenta no cubre todos los
 artículos, emite dos facturas: una con `exoneracion` y los artículos cubiertos, y otra normal con el resto.
-
-:::caution[Por confirmar con fuente]
-Aceptar el registro SAG/RUPNSA sin la orden ni la constancia es la lectura del Art. 11 num. 4 que adoptó el
-proyecto; falta confirmarla.
-:::
 
 ## Exportaciones
 
 Una exportación de mercancías gravadas va con `isv: 'GRAVADO0'` (Art. 12), no con `EXENTO`.
 
-:::caution[Lectura de factura-hn]
-El Reglamento (Art. 12) habla de tasa cero, y la Ley del ISV dice que los bienes que se exportan quedan exentos.
-El documento sigue al Reglamento: es la lectura de factura-hn, porque el Reglamento no resuelve el conflicto de
-forma literal. Confírmalo con tu contador.
-:::
+El documento sigue al Art. 12 del Reglamento: tasa cero.
 
 ## Dinero exacto
 

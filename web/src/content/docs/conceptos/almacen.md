@@ -16,7 +16,7 @@ calcula el siguiente número ni guarda el documento por su cuenta.
 
 | Proyecto | Almacén |
 |---|---|
-| PostgreSQL (Supabase, Neon, RDS…), un servidor con varias cajas | `@factura-hn/postgres`: `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
+| PostgreSQL (Neon, RDS, un servidor propio…), un servidor con varias cajas | `@factura-hn/postgres`: `new AlmacenPostgres(pool)` y `await almacen.migrar()` |
 | Una caja sin internet, Electron, una instalación local | `@factura-hn/sqlite`: `new AlmacenSQLite(db)` (Node 20+ con `better-sqlite3`; Node 22.13+ con `node:sqlite`) |
 | Pruebas y demos | `AlmacenFiscalMemoria`, incluido en `factura-hn`. Se pierde al reiniciar |
 | Otra base (MySQL, SQL Server, IndexedDB…) | Implementa `AlmacenFiscal` y hazlo pasar la batería de contrato |
@@ -103,17 +103,14 @@ const caja = crearFacturador({ almacen, emisor, actor: 'caja-1' });
 await caja.emitir(venta, { operador: 'María' });
 
 const bitacora = await eventosAuditoria(almacen, { identificador: '000-001-01' });
-// [{ tipo: 'DOCUMENTO_EMITIDO', numero: '000-001-01-00000001', actor: 'caja-1', operador: 'María', … }]
+// [{ tipo: 'AUTORIZACION_REGISTRADA', identificador: '000-001-01', … },
+//  { tipo: 'DOCUMENTO_EMITIDO', numero: '000-001-01-00000001', actor: 'caja-1', operador: 'María', … }]
 ```
 
 ## Conservación y respaldos
 
-Haz respaldos del almacén: es tu archivo fiscal.
-
-:::caution[Por confirmar con fuente]
-El plazo de conservación de 5 años (Código Tributario, Arts. 58.4 y 63.3) sale de una compilación de 2024 del
-Código Tributario, no de La Gaceta. Falta confirmar que no hubo reformas posteriores.
-:::
+Haz respaldos del almacén: es tu archivo fiscal. Consérvalo al menos 5 años y no borres nada: ver
+[Operación mensual](/produccion/operacion-mensual/).
 
 ## Escribir tu propio almacén
 

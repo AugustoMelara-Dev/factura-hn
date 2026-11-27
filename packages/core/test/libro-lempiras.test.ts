@@ -1,5 +1,5 @@
 /**
- * El libro de ventas va en lempiras (lectura de factura-hn). Un documento en moneda extranjera se convierte con el tipo de
+ * El libro de ventas va en lempiras. Un documento en moneda extranjera se convierte con el tipo de
  * cambio que imprime (Art. 11, párrafo final), campo por campo y redondeando a centavos (Art. 9, Ley del ISV).
  */
 import { describe, expect, it } from 'vitest';
