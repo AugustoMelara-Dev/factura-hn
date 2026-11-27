@@ -58,6 +58,8 @@ services:
       # Tenant «demo» aparte, con CAI FICTICIO (sin validez fiscal). El tenant «local» del negocio queda limpio.
       # Pon "0" en un negocio real para no crearlo.
       FHN_DEMO: "1"
+      # Solo para que el log al arrancar dé la URL exacta en tu equipo (adentro el proceso escucha en 8787).
+      FHN_PUERTO: ${FHN_PUERTO:-8787}
     ports:
       - "127.0.0.1:${FHN_PUERTO:-8787}:8787"
     depends_on:

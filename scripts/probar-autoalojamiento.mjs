@@ -85,6 +85,8 @@ try {
   sh(probar.split('\n').filter((l) => !/^(git clone|cd )/.test(l)).join('\n'));
   const llave = sh(`${emitir}\necho "$LLAVE"`, { capturar: true }).trim().split('\n').at(-1);
   esperar(readFileSync(join(RAIZ, 'factura.pdf')).subarray(0, 5).toString() === '%PDF-', 'los tres pasos dejan factura.pdf');
+  const log = execFileSync('docker', ['compose', 'logs', 'api'], { cwd: RAIZ, env, encoding: 'utf8' });
+  esperar(log.includes(`en http://localhost:${PUERTO} `), `el log de la API da la URL de tu equipo (http://localhost:${PUERTO})`);
   const documentos = Number(sql('SELECT count(*) FROM fhn_documentos'));
   esperar(documentos >= 1, `hay ${documentos} documento(s) emitidos`);
 
