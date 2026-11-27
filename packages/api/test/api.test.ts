@@ -322,6 +322,15 @@ conBase('inyección y entradas hostiles', () => {
     expect((await admin('GET', '/v1/documentos/000-001-01-00000001')).status).toBe(200);
   });
 
+  it('no utilizados de una serie con un tipo que no existe: 422 IDENTIFICADOR, declarado en el contrato', async () => {
+    const { admin } = await tenantListo();
+    for (const identificador of ['000-000-00', '000-001-99']) {
+      const r = await admin('GET', `/v1/series/${identificador}/no-utilizados`);
+      expect(r.status, identificador).toBe(422);
+      expect((await json(r)).errores[0]).toMatchObject({ codigo: 'IDENTIFICADOR', campo: 'identificador' });
+    }
+  });
+
   it('textos con HTML se escapan en la representación impresa', async () => {
     const { admin } = await tenantListo();
     const d = (await json(await emitir(admin, venta('1.00', { documento: { lineas: [{ descripcion: '<script>alert(1)</script>', cantidad: 1, precioUnitario: '1.00' }] } })))).documento;

@@ -1571,7 +1571,8 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
           }),
           'Rangos',
         ),
-        ...respuestasDe(400, 401, 403, 429, 500),
+        // 422 IDENTIFICADOR: el tipo de documento (los dos últimos dígitos) no existe, p. ej. 000-001-99.
+        ...respuestasDe(400, 401, 403, 422, 429, 500),
       },
     }),
     async (c) => {

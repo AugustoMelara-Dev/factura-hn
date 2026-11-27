@@ -4,6 +4,7 @@
 
 Tipos regenerados de la API: el 409 `EMISOR_EXISTE` trae `id` (esquema `ErrorEmisorExiste`) y el 422
 `PERIODO_DEMASIADO_GRANDE` de los reportes trae `documentos` y `maximo` (esquema `ErrorPeriodo`).
+`GET /v1/series/{identificador}/no-utilizados` declara su 422 `IDENTIFICADOR` (un tipo de documento que no existe).
 
 **Cambios incompatibles:**
 
