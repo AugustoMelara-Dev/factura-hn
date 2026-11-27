@@ -41,6 +41,7 @@ import {
   registrarAutorizacionConAvisos,
   renderizarHTML,
   renderizarTexto,
+  TIPOS_DOCUMENTO,
   validarEntrada,
   type AutorizacionCAI,
   type DocumentoFiscal,
@@ -1535,6 +1536,12 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
 
   // --- Series ----------------------------------------------------------------------------------------------
   const rutaSerie = z.object({ identificador: z.string().regex(IDENTIFICADOR).openapi({ example: '000-001-01' }) });
+  // Una consulta con un tipo que no existe (000-001-99) es un error de forma (400), no una serie vacía.
+  const rutaSerieConsulta = z.object({
+    identificador: z.string().regex(IDENTIFICADOR)
+      .refine((id) => id.slice(8) in TIPOS_DOCUMENTO, { message: `el tipo de documento (los dos últimos dígitos) no existe: usa uno de ${Object.keys(TIPOS_DOCUMENTO).join(', ')}` })
+      .openapi({ example: '000-001-01' }),
+  });
   app.openapi(
     createRoute({
       method: 'post', path: '/v1/series/{identificador}/corregir-fecha', operationId: 'corregirFechaSerie', tags: ['Series'], security: seguridad,
@@ -1562,7 +1569,7 @@ export function crearApp(cfg: ConfigApi): OpenAPIHono<Env> {
       method: 'get', path: '/v1/series/{identificador}/no-utilizados', operationId: 'listarNoUtilizados', tags: ['Series'], security: seguridad,
       summary: 'Números que hay que reportar al SAR como no utilizados (Art. 42)',
       description: 'Las autorizaciones de prueba (CAI ficticio) no se reportan al SAR: sus números no aparecen y `aviso` lo dice.',
-      request: { params: rutaSerie },
+      request: { params: rutaSerieConsulta },
       responses: {
         200: json(
           z.object({

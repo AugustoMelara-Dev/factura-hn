@@ -322,6 +322,20 @@ conBase('inyección y entradas hostiles', () => {
     expect((await admin('GET', '/v1/documentos/000-001-01-00000001')).status).toBe(200);
   });
 
+  it('no utilizados de una serie con un tipo de documento que no existe: 400 con el campo, no un 422 fuera del contrato', async () => {
+    const { admin } = await tenantListo();
+    for (const identificador of ['000-000-00', '000-001-99']) {
+      const r = await admin('GET', `/v1/series/${identificador}/no-utilizados`);
+      expect(r.status, identificador).toBe(400);
+      expect((await json(r)).error).toMatchObject({
+        codigo: 'SOLICITUD_INVALIDA',
+        campo: 'identificador',
+        mensaje: expect.stringContaining('el tipo de documento (los dos últimos dígitos) no existe'),
+      });
+    }
+    expect((await admin('GET', '/v1/series/000-001-01/no-utilizados')).status).toBe(200);
+  });
+
   it('textos con HTML se escapan en la representación impresa', async () => {
     const { admin } = await tenantListo();
     const d = (await json(await emitir(admin, venta('1.00', { documento: { lineas: [{ descripcion: '<script>alert(1)</script>', cantidad: 1, precioUnitario: '1.00' }] } })))).documento;
