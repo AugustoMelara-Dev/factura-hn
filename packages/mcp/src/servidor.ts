@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { esDocumentoDePrueba, esFechaValida, fechaHonduras, renderizarTexto, type AutorizacionCAI, type DocumentoFiscal, type Problema } from 'factura-hn';
 import { ErrorBackend, type Backend, type EntradaSinEmisor, type ResultadoEmision } from './backend';
 import { esCAIDemo, LEYENDA_PRUEBA } from './demo';
+import { mensajeEnEspanol } from './mensajes-forma';
 import { conSolucion } from './soluciones';
 import { versionPaquete } from './version';
 
@@ -155,19 +156,6 @@ const resumen = (d: DocumentoFiscal) =>
   (d.advertencias.length ? `\n${comoDatos(`Avisos:\n${d.advertencias.map((a) => `- [${a.codigo}] ${a.mensaje}`).join('\n')}`)}` : '');
 
 // --- Validación de argumentos en español -------------------------------------------------------------------
-
-const LOCALE_ES = z.locales.es().localeError;
-const LOCALE_EN = z.locales.en().localeError;
-const textoDe = (m: unknown): string | undefined => (typeof m === 'string' ? m : (m as { message?: string } | null | undefined)?.message);
-
-/** Mensaje en español de un problema de Zod; un mensaje propio del esquema se respeta (como en la API). */
-function mensajeEnEspanol(issue: z.core.$ZodIssue, datos: unknown): string {
-  const input = issue.path.reduce<unknown>((v, k) => (v !== null && typeof v === 'object' ? (v as Record<PropertyKey, unknown>)[k as PropertyKey] : undefined), datos);
-  if (input === undefined && issue.code === 'invalid_type') return 'Falta este dato (es obligatorio).';
-  const conEntrada = { ...issue, input } as Parameters<typeof LOCALE_ES>[0];
-  if (textoDe(LOCALE_EN(conEntrada)) !== issue.message) return issue.message;
-  return textoDe(LOCALE_ES(conEntrada)) ?? issue.message;
-}
 
 /** Marca del resultado de una validación que falló (ver `validarEnEspanol`). */
 const INVALIDO = Symbol('argumentos inválidos');

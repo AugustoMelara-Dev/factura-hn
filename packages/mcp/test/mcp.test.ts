@@ -558,9 +558,15 @@ describe('argumentos inválidos: en español, con qué hacer y la guía', () => 
       expect(r.texto).toMatch(/\[SOLICITUD_INVALIDA\] .+ \(idempotencyKey\)\n  Qué hacer: .*reutiliza la misma clave.*\n  Guía: /);
     }
     const sinClave = await llamar('emitir_factura', { lineas: linea });
-    expect(sinClave.datos.errores[0].mensaje).toBe('Falta este dato (es obligatorio).');
+    // Los mismos mensajes que la API REST (packages/api/src/mensajes-forma.ts).
+    expect(sinClave.datos.errores[0].mensaje).toBe('falta este dato (es obligatorio)');
     const corta = await llamar('emitir_factura', { lineas: linea, idempotencyKey: 'corta' });
-    expect(corta.datos.errores[0].mensaje).toMatch(/^Demasiado pequeño/);
+    expect(corta.datos.errores[0].mensaje).toBe('debe tener al menos 8 caracteres');
+    const numero = await llamar('consultar_documento', { numero: '1' });
+    expect(numero.datos.errores[0].mensaje).toBe('debe tener el formato 000-001-01-00000001');
+    const tipo = await llamar('registrar_cai', { ...aut('01', 'X'), rangoInicial: 'uno' });
+    expect(tipo.datos.errores.find((e: { campo: string }) => e.campo === 'rangoInicial').mensaje).toBe('debe ser un número (llegó texto)');
+    for (const r of [sinClave, corta, numero, tipo]) expect(JSON.stringify(r.datos)).not.toMatch(/Demasiado|Too small|Invalid/);
   });
 
   it('cada herramienta responde así, también con un número mal escrito o un tipo equivocado', async () => {
