@@ -131,7 +131,7 @@ jobs:
   docker:
     name: Imagen de la API
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,6 +141,16 @@ jobs:
           docker compose up -d --build --wait
           curl -fsS http://127.0.0.1:8787/salud
           docker compose logs api | grep -q "Llave de caja (para emitir)"
+          docker compose logs api | grep -q "en http://localhost:8787 "
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: 'Autoalojamiento: los bloques de docs/autoalojamiento.md tal cual (probar, respaldar y restaurar, contraseñas)'
+        # Proyecto Compose y puerto propios: no choca con el de arriba, que sigue en 8787.
+        env:
+          COMPOSE_PROJECT_NAME: fhn-prueba-autoalojamiento
+          FHN_PUERTO: '8797'
+        run: node scripts/probar-autoalojamiento.mjs
       - if: always()
         run: docker compose down -v
 
