@@ -5305,33 +5305,6 @@
               }
             }
           },
-          "422": {
-            "description": "Reglas fiscales: lista de errores",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "Solicitud-Id": {
-                "$ref": "#/components/headers/Solicitud-Id"
-              },
-              "FacturaHN-Version": {
-                "$ref": "#/components/headers/FacturaHN-Version"
-              },
-              "RateLimit-Policy": {
-                "$ref": "#/components/headers/RateLimit-Policy"
-              },
-              "RateLimit": {
-                "$ref": "#/components/headers/RateLimit"
-              },
-              "FacturaHN-Modo": {
-                "$ref": "#/components/headers/FacturaHN-Modo"
-              }
-            }
-          },
           "429": {
             "description": "Límite de solicitudes (con `Retry-After`)",
             "content": {
