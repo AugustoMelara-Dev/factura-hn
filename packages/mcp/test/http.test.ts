@@ -229,7 +229,7 @@ describe.skipIf(!URL_PG)('MCP remoto contra la API en modo demo', () => {
     try {
       expect(cliente.getServerVersion()?.name).toBe('factura-hn');
       const { tools } = await cliente.listTools();
-      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['emitir_factura', 'consultar_documento', 'anular_documento', 'estado_cai', 'libro_ventas']));
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['emitir_factura', 'consultar_documento', 'listar_documentos', 'anular_documento', 'estado_cai', 'libro_ventas']));
       const r = await llamar(cliente, 'emitir_factura', {
         lineas: [{ descripcion: 'Producto de prueba', cantidad: 2, precioUnitario: '100.00' }],
         idempotencyKey: `http-${randomBytes(6).toString('hex')}`,

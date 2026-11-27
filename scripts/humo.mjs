@@ -250,13 +250,15 @@ async function caminoMCP({ proyecto }) {
   const r = JSON.parse(salidaCliente.trim().split('\n').at(-1));
   const faltan = HERRAMIENTAS_MCP.filter((h) => !r.herramientas.includes(h));
   if (faltan.length) throw new Error(`el servidor MCP no registra ${faltan.join(', ')}`);
+  const sobran = r.herramientas.filter((h) => !HERRAMIENTAS_MCP.includes(h));
+  if (sobran.length) throw new Error(`el servidor MCP registra herramientas que el humo no conoce: ${sobran.join(', ')}`);
   if (r.error || r.datos?.prueba !== true || !r.texto.includes(LEYENDA_PRUEBA)) {
     throw new Error(`emitir_factura no devolvió un documento de prueba: ${JSON.stringify(r)}`);
   }
   return `${r.herramientas.length} herramientas; ${r.datos.documento.numero} de prueba`;
 }
 
-const HERRAMIENTAS_MCP = ['emitir_factura', 'emitir_nota_credito', 'consultar_documento', 'anular_documento', 'estado_cai', 'libro_ventas', 'registrar_cai'];
+const HERRAMIENTAS_MCP = ['emitir_factura', 'emitir_nota_credito', 'consultar_documento', 'listar_documentos', 'anular_documento', 'estado_cai', 'libro_ventas', 'registrar_cai'];
 
 /** Cliente MCP del proyecto de prueba: lee de stdin el servidor (command, args, env, cwd) y emite una factura. */
 const CLIENTE_MCP = `import { Client } from '@modelcontextprotocol/sdk/client/index.js';
