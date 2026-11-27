@@ -49,12 +49,6 @@ import { CofreSecretos, despacharWebhooks } from './webhooks';
 const UNA_HORA = 3_600_000;
 
 /**
- * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Recorre
- * el rol de la conexión y **todos** los roles de los que es miembro (aun con NOINHERIT, puede pasar a ellos con
- * `SET ROLE`): ninguno puede ser superusuario, tener BYPASSRLS, ser `pg_write_all_data` o `pg_read_all_data`,
- * ni ser dueño de una tabla `fhn_*` o `api_*` del esquema.
- */
-/**
  * La línea del log al arrancar. Dentro del contenedor, el puerto del proceso (8787) no es el de tu equipo: Compose
  * publica el de `FHN_PUERTO`. Si el contenedor recibe `FHN_PUERTO`, se da esa URL; si no, no se inventa una.
  */
@@ -88,6 +82,12 @@ export function esperarEscucha(servidor: Server, puerto: number): Promise<number
   });
 }
 
+/**
+ * Por qué la conexión es demasiado poderosa para la API: `[usuario, ...motivos]`, o `[]` si no lo es. Recorre
+ * el rol de la conexión y **todos** los roles de los que es miembro (aun con NOINHERIT, puede pasar a ellos con
+ * `SET ROLE`): ninguno puede ser superusuario, tener BYPASSRLS, ser `pg_write_all_data` o `pg_read_all_data`,
+ * ni ser dueño de una tabla `fhn_*` o `api_*` del esquema.
+ */
 export async function privilegiosDeConexion(pool: pg.Pool): Promise<string[]> {
   const f = (await pool.query<{ usuario: string; superusuario: boolean; bypassrls: boolean; todos_los_datos: boolean; dueno: boolean }>(
     `SELECT current_user AS usuario,
