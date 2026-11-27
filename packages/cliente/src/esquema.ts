@@ -4,30 +4,6 @@
  */
 
 export interface paths {
-    "/v1/demo/entornos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Crea un entorno de prueba propio (solo con el modo demo activo)
-         * @description Solo con `FHN_MODO=demo`; en los demás modos responde 404. Sin llave y sin cuerpo. Crea un entorno aislado para quien llama: un tenant de prueba con emisor y CAI ficticios (`DEMO00-NO-VALIDO-…`), una llave admin `fhn_test_` y, si el servidor lo tiene, la URL del MCP remoto del entorno. Todo lo emitido es DOCUMENTO DE PRUEBA — SIN VALOR FISCAL. El entorno y todos sus datos se borran al vencer (24 h por defecto). Límites: entornos por dirección por día y en todo el servicio (429 `DEMO_LIMITE_ENTORNOS` con `Retry-After`); en pausa, 503 `DEMO_PAUSADO`. CORS solo para los orígenes de `FHN_DEMO_ORIGENES`; una solicitud con otro `Origin` recibe 403 `ORIGEN_NO_PERMITIDO` (sin `Origin`, p. ej. curl, se atiende).
-         */
-        post: operations["crearEntornoDemo"];
-        delete?: never;
-        /**
-         * Preflight CORS de la creación de entornos
-         * @description Con `FHN_MODO=demo` y un `Origin` de `FHN_DEMO_ORIGENES`, lleva las cabeceras `Access-Control-*`; si no, ninguna.
-         */
-        options: operations["preflightEntornoDemo"];
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/salud": {
         parameters: {
             query?: never;
@@ -448,60 +424,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        RespuestaEntornoDemo: {
-            entorno: {
-                /** @description Identificador del entorno (su tenant), p. ej. `demo-3f9c…`. */
-                id: string;
-                /** @description Instante de creación (ISO 8601, UTC). */
-                creado: string;
-                /** @description Instante en que el entorno se borra con todos sus datos (ISO 8601, UTC). */
-                expira: string;
-                /** @enum {string} */
-                modo: "prueba";
-                /** @description DOCUMENTO DE PRUEBA — SIN VALOR FISCAL: todo lo que emitas aquí la lleva. */
-                leyenda: string;
-                /** @example 000 */
-                establecimiento: string;
-                /** @example 001 */
-                puntoEmision: string;
-                /** @description El emisor ficticio del entorno. No se puede cambiar en modo demo. */
-                emisor: {
-                    rtn: string;
-                    razonSocial: string;
-                    nombreComercial?: string;
-                };
-                limites: {
-                    /** @description Documentos que puede emitir el entorno. */
-                    documentos: number;
-                    /** @description Solicitudes por minuto del entorno (llave y MCP juntos). */
-                    solicitudesPorMinuto: number;
-                    /** @description Solicitudes en toda la vida del entorno. */
-                    solicitudesTotales: number;
-                    maxCuerpoBytes: number;
-                };
-            };
-            /** @description Llave admin `fhn_test_…` del entorno, para `Authorization: Bearer`. Solo se muestra esta vez. */
-            llave: string;
-            /** @description null si este servidor no tiene MCP remoto configurado. */
-            mcp: {
-                /** @description URL del MCP remoto del entorno: pégala como conector personalizado en Claude o ChatGPT, sin autenticación. */
-                url: string;
-                /** @description Prefijo de la llave del MCP: `DELETE /v1/llaves/{prefijo}` con tu llave revoca la URL. */
-                prefijo: string;
-            } | null;
-            api: {
-                url: string;
-            };
-            ejemplos: {
-                /** @description Emitir una factura de prueba con curl. */
-                curl: string;
-                /** @description Lo mismo con el cliente `@factura-hn/cliente`. */
-                sdk: string;
-                /** @description Cómo agregar el MCP remoto en Claude o ChatGPT. */
-                mcp: string;
-            };
-            aviso: string;
-        };
         Error: {
             error: {
                 codigo: string;
@@ -555,6 +477,13 @@ export interface components {
             direccionesEstablecimiento?: {
                 [key: string]: string;
             };
+        };
+        ErrorEmisorExiste: components["schemas"]["Error"] & {
+            /**
+             * Format: uuid
+             * @description Id del emisor que ya existe: cámbialo con `PATCH /v1/emisores/{id}`.
+             */
+            id: string;
         };
         EmisorCambios: {
             rtn?: string;
@@ -840,6 +769,12 @@ export interface components {
              */
             operador?: string;
         };
+        ErrorPeriodo: components["schemas"]["Error"] & {
+            /** @description Con `PERIODO_DEMASIADO_GRANDE`: documentos del período. */
+            documentos?: number;
+            /** @description Con `PERIODO_DEMASIADO_GRANDE`: máximo de documentos por reporte. */
+            maximo?: number;
+        };
         RespuestaLlaveNueva: {
             llave: components["schemas"]["Llave"];
             /** @description La llave completa para `Authorization: Bearer`: `fhn_live_<prefijo>_<secreto>` en un tenant de producción o `fhn_test_<prefijo>_<secreto>` en uno de prueba. Solo se muestra esta vez. */
@@ -942,154 +877,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    crearEntornoDemo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Entorno creado. La llave y la URL del MCP se muestran solo esta vez. */
-            201: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RespuestaEntornoDemo"];
-                };
-            };
-            /** @description La solicitud viene de una página de otro sitio (ORIGEN_NO_PERMITIDO) */
-            403: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Este servidor no está en modo demo (NO_ENCONTRADO) */
-            404: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
-            413: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Límite de solicitudes (con `Retry-After`) */
-            429: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
-                    "Retry-After": components["headers"]["Retry-After"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
-            500: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key. */
-            503: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "FacturaHN-Modo": components["headers"]["FacturaHN-Modo"];
-                    "Retry-After": components["headers"]["Retry-After"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    preflightEntornoDemo: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Sin cuerpo */
-            204: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
-            413: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Error interno (ERROR_INTERNO). Al reportarlo, cita `error.solicitud` o la cabecera `Solicitud-Id`. */
-            500: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description La base de datos no está disponible por un momento (BASE_NO_DISPONIBLE), con `Retry-After`. Reintenta; al emitir, con la misma Idempotency-Key. */
-            503: {
-                headers: {
-                    "Solicitud-Id": components["headers"]["Solicitud-Id"];
-                    "FacturaHN-Version": components["headers"]["FacturaHN-Version"];
-                    "Retry-After": components["headers"]["Retry-After"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
     obtenerSalud: {
         parameters: {
             query?: never;
@@ -1305,7 +1092,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Ya existe */
+            /** @description Ya existe (EMISOR_EXISTE), con el `id` del emisor actual */
             409: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -1316,7 +1103,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorEmisorExiste"];
                 };
             };
             /** @description El cuerpo supera 512 KB (CUERPO_DEMASIADO_GRANDE). Lo puede dar cualquier operación que no sea GET, aunque no espere cuerpo. */
@@ -3108,7 +2895,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Reglas fiscales: lista de errores */
+            /** @description El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE) */
             422: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -3119,7 +2906,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorPeriodo"];
                 };
             };
             /** @description Límite de solicitudes (con `Retry-After`) */
@@ -3238,7 +3025,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Reglas fiscales: lista de errores */
+            /** @description El período tiene más documentos que el máximo por reporte (PERIODO_DEMASIADO_GRANDE) */
             422: {
                 headers: {
                     "Solicitud-Id": components["headers"]["Solicitud-Id"];
@@ -3249,7 +3036,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": components["schemas"]["ErrorPeriodo"];
                 };
             };
             /** @description Límite de solicitudes (con `Retry-After`) */

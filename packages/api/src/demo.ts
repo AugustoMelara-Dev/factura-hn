@@ -46,6 +46,13 @@ export const ORIGENES_DEMO_POR_DEFECTO = ['https://augustomelara-dev.github.io']
 
 export const RUTA_ENTORNOS_DEMO = '/v1/demo/entornos';
 
+/**
+ * Operaciones que el servidor atiende pero no publica en la especificación (`/openapi.json`, `/docs`, el cliente y
+ * las colecciones): las del modo demo, que fuera de `FHN_MODO=demo` responden 404. Las pruebas de contrato exigen
+ * que toda otra ruta esté en la especificación.
+ */
+export const OPERACIONES_NO_PUBLICADAS: readonly string[] = [`POST ${RUTA_ENTORNOS_DEMO}`, `OPTIONS ${RUTA_ENTORNOS_DEMO}`];
+
 const entero = (env: NodeJS.ProcessEnv, nombre: string, defecto: number, min: number, max: number): number => {
   const t = env[nombre]?.trim();
   if (!t) return defecto;

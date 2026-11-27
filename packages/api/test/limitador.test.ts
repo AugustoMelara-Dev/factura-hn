@@ -235,14 +235,34 @@ conBase('límite de solicitudes', () => {
     expect(f.map((r) => r.status)).toEqual([401, 401, 401, 429, 429, 429]);
   });
 
-  it('con lugares libres en el semáforo, una dirección sin fichas no recibe 429 (cajas tras la puerta de enlace de Docker)', async () => {
+  it('intentos seguidos (uno tras otro, sin cola) también gastan la ráfaga de la dirección', async () => {
     const { app, admin } = await tenantListo({ limiteIntentos: { porSegundo: 0.01, rafaga: 2 } });
     const ip = '198.51.100.23';
     const estados: number[] = [];
     for (let i = 0; i < 5; i++) estados.push((await cliente(app, llaveFalsa(), { ip })('GET', '/v1/sesion')).status);
-    expect(estados).toEqual([401, 401, 401, 401, 401]);
-    // Una caja nueva para el proceso, desde la misma dirección, entra.
-    expect((await cliente(app, await crearCaja(admin, '001'), { ip })('GET', '/v1/sesion')).status).toBe(200);
+    expect(estados).toEqual([401, 401, 429, 429, 429]);
+    // Una caja que el proceso no conoce, desde esa dirección, espera su Retry-After; desde otra dirección entra, y
+    // una vez validada ya no pasa por este límite.
+    const caja = await crearCaja(admin, '001');
+    const frenada = await cliente(app, caja, { ip })('GET', '/v1/sesion');
+    expect(frenada.status).toBe(429);
+    expect(frenada.headers.get('retry-after')).toMatch(/^\d+$/);
+    expect((await cliente(app, caja, { ip: '198.51.100.24' })('GET', '/v1/sesion')).status).toBe(200);
+    expect((await cliente(app, caja, { ip })('GET', '/v1/sesion')).status).toBe(200);
+  });
+
+  it('con los valores por omisión (2 por segundo, ráfaga de 20), 60 llaves inexistentes seguidas se frenan', async () => {
+    const app = crearApp({ pool: await poolPrueba(), modo: 'local', rol: ROL, registrar: () => undefined });
+    const ip = '198.51.100.25';
+    const inicio = Date.now();
+    const estados: number[] = [];
+    for (let i = 0; i < 60; i++) estados.push((await cliente(app, llaveFalsa(), { ip })('GET', '/v1/sesion')).status);
+    const segundos = (Date.now() - inicio) / 1000;
+    const atendidas = estados.filter((s) => s === 401).length;
+    // A lo sumo la ráfaga más lo que se recupera en el tiempo que tardaron; el resto, 429 sin consultar la base.
+    expect(atendidas).toBeLessThanOrEqual(20 + Math.ceil(2 * segundos));
+    expect(estados.filter((s) => s === 429).length).toBe(60 - atendidas);
+    expect(estados.slice(0, 20).every((s) => s === 401)).toBe(true);
   });
 
   it('una dirección con muchos prefijos conocidos no llena la cola: con el semáforo saturado, a lo sumo «rafaga» consultas en curso', async () => {

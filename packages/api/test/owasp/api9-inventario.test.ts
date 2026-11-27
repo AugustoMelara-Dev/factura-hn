@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { crearApp, VERSION_API } from '../../src/app';
+import { OPERACIONES_NO_PUBLICADAS } from '../../src/demo';
 import { ROL } from '../ayuda';
 import { operaciones } from './comun';
 
@@ -29,9 +30,10 @@ const rutasServidor = () =>
   [...new Set(app.routes.filter((r) => r.method !== 'ALL').map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, '{$1}')}`))].sort();
 
 describe('API9 · inventario de rutas y versiones', () => {
-  it('el servidor atiende exactamente lo que publica la especificación, más /openapi.json, /docs y /', () => {
+  it('el servidor atiende exactamente lo que publica la especificación, más /openapi.json, /docs, / y la lista explícita de no publicadas', () => {
     const publicadas = opsDe(vivo).map((o) => o.clave);
-    expect(rutasServidor()).toEqual([...publicadas, 'GET /openapi.json', 'GET /docs', 'GET /'].sort());
+    expect(OPERACIONES_NO_PUBLICADAS.filter((o) => publicadas.includes(o)), 'no publicadas que sí están en la especificación').toEqual([]);
+    expect(rutasServidor()).toEqual([...publicadas, ...OPERACIONES_NO_PUBLICADAS, 'GET /openapi.json', 'GET /docs', 'GET /'].sort());
   });
 
   it('los middleware (método ALL) son exactamente los conocidos: un manejador con app.all() no se cuela sin documentar', () => {
@@ -51,16 +53,16 @@ describe('API9 · inventario de rutas y versiones', () => {
 
   it('el catálogo de las pruebas OWASP cubre todas las operaciones: una ruta nueva no queda sin probar', () => {
     const catalogo = operaciones({ emisorId: 'e', numero: '000-001-01-00000001', cai: 'c', webhookId: 'w', entregaId: 'x', prefijoCaja: 'p' });
-    // Más las públicas: /salud y la demo (ver demo.test.ts, con sus límites, CORS y aislamiento).
-    const publicas = ['GET /salud obtenerSalud', 'POST /v1/demo/entornos crearEntornoDemo', 'OPTIONS /v1/demo/entornos preflightEntornoDemo'];
+    // Más la pública /salud. Las del modo demo no se publican (ver demo.test.ts, con sus límites, CORS y aislamiento).
+    const publicas = ['GET /salud obtenerSalud'];
     expect([...catalogo.map((o) => `${o.metodo} ${o.plantilla} ${o.operationId}`), ...publicas].sort()).toEqual(
       opsDe(vivo).map((o) => `${o.clave} ${o.operationId}`).sort(),
     );
   });
 
-  it('solo /salud y la creación de entornos de la demo son públicas; todas las demás piden la llave y declaran 401', () => {
+  it('solo /salud es pública; todas las demás piden la llave y declaran 401', () => {
     for (const o of opsDe(vivo)) {
-      if (['obtenerSalud', 'crearEntornoDemo', 'preflightEntornoDemo'].includes(o.operationId)) {
+      if (o.operationId === 'obtenerSalud') {
         expect(o.security).toEqual([]);
         continue;
       }

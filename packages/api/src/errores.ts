@@ -144,12 +144,15 @@ export function soluciones({ consola, modo, hayDemo = false }: ContextoGuia): Re
 
 /**
  * Agrega `solucion` y `documentacion` al error y a cada uno de `errores`. En 422 (`VALIDACION`), el error
- * principal toma la solución del primer problema que tenga una. No reemplaza lo que ya traiga un problema.
+ * principal toma la solución del primer problema que tenga una. Para un código de la tabla de la API, su solución
+ * reemplaza la del SDK (que habla de funciones como `registrarAutorizacion`, no de rutas); los demás problemas
+ * conservan la suya.
  */
 export function conSolucion(cuerpo: CuerpoError, tabla: Record<string, string>): CuerpoError {
   const errores = cuerpo.errores?.map((p): ProblemaApi => {
-    const solucion = p.solucion ?? tabla[p.codigo];
-    return { ...p, ...(solucion ? { solucion } : {}), documentacion: p.documentacion ?? documentacionDe(p.codigo) };
+    const deLaApi = tabla[p.codigo];
+    const solucion = deLaApi ?? p.solucion;
+    return { ...p, ...(solucion ? { solucion } : {}), documentacion: deLaApi ? documentacionDe(p.codigo) : (p.documentacion ?? documentacionDe(p.codigo)) };
   });
   let codigoGuia = cuerpo.error.codigo;
   if (codigoGuia === 'VALIDACION') {

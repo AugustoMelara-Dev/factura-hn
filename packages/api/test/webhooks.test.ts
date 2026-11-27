@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   CofreSecretos,
@@ -224,14 +225,14 @@ describe.skipIf(!URL_PG)('entregas', () => {
 
   it('entrega real por HTTP (sin fetch inyectado) a un receptor local, con firma verificable', async () => {
     const http = await import('node:http');
-    let resolver!: (v: { cuerpo: string; firma: string }) => void;
-    const recibido = new Promise<{ cuerpo: string; firma: string }>((r) => (resolver = r));
+    let resolver!: (v: { cuerpo: string; firma: string; agente: string }) => void;
+    const recibido = new Promise<{ cuerpo: string; firma: string; agente: string }>((r) => (resolver = r));
     const srv = http.createServer((req, res) => {
       let cuerpo = '';
       req.on('data', (d) => (cuerpo += d));
       req.on('end', () => {
         res.end('ok');
-        resolver({ cuerpo, firma: String(req.headers['x-facturahn-firma']) });
+        resolver({ cuerpo, firma: String(req.headers['x-facturahn-firma']), agente: String(req.headers['user-agent']) });
       });
     });
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
@@ -242,8 +243,11 @@ describe.skipIf(!URL_PG)('entregas', () => {
       const { secreto } = (await (await admin('POST', '/v1/webhooks', { url: `http://127.0.0.1:${puerto}/hook`, eventos: ['documento.emitido'] })).json()) as { secreto: string };
       await admin('POST', '/v1/documentos', venta(), { 'idempotency-key': randomUUID() });
       await despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true });
-      const { cuerpo, firma } = await recibido;
+      const { cuerpo, firma, agente } = await recibido;
       expect(verificarFirmaWebhook(cuerpo, firma, secreto)).toBe(true);
+      // El User-Agent lleva la versión del paquete, no una fija.
+      const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+      expect(agente).toBe(`factura-hn-webhooks/${version}`);
       const e = await pool.query('SELECT estado, ultimo_codigo FROM api_entregas WHERE tenant = $1', [tenant]);
       expect(e.rows).toEqual([{ estado: 'ENTREGADA', ultimo_codigo: 200 }]);
     } finally {
@@ -254,13 +258,26 @@ describe.skipIf(!URL_PG)('entregas', () => {
   it('un receptor que responde byte a byte no pasa del tiempo máximo ni retrasa a otro tenant', async () => {
     const http = await import('node:http');
     // Receptor lento: responde una cabecera válida de a un byte cada 50 ms, sin terminarla nunca.
+    // Se mide cuánto queda abierta su conexión: es lo que acota `tiempoMaximo`. La pasada completa también consulta
+    // la base, y en un equipo cargado eso solo puede tardar más que el tope sin que el tope falle.
     const sockets = new Set<import('node:net').Socket>();
     const lento = http.createServer();
+    let conectado!: () => void;
+    const conexion = new Promise<void>((r) => (conectado = r));
+    let cerrado!: () => void;
+    const cierre = new Promise<void>((r) => (cerrado = r));
+    let abierta = -1;
     lento.on('connection', (s) => {
       sockets.add(s);
+      const desde = Date.now();
+      conectado();
       s.write('HTTP/1.1 200 OK\r\nX-Goteo: ');
       const goteo = setInterval(() => s.writable && s.write('a'), 50);
-      s.on('close', () => clearInterval(goteo));
+      s.on('close', () => {
+        clearInterval(goteo);
+        abierta = Date.now() - desde;
+        cerrado();
+      });
     });
     let rapidoRecibio = 0;
     const rapido = http.createServer((req, res) => {
@@ -283,13 +300,15 @@ describe.skipIf(!URL_PG)('entregas', () => {
 
       // Tope total por entrega: con 300 ms, la entrega lenta termina en «Tiempo agotado» poco después.
       const enCurso = new Set<string>();
-      const inicio = Date.now();
       const pasada = despacharWebhooks({ pool, rol: ROL, cofre: new CofreSecretos(null), permitirRedInterna: true, tiempoMaximo: 300, enCurso });
-      // Mientras el tenant lento está en curso, otra pasada lo omite y atiende al otro.
-      await new Promise((r) => setTimeout(r, 50));
+      // Mientras el receptor lento tiene la conexión abierta, su tenant está en curso.
+      await conexion;
       expect(enCurso.has(a.tenant)).toBe(true);
       await pasada;
-      expect(Date.now() - inicio).toBeLessThan(2_000);
+      // El goteo nunca termina la respuesta: sin el tope, la conexión seguiría abierta los 10 s del tope por omisión.
+      await cierre;
+      expect(abierta).toBeGreaterThanOrEqual(250);
+      expect(abierta).toBeLessThan(2_000);
       expect(enCurso.size).toBe(0);
       const estado = async (t: string) => (await pool.query('SELECT estado, ultimo_error FROM api_entregas WHERE tenant = $1', [t])).rows;
       expect(await estado(a.tenant)).toEqual([{ estado: 'PENDIENTE', ultimo_error: 'Tiempo agotado' }]);

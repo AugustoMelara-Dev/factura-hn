@@ -7,8 +7,8 @@ import { esFechaValida } from 'factura-hn';
 
 /**
  * Entero de `min` a `max` (o desde `min`) con un mensaje propio en español para cualquier falla de tipo, decimal o
- * rango: «Debe ser un número entero de 0 a 168». Sin él, Zod traduce «Demasiado grande: se esperaba que número
- * fuera <=168». Un campo que falta conserva el mensaje de campo obligatorio. Con `texto`, el valor llega como texto
+ * rango: «Debe ser un número entero de 0 a 168». Sin él, cada falla daría su propio mensaje («debe ser menor o igual que
+ * 168», «debe ser un número entero…»). Un campo que falta conserva el mensaje de campo obligatorio. Con `texto`, el valor llega como texto
  * (parámetros de la consulta) y se convierte.
  */
 export function Entero(min: number, max?: number, o: { texto?: boolean } = {}) {
@@ -72,6 +72,17 @@ export const ErrorRespuesta = z
     advertencias: z.array(Problema).optional(),
   })
   .openapi('Error');
+
+/** El 409 `EMISOR_EXISTE` lleva además el `id` del emisor que ya existe. */
+export const ErrorEmisorExiste = ErrorRespuesta.extend({
+  id: z.string().uuid().openapi({ description: 'Id del emisor que ya existe: cámbialo con `PATCH /v1/emisores/{id}`.' }),
+}).openapi('ErrorEmisorExiste');
+
+/** El 422 de un reporte: con `PERIODO_DEMASIADO_GRANDE`, cuántos documentos tiene el período y el máximo. */
+export const ErrorPeriodo = ErrorRespuesta.extend({
+  documentos: z.number().int().optional().openapi({ description: 'Con `PERIODO_DEMASIADO_GRANDE`: documentos del período.' }),
+  maximo: z.number().int().optional().openapi({ description: 'Con `PERIODO_DEMASIADO_GRANDE`: máximo de documentos por reporte.' }),
+}).openapi('ErrorPeriodo');
 
 export const Emisor = z
   .object({

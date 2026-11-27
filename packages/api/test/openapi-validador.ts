@@ -2,8 +2,10 @@
  * Validador de respuestas contra `packages/api/openapi.json` (el archivo publicado, no la especificación en memoria).
  *
  * Para cada respuesta de la API:
- * - la operación (método + ruta) existe en la especificación; fuera de ella solo valen `/openapi.json`, `/docs` y el
- *   404 `NO_ENCONTRADO` de una ruta que no existe (ver `FUERA_DE_LA_ESPECIFICACION`);
+ * - la operación (método + ruta) existe en la especificación; fuera de ella solo valen `/openapi.json`, `/docs`, el
+ *   404 `NO_ENCONTRADO` de una ruta que no existe (ver `FUERA_DE_LA_ESPECIFICACION`) y la lista explícita de
+ *   operaciones no publicadas (`OPERACIONES_NO_PUBLICADAS`, las del modo demo), de las que se revisan las cabeceras
+ *   comunes y la forma de error. Una ruta nueva que no esté en ninguna de las dos hace fallar la prueba;
  * - el estado está declarado en la operación;
  * - el tipo de contenido está declarado para ese estado y, si es JSON, el cuerpo cumple su esquema (ajv, JSON
  *   Schema 2020-12, el dialecto de OpenAPI 3.1);
@@ -13,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import { OPERACIONES_NO_PUBLICADAS } from '../src/demo';
 
 type Esquema = Record<string, unknown>;
 interface RespuestaSpec { content?: Record<string, { schema?: Esquema }>; headers?: Record<string, { $ref?: string; schema?: Esquema; required?: boolean }> }
@@ -71,6 +74,17 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
   if (/^application\/json(?:\s*;|\s*$)/i.test(tipoCompleto) && !/;\s*charset=utf-8\s*$/i.test(tipoCompleto)) violaciones.push(`${metodo} ${ruta}: JSON sin charset=utf-8 («${tipoCompleto}»)`);
 
   const hallada = rutas.find((x) => x.patron.test(ruta) && SPEC.paths[x.plantilla]![m]);
+  if (!hallada && OPERACIONES_NO_PUBLICADAS.includes(`${m.toUpperCase()} ${ruta}`)) {
+    // No publicadas: sin esquema de éxito en la especificación (sus pruebas revisan el cuerpo); los errores, con la
+    // forma de error de la API, y el preflight sin cuerpo.
+    if (r.status >= 400) {
+      const cuerpo = await leerJSON(r, violaciones);
+      const v = validador(puntero('components', 'schemas', 'Error'));
+      if (cuerpo !== undefined && !v(cuerpo)) violaciones.push(`${metodo} ${ruta} ${r.status}: ${ajv.errorsText(v.errors)}`);
+    } else if (m === 'options' ? r.status !== 204 : r.status !== 201) violaciones.push(`${metodo} ${ruta}: respondió ${r.status}`);
+    if (r.status === 429 && cabeceras.get('retry-after') === null) violaciones.push(`${metodo} ${ruta}: un 429 sin Retry-After`);
+    return { clave: `no publicada ${m.toUpperCase()} ${ruta} ${r.status}`, operacion: null, violaciones };
+  }
   if (!hallada) {
     if (FUERA_DE_LA_ESPECIFICACION.includes(ruta) && m === 'get') return { clave: `fuera ${ruta}`, operacion: null, violaciones };
     // Rutas que una prueba agrega a la app para provocar un error (p. ej. `/prueba-otro-400` en contrato.test.ts).
@@ -160,8 +174,24 @@ export async function validarRespuesta(metodo: string, url: string, r: Response)
     }
     const v = validador(puntero('paths', hallada.plantilla, m, 'responses', op.responses[estado] ? estado : 'default', 'content', tipo, 'schema'));
     if (!v(cuerpo)) violaciones.push(`${clave}: el cuerpo no cumple el esquema: ${ajv.errorsText(v.errors, { separator: '; ' })}`);
+    // Un error no trae campos en la raíz que su esquema no declare (el esquema no los prohíbe: así lo lee un cliente
+    // generado sin fallar si un día se agregan, pero la API debe declararlos).
+    else if (r.status >= 400 && cuerpo !== null && typeof cuerpo === 'object' && !Array.isArray(cuerpo)) {
+      const declarados = propiedadesDe(contenido[tipo]!.schema);
+      const sobran = Object.keys(cuerpo).filter((k) => declarados && !declarados.includes(k));
+      if (sobran.length) violaciones.push(`${clave}: campos en la raíz que la especificación no declara: ${sobran.join(', ')}`);
+    }
   }
   return { clave, operacion: op.operationId, violaciones };
+}
+
+/** Propiedades declaradas de un esquema (siguiendo un `$ref` a components/schemas), o null si no se pueden saber. */
+function propiedadesDe(esquema: Esquema | undefined): string[] | null {
+  let e = esquema;
+  const ref = e?.$ref as string | undefined;
+  if (ref?.startsWith('#/components/schemas/')) e = (SPEC as unknown as { components: { schemas: Record<string, Esquema> } }).components.schemas[ref.split('/').pop()!];
+  const props = e?.properties as Record<string, unknown> | undefined;
+  return props ? Object.keys(props) : null;
 }
 
 async function leerJSON(r: Response, violaciones: string[]): Promise<unknown> {
